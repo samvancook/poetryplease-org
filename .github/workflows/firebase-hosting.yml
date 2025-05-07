@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd functions
-          npm ci
+          npm install
 
       - name: Deploy to Firebase Hosting and Functions
         uses: FirebaseExtended/action-hosting-deploy@v0
