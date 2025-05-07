@@ -7,21 +7,19 @@
   <style>
     body { font-family: Arial; text-align: center; margin: 0; padding: 0; }
     #poetry-screen, #registration-screen, #login-screen { display: none; }
-    #gallery      { display: flex; flex-wrap: wrap; justify-content: center; }
-    .item         { margin: 10px; text-align: center; }
-    .gallery img  { max-width:100%; height:auto; object-fit:contain; width:600px; }
+    #gallery { display: flex; flex-wrap: wrap; justify-content: center; }
+    .item { margin: 10px; text-align: center; }
+    .gallery img { max-width:100%; height:auto; object-fit:contain; width:600px; }
     .button-container button { padding:10px 20px; font-size:16px; cursor:pointer; margin:5px; }
-    .button-row   { display:flex; justify-content:center; align-items:center; margin-top:10px; width:100%; }
+    .button-row { display:flex; justify-content:center; align-items:center; margin-top:10px; width:100%; }
     .vote-counter { padding:5px 10px; border:1px solid #ccc; border-radius:5px; background:#f9f9f9; }
-    .voted        { background:#e0e0e0; color:#808080; cursor:not-allowed; animation:fadeOut 1s ease-in-out; }
+    .voted { background:#e0e0e0; color:#808080; cursor:not-allowed; animation:fadeOut 1s ease-in-out; }
     @keyframes fadeOut { from{opacity:1;} to{opacity:0.5;} }
     .inline-checkbox { display:inline-block; margin-left:10px; }
-    .error        { color:red; }
-    .message      { color:green; margin-top:10px; }
-    #user-status  { position:absolute; top:10px; left:10px; }
-
-    /* Filters */
-    #type-filter-container    { position:absolute; top:60px; right:10px; text-align:right; }
+    .error { color:red; }
+    .message { color:green; margin-top:10px; }
+    #user-status { position:absolute; top:10px; left:10px; }
+    #type-filter-container { position:absolute; top:60px; right:10px; text-align:right; }
     #catalog-filter-container { position:absolute; top:10px; right:10px; text-align:right; }
   </style>
 </head>
@@ -42,27 +40,6 @@
     </select>
   </div>
 
-  <div id="login-screen">
-    <h1>Welcome to Poetry, Please</h1>
-    <button onclick="signInWithGoogle()">Log in with Google</button>
-    <form onsubmit="handleEmailLogin(event)">
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Password" required />
-      <button type="submit">Log in</button>
-    </form>
-    <button onclick="showRegistrationForm()">Create an Account</button>
-  </div>
-
-  <div id="registration-screen">
-    <h1>Create an Account</h1>
-    <form onsubmit="handleRegistration(event)">
-      <input type="email" id="reg-email" placeholder="Email" required />
-      <input type="password" id="reg-password" placeholder="Password" required />
-      <button type="submit">Sign Up</button>
-    </form>
-    <button onclick="showLoginScreen()">Back to Login</button>
-  </div>
-
   <div id="poetry-screen">
     <h1 id="page-title">Poetry, Please!</h1>
     <div class="button-container">
@@ -80,7 +57,6 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 
   <script>
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
       authDomain: "poetry-please.firebaseapp.com",
@@ -92,22 +68,22 @@
     };
     firebase.initializeApp(firebaseConfig);
 
-    // State
-    let userEmail       = null;
-    let anonId          = null;
-    let previousImage   = null;
-    let currentImage    = null;
-    let filterByAuthor  = false;
-    let filterByBook    = false;
-    let selectedType    = '';
+    const APPS_SCRIPT_BASE = 'https://script.google.com/macros/s/AKfycbxg6qVurdx_R95wf8IaWrSKFFxEpWs8ZCIlmf4RS4mLA5uEs-yI-JVYKrNmaeULxc5KjA/exec';
+
+    let userEmail = null;
+    let anonId = null;
+    let previousImage = null;
+    let currentImage = null;
+    let filterByAuthor = false;
+    let filterByBook = false;
+    let selectedType = '';
     let selectedCatalog = '';
 
-    // On load
     window.onload = () => {
       document.getElementById('poetry-screen').style.display = 'block';
       updateUserStatusUI();
-      fetchAndPopulateTypes();
-      fetchAndPopulateCatalogs();
+      fetchAndPopulateFilters('type');
+      fetchAndPopulateFilters('catalog');
     };
 
     firebase.auth().onAuthStateChanged(u => {
@@ -115,13 +91,9 @@
       else updateUserStatusUI();
     });
 
-    // ——————————————————————————————
-    // UI & Auth Handlers
-    // ——————————————————————————————
-
     function updateUserStatusUI() {
       const user = firebase.auth().currentUser;
-      const div  = document.getElementById('user-status');
+      const div = document.getElementById('user-status');
       if (user) {
         div.textContent = 'Logged in as ' + user.email;
         document.getElementById('load-button').disabled = false;
@@ -131,290 +103,55 @@
       }
     }
 
-    function showRegistrationForm() {
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('registration-screen').style.display = 'block';
-    }
-    function showLoginScreen() {
-      document.getElementById('registration-screen').style.display = 'none';
-      document.getElementById('login-screen').style.display = 'block';
-    }
-
     function signInWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithPopup(provider)
-        .catch(e => console.error("Google sign-in failed:", e));
+      firebase.auth().signInWithPopup(provider).catch(console.error);
     }
-    function handleEmailLogin(evt) {
-      evt.preventDefault();
-      const email = document.getElementById('email').value;
-      const pw    = document.getElementById('password').value;
-      firebase.auth().signInWithEmailAndPassword(email, pw)
-        .catch(e => alert(`Login Error: ${e.message}`));
-    }
-    function handleRegistration(evt) {
-      evt.preventDefault();
-      const email = document.getElementById('reg-email').value;
-      const pw    = document.getElementById('reg-password').value;
-      firebase.auth().createUserWithEmailAndPassword(email, pw)
-        .catch(e => alert(`Registration Error: ${e.message}`));
-    }
+
     function handleSignIn(user) {
       userEmail = user.email;
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('registration-screen').style.display = 'none';
-      document.getElementById('poetry-screen').style.display = 'block';
       updateUserStatusUI();
     }
-    function logout() {
-      firebase.auth().signOut()
-        .catch(e => console.error("Logout error:", e))
-        .finally(() => updateUserStatusUI());
-    }
 
-    // ——————————————————————————————
-    // Filters population
-    // ——————————————————————————————
-
-    function fetchAndPopulateCatalogs() {
-      google.script.run.withSuccessHandler(populateCatalogFilter)
-                       .fetchReleaseCatalogs();
-    }
-    function populateCatalogFilter(catalogs) {
-      const select = document.getElementById('catalog-filter');
-      catalogs.forEach(c => {
+    async function fetchAndPopulateFilters(type) {
+      const res = await fetch(`${APPS_SCRIPT_BASE}?filter=${type}`);
+      const values = await res.json();
+      const select = document.getElementById(`${type}-filter`);
+      values.forEach(val => {
         const opt = document.createElement('option');
-        opt.value = c; opt.textContent = c;
+        opt.value = val; opt.textContent = val;
         select.appendChild(opt);
       });
-      select.onchange = () => selectedCatalog = select.value;
+      select.onchange = () => {
+        if (type === 'type') selectedType = select.value;
+        if (type === 'catalog') selectedCatalog = select.value;
+      }
     }
 
-    function fetchAndPopulateTypes() {
-      google.script.run.withSuccessHandler(populateTypeFilter)
-                       .fetchImageTypes();
-    }
-    function populateTypeFilter(types) {
-      const select = document.getElementById('type-filter');
-      types.forEach(t => {
-        const opt = document.createElement('option');
-        opt.value = t; opt.textContent = t;
-        select.appendChild(opt);
-      });
-      select.onchange = () => selectedType = select.value;
-    }
-
-    // ——————————————————————————————
-    // Voting helpers
-    // ——————————————————————————————
-
-    function actuallySubmitVote(imageId, voteType, voterId, clickedBtn, otherBtns) {
-      google.script.run.withSuccessHandler(() => {
-        // disable & style
-        clickedBtn.classList.add('voted');
-        clickedBtn.disabled = true;
-        otherBtns.forEach(b => { b.classList.add('voted'); b.disabled = true; });
-        clickedBtn.textContent = `Voted ${voteType}`;
-        if (voteType === 'like')    clickedBtn.style.backgroundColor = 'green';
-        else if (voteType === 'dislike') clickedBtn.style.backgroundColor = 'red';
-        else                         clickedBtn.style.backgroundColor = 'blue';
-
-        // confirmation message
-        document.getElementById('message').textContent =
-          `Your ${voteType} vote has been recorded.`;
-
-        // — update the vote counter in place —
-        const counterEl = document.getElementById('vote-counter');
-        if (counterEl) {
-          const total = parseInt(counterEl.dataset.total, 10);
-          let rem   = parseInt(counterEl.dataset.remaining, 10) - 1;
-          const voted = total - rem;
-          counterEl.dataset.remaining = rem;
-          counterEl.dataset.voted     = voted;
-          counterEl.textContent = 
-            `Voted on ${voted} of ${total} images — ${rem} remaining.`;
+    async function loadRandomGraphic() {
+      const user = firebase.auth().currentUser;
+      try {
+        let url;
+        if (user) {
+          const token = await user.getIdToken(true);
+          url = `${APPS_SCRIPT_BASE}?token=${encodeURIComponent(token)}`;
+        } else {
+          if (!anonId) anonId = `anon_${Date.now()}`;
+          url = `${APPS_SCRIPT_BASE}?anon=${encodeURIComponent(anonId)}`;
         }
-
-        setTimeout(() => document.getElementById('message').textContent = '', 3000);
-      }).submitVote(imageId, voteType, voterId);
-    }
-    function submitVote(imageId, voteType, clickedBtn, otherBtns) {
-      const user = firebase.auth().currentUser;
-      if (user) {
-        actuallySubmitVote(imageId, voteType, user.email, clickedBtn, otherBtns);
-      } else if (anonId) {
-        actuallySubmitVote(imageId, voteType, anonId, clickedBtn, otherBtns);
-      } else {
-        google.script.run.withSuccessHandler(id => {
-          anonId = id;
-          actuallySubmitVote(imageId, voteType, anonId, clickedBtn, otherBtns);
-        }).getNextAnonymousId();
+        const res = await fetch(url);
+        const data = await res.json();
+        displayRandomGraphic(data);
+      } catch (err) {
+        document.getElementById('gallery').innerHTML = `<p>Error: ${err.message}</p>`;
+        console.error(err);
       }
     }
-
-    // ——————————————————————————————
-    // Load & Display
-    // ——————————————————————————————
-
-    function loadRandomGraphic() {
-      const user = firebase.auth().currentUser;
-      if (user) {
-        user.getIdToken(true)
-            .then(t => google.script.run
-                              .withSuccessHandler(displayRandomGraphic)
-                              .fetchData(t))
-            .catch(e => console.error(e));
-      } else if (anonId) {
-        google.script.run.withSuccessHandler(displayRandomGraphic)
-                         .fetchDataAnon(anonId);
-      } else {
-        google.script.run.withSuccessHandler(id => {
-          anonId = id;
-          google.script.run.withSuccessHandler(displayRandomGraphic)
-                           .fetchDataAnon(id);
-        }).getNextAnonymousId();
-      }
-    }
-
-    function displayRandomGraphic(data) {
-      const gallery = document.getElementById('gallery');
-      gallery.innerHTML = '';
-      if (!data) {
-        gallery.innerHTML = '<p>Error: Failed to load data.</p>';
-        return;
-      }
-
-      // make a fresh copy
-      let list = data.newGraphics.slice();
-
-      // apply author/book filters
-      if (filterByAuthor && currentImage)
-        list = list.filter(g => g[0] === currentImage[0]);
-      if (filterByBook && currentImage)
-        list = list.filter(g => g[2] === currentImage[2]);
-
-      // apply type/catalog filters
-      if (selectedType)
-        list = list.filter(g => g[7] === selectedType);
-      if (selectedCatalog)
-        list = list.filter(g => g[6] === selectedCatalog);
-
-      if (list.length === 0) {
-        gallery.innerHTML = '<p>No more images matching filters.</p>';
-        return;
-      }
-
-      // pick random
-      const idx = Math.floor(Math.random() * list.length);
-      previousImage = currentImage;
-      currentImage  = list[idx];
-
-      // domainAll = everything matching the same filters
-      const domainAll = data.allGraphics.filter(g => {
-        if (filterByAuthor && currentImage && g[0] !== currentImage[0]) return false;
-        if (filterByBook   && currentImage && g[2] !== currentImage[2]) return false;
-        if (selectedType    && g[7] !== selectedType)    return false;
-        if (selectedCatalog && g[6] !== selectedCatalog) return false;
-        return true;
-      });
-
-      // counts
-      const totalInDomain = domainAll.length;
-      const remaining     = list.length;
-      const votedInDomain = totalInDomain - remaining;
-
-      // build item
-      const item = document.createElement('div');
-      item.className = 'item';
-
-      // vote buttons
-      const voteRow = document.createElement('div');
-      voteRow.className = 'button-row';
-      const likeBtn    = createButton('Like',    () => submitVote(currentImage[3], 'like',    likeBtn,    [dislikeBtn, movedBtn]));
-      const dislikeBtn= createButton('Dislike', () => submitVote(currentImage[3], 'dislike', dislikeBtn,[likeBtn,    movedBtn]));
-      const movedBtn   = createButton('Moved Me',() => submitVote(currentImage[3], 'moved me', movedBtn,  [likeBtn,    dislikeBtn]));
-      voteRow.append(likeBtn, dislikeBtn, movedBtn);
-      item.appendChild(voteRow);
-
-      // title
-      const titleRow = document.createElement('div');
-      titleRow.style.marginTop = '10px';
-      const titleP = document.createElement('p');
-      titleP.textContent = `Title: ${currentImage[1]}`;
-      titleRow.appendChild(titleP);
-      item.appendChild(titleRow);
-
-      // author + checkbox
-      const authorRow = document.createElement('div');
-      authorRow.style.display = 'flex';
-      authorRow.style.justifyContent = 'space-between';
-      authorRow.style.alignItems = 'center';
-      const authorP = document.createElement('p');
-      authorP.textContent = `Author: ${currentImage[0]}`;
-      authorRow.appendChild(authorP);
-      const authorCb = createFilterCheckbox(
-        'authorCheckbox',
-        filterByAuthor,
-        'More from this author',
-        () => { filterByAuthor = !filterByAuthor; }
-      );
-      authorRow.appendChild(authorCb);
-      item.appendChild(authorRow);
-
-      // book + checkbox
-      const bookRow = document.createElement('div');
-      bookRow.style.display = 'flex';
-      bookRow.style.justifyContent = 'space-between';
-      bookRow.style.alignItems = 'center';
-      const bookP = document.createElement('p');
-      bookP.textContent = `From their book: ${currentImage[2]}`;
-      bookRow.appendChild(bookP);
-      const bookCb = createFilterCheckbox(
-        'bookCheckbox',
-        filterByBook,
-        'More from this book',
-        () => { filterByBook = !filterByBook; }
-      );
-      bookRow.appendChild(bookCb);
-      item.appendChild(bookRow);
-
-      // image link
-      const imgLink = document.createElement('a');
-      imgLink.href   = currentImage[5];
-      imgLink.target = '_blank';
-      const img = document.createElement('img');
-      img.src = currentImage[4];
-      img.alt = currentImage[3];
-      imgLink.appendChild(img);
-      item.appendChild(imgLink);
-
-      // bottom row with updated counter
-      const bottomRow = document.createElement('div');
-      bottomRow.className = 'button-row';
-      const goBack = createButton('Go Back', displayPreviousGraphic, !previousImage);
-      const toBook = createButton('Take me to the book', () => window.open(currentImage[5], '_blank'));
-      const counter = document.createElement('div');
-      counter.id = 'vote-counter';
-      counter.className = 'vote-counter';
-      counter.dataset.total     = totalInDomain;
-      counter.dataset.remaining = remaining;
-      counter.dataset.voted     = votedInDomain;
-      counter.textContent = 
-        `Voted on ${votedInDomain} of ${totalInDomain} images — ${remaining} remaining.`;
-
-      bottomRow.append(goBack, toBook, counter);
-      item.appendChild(bottomRow);
-      gallery.appendChild(item);
-    }
-
-    // ——————————————————————————————
-    // Helpers
-    // ——————————————————————————————
 
     function createButton(text, onClick, isDisabled = false) {
       const btn = document.createElement('button');
       btn.textContent = text;
-      btn.onclick     = onClick;
+      btn.onclick = onClick;
       if (isDisabled) {
         btn.disabled = true;
         btn.classList.add('disabled-button');
@@ -422,15 +159,133 @@
       return btn;
     }
 
+    function displayRandomGraphic(data) {
+      const gallery = document.getElementById('gallery');
+      gallery.innerHTML = '';
+      if (!data || !data.newGraphics || data.newGraphics.length === 0) {
+        gallery.innerHTML = '<p>No more images matching filters.</p>';
+        return;
+      }
+
+      let list = data.newGraphics.slice();
+      if (filterByAuthor && currentImage) list = list.filter(g => g[0] === currentImage[0]);
+      if (filterByBook && currentImage) list = list.filter(g => g[2] === currentImage[2]);
+      if (selectedType) list = list.filter(g => g[7] === selectedType);
+      if (selectedCatalog) list = list.filter(g => g[6] === selectedCatalog);
+
+      const idx = Math.floor(Math.random() * list.length);
+      previousImage = currentImage;
+      currentImage = list[idx];
+
+      const domainAll = data.allGraphics.filter(g => {
+        if (filterByAuthor && currentImage && g[0] !== currentImage[0]) return false;
+        if (filterByBook && currentImage && g[2] !== currentImage[2]) return false;
+        if (selectedType && g[7] !== selectedType) return false;
+        if (selectedCatalog && g[6] !== selectedCatalog) return false;
+        return true;
+      });
+
+      const totalInDomain = domainAll.length;
+      const remaining = list.length;
+      const votedInDomain = totalInDomain - remaining;
+
+      const item = document.createElement('div');
+      item.className = 'item';
+
+      const voteRow = document.createElement('div');
+      voteRow.className = 'button-row';
+      const likeBtn = createVoteButton('Like', 'like');
+      const dislikeBtn = createVoteButton('Dislike', 'dislike');
+      const movedBtn = createVoteButton('Moved Me', 'moved me');
+      voteRow.append(likeBtn, dislikeBtn, movedBtn);
+      item.appendChild(voteRow);
+
+      const titleRow = document.createElement('div');
+      titleRow.style.marginTop = '10px';
+      const titleP = document.createElement('p');
+      titleP.textContent = `Title: ${currentImage[1]}`;
+      titleRow.appendChild(titleP);
+      item.appendChild(titleRow);
+
+      const authorRow = document.createElement('div');
+      authorRow.style.display = 'flex';
+      authorRow.style.justifyContent = 'space-between';
+      authorRow.style.alignItems = 'center';
+      const authorP = document.createElement('p');
+      authorP.textContent = `Author: ${currentImage[0]}`;
+      authorRow.appendChild(authorP);
+      const authorCb = createFilterCheckbox('authorCheckbox', filterByAuthor, 'More from this author', () => { filterByAuthor = !filterByAuthor; });
+      authorRow.appendChild(authorCb);
+      item.appendChild(authorRow);
+
+      const bookRow = document.createElement('div');
+      bookRow.style.display = 'flex';
+      bookRow.style.justifyContent = 'space-between';
+      bookRow.style.alignItems = 'center';
+      const bookP = document.createElement('p');
+      bookP.textContent = `From their book: ${currentImage[2]}`;
+      bookRow.appendChild(bookP);
+      const bookCb = createFilterCheckbox('bookCheckbox', filterByBook, 'More from this book', () => { filterByBook = !filterByBook; });
+      bookRow.appendChild(bookCb);
+      item.appendChild(bookRow);
+
+      const imgLink = document.createElement('a');
+      imgLink.href = currentImage[5];
+      imgLink.target = '_blank';
+      const img = document.createElement('img');
+      img.src = currentImage[4];
+      img.alt = currentImage[3];
+      imgLink.appendChild(img);
+      item.appendChild(imgLink);
+
+      const bottomRow = document.createElement('div');
+      bottomRow.className = 'button-row';
+      const goBack = createButton('Go Back', displayPreviousGraphic, !previousImage);
+      const toBook = createButton('Take me to the book', () => window.open(currentImage[5], '_blank'));
+      const counter = document.createElement('div');
+      counter.id = 'vote-counter';
+      counter.className = 'vote-counter';
+      counter.dataset.total = totalInDomain;
+      counter.dataset.remaining = remaining;
+      counter.dataset.voted = votedInDomain;
+      counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} images — ${remaining} remaining.`;
+
+      bottomRow.append(goBack, toBook, counter);
+      item.appendChild(bottomRow);
+      gallery.appendChild(item);
+    }
+
+    function createVoteButton(label, voteType) {
+      const btn = document.createElement('button');
+      btn.textContent = label;
+      btn.onclick = async () => {
+        const user = firebase.auth().currentUser;
+        const voterId = user ? user.email : anonId;
+        const res = await fetch(APPS_SCRIPT_BASE, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageId: currentImage[3], voteType, userId: voterId })
+        });
+        if (res.ok) {
+          btn.disabled = true;
+          btn.classList.add('voted');
+          btn.textContent = `Voted ${voteType}`;
+        } else {
+          alert('Vote failed');
+        }
+      };
+      return btn;
+    }
+
     function createFilterCheckbox(id, isChecked, labelText, onChange) {
       const container = document.createElement('div');
-      const checkbox  = document.createElement('input');
-      checkbox.type   = 'checkbox';
-      checkbox.id     = id;
-      checkbox.checked= isChecked;
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.id = id;
+      checkbox.checked = isChecked;
       checkbox.onchange = onChange;
-      const label     = document.createElement('label');
-      label.htmlFor   = id;
+      const label = document.createElement('label');
+      label.htmlFor = id;
       label.textContent = labelText;
       container.append(checkbox, label);
       return container;
