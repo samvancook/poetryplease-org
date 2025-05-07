@@ -25,8 +25,8 @@
     const firebaseConfig = {
       apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
       authDomain: "poetry-please.firebaseapp.com",
-      projectId: "poetry-please",
-      storageBucket: "poetrypleasebucket.appspot.com", // Updated bucket name
+      projectId: "poetry-please", // Confirm this is the correct project ID
+      storageBucket: "poetrypleasebucket.appspot.com", // Correct bucket name
       messagingSenderId: "609992589187",
       appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
       measurementId: "G-FBLJHKQ70B"
@@ -46,7 +46,9 @@
 
       try {
         // Fetch image metadata from Firestore
+        console.log("Attempting to fetch images from Firestore...");
         const snapshot = await db.collection('graphics').get();
+
         if (snapshot.empty) {
           gallery.innerHTML = '<p>No images found in Firestore.</p>';
           console.warn("The 'graphics' collection is empty.");
@@ -56,14 +58,19 @@
         const imageElements = [];
         for (const doc of snapshot.docs) {
           const data = doc.data();
+          console.log("Document data:", data);
 
           if (data.url) {
             // Use Firestore URL if available
             imageElements.push(`<img src="${data.url}" alt="${data.title || 'Image'}">`);
           } else if (data.storagePath) {
             // Fetch from Storage if 'storagePath' is provided
-            const url = await storage.ref(data.storagePath).getDownloadURL();
-            imageElements.push(`<img src="${url}" alt="${data.title || 'Image'}">`);
+            try {
+              const url = await storage.ref(data.storagePath).getDownloadURL();
+              imageElements.push(`<img src="${url}" alt="${data.title || 'Image'}">`);
+            } catch (storageError) {
+              console.error(`Error fetching image from Storage for path ${data.storagePath}:`, storageError);
+            }
           } else {
             console.warn(`Document ${doc.id} is missing 'url' or 'storagePath'.`);
           }
@@ -71,9 +78,9 @@
 
         // Display images in the gallery
         gallery.innerHTML = imageElements.join('');
-      } catch (error) {
-        console.error("Error loading images:", error);
-        gallery.innerHTML = '<p>Error loading images. Please try again later.</p>';
+      } catch (firestoreError) {
+        console.error("Error fetching images from Firestore:", firestoreError);
+        gallery.innerHTML = '<p>Error loading images. Please check the console for details.</p>';
       }
     }
 
