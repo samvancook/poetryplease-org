@@ -1,242 +1,84 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Poetry, Please</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poetry Please</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
   <style>
-    body { font-family: Arial; text-align: center; margin: 0; padding: 0; }
-    #poetry-screen, #registration-screen, #login-screen { display: none; }
-    #gallery      { display: flex; flex-wrap: wrap; justify-content: center; }
-    .item         { margin: 10px; text-align: center; }
-    .gallery img  { max-width:100%; height:auto; object-fit:contain; width:600px; }
-    .button-container button { padding:10px 20px; font-size:16px; cursor:pointer; margin:5px; }
-    .button-row   { display:flex; justify-content:center; align-items:center; margin-top:10px; width:100%; }
-    .vote-counter { padding:5px 10px; border:1px solid #ccc; border-radius:5px; background:#f9f9f9; }
-    .voted        { background:#e0e0e0; color:#808080; cursor:not-allowed; animation:fadeOut 1s ease-in-out; }
-    @keyframes fadeOut { from{opacity:1;} to{opacity:0.5;} }
-    .inline-checkbox { display:inline-block; margin-left:10px; }
-    .error        { color:red; }
-    .message      { color:green; margin-top:10px; }
-    #user-status  { position:absolute; top:10px; left:10px; }
-
-    /* Filters */
-    #type-filter-container    { position:absolute; top:60px; right:10px; text-align:right; }
-    #catalog-filter-container { position:absolute; top:10px; right:10px; text-align:right; }
+    #gallery img {
+      max-width: 100%;
+      height: auto;
+      margin: 10px 0;
+    }
   </style>
 </head>
 <body>
-  <div id="user-status"></div>
-
-  <div id="type-filter-container">
-    <label for="type-filter">Filter by Image Type:</label>
-    <select id="type-filter">
-      <option value="">All Types</option>
-    </select>
+  <h1>Poetry Please - Image Gallery</h1>
+  <div id="gallery">
+    <p>Loading images...</p>
   </div>
-
-  <div id="catalog-filter-container">
-    <label for="catalog-filter">Filter by Release Catalog:</label>
-    <select id="catalog-filter">
-      <option value="">All Releases</option>
-    </select>
-  </div>
-
-  <div id="login-screen">
-    <h1>Welcome to Poetry, Please</h1>
-    <button onclick="signInWithGoogle()">Log in with Google</button>
-    <form onsubmit="handleEmailLogin(event)">
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Password" required />
-      <button type="submit">Log in</button>
-    </form>
-    <button onclick="showRegistrationForm()">Create an Account</button>
-  </div>
-
-  <div id="registration-screen">
-    <h1>Create an Account</h1>
-    <form onsubmit="handleRegistration(event)">
-      <input type="email" id="reg-email" placeholder="Email" required />
-      <input type="password" id="reg-password" placeholder="Password" required />
-      <button type="submit">Sign Up</button>
-    </form>
-    <button onclick="showLoginScreen()">Back to Login</button>
-  </div>
-
-  <div id="poetry-screen">
-    <h1 id="page-title">Poetry, Please!</h1>
-    <div class="button-container">
-      <button id="load-button" onclick="loadRandomGraphic()" disabled>
-        Poetry, Please
-      </button>
-    </div>
-    <div id="error" class="error"></div>
-    <div id="message" class="message"></div>
-    <div id="gallery" class="gallery"></div>
-  </div>
-
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-
   <script>
-    // Firebase config
-   const firebaseConfig = {
-  apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
-  authDomain: "poetry-please.firebaseapp.com",
-  projectId: "poetry-please",
-  storageBucket: "poetrypleasebucket.appspot.com", // Explicitly specify your custom bucket name
-  messagingSenderId: "609992589187",
-  appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
-  measurementId: "G-FBLJHKQ70B"
-};
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
-
-    // State variables
-    let userEmail = null;
-    let anonId = null;
-    let previousImage = null;
-    let currentImage = null;
-    let filterByAuthor = false;
-    let filterByBook = false;
-    let selectedType = '';
-    let selectedCatalog = '';
-
-    // On load
-    window.onload = () => {
-      document.getElementById('login-screen').style.display = 'block';
-      fetchAndPopulateCatalogs();
-      fetchAndPopulateTypes();
-      updateUserStatusUI();
+    // Firebase configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetrypleasebucket.appspot.com", // Updated bucket name
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
     };
 
-    // Firebase authentication state listener
-    firebase.auth().onAuthStateChanged(user => {
-      if (user) handleSignIn(user);
-      else updateUserStatusUI();
-    });
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
 
-    // Authentication handlers
-    function signInWithGoogle() {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithPopup(provider)
-        .catch(error => console.error("Google Sign-In Error:", error));
-    }
+    // Firestore and Storage references
+    const db = firebase.firestore();
+    const storage = firebase.storage();
 
-    function handleEmailLogin(event) {
-      event.preventDefault();
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      firebase.auth().signInWithEmailAndPassword(email, password)
-        .catch(error => alert(`Login error: ${error.message}`));
-    }
-
-    function handleRegistration(event) {
-      event.preventDefault();
-      const email = document.getElementById('reg-email').value;
-      const password = document.getElementById('reg-password').value;
-      firebase.auth().createUserWithEmailAndPassword(email, password)
-        .catch(error => alert(`Registration error: ${error.message}`));
-    }
-
-    function handleSignIn(user) {
-      userEmail = user.email;
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('registration-screen').style.display = 'none';
-      document.getElementById('poetry-screen').style.display = 'block';
-      updateUserStatusUI();
-    }
-
-    function updateUserStatusUI() {
-      const statusDiv = document.getElementById('user-status');
-      const user = firebase.auth().currentUser;
-      if (user) {
-        statusDiv.textContent = `Logged in as: ${user.email}`;
-        document.getElementById('load-button').disabled = false;
-      } else {
-        statusDiv.innerHTML = '<button onclick="signInWithGoogle()">Log in with Google</button>';
-        document.getElementById('load-button').disabled = true;
-      }
-    }
-
-    function showRegistrationForm() {
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('registration-screen').style.display = 'block';
-    }
-
-    function showLoginScreen() {
-      document.getElementById('registration-screen').style.display = 'none';
-      document.getElementById('login-screen').style.display = 'block';
-    }
-
-    // Fetch and populate catalog data
-    function fetchAndPopulateCatalogs() {
-      db.collection('releaseCatalogs').get().then(snapshot => {
-        const catalogs = [];
-        snapshot.forEach(doc => catalogs.push(doc.data().name));
-        populateCatalogFilter(catalogs);
-      }).catch(error => console.error("Error fetching catalogs:", error));
-    }
-
-    function populateCatalogFilter(catalogs) {
-      const select = document.getElementById('catalog-filter');
-      catalogs.forEach(catalog => {
-        const option = document.createElement('option');
-        option.value = catalog;
-        option.textContent = catalog;
-        select.appendChild(option);
-      });
-      select.onchange = () => {
-        selectedCatalog = select.value;
-      };
-    }
-
-    // Fetch and populate image types
-    function fetchAndPopulateTypes() {
-      db.collection('imageTypes').get().then(snapshot => {
-        const types = [];
-        snapshot.forEach(doc => types.push(doc.data().name));
-        populateTypeFilter(types);
-      }).catch(error => console.error("Error fetching types:", error));
-    }
-
-    function populateTypeFilter(types) {
-      const select = document.getElementById('type-filter');
-      types.forEach(type => {
-        const option = document.createElement('option');
-        option.value = type;
-        option.textContent = type;
-        select.appendChild(option);
-      });
-      select.onchange = () => {
-        selectedType = select.value;
-      };
-    }
-
-    // Load and display data
-    function loadRandomGraphic() {
-      db.collection('graphics').get().then(snapshot => {
-        const graphics = [];
-        snapshot.forEach(doc => graphics.push(doc.data()));
-        displayRandomGraphic(graphics);
-      }).catch(error => console.error("Error loading graphics:", error));
-    }
-
-    function displayRandomGraphic(graphics) {
+    // Function to load and display images
+    async function loadImages() {
       const gallery = document.getElementById('gallery');
-      gallery.innerHTML = '';
-      if (graphics.length === 0) {
-        gallery.innerHTML = '<p>No images to display.</p>';
-        return;
+      gallery.innerHTML = '<p>Loading images...</p>';
+
+      try {
+        // Fetch image metadata from Firestore
+        const snapshot = await db.collection('graphics').get();
+        if (snapshot.empty) {
+          gallery.innerHTML = '<p>No images found in Firestore.</p>';
+          console.warn("The 'graphics' collection is empty.");
+          return;
+        }
+
+        const imageElements = [];
+        for (const doc of snapshot.docs) {
+          const data = doc.data();
+
+          if (data.url) {
+            // Use Firestore URL if available
+            imageElements.push(`<img src="${data.url}" alt="${data.title || 'Image'}">`);
+          } else if (data.storagePath) {
+            // Fetch from Storage if 'storagePath' is provided
+            const url = await storage.ref(data.storagePath).getDownloadURL();
+            imageElements.push(`<img src="${url}" alt="${data.title || 'Image'}">`);
+          } else {
+            console.warn(`Document ${doc.id} is missing 'url' or 'storagePath'.`);
+          }
+        }
+
+        // Display images in the gallery
+        gallery.innerHTML = imageElements.join('');
+      } catch (error) {
+        console.error("Error loading images:", error);
+        gallery.innerHTML = '<p>Error loading images. Please try again later.</p>';
       }
-      const randomImage = graphics[Math.floor(Math.random() * graphics.length)];
-      const imgElement = document.createElement('img');
-      imgElement.src = randomImage.url;
-      imgElement.alt = randomImage.title || 'Random Image';
-      gallery.appendChild(imgElement);
     }
+
+    // Load images on page load
+    window.onload = loadImages;
   </script>
 </body>
 </html>
