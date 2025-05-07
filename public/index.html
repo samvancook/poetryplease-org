@@ -94,7 +94,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // State
+    // State variables
     let userEmail = null;
     let anonId = null;
     let previousImage = null;
@@ -106,26 +106,57 @@
 
     // On load
     window.onload = () => {
-      document.getElementById('poetry-screen').style.display = 'block';
-      updateUserStatusUI();
-      fetchAndPopulateTypes();
+      document.getElementById('login-screen').style.display = 'block';
       fetchAndPopulateCatalogs();
+      fetchAndPopulateTypes();
+      updateUserStatusUI();
     };
 
-    firebase.auth().onAuthStateChanged(u => {
-      if (u) handleSignIn(u);
+    // Firebase authentication state listener
+    firebase.auth().onAuthStateChanged(user => {
+      if (user) handleSignIn(user);
       else updateUserStatusUI();
     });
 
-    // UI & Auth Handlers
+    // Authentication handlers
+    function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      firebase.auth().signInWithPopup(provider)
+        .catch(error => console.error("Google Sign-In Error:", error));
+    }
+
+    function handleEmailLogin(event) {
+      event.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      firebase.auth().signInWithEmailAndPassword(email, password)
+        .catch(error => alert(`Login error: ${error.message}`));
+    }
+
+    function handleRegistration(event) {
+      event.preventDefault();
+      const email = document.getElementById('reg-email').value;
+      const password = document.getElementById('reg-password').value;
+      firebase.auth().createUserWithEmailAndPassword(email, password)
+        .catch(error => alert(`Registration error: ${error.message}`));
+    }
+
+    function handleSignIn(user) {
+      userEmail = user.email;
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('registration-screen').style.display = 'none';
+      document.getElementById('poetry-screen').style.display = 'block';
+      updateUserStatusUI();
+    }
+
     function updateUserStatusUI() {
+      const statusDiv = document.getElementById('user-status');
       const user = firebase.auth().currentUser;
-      const div = document.getElementById('user-status');
       if (user) {
-        div.textContent = 'Logged in as ' + user.email;
+        statusDiv.textContent = `Logged in as: ${user.email}`;
         document.getElementById('load-button').disabled = false;
       } else {
-        div.innerHTML = '<button onclick="signInWithGoogle()">Log in with Google</button>';
+        statusDiv.innerHTML = '<button onclick="signInWithGoogle()">Log in with Google</button>';
         document.getElementById('load-button').disabled = true;
       }
     }
@@ -140,166 +171,71 @@
       document.getElementById('login-screen').style.display = 'block';
     }
 
-    function signInWithGoogle() {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithPopup(provider)
-        .catch(e => console.error("Google sign-in failed:", e));
-    }
-
-    function handleEmailLogin(evt) {
-      evt.preventDefault();
-      const email = document.getElementById('email').value;
-      const pw = document.getElementById('password').value;
-      firebase.auth().signInWithEmailAndPassword(email, pw)
-        .catch(e => alert(`Login Error: ${e.message}`));
-    }
-
-    function handleRegistration(evt) {
-      evt.preventDefault();
-      const email = document.getElementById('reg-email').value;
-      const pw = document.getElementById('reg-password').value;
-      firebase.auth().createUserWithEmailAndPassword(email, pw)
-        .catch(e => alert(`Registration Error: ${e.message}`));
-    }
-
-    function handleSignIn(user) {
-      userEmail = user.email;
-      document.getElementById('login-screen').style.display = 'none';
-      document.getElementById('registration-screen').style.display = 'none';
-      document.getElementById('poetry-screen').style.display = 'block';
-      updateUserStatusUI();
-    }
-
-    function logout() {
-      firebase.auth().signOut()
-        .catch(e => console.error("Logout error:", e))
-        .finally(() => updateUserStatusUI());
-    }
-
-    // Replace google.script.run with Firebase Firestore or REST API calls
+    // Fetch and populate catalog data
     function fetchAndPopulateCatalogs() {
-      db.collection('releaseCatalogs').get().then(querySnapshot => {
+      db.collection('releaseCatalogs').get().then(snapshot => {
         const catalogs = [];
-        querySnapshot.forEach(doc => {
-          catalogs.push(doc.data().name);
-        });
+        snapshot.forEach(doc => catalogs.push(doc.data().name));
         populateCatalogFilter(catalogs);
-      }).catch(error => {
-        console.error("Error fetching release catalogs:", error);
-      });
+      }).catch(error => console.error("Error fetching catalogs:", error));
     }
 
     function populateCatalogFilter(catalogs) {
       const select = document.getElementById('catalog-filter');
-      catalogs.forEach(c => {
-        const opt = document.createElement('option');
-        opt.value = c; opt.textContent = c;
-        select.appendChild(opt);
+      catalogs.forEach(catalog => {
+        const option = document.createElement('option');
+        option.value = catalog;
+        option.textContent = catalog;
+        select.appendChild(option);
       });
-      select.onchange = () => selectedCatalog = select.value;
+      select.onchange = () => {
+        selectedCatalog = select.value;
+      };
     }
 
+    // Fetch and populate image types
     function fetchAndPopulateTypes() {
-      db.collection('imageTypes').get().then(querySnapshot => {
+      db.collection('imageTypes').get().then(snapshot => {
         const types = [];
-        querySnapshot.forEach(doc => {
-          types.push(doc.data().name);
-        });
+        snapshot.forEach(doc => types.push(doc.data().name));
         populateTypeFilter(types);
-      }).catch(error => {
-        console.error("Error fetching image types:", error);
-      });
+      }).catch(error => console.error("Error fetching types:", error));
     }
 
     function populateTypeFilter(types) {
       const select = document.getElementById('type-filter');
-      types.forEach(t => {
-        const opt = document.createElement('option');
-        opt.value = t; opt.textContent = t;
-        select.appendChild(opt);
+      types.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        select.appendChild(option);
       });
-      select.onchange = () => selectedType = select.value;
-    }
-
-    function actuallySubmitVote(imageId, voteType, voterId, clickedBtn, otherBtns) {
-      const voteData = {
-        imageId: imageId,
-        voteType: voteType,
-        voterId: voterId
+      select.onchange = () => {
+        selectedType = select.value;
       };
-
-      db.collection('votes').add(voteData).then(() => {
-        clickedBtn.classList.add('voted');
-        clickedBtn.disabled = true;
-        otherBtns.forEach(b => { b.classList.add('voted'); b.disabled = true; });
-        clickedBtn.textContent = `Voted ${voteType}`;
-        if (voteType === 'like')    clickedBtn.style.backgroundColor = 'green';
-        else if (voteType === 'dislike') clickedBtn.style.backgroundColor = 'red';
-        else                         clickedBtn.style.backgroundColor = 'blue';
-
-        document.getElementById('message').textContent = `Your ${voteType} vote has been recorded.`;
-
-        setTimeout(() => document.getElementById('message').textContent = '', 3000);
-      }).catch(error => {
-        console.error("Error submitting vote:", error);
-      });
     }
 
-    function submitVote(imageId, voteType, clickedBtn, otherBtns) {
-      const user = firebase.auth().currentUser;
-      if (user) {
-        actuallySubmitVote(imageId, voteType, user.email, clickedBtn, otherBtns);
-      } else if (anonId) {
-        actuallySubmitVote(imageId, voteType, anonId, clickedBtn, otherBtns);
-      } else {
-        db.collection('anonymousIds').add({}).then(docRef => {
-          anonId = docRef.id;
-          actuallySubmitVote(imageId, voteType, anonId, clickedBtn, otherBtns);
-        }).catch(error => {
-          console.error("Error generating anonymous ID:", error);
-        });
-      }
-    }
-
+    // Load and display data
     function loadRandomGraphic() {
-      const user = firebase.auth().currentUser;
-      const filters = {
-        selectedType: selectedType,
-        selectedCatalog: selectedCatalog,
-        filterByAuthor: filterByAuthor,
-        filterByBook: filterByBook,
-        currentImage: currentImage
-      };
-
-      db.collection('graphics').get().then(querySnapshot => {
+      db.collection('graphics').get().then(snapshot => {
         const graphics = [];
-        querySnapshot.forEach(doc => {
-          graphics.push(doc.data());
-        });
-        displayRandomGraphic({ newGraphics: graphics, filters });
-      }).catch(error => {
-        console.error("Error loading random graphic:", error);
-      });
+        snapshot.forEach(doc => graphics.push(doc.data()));
+        displayRandomGraphic(graphics);
+      }).catch(error => console.error("Error loading graphics:", error));
     }
 
-    function displayRandomGraphic(data) {
+    function displayRandomGraphic(graphics) {
       const gallery = document.getElementById('gallery');
       gallery.innerHTML = '';
-      if (!data || data.newGraphics.length === 0) {
-        gallery.innerHTML = '<p>No more images matching filters.</p>';
+      if (graphics.length === 0) {
+        gallery.innerHTML = '<p>No images to display.</p>';
         return;
       }
-
-      const idx = Math.floor(Math.random() * data.newGraphics.length);
-      currentImage = data.newGraphics[idx];
-
-      const item = document.createElement('div');
-      item.className = 'item';
-
-      // Build gallery item (similar to your existing implementation)
-      // ...
-
-      gallery.appendChild(item);
+      const randomImage = graphics[Math.floor(Math.random() * graphics.length)];
+      const imgElement = document.createElement('img');
+      imgElement.src = randomImage.url;
+      imgElement.alt = randomImage.title || 'Random Image';
+      gallery.appendChild(imgElement);
     }
   </script>
 </body>
