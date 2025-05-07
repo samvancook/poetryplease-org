@@ -16,18 +16,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'  # 🔄 Updated to fix Firebase CLI incompatibility
+          node-version: '20'
 
-      - name: Install dependencies
+      - name: Install Functions dependencies
         run: |
           cd functions
           npm install
 
-      - name: Deploy to Firebase Hosting and Functions
-        uses: FirebaseExtended/action-hosting-deploy@v0
+      - name: Deploy Hosting and Functions
+        uses: Firebase/firebase-actions@v1
         with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
-          channelId: live
-          projectId: poetry-please
-          deployTargets: hosting,functions
+          credentials: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          projectId: 'poetry-please'
+          channelId: 'live'
+          deployTargets: 'hosting,functions'
