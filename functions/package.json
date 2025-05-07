@@ -1,8 +1,12 @@
 {
   "name": "functions",
-  "main": "index.js",
+  "description": "Firebase Functions for Poetry Please",
   "engines": {
     "node": "18"
+  },
+  "main": "index.js",
+  "scripts": {
+    "start": "firebase emulators:start --only functions"
   },
   "dependencies": {
     "firebase-admin": "^11.10.1",
