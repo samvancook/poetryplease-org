@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Poetry Please</title>
+  <title>Poetry Please - Gallery</title>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
@@ -11,7 +11,7 @@
     #gallery img {
       max-width: 100%;
       height: auto;
-      margin: 10px 0;
+      margin: 10px;
     }
   </style>
 </head>
@@ -25,7 +25,7 @@
     const firebaseConfig = {
       apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
       authDomain: "poetry-please.firebaseapp.com",
-      projectId: "poetry-please", // Confirm this is the correct project ID
+      projectId: "poetry-please", // Confirm this matches your project ID
       storageBucket: "poetrypleasebucket.appspot.com", // Correct bucket name
       messagingSenderId: "609992589187",
       appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
@@ -39,48 +39,51 @@
     const db = firebase.firestore();
     const storage = firebase.storage();
 
+    // Use `poetrypleasedatabase` instead of the default `(default)`
+    db.settings({
+      host: "firestore.googleapis.com",
+      ssl: true
+    });
+
     // Function to load and display images
     async function loadImages() {
       const gallery = document.getElementById('gallery');
       gallery.innerHTML = '<p>Loading images...</p>';
 
       try {
-        // Fetch image metadata from Firestore
-        console.log("Attempting to fetch images from Firestore...");
-        const snapshot = await db.collection('graphics').get();
+        console.log("Fetching images from Firestore...");
+        const snapshot = await db.collection("graphics").get();
 
         if (snapshot.empty) {
-          gallery.innerHTML = '<p>No images found in Firestore.</p>';
-          console.warn("The 'graphics' collection is empty.");
+          gallery.innerHTML = '<p>No images found.</p>';
+          console.warn("No documents in 'graphics' collection.");
           return;
         }
 
         const imageElements = [];
-        for (const doc of snapshot.docs) {
+        snapshot.forEach(doc => {
           const data = doc.data();
           console.log("Document data:", data);
 
           if (data.url) {
-            // Use Firestore URL if available
             imageElements.push(`<img src="${data.url}" alt="${data.title || 'Image'}">`);
           } else if (data.storagePath) {
-            // Fetch from Storage if 'storagePath' is provided
-            try {
-              const url = await storage.ref(data.storagePath).getDownloadURL();
+            const storageRef = storage.ref(data.storagePath);
+            storageRef.getDownloadURL().then(url => {
               imageElements.push(`<img src="${url}" alt="${data.title || 'Image'}">`);
-            } catch (storageError) {
-              console.error(`Error fetching image from Storage for path ${data.storagePath}:`, storageError);
-            }
+              gallery.innerHTML = imageElements.join('');
+            }).catch(error => {
+              console.error("Error fetching image from Storage:", error);
+            });
           } else {
             console.warn(`Document ${doc.id} is missing 'url' or 'storagePath'.`);
           }
-        }
+        });
 
-        // Display images in the gallery
         gallery.innerHTML = imageElements.join('');
-      } catch (firestoreError) {
-        console.error("Error fetching images from Firestore:", firestoreError);
-        gallery.innerHTML = '<p>Error loading images. Please check the console for details.</p>';
+      } catch (error) {
+        console.error("Error fetching Firestore data:", error);
+        gallery.innerHTML = '<p>Error loading images. Check the console for details.</p>';
       }
     }
 
