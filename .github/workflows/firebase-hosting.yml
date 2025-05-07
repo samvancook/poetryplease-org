@@ -24,7 +24,8 @@ jobs:
           npm install
 
       - name: Deploy Hosting and Functions
-        uses: Firebase/firebase-actions@v1
+        uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          credentials: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           projectId: 'poetry-please'
