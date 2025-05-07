@@ -82,15 +82,15 @@
 
   <script>
     // Firebase config
-    const firebaseConfig = {
-      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
-      authDomain: "poetry-please.firebaseapp.com",
-      projectId: "poetry-please",
-      storageBucket: "poetry-please.appspot.com",
-      messagingSenderId: "609992589187",
-      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
-      measurementId: "G-FBLJHKQ70B"
-    };
+   const firebaseConfig = {
+  apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+  authDomain: "poetry-please.firebaseapp.com",
+  projectId: "poetry-please",
+  storageBucket: "poetrypleasebucket.appspot.com", // Explicitly specify your custom bucket name
+  messagingSenderId: "609992589187",
+  appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+  measurementId: "G-FBLJHKQ70B"
+};
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
