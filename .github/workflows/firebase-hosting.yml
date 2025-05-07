@@ -1,9 +1,9 @@
-name: Deploy to Firebase Hosting
+name: Deploy to Firebase Hosting and Functions
 
 on:
   push:
     branches:
-      - main  # or replace with your default branch if different
+      - main
 
 jobs:
   deploy:
@@ -13,11 +13,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'  # Firebase Functions requires Node.js 18+
+
+      - name: Install dependencies
+        run: |
+          cd functions
+          npm ci
+
       - name: Deploy to Firebase Hosting and Functions
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: "${{ secrets.GITHUB_TOKEN }}"
-          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
           channelId: live
           projectId: poetry-please
-          targets: hosting,functions
