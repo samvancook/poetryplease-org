@@ -236,12 +236,29 @@ function verifyFirebaseToken(idToken) {
   return result.users[0].email;
 }
 
-function doGet() {
-  return HtmlService
-    .createTemplateFromFile('Index')
-    .evaluate()
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+function doGet(e) {
+  try {
+    const token = e.parameter.token;
+    const anon  = e.parameter.anon;
+
+    if (token) {
+      const data = fetchData(token);
+      return ContentService.createTextOutput(JSON.stringify(data))
+                           .setMimeType(ContentService.MimeType.JSON);
+    } else if (anon) {
+      const data = fetchDataAnon(anon);
+      return ContentService.createTextOutput(JSON.stringify(data))
+                           .setMimeType(ContentService.MimeType.JSON);
+    } else {
+      return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token or anon parameter' }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ error: err.message }))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
 }
+
 
 /**
  * Returns an array of vote‐docs for a given userId
