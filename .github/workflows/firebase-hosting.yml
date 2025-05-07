@@ -18,15 +18,13 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
       - name: Install Functions dependencies
         run: |
           cd functions
           npm install
 
       - name: Deploy Hosting and Functions
-        uses: Firebase/firebase-actions@v1
-        with:
-          credentials: '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}'
-          projectId: 'poetry-please'
-          channelId: 'live'
-          deployTargets: 'hosting,functions'
+        run: firebase deploy --only hosting,functions --project poetry-please --token "${{ secrets.FIREBASE_DEPLOY_TOKEN }}"
