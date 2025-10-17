@@ -8,21 +8,75 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install function deps
-        working-directory: functions
-        run: npm ci
+      - name: Show repo tree (top level)
+        run: ls -la
 
-      - name: Firebase deploy
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: '${{ secrets.GITHUB_TOKEN }}'
-          firebaseServiceAccount: '${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}'
-          channelId: live
-          projectId: poetry-please
+      - name: Print firebase.json and .firebaserc if present
+        run: |
+          test -f firebase.json && echo "=== firebase.json ===" && cat firebase.json || echo "firebase.json NOT FOUND"
+          test -f .firebaserc  && echo "=== .firebaserc  ===" && cat .firebaserc  || echo ".firebaserc NOT FOUND"
+
+      - name: Functions deps (if functions/ exists)
+        run: |
+          if [ -d functions ]; then
+            echo "Installing functions deps…"
+            cd functions
+            if [ -f package.json ]; then
+              npm install --no-audit --no-fund
+            else
+              echo "functions/package.json NOT FOUND"; exit 2
+            fi
+          else
+            echo "No functions/ directory; skipping functions install."
+          fi
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+
+      - name: Write service account key
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Secret FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE is EMPTY or missing"; exit 3
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
+          echo "Key written to $RUNNER_TEMP/gcloud-key.json"
+
+      - name: Firebase whoami / projects (sanity)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          firebase --version
+          firebase projects:list --json || true
+          firebase use poetry-please || true
+
+      - name: Deploy Hosting (debug)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          if [ -f firebase.json ]; then
+            echo "Deploying HOSTING…"
+            firebase --project poetry-please deploy --only hosting --debug
+          else
+            echo "Skipping hosting: firebase.json missing"; exit 4
+          fi
+
+      - name: Deploy Functions (debug; skip if no functions/)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          if [ -d functions ]; then
+            echo "Deploying FUNCTIONS…"
+            firebase --project poetry-please deploy --only functions --debug
+          else
+            echo "No functions/ directory; skipping functions deploy."
+          fi
