@@ -2,15 +2,12 @@ import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
 import cors from "cors";
 
-// --- Firebase Admin v12 modular imports ---
+// Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 
-/**
- * ====== CONFIG / CONSTANTS ======
- */
-const PROJECT_ID = "poetry-please";
+/** ====== CONFIG / CONSTANTS ====== */
 const COLLECTIONS = {
   graphics: "graphics",
   excerpts: "excerpts",
@@ -19,18 +16,30 @@ const COLLECTIONS = {
   users: "users",
 };
 
-/**
- * ====== ADMIN INIT (v12) ======
- * Uses Functions service account; no manual keys required.
- */
+/** ====== ADMIN INIT ====== */
 const appAdmin = initializeApp();
 
-// If your Firestore DB is custom-named (not the default), pass the databaseId here.
-// If your DB is the default "(default)", REMOVE the second argument.
-const db = getFirestore(appAdmin, "poetrypleasedatabase"); // <-- change or remove 2nd arg if needed
+// If your Firestore DB is the **default** "(default)", use: getFirestore(appAdmin)
+// If your DB id is really "poetrypleasedatabase", keep the 2nd argument.
+const db = getFirestore(appAdmin /*, "poetrypleasedatabase" */);
 const auth = getAuth(appAdmin);
 
-/** Helpers **/
+/** ====== EXPRESS / CORS ====== */
+const app = express();
+app.use(
+  cors({
+    origin: [
+      "https://poetry-please.web.app",
+      "https://poetry-please.firebaseapp.com",
+      "https://buttonpoetry.com",
+    ],
+    methods: ["GET", "POST", "OPTIONS"],
+    credentials: false,
+  })
+);
+app.use(express.json());
+
+/** ====== HELPERS ====== */
 function parseDoc(snap) {
   const d = snap.data() || {};
   const imageId = d.imageId || d.imageID || d.videoId || "";
@@ -123,23 +132,6 @@ function aggregateRatings(voteDocs) {
   return out;
 }
 
-/**
- * ====== APP / CORS ======
- */
-const app = express();
-app.use(
-  cors({
-    origin: [
-      "https://poetry-please.web.app",
-      "https://poetry-please.firebaseapp.com",
-      "https://buttonpoetry.com",
-    ],
-    methods: ["GET", "POST", "OPTIONS"],
-    credentials: false,
-  })
-);
-app.use(express.json());
-
 async function verifyIdTokenFromHeader(req) {
   const h = req.headers.authorization || "";
   const m = h.match(/^Bearer (.+)$/i);
@@ -151,14 +143,17 @@ async function verifyIdTokenFromHeader(req) {
   }
 }
 
-/** Root + health */
+/** ====== ROOT + HEALTH ====== */
 app.get("/", (_req, res) => {
-  res.type("text/plain").send("Poetry Please API is alive ✅  See /api/* routes.");
+  res.type("text/plain").send("Poetry Please API is alive ✅  Try /imageTypes etc.");
 });
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
-/** ROUTES **/
-app.get("/api/imageTypes", async (_req, res) => {
+/** ====== ROUTE REGISTRATION (supports both with and without /api) ====== */
+const getBoth = (p) => [p, `/api${p}`];
+
+// imageTypes
+app.get(getBoth("/imageTypes"), async (_req, res) => {
   const [g, e, v] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
@@ -169,7 +164,8 @@ app.get("/api/imageTypes", async (_req, res) => {
   res.json(imageTypes);
 });
 
-app.get("/api/releaseCatalogs", async (_req, res) => {
+// releaseCatalogs
+app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
   const [g, e, v] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
@@ -180,13 +176,15 @@ app.get("/api/releaseCatalogs", async (_req, res) => {
   res.json(cats);
 });
 
-app.get("/api/ratingsSummary", async (_req, res) => {
+// ratingsSummary
+app.get(getBoth("/ratingsSummary"), async (_req, res) => {
   const votesSnap = await getAllFrom(COLLECTIONS.votes);
   const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
   res.json(aggregateRatings(compact));
 });
 
-app.post("/api/fetchData", async (req, res) => {
+// fetchData (auth)
+app.post(getBoth("/fetchData"), async (req, res) => {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.email) return res.status(401).json({ error: "auth" });
 
@@ -215,7 +213,8 @@ app.post("/api/fetchData", async (req, res) => {
   });
 });
 
-app.post("/api/fetchDataAnon", async (req, res) => {
+// fetchDataAnon
+app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const anonId = (req.body?.anonId || "").trim();
   if (!anonId) return res.status(400).json({ error: "missing anonId" });
 
@@ -243,7 +242,8 @@ app.post("/api/fetchDataAnon", async (req, res) => {
   });
 });
 
-app.post("/api/submitVote", async (req, res) => {
+// submitVote
+app.post(getBoth("/submitVote"), async (req, res) => {
   const { imageId, voteType, userId } = req.body || {};
   if (!imageId || !voteType || !userId) return res.status(400).json({ error: "bad request" });
   await db.collection(COLLECTIONS.votes).add({
@@ -255,7 +255,8 @@ app.post("/api/submitVote", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/nextAnonymousId", async (_req, res) => {
+// nextAnonymousId
+app.post(getBoth("/nextAnonymousId"), async (_req, res) => {
   const ref = db.collection("admin").doc("anonCounter");
   let next = 0;
   await db.runTransaction(async (tx) => {
@@ -271,7 +272,7 @@ app.post("/api/nextAnonymousId", async (_req, res) => {
 app.use((req, res) => {
   res.status(404).json({
     error: "not_found",
-    message: "Try /, /healthz, or the /api/* endpoints.",
+    message: "Try /healthz, /imageTypes, /releaseCatalogs, /ratingsSummary, etc.",
   });
 });
 
