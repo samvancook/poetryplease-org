@@ -1,142 +1,259 @@
-// functions/index.js
+import functions from "firebase-functions";
+import admin from "firebase-admin";
+import express from "express";
+import cors from "cors";
 
-const functions = require('firebase-functions');
-const admin     = require('firebase-admin');
+/**
+ * ====== CONFIG / CONSTANTS ======
+ */
+const PROJECT_ID = "poetry-please";
+const COLLECTIONS = {
+  graphics: "graphics",
+  excerpts: "excerpts",
+  videos: "videos",
+  votes: "votes",
+  users: "users",
+};
 
-// Initialize the Admin SDK using your service account
-// (if you’ve set GOOGLE_APPLICATION_CREDENTIALS, you don't need to pass anything here)
-admin.initializeApp();
-
+/**
+ * ====== ADMIN INIT ======
+ * Uses Functions service account; no manual keys required.
+ */
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 const db = admin.firestore();
 
-// Helper: turn a graphics/doc into the array shape your client expects
-const mapGraphic = o => [
-  o.author,
-  o.title,
-  o.book,
-  o.imageId,
-  o.imageUrl,
-  o.driveLink,
-  o.releaseCatalog,
-  o.imageType
-];
+/** Helpers **/
+function parseDoc(snap) {
+  const d = snap.data() || {};
+  const imageId = d.imageId || d.imageID || d.videoId || "";
+  const imageUrl = d.imageUrl || d.url || d.driveLink || d.videoUrl || "";
+  return {
+    author: d.author || "",
+    title: d.title || d.poem || "",
+    book: d.book || "",
+    imageId,
+    imageUrl,
+    videoUrl: d.videoUrl || "",
+    bookLink: d.bookLink || "",
+    releaseCatalog: d.releaseCatalog || "",
+    imageType: d.imageType || "",
+    excerpt: d.excerpt || "",
+  };
+}
 
-// fetchData: same behavior as your GAS fetchData & fetchDataAnon
-exports.fetchData = functions.https.onRequest(async (req, res) => {
-  try {
-    // client passes ?token=ID_TOKEN or ?anon=ANON_ID
-    const { token, anon } = req.query;
-    let userId;
+async function getAllFrom(collection) {
+  const col = db.collection(collection);
+  const out = [];
+  let page = await col.limit(1000).get();
+  while (!page.empty) {
+    page.forEach((doc) => out.push({ id: doc.id, ...parseDoc(doc) }));
+    const last = page.docs[page.docs.length - 1];
+    page = await col.startAfter(last).limit(1000).get();
+  }
+  return out;
+}
 
-    if (token) {
-      // verify Firebase ID token and extract email
-      const decoded = await admin.auth().verifyIdToken(token);
-      userId = decoded.email;
-    } else if (anon) {
-      userId = anon;
-    } else {
-      return res.status(400).json({ error: 'Missing token or anon parameter' });
-    }
-
-    // 1) Fetch all graphics
-    const allSnap = await db.collection('graphics').get();
-    const allObjs = allSnap.docs.map(d => d.data());
-
-    // 2) Fetch this user’s votes
-    const voteSnap = await db.collection('votes')
-                             .where('userId', '==', userId)
-                             .get();
-    const votedIds = voteSnap.docs.map(d => d.data().imageId);
-
-    // 3) Compute new vs. voted
-    const newObjs = allObjs.filter(o => !votedIds.includes(o.imageId));
-
-    // 4) Build catalog/type lists
-    const releaseCatalogs = Array.from(
-      new Set(allObjs.map(o => o.releaseCatalog))
-    ).sort();
-    const imageTypes = Array.from(
-      new Set(allObjs.map(o => o.imageType))
-    ).sort();
-
-    // 5) Send exactly the same payload shape you had in GAS
-    res.json({
-      allGraphics:         allObjs.map(mapGraphic),
-      newGraphics:         newObjs.map(mapGraphic),
-      totalImages:         allObjs.length,
-      votedImagesCount:    votedIds.length,
-      remainingImagesCount:newObjs.length,
-      releaseCatalogs,
-      imageTypes
+async function getVotesByUser(userId) {
+  const list = [];
+  let q = db.collection(COLLECTIONS.votes).where("userId", "==", userId).limit(1000);
+  let page = await q.get();
+  while (!page.empty) {
+    page.forEach((d) => {
+      const f = d.data() || {};
+      list.push({
+        imageId: f.imageId || "",
+        voteType: (f.voteType || "").toLowerCase(),
+        userId: f.userId || "",
+        timestamp: f.timestamp || null,
+      });
     });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
+    const last = page.docs[page.docs.length - 1];
+    page = await db
+      .collection(COLLECTIONS.votes)
+      .where("userId", "==", userId)
+      .startAfter(last)
+      .limit(1000)
+      .get();
   }
+  return list;
+}
+
+function mapToArr(o) {
+  return [
+    o.author || "",
+    o.title || "",
+    o.book || "",
+    o.imageId || "",
+    o.imageUrl || "",
+    o.bookLink || "",
+    o.releaseCatalog || "",
+    o.imageType || "",
+    o.excerpt || "",
+  ];
+}
+
+function aggregateRatings(voteDocs) {
+  const agg = {};
+  for (const v of voteDocs) {
+    const id = (v.imageId || "").trim();
+    if (!id) continue;
+    const t = (v.voteType || "").toLowerCase();
+    let w = 0;
+    if (t === "dislike") w = -1;
+    else if (t === "meh") w = 0;
+    else if (t === "like") w = 1;
+    else if (t === "moved me" || t === "movedme" || t === "moved_me") w = 2;
+    if (!agg[id]) agg[id] = { score: 0, total: 0 };
+    agg[id].score += w;
+    agg[id].total += 1;
+  }
+  const out = {};
+  Object.keys(agg).forEach((id) => {
+    const { score, total } = agg[id];
+    out[id] = { score, total, rating: total ? score / total : 0 };
+  });
+  return out;
+}
+
+/**
+ * ====== APP / CORS ======
+ */
+const app = express();
+app.use(
+  cors({
+    origin: [
+      "https://poetry-please.web.app",
+      "https://poetry-please.firebaseapp.com",
+      "https://buttonpoetry.com",
+    ],
+    methods: ["GET", "POST", "OPTIONS"],
+    credentials: false,
+  })
+);
+app.use(express.json());
+
+async function verifyIdTokenFromHeader(req) {
+  const h = req.headers.authorization || "";
+  const m = h.match(/^Bearer (.+)$/i);
+  if (!m) return null;
+  try {
+    return await admin.auth().verifyIdToken(m[1]);
+  } catch {
+    return null;
+  }
+}
+
+/** ROUTES **/
+app.get("/api/imageTypes", async (_req, res) => {
+  const [g, e, v] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+  ]);
+  const all = [...g, ...e, ...v];
+  const imageTypes = [...new Set(all.map((i) => i.imageType).filter(Boolean))].sort();
+  res.json(imageTypes);
 });
 
-// submitVote: replace your REST POST to /votes
-exports.submitVote = functions.https.onRequest(async (req, res) => {
-  try {
-    const { imageId, voteType, userId } = req.body;
-    if (!imageId || !voteType || !userId) {
-      return res.status(400).json({ error: 'Missing imageId, voteType or userId' });
-    }
-    await db.collection('votes').add({
-      imageId,
-      voteType,
-      userId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-    res.json({ success: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
+app.get("/api/releaseCatalogs", async (_req, res) => {
+  const [g, e, v] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+  ]);
+  const all = [...g, ...e, ...v];
+  const cats = [...new Set(all.map((i) => i.releaseCatalog).filter(Boolean))].sort();
+  res.json(cats);
 });
 
-// storeEmailInAppsScript → storeEmail
-exports.storeEmail = functions.https.onRequest(async (req, res) => {
-  try {
-    const { userEmail } = req.body;
-    if (!userEmail) {
-      return res.status(400).json({ error: 'Missing userEmail' });
-    }
-    await db.collection('users').add({
-      email:     userEmail,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
-    });
-    res.json({ success: true });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
+app.get("/api/ratingsSummary", async (_req, res) => {
+  // gather all votes in pages using getAllFrom to reuse pagination
+  const votesSnap = await getAllFrom(COLLECTIONS.votes);
+  const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
+  res.json(aggregateRatings(compact));
 });
 
-// fetchReleaseCatalogs
-exports.fetchReleaseCatalogs = functions.https.onRequest(async (req, res) => {
-  try {
-    const allSnap = await db.collection('graphics').get();
-    const catalogs = Array.from(
-      new Set(allSnap.docs.map(d => d.data().releaseCatalog))
-    ).sort();
-    res.json({ releaseCatalogs: catalogs });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
+app.post("/api/fetchData", async (req, res) => {
+  const decoded = await verifyIdTokenFromHeader(req);
+  if (!decoded?.email) return res.status(401).json({ error: "auth" });
+
+  const [g, e, v] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+  ]);
+  const all = [...g, ...e, ...v];
+
+  const voted = await getVotesByUser(decoded.email);
+  const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
+  const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+
+  const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
+  const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
+
+  res.json({
+    allGraphics: all.map(mapToArr),
+    newGraphics: newObjs.map(mapToArr),
+    totalImages: all.length,
+    votedImagesCount: voted.length,
+    remainingImagesCount: newObjs.length,
+    releaseCatalogs,
+    imageTypes,
+  });
 });
 
-// fetchImageTypes
-exports.fetchImageTypes = functions.https.onRequest(async (req, res) => {
-  try {
-    const allSnap = await db.collection('graphics').get();
-    const types = Array.from(
-      new Set(allSnap.docs.map(d => d.data().imageType))
-    ).sort();
-    res.json({ imageTypes: types });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: e.message });
-  }
+app.post("/api/fetchDataAnon", async (req, res) => {
+  const anonId = (req.body?.anonId || "").trim();
+  if (!anonId) return res.status(400).json({ error: "missing anonId" });
+
+  const [g, e, v] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+  ]);
+  const all = [...g, ...e, ...v];
+  const voted = await getVotesByUser(anonId);
+  const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
+  const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+
+  const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
+  const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
+
+  res.json({
+    allGraphics: all.map(mapToArr),
+    newGraphics: newObjs.map(mapToArr),
+    totalImages: all.length,
+    votedImagesCount: voted.length,
+    remainingImagesCount: newObjs.length,
+    releaseCatalogs,
+    imageTypes,
+  });
 });
+
+app.post("/api/submitVote", async (req, res) => {
+  const { imageId, voteType, userId } = req.body || {};
+  if (!imageId || !voteType || !userId) return res.status(400).json({ error: "bad request" });
+  await db.collection(COLLECTIONS.votes).add({
+    imageId,
+    voteType,
+    userId,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  res.json({ ok: true });
+});
+
+app.post("/api/nextAnonymousId", async (_req, res) => {
+  const ref = db.collection("admin").doc("anonCounter");
+  let next = 0;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const cur = (snap.exists && snap.data().count) || 0;
+    next = cur + 1;
+    tx.set(ref, { count: next });
+  });
+  res.json({ anonId: `poetrylover${next}` });
+});
+
+export const api = functions.region("us-central1").https.onRequest(app);
