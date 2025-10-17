@@ -1,4 +1,4 @@
-import * as functions from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https";
 import admin from "firebase-admin";
 import express from "express";
 import cors from "cors";
@@ -256,4 +256,4 @@ app.post("/api/nextAnonymousId", async (_req, res) => {
   res.json({ anonId: `poetrylover${next}` });
 });
 
-export const api = functions.region("us-central1").https.onRequest(app);
+export const api = onRequest({ region: "us-central1" }, app);
