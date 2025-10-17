@@ -145,6 +145,13 @@ async function verifyIdTokenFromHeader(req) {
   }
 }
 
+/** ---------- ADD: root + health endpoints ---------- **/
+app.get("/", (_req, res) => {
+  res.type("text/plain").send("Poetry Please API is alive ✅  See /api/* routes.");
+});
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
+/** --------------------------------------------------- **/
+
 /** ROUTES **/
 app.get("/api/imageTypes", async (_req, res) => {
   const [g, e, v] = await Promise.all([
@@ -169,7 +176,6 @@ app.get("/api/releaseCatalogs", async (_req, res) => {
 });
 
 app.get("/api/ratingsSummary", async (_req, res) => {
-  // gather all votes in pages using getAllFrom to reuse pagination
   const votesSnap = await getAllFrom(COLLECTIONS.votes);
   const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
   res.json(aggregateRatings(compact));
@@ -256,4 +262,14 @@ app.post("/api/nextAnonymousId", async (_req, res) => {
   res.json({ anonId: `poetrylover${next}` });
 });
 
+/** ---------- ADD: 404 fallback (optional, nice UX) ---------- **/
+app.use((req, res) => {
+  res.status(404).json({
+    error: "not_found",
+    message: "Try /, /healthz, or the /api/* endpoints.",
+  });
+});
+/** ----------------------------------------------------------- **/
+
+// Keep this LAST
 export const api = onRequest({ region: "us-central1" }, app);
