@@ -14,12 +14,10 @@ const COLLECTIONS = {
 };
 
 /** ====== ADMIN INIT ====== */
-if (!admin.apps.length) {
-  admin.initializeApp();
-}
+if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
-/** Helpers */
+/** Helpers **/
 function parseDoc(snap) {
   const d = snap.data() || {};
   const imageId = d.imageId || d.imageID || d.videoId || "";
@@ -144,122 +142,149 @@ app.get("/", (_req, res) => {
 });
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
-/** ====== ROUTER MOUNTED AT /api ====== */
+/** ---- Router mounted at BOTH '/' and '/api' ---- */
 const router = express.Router();
 
 router.get("/imageTypes", async (_req, res) => {
-  const [g, e, v] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
-  ]);
-  const all = [...g, ...e, ...v];
-  const imageTypes = [...new Set(all.map((i) => i.imageType).filter(Boolean))].sort();
-  res.json(imageTypes);
+  try {
+    const [g, e, v] = await Promise.all([
+      getAllFrom(COLLECTIONS.graphics),
+      getAllFrom(COLLECTIONS.excerpts),
+      getAllFrom(COLLECTIONS.videos),
+    ]);
+    const all = [...g, ...e, ...v];
+    const imageTypes = [...new Set(all.map((i) => i.imageType).filter(Boolean))].sort();
+    res.json(imageTypes);
+  } catch (err) {
+    res.status(500).json({ error: "internal", detail: String(err?.message || err) });
+  }
 });
 
 router.get("/releaseCatalogs", async (_req, res) => {
-  const [g, e, v] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
-  ]);
-  const all = [...g, ...e, ...v];
-  const cats = [...new Set(all.map((i) => i.releaseCatalog).filter(Boolean))].sort();
-  res.json(cats);
+  try {
+    const [g, e, v] = await Promise.all([
+      getAllFrom(COLLECTIONS.graphics),
+      getAllFrom(COLLECTIONS.excerpts),
+      getAllFrom(COLLECTIONS.videos),
+    ]);
+    const all = [...g, ...e, ...v];
+    const cats = [...new Set(all.map((i) => i.releaseCatalog).filter(Boolean))].sort();
+    res.json(cats);
+  } catch (err) {
+    res.status(500).json({ error: "internal", detail: String(err?.message || err) });
+  }
 });
 
 router.get("/ratingsSummary", async (_req, res) => {
-  const votesSnap = await getAllFrom(COLLECTIONS.votes);
-  const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
-  res.json(aggregateRatings(compact));
+  try {
+    const votesSnap = await getAllFrom(COLLECTIONS.votes);
+    const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
+    res.json(aggregateRatings(compact));
+  } catch (err) {
+    res.status(500).json({ error: "internal", detail: String(err?.message || err) });
+  }
 });
 
 router.post("/fetchData", async (req, res) => {
-  const decoded = await verifyIdTokenFromHeader(req);
-  if (!decoded?.email) return res.status(401).json({ error: "auth" });
+  try {
+    const decoded = await verifyIdTokenFromHeader(req);
+    if (!decoded?.email) return res.status(401).json({ error: "auth" });
 
-  const [g, e, v] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
-  ]);
-  const all = [...g, ...e, ...v];
+    const [g, e, v] = await Promise.all([
+      getAllFrom(COLLECTIONS.graphics),
+      getAllFrom(COLLECTIONS.excerpts),
+      getAllFrom(COLLECTIONS.videos),
+    ]);
+    const all = [...g, ...e, ...v];
 
-  const voted = await getVotesByUser(decoded.email);
-  const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
-  const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+    const voted = await getVotesByUser(decoded.email);
+    const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
+    const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
 
-  const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
-  const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
+    const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
+    const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
-  res.json({
-    allGraphics: all.map(mapToArr),
-    newGraphics: newObjs.map(mapToArr),
-    totalImages: all.length,
-    votedImagesCount: voted.length,
-    remainingImagesCount: newObjs.length,
-    releaseCatalogs,
-    imageTypes,
-  });
+    res.json({
+      allGraphics: all.map(mapToArr),
+      newGraphics: newObjs.map(mapToArr),
+      totalImages: all.length,
+      votedImagesCount: voted.length,
+      remainingImagesCount: newObjs.length,
+      releaseCatalogs,
+      imageTypes,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "internal", detail: String(err?.message || err) });
+  }
 });
 
 router.post("/fetchDataAnon", async (req, res) => {
-  const anonId = (req.body?.anonId || "").trim();
-  if (!anonId) return res.status(400).json({ error: "missing anonId" });
+  try {
+    const anonId = (req.body?.anonId || "").trim();
+    if (!anonId) return res.status(400).json({ error: "missing anonId" });
 
-  const [g, e, v] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
-  ]);
-  const all = [...g, ...e, ...v];
-  const voted = await getVotesByUser(anonId);
-  const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
-  const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+    const [g, e, v] = await Promise.all([
+      getAllFrom(COLLECTIONS.graphics),
+      getAllFrom(COLLECTIONS.excerpts),
+      getAllFrom(COLLECTIONS.videos),
+    ]);
+    const all = [...g, ...e, ...v];
+    const voted = await getVotesByUser(anonId);
+    const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
+    const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
 
-  const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
-  const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
+    const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
+    const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
-  res.json({
-    allGraphics: all.map(mapToArr),
-    newGraphics: newObjs.map(mapToArr),
-    totalImages: all.length,
-    votedImagesCount: voted.length,
-    remainingImagesCount: newObjs.length,
-    releaseCatalogs,
-    imageTypes,
-  });
+    res.json({
+      allGraphics: all.map(mapToArr),
+      newGraphics: newObjs.map(mapToArr),
+      totalImages: all.length,
+      votedImagesCount: voted.length,
+      remainingImagesCount: newObjs.length,
+      releaseCatalogs,
+      imageTypes,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "internal", detail: String(err?.message || err) });
+  }
 });
 
 router.post("/submitVote", async (req, res) => {
-  const { imageId, voteType, userId } = req.body || {};
-  if (!imageId || !voteType || !userId) return res.status(400).json({ error: "bad request" });
-  await db.collection(COLLECTIONS.votes).add({
-    imageId,
-    voteType,
-    userId,
-    timestamp: admin.firestore.FieldValue.serverTimestamp(),
-  });
-  res.json({ ok: true });
+  try {
+    const { imageId, voteType, userId } = req.body || {};
+    if (!imageId || !voteType || !userId) return res.status(400).json({ error: "bad request" });
+    await db.collection(COLLECTIONS.votes).add({
+      imageId,
+      voteType,
+      userId,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "internal", detail: String(err?.message || err) });
+  }
 });
 
 router.post("/nextAnonymousId", async (_req, res) => {
-  const ref = db.collection("admin").doc("anonCounter");
-  let next = 0;
-  await db.runTransaction(async (tx) => {
-    const snap = await tx.get(ref);
-    const cur = (snap.exists && snap.data().count) || 0;
-    next = cur + 1;
-    tx.set(ref, { count: next });
-  });
-  res.json({ anonId: `poetrylover${next}` });
+  try {
+    const ref = db.collection("admin").doc("anonCounter");
+    let next = 0;
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const cur = (snap.exists && snap.data().count) || 0;
+      next = cur + 1;
+      tx.set(ref, { count: next });
+    });
+    res.json({ anonId: `poetrylover${next}` });
+  } catch (err) {
+    res.status(500).json({ error: "internal", detail: String(err?.message || err) });
+  }
 });
 
-/** Mount router at /api */
-app.use("/api", router);
+app.use(["/api", "/"], router);
 
-/** Fallback 404 */
+/** 404 fallback */
 app.use((req, res) => {
   res.status(404).json({
     error: "not_found",
@@ -267,5 +292,4 @@ app.use((req, res) => {
   });
 });
 
-/** Export */
 export const api = onRequest({ region: "us-central1" }, app);
