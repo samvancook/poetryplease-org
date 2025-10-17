@@ -15,7 +15,7 @@ const COLLECTIONS = {
 
 /** ====== ADMIN INIT ====== */
 if (!admin.apps.length) admin.initializeApp();
-const db = admin.firestore();
+const db = admin.firestore("poetrypleasedatabase");
 
 /** Helpers **/
 function parseDoc(snap) {
