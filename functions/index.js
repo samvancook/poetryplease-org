@@ -21,7 +21,7 @@ const appAdmin = initializeApp();
 
 // If your Firestore DB is the **default** "(default)", use: getFirestore(appAdmin)
 // If your DB id is really "poetrypleasedatabase", keep the 2nd argument.
-const db = getFirestore(appAdmin /*, "poetrypleasedatabase" */);
+const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 
 /** ====== EXPRESS / CORS ====== */
