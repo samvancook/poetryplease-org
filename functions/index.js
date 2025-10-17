@@ -3,9 +3,7 @@ import admin from "firebase-admin";
 import express from "express";
 import cors from "cors";
 
-/**
- * ====== CONFIG / CONSTANTS ======
- */
+/** ====== CONFIG / CONSTANTS ====== */
 const PROJECT_ID = "poetry-please";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -15,16 +13,13 @@ const COLLECTIONS = {
   users: "users",
 };
 
-/**
- * ====== ADMIN INIT ======
- * Uses Functions service account; no manual keys required.
- */
+/** ====== ADMIN INIT ====== */
 if (!admin.apps.length) {
   admin.initializeApp();
 }
 const db = admin.firestore();
 
-/** Helpers **/
+/** Helpers */
 function parseDoc(snap) {
   const d = snap.data() || {};
   const imageId = d.imageId || d.imageID || d.videoId || "";
@@ -117,9 +112,7 @@ function aggregateRatings(voteDocs) {
   return out;
 }
 
-/**
- * ====== APP / CORS ======
- */
+/** ====== APP / CORS ====== */
 const app = express();
 app.use(
   cors({
@@ -145,15 +138,16 @@ async function verifyIdTokenFromHeader(req) {
   }
 }
 
-/** ---------- ADD: root + health endpoints ---------- **/
+/** Health + root */
 app.get("/", (_req, res) => {
   res.type("text/plain").send("Poetry Please API is alive ✅  See /api/* routes.");
 });
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
-/** --------------------------------------------------- **/
 
-/** ROUTES **/
-app.get("/api/imageTypes", async (_req, res) => {
+/** ====== ROUTER MOUNTED AT /api ====== */
+const router = express.Router();
+
+router.get("/imageTypes", async (_req, res) => {
   const [g, e, v] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
@@ -164,7 +158,7 @@ app.get("/api/imageTypes", async (_req, res) => {
   res.json(imageTypes);
 });
 
-app.get("/api/releaseCatalogs", async (_req, res) => {
+router.get("/releaseCatalogs", async (_req, res) => {
   const [g, e, v] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
@@ -175,13 +169,13 @@ app.get("/api/releaseCatalogs", async (_req, res) => {
   res.json(cats);
 });
 
-app.get("/api/ratingsSummary", async (_req, res) => {
+router.get("/ratingsSummary", async (_req, res) => {
   const votesSnap = await getAllFrom(COLLECTIONS.votes);
   const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
   res.json(aggregateRatings(compact));
 });
 
-app.post("/api/fetchData", async (req, res) => {
+router.post("/fetchData", async (req, res) => {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.email) return res.status(401).json({ error: "auth" });
 
@@ -210,7 +204,7 @@ app.post("/api/fetchData", async (req, res) => {
   });
 });
 
-app.post("/api/fetchDataAnon", async (req, res) => {
+router.post("/fetchDataAnon", async (req, res) => {
   const anonId = (req.body?.anonId || "").trim();
   if (!anonId) return res.status(400).json({ error: "missing anonId" });
 
@@ -238,7 +232,7 @@ app.post("/api/fetchDataAnon", async (req, res) => {
   });
 });
 
-app.post("/api/submitVote", async (req, res) => {
+router.post("/submitVote", async (req, res) => {
   const { imageId, voteType, userId } = req.body || {};
   if (!imageId || !voteType || !userId) return res.status(400).json({ error: "bad request" });
   await db.collection(COLLECTIONS.votes).add({
@@ -250,7 +244,7 @@ app.post("/api/submitVote", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/nextAnonymousId", async (_req, res) => {
+router.post("/nextAnonymousId", async (_req, res) => {
   const ref = db.collection("admin").doc("anonCounter");
   let next = 0;
   await db.runTransaction(async (tx) => {
@@ -262,14 +256,16 @@ app.post("/api/nextAnonymousId", async (_req, res) => {
   res.json({ anonId: `poetrylover${next}` });
 });
 
-/** ---------- ADD: 404 fallback (optional, nice UX) ---------- **/
+/** Mount router at /api */
+app.use("/api", router);
+
+/** Fallback 404 */
 app.use((req, res) => {
   res.status(404).json({
     error: "not_found",
     message: "Try /, /healthz, or the /api/* endpoints.",
   });
 });
-/** ----------------------------------------------------------- **/
 
-// Keep this LAST
+/** Export */
 export const api = onRequest({ region: "us-central1" }, app);
