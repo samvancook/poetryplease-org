@@ -1,2 +1,76 @@
-<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Poetry, Please</title></head><body><div id="app">Deploy placeholder</div></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Poetry, Please</title>
+  <link rel="stylesheet" href="/styles.css"/>
+
+  <!-- Firebase (compat) SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.appspot.com",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    firebase.initializeApp(FIREBASE_CONFIG);
+  </script>
+</head>
+<body>
+  <div id="user-status"></div>
+
+  <div id="type-filter-container">
+    <label for="type-filter">Filter by Image Type:</label>
+    <select id="type-filter">
+      <option value="">All Types</option>
+    </select>
+  </div>
+
+  <div id="catalog-filter-container">
+    <label for="catalog-filter">Filter by Release Catalog:</label>
+    <select id="catalog-filter">
+      <option value="">All Releases</option>
+    </select>
+  </div>
+
+  <div id="login-screen">
+    <h1>Welcome to Poetry, Please!</h1>
+    <button id="login-google">Log in with Google</button>
+    <form id="email-login-form">
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <button type="submit">Log in</button>
+    </form>
+    <button id="show-registration">Create an Account</button>
+  </div>
+
+  <div id="registration-screen">
+    <h1>Create an Account</h1>
+    <form id="registration-form">
+      <input type="email" id="reg-email" placeholder="Email" required />
+      <input type="password" id="reg-password" placeholder="Password" required />
+      <button type="submit">Sign Up</button>
+    </form>
+    <button id="show-login">Back to Login</button>
+  </div>
+
+  <div id="poetry-screen" style="display:none">
+    <h1 id="page-title">Poetry, Please!</h1>
+    <div class="button-container">
+      <button id="load-button" disabled>Poetry, Please</button>
+    </div>
+    <div id="error" class="error"></div>
+    <div id="message" class="message"></div>
+    <div id="gallery" class="gallery"></div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
