@@ -173,7 +173,7 @@ async function getRatingsSummaryWrapped() {
   document.body.insertBefore(topBar, document.body.firstChild);
 })();
 
-// --- Media wrapper + buttons + bottom counters ---
+// --- Media wrapper + vote buttons + bottom controls ---
 const historyStack = [];
 let currentItem = null;
 
@@ -186,20 +186,54 @@ let currentItem = null;
     (gal?.parentElement || document.body).insertBefore(mediaWrap, gal || null);
   }
 
+  // Media element (image/video placeholder)
   let img = $('#poem-image');
   if (!img) { img = document.createElement('img'); img.id = 'poem-image'; mediaWrap.appendChild(img); }
 
-  if (!$('.button-row')) {
-    const row = document.createElement('div'); row.className = 'button-row';
+  // ===== VOTE ROW (add if missing) =====
+  if (!$('#vote-row')) {
+    const voteRow = document.createElement('div');
+    voteRow.id = 'vote-row';
+    voteRow.className = 'button-row';
+
+    const btnLike    = document.createElement('button'); btnLike.id    = 'btn-like';    btnLike.textContent    = 'Like';
+    const btnDislike = document.createElement('button'); btnDislike.id = 'btn-dislike'; btnDislike.textContent = 'Dislike';
+    const btnMoved   = document.createElement('button'); btnMoved.id   = 'btn-moved';   btnMoved.textContent   = 'Moved Me';
+    const btnMeh     = document.createElement('button'); btnMeh.id     = 'btn-meh';     btnMeh.textContent     = 'Meh';
+
+    voteRow.append(btnLike, btnDislike, btnMoved, btnMeh);
+    mediaWrap.appendChild(voteRow);
+
+    // Wire handlers
+    btnLike.addEventListener('click',    () => onVoteAny('like'));
+    btnDislike.addEventListener('click', () => onVoteAny('dislike'));
+    btnMoved.addEventListener('click',   () => onVoteAny('moved me'));
+    btnMeh.addEventListener('click',     () => onVoteAny('meh'));
+  }
+
+  // ===== UNDER-IMAGE CONTROL ROW (Go Back / To Book) =====
+  if (!$('.button-row#under-controls')) {
+    const row = document.createElement('div');
+    row.className = 'button-row';
+    row.id = 'under-controls';
+
     const btnBack = document.createElement('button'); btnBack.id = 'btn-go-back'; btnBack.textContent = 'Go Back'; btnBack.disabled = true;
     const btnBook = document.createElement('button'); btnBook.id = 'btn-to-book'; btnBook.textContent = 'Take me to the book';
 
-    btnBack.addEventListener('click', () => { if (!historyStack.length) return; const prev = historyStack.pop(); showItem(prev); });
-    btnBook.addEventListener('click', () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); });
+    btnBack.addEventListener('click', () => {
+      if (!historyStack.length) return;
+      const prev = historyStack.pop();
+      showItem(prev);
+    });
+    btnBook.addEventListener('click', () => {
+      if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer');
+    });
 
-    row.append(btnBack, btnBook); mediaWrap.appendChild(row);
+    row.append(btnBack, btnBook);
+    mediaWrap.appendChild(row);
   }
 
+  // ===== Sticky counters bar =====
   if (!$('#counters-bar')) {
     const bar = document.createElement('div'); bar.id = 'counters-bar';
     bar.innerHTML = `
@@ -286,17 +320,25 @@ function showItem(item){
   if (gal) gal.innerHTML = item ? `<p>Showing 1 item.</p>` : `<p>No new items.</p>`;
 }
 
-// Voting wrappers (optional like/dislike buttons if you add them later)
-async function onVote(value /* 'like' | 'dislike' */){
+async function onVoteAny(value /* 'like' | 'dislike' | 'meh' | 'moved me' */){
   if (!currentItem) return;
-  historyStack.push(currentItem);
-  await submitVote(currentItem, value);
-  if (value === 'like') updateCounters({ like: 1 });
-  else if (value === 'dislike') updateCounters({ dislike: 1 });
 
+  // Add to history so "Go Back" works
+  historyStack.push(currentItem);
+
+  // Submit the vote to your backend
+  await submitVote(currentItem, value);
+
+  // Update counters
+  if (value === 'like')     updateCounters({ like: 1 });
+  if (value === 'dislike')  updateCounters({ dislike: 1 });
+  // (we skip incrementing "meh" or "moved me" here intentionally)
+
+  // Load next item
   const next = await fetchNextItemFromYourBackend();
   showItem(next);
 }
+
 
 // "Poetry, Please" → record a skip as 'meh' and remain go-back-able
 async function onSkip(){
