@@ -219,12 +219,15 @@ function updateCounters({ like=0, dislike=0, skip=0 }){
 }
 
 // ---- Array-aware mapping (matches your newGraphics row format) ----
-function mapGraphic(g){
+function mapGraphic(g) {
   if (Array.isArray(g)) {
-    // [0]=author, [1]=title, [2]=book, [3]=imageId, [4]=imageUrl, [5]=bookLink, [6]=releaseCatalog, [7]=imageType, [8]=excerpt
-    return { id: g[3] || null, imageUrl: g[4] || null, bookUrl: g[5] || null, raw: g };
+    // Your sheet columns sometimes shift between 4–6 for the image
+    const id = g[3] || g[0] || null;
+    const imageUrl = g[4] || g[5] || g[6] || null;
+    const bookUrl = g[5] || g[6] || g[7] || null;
+    return { id, imageUrl, bookUrl, raw: g };
   }
-  // fallback for object rows
+  // fallback for object-shaped rows
   return {
     id: g?.id ?? g?.imageId ?? g?.contentId ?? g?.uid ?? null,
     imageUrl: g?.imageUrl ?? g?.image ?? g?.url ?? null,
@@ -232,6 +235,7 @@ function mapGraphic(g){
     raw: g
   };
 }
+
 
 function chooseNextFromData(data){
   let arr = [];
