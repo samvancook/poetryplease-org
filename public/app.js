@@ -420,12 +420,30 @@ function setVoteButtonsDisabled(disabled) {
 function flashMessage(text) {
   const el = $('#message'); if (!el) return; el.classList.add('toast'); el.textContent = text || ''; setTimeout(()=>{ if (el.textContent === text) el.textContent=''; }, 1500);
 }
+// Always use email for authed users; else anonId.
+// Backend expects votes keyed by email OR anonId (not UID).
 async function submitVote(item, value){
-  const user = firebase.auth().currentUser;
-  const userId = user ? (user.uid || user.email) : (localStorage.getItem('pp_anon') || null);
   if (!item?.id) return;
-  await submitVoteWrapped(item.id, value, userId);
+
+  const user = firebase.auth().currentUser;
+  let userId;
+
+  if (user && user.email) {
+    userId = user.email;              // ← key fix (use email, not uid)
+  } else {
+    let anon = localStorage.getItem('pp_anon');
+    if (!anon) {
+      // make sure we have an anon id even if voting before first fetch
+      anon = await getNextAnonymousIdWrapped();
+      localStorage.setItem('pp_anon', anon);
+    }
+    userId = anon;
+  }
+
+  // Write the vote
+  return submitVoteWrapped(item.id, value, userId);
 }
+
 async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
   if (!currentItem || isTransitioning) return;
   isTransitioning = true;
