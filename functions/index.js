@@ -268,6 +268,32 @@ app.post(getBoth("/nextAnonymousId"), async (_req, res) => {
   res.json({ anonId: `poetrylover${next}` });
 });
 
+// --- Add this vote endpoint before the export ---
+app.post('/vote', async (req, res) => {
+  try {
+    const { imageId, voteType, userId } = req.body;
+
+    if (!imageId || !voteType || !userId) {
+      return res.status(400).json({ error: 'missing_fields' });
+    }
+
+    const vote = {
+      imageId,
+      voteType,
+      userId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    await admin.firestore().collection('votes').add(vote);
+
+    res.status(204).end(); // success
+  } catch (err) {
+    console.error('Vote error:', err);
+    res.status(500).json({ error: 'internal', message: err.message });
+  }
+});
+
+
 /** 404 fallback */
 app.use((req, res) => {
   res.status(404).json({
