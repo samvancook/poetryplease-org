@@ -133,16 +133,17 @@ async function submitVoteWrapped(imageId, voteType, userId) {
 }
 
 async function fetchReleaseCatalogsWrapped() {
-  return api('fetchReleaseCatalogs', { method: 'POST' });
+  return api('releaseCatalogs', { method: 'GET' });
 }
 
 async function fetchImageTypesWrapped() {
-  return api('fetchImageTypes', { method: 'POST' });
+  return api('imageTypes', { method: 'GET' });
 }
 
 async function getRatingsSummaryWrapped() {
-  return api('getRatingsSummary', { method: 'POST' });
+  return api('ratingsSummary', { method: 'GET' });
 }
+
 
 // ===== Example “Poetry, Please” button handler =====
 async function loadRandomGraphic() {
