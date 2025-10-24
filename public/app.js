@@ -483,26 +483,38 @@ function flashMessage(text) {
   const el = $('#message'); if (!el) return; el.classList.add('toast'); el.textContent = text || ''; setTimeout(()=>{ if (el.textContent === text) el.textContent=''; }, 1500);
 }
 
-// === IMPORTANT: preserve your updated submitVote (email or anonId) ===
+// === IMPORTANT: submitVote for email or anonId, with anon auth token ===
 async function submitVote(item, value){
   if (!item?.id) return;
 
-  const user = firebase.auth().currentUser;
-  let userId;
+  let user = firebase.auth().currentUser;
+  // If not signed in, sign in anonymously so the API gets a valid ID token
+  if (!user) {
+    try {
+      await firebase.auth().signInAnonymously();
+      user = firebase.auth().currentUser;
+    } catch (e) {
+      console.warn('Anonymous sign-in failed:', e);
+    }
+  }
 
+  // Pick the identifier we store in Firestore (email if available, else anonId counter)
+  let userId;
   if (user && user.email) {
-    userId = user.email;              // use email for authed users
+    userId = user.email;              // <- stored key for authed users
   } else {
     let anon = localStorage.getItem('pp_anon');
     if (!anon) {
       anon = await getNextAnonymousIdWrapped();
       localStorage.setItem('pp_anon', anon);
     }
-    userId = anon;
+    userId = anon;                    // <- stored key for anon users
   }
 
+  // Write the vote (ID token is handled by api() automatically via currentUser)
   return submitVoteWrapped(item.id, value, userId);
 }
+
 
 async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
   if (!currentItem || isTransitioning) return;
