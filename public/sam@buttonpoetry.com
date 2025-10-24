@@ -1,5 +1,5 @@
 // ================================
-// Poetry, Please — FULL APP.JS
+// Poetry, Please — APP.JS (RESTORED UX PARITY)
 // ================================
 
 // ===== Constants =====
@@ -139,10 +139,10 @@ async function getRatingsSummaryWrapped() {
 }
 
 /* ============================================================
-   Frontend functionality (top bar, media, votes, counters)
+   Frontend functionality (filters, metadata, votes, counters)
    ============================================================ */
 
-// --- Minimal CSS injection for layout scaffolding (safe even with styles.css) ---
+// --- Minimal CSS injection (pairs well even if styles.css is missing) ---
 (function injectUIPatchStyles(){
   const css = `
   .top-bar{ display:flex; align-items:center; gap:12px; flex-wrap:nowrap; padding:8px 12px; }
@@ -150,14 +150,20 @@ async function getRatingsSummaryWrapped() {
   #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
 
   #media-wrap{ max-width:min(1000px,95vw); margin:12px auto; text-align:center; }
-  .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; }
-  #btn-go-back:disabled{ opacity:.5; cursor:not-allowed; }
+  .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
+  #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
 
   #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
     padding:10px 12px; border-top:1px solid #e6e6e6; background:#fff; z-index:5; }
   #counters-bar span{ white-space:nowrap; }
+
   .media-box img, .media-box video { max-width:100%; height:auto; }
-  .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; }
+  .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
+
+  .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
+  .meta-row p { margin:0; }
+  .vote-btn.voted { opacity:.85; }
+  .toast { color:#0a7e22; margin-top:8px; min-height:1.4em; }
   `;
   const tag = document.createElement('style');
   tag.appendChild(document.createTextNode(css));
@@ -170,8 +176,8 @@ async function getRatingsSummaryWrapped() {
   const topBar = document.createElement('div');
   topBar.className = 'top-bar';
 
-  const filters = document.querySelector('#filters') || document.createElement('div');
-  if (!filters.id) filters.id = 'filters';
+  // keep space for future filter chips if needed
+  const filters = document.createElement('div'); filters.id = 'filters';
 
   const spacer = document.createElement('div'); spacer.className = 'spacer';
 
@@ -186,6 +192,15 @@ async function getRatingsSummaryWrapped() {
 const historyStack = [];
 let currentItem = null;
 
+let lastData = null;     // latest server payload (fetchData / fetchDataAnon)
+let queue = [];          // filtered list based on dropdowns + checkboxes
+let idx = -1;            // position in queue
+
+let filterByAuthor = false;
+let filterByBook = false;
+let selectedType = '';
+let selectedCatalog = '';
+
 // ===== Counters =====
 function updateCounters({ like=0, dislike=0, skip=0 }){
   const likeEl = $('#count-like');
@@ -197,7 +212,7 @@ function updateCounters({ like=0, dislike=0, skip=0 }){
 }
 
 // ===== Mapping (matches your GAS: mapToArr) =====
-// [0]=author, [1]=title, [2]=book, [3]=imageId, [4]=imageUrl/videoUrl, [5]=bookLink, [6]=releaseCatalog, [7]=imageType, [8]=excerpt
+// [0]=author, [1]=title, [2]=book, [3]=imageId, [4]=imageUrl/videoUrl/driveLink/url, [5]=bookLink, [6]=releaseCatalog, [7]=imageType, [8]=excerpt
 function mapGraphic(g){
   if (Array.isArray(g)) {
     return {
@@ -217,7 +232,7 @@ function mapGraphic(g){
   return {
     id: g?.id ?? g?.imageId ?? g?.contentId ?? g?.uid ?? null,
     mediaUrl: g?.imageUrl ?? g?.videoUrl ?? g?.driveLink ?? g?.url ?? null,
-    bookUrl: g?.bookUrl ?? g?.link ?? null,
+    bookUrl: g?.bookUrl ?? g?.bookLink ?? g?.link ?? '',
     releaseCatalog: g?.releaseCatalog ?? '',
     imageType: g?.imageType ?? '',
     excerpt: g?.excerpt ?? '',
@@ -228,14 +243,12 @@ function mapGraphic(g){
   };
 }
 
-function chooseNextFromData(data){
+function chooseFirstFromData(data){
   const arr = Array.isArray(data?.newGraphics) ? data.newGraphics
             : Array.isArray(data?.graphics)    ? data.graphics
             : Array.isArray(data)              ? data
             : [];
-  if (!arr.length) return null;
-  const i = Math.floor(Math.random() * arr.length);
-  return mapGraphic(arr[i]);
+  return arr.map(mapGraphic);
 }
 
 function isVideoUrl(url='') {
@@ -244,31 +257,107 @@ function isVideoUrl(url='') {
 }
 
 // ===== Data fetch wrappers =====
-async function fetchNextItemFromYourBackend(){
+async function fetchLatestBatch(){
   const user = firebase.auth().currentUser;
-  let data;
   if (user) {
-    data = await fetchDataWrapped();
+    return fetchDataWrapped();
   } else {
     const stored = localStorage.getItem('pp_anon') || (await getNextAnonymousIdWrapped());
     localStorage.setItem('pp_anon', stored);
-    data = await fetchDataAnonWrapped(stored);
+    return fetchDataAnonWrapped(stored);
   }
-  return chooseNextFromData(data);
 }
 
-// ===== Vote write wrapper =====
-async function submitVote(item, value /* 'like'|'dislike'|'meh'|'moved me' */){
-  const user = firebase.auth().currentUser;
-  const userId = user ? (user.uid || user.email) : (localStorage.getItem('pp_anon') || null);
-  if (!item?.id) return;
-  await submitVoteWrapped(item.id, value, userId);
+// ===== Filter population =====
+async function fetchAndPopulateTypes() {
+  try {
+    const types = await fetchImageTypesWrapped(); // array of strings
+    const sel = $('#type-filter');
+    if (!sel) return;
+    // clear existing options except first
+    sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
+    (types || []).forEach(t => {
+      if (!t) return;
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    console.warn('fetchAndPopulateTypes error', e);
+  }
+}
+
+async function fetchAndPopulateCatalogs() {
+  try {
+    const cats = await fetchReleaseCatalogsWrapped();
+    const sel = $('#catalog-filter');
+    if (!sel) return;
+    sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
+    (cats || []).forEach(c => {
+      if (!c) return;
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    console.warn('fetchAndPopulateCatalogs error', e);
+  }
+}
+
+// ===== Queue build / rebuild =====
+function buildFilteredList(data) {
+  const base = Array.isArray(data?.newGraphics) ? data.newGraphics : [];
+  let list = base.map(mapGraphic);
+
+  // Dropdown filters
+  list = list.filter(g => {
+    if (selectedType && g.imageType !== selectedType) return false;
+    if (selectedCatalog && g.releaseCatalog !== selectedCatalog) return false;
+    return true;
+  });
+
+  // Author/book sticky filters (relative to currentItem)
+  if (filterByAuthor && currentItem?.author) {
+    list = list.filter(g => g.author === currentItem.author);
+  }
+  if (filterByBook && currentItem?.book) {
+    list = list.filter(g => g.book === currentItem.book);
+  }
+
+  return list;
+}
+
+function initQueueFromData(data) {
+  lastData = data;
+  queue = buildFilteredList(data);
+  idx = queue.length ? 0 : -1;
+  if (idx === -1) {
+    const gal = $('#gallery');
+    if (gal) gal.innerHTML = '<p>No items match the current filters.</p>';
+    return;
+  }
+  renderCurrent(queue[idx]);
+}
+
+function rebuildQueueAfterFilter() {
+  if (!lastData) return;
+  const keepId = currentItem?.id || null;
+  queue = buildFilteredList(lastData);
+  if (!queue.length) {
+    idx = -1; currentItem = null;
+    const gal = $('#gallery');
+    if (gal) gal.innerHTML = '<p>No items match the current filters.</p>';
+    renderMetaRows(null); // clear meta
+    renderCounter();
+    return;
+  }
+  const pos = keepId ? queue.findIndex(g => g.id === keepId) : -1;
+  idx = pos >= 0 ? pos : 0;
+  renderCurrent(queue[idx]);
 }
 
 // ===== Rendering =====
-function showItem(item){
-  currentItem = item;
-
+function ensureMediaWrap() {
   let mediaWrap = $('#media-wrap');
   if (!mediaWrap) {
     mediaWrap = document.createElement('div');
@@ -276,14 +365,99 @@ function showItem(item){
     const gal = $('#gallery');
     (gal?.parentElement || document.body).insertBefore(mediaWrap, gal || null);
   }
+  return mediaWrap;
+}
 
-  // Clear previous media (but keep buttons/counters if present)
+function renderMetaRows(item) {
+  const mediaWrap = ensureMediaWrap();
+
+  // remove old meta rows
+  mediaWrap.querySelectorAll('.meta-row').forEach(n => n.remove());
+
+  const makeRow = (text, checkboxId, checked, label, onToggle) => {
+    const row = document.createElement('div');
+    row.className = 'meta-row';
+    const p = document.createElement('p'); p.textContent = text || '';
+    row.appendChild(p);
+    if (checkboxId) {
+      const boxWrap = document.createElement('div');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.id = checkboxId;
+      cb.checked = !!checked;
+      cb.onchange = onToggle;
+      const lb = document.createElement('label');
+      lb.htmlFor = checkboxId;
+      lb.textContent = label;
+      boxWrap.append(cb, lb);
+      row.appendChild(boxWrap);
+    }
+    return row;
+  };
+
+  if (!item) return;
+
+  // Title
+  mediaWrap.prepend(makeRow(`Title: ${item.title || ''}`));
+
+  // Author with checkbox
+  mediaWrap.prepend(makeRow(
+    `Author: ${item.author || ''}`,
+    'authorCheckbox',
+    filterByAuthor,
+    'More from this author',
+    () => { filterByAuthor = !filterByAuthor; rebuildQueueAfterFilter(); }
+  ));
+
+  // Book with checkbox
+  mediaWrap.prepend(makeRow(
+    `From their book: ${item.book || ''}`,
+    'bookCheckbox',
+    filterByBook,
+    'More from this book',
+    () => { filterByBook = !filterByBook; rebuildQueueAfterFilter(); }
+  ));
+}
+
+function renderCounter() {
+  // Compute counts for the current "domain" (same filters applied to allGraphics)
+  const totalInDomain = queue.length;
+  const remaining = (idx >= 0 && totalInDomain > 0) ? Math.max(totalInDomain - (idx + 1), 0) : 0;
+  const votedInDomain = Math.max(totalInDomain - remaining - 1, 0);
+
+  let counter = $('#domain-counter');
+  if (!counter) {
+    counter = document.createElement('div');
+    counter.id = 'domain-counter';
+    counter.className = 'vote-counter';
+    // put inside counters bar to keep it visible
+    const bar = $('#counters-bar') || (function(){
+      const b = document.createElement('div'); b.id='counters-bar';
+      b.innerHTML = `
+        <span>Likes: <strong id="count-like">0</strong></span>
+        <span>Dislikes: <strong id="count-dislike">0</strong></span>
+        <span>Skips: <strong id="count-skip">0</strong></span>
+      `;
+      document.body.appendChild(b);
+      return b;
+    })();
+    const span = document.createElement('span');
+    span.appendChild(counter);
+    bar.appendChild(span);
+  }
+  counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} — ${remaining} remaining.`;
+}
+
+function renderItemMedia(item) {
+  const mediaWrap = ensureMediaWrap();
+
+  // Clear previous media box
   const oldBox = mediaWrap.querySelector('.media-box');
   if (oldBox) oldBox.remove();
 
   const box = document.createElement('div');
   box.className = 'media-box';
-  mediaWrap.prepend(box);
+  mediaWrap.appendChild(box);
 
   if (item?.imageType === 'EXC') {
     const textDiv = document.createElement('div');
@@ -317,42 +491,114 @@ function showItem(item){
     p.textContent = 'No media available for this item.';
     box.appendChild(p);
   }
+}
 
-  // enable/disable Go Back
+function renderCurrent(item){
+  currentItem = item;
+  renderMetaRows(item);
+  renderItemMedia(item);
+
   const back = $('#btn-go-back');
   if (back) back.disabled = historyStack.length === 0;
 
-  // wire "Take me to the book"
   const toBook = $('#btn-to-book');
   if (toBook) toBook.onclick = () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); };
 
   const gal = $('#gallery');
   if (gal) gal.innerHTML = item ? `<p>Showing 1 item.</p>` : `<p>No new items.</p>`;
+
+  renderCounter();
 }
 
 // ===== Voting / Navigation =====
+function setVoteButtonsDisabled(disabled) {
+  ['btn-like','btn-dislike','btn-moved','btn-meh'].forEach(id=>{
+    const b = $('#'+id);
+    if (b) b.disabled = disabled;
+  });
+}
+
+function flashMessage(text) {
+  let el = $('#message');
+  if (!el) return;
+  el.classList.add('toast');
+  el.textContent = text || '';
+  setTimeout(()=>{ if (el.textContent === text) el.textContent = ''; }, 1500);
+}
+
 async function onVoteAny(value /* 'like' | 'dislike' | 'meh' | 'moved me' */){
   if (!currentItem) return;
   historyStack.push(currentItem);
-  await submitVote(currentItem, value);
-  if (value === 'like')     updateCounters({ like: 1 });
-  if (value === 'dislike')  updateCounters({ dislike: 1 });
-  const next = await fetchNextItemFromYourBackend();
-  showItem(next);
+
+  // optimistic UI
+  setVoteButtonsDisabled(true);
+  const clickedId = (value === 'like') ? 'btn-like' :
+                    (value === 'dislike') ? 'btn-dislike' :
+                    (value === 'moved me') ? 'btn-moved' :
+                    'btn-meh';
+  const clicked = $('#'+clickedId);
+  if (clicked) { clicked.classList.add('voted'); clicked.textContent = `Voted ${value}`; }
+  flashMessage(`Your ${value} vote has been recorded.`);
+
+  try {
+    await submitVote(currentItem, value);
+    if (value === 'like')     updateCounters({ like: 1 });
+    if (value === 'dislike')  updateCounters({ dislike: 1 });
+  } catch(e) {
+    console.warn('vote error', e);
+  } finally {
+    // advance in local queue
+    const nextIndex = (idx + 1 < queue.length) ? idx + 1 : -1;
+    if (nextIndex !== -1) {
+      idx = nextIndex;
+      renderCurrent(queue[idx]);
+    } else {
+      // re-fetch to refill after exhausting the page
+      const data = await fetchLatestBatch().catch(()=>null);
+      if (data) initQueueFromData(data);
+    }
+    setVoteButtonsDisabled(false);
+  }
 }
 
-// "Poetry, Please" → record a skip as 'meh' (counts in skip counter) and keep Go Back
+// "Poetry, Please" → record a skip as 'meh' and advance
 async function onSkip(){
   if (!currentItem) {
-    const first = await fetchNextItemFromYourBackend();
-    showItem(first);
+    const data = await fetchLatestBatch().catch(()=>null);
+    if (data) initQueueFromData(data);
     return;
   }
   historyStack.push(currentItem);
-  await submitVote(currentItem, 'meh');   // treat skip as 'meh'
-  updateCounters({ skip: 1 });
-  const next = await fetchNextItemFromYourBackend();
-  showItem(next);
+
+  // optimistic
+  setVoteButtonsDisabled(true);
+  flashMessage('Skipped');
+
+  try {
+    await submitVote(currentItem, 'meh');
+    updateCounters({ skip: 1 });
+  } catch(e) {
+    console.warn('skip vote error', e);
+  } finally {
+    const nextIndex = (idx + 1 < queue.length) ? idx + 1 : -1;
+    if (nextIndex !== -1) {
+      idx = nextIndex;
+      renderCurrent(queue[idx]);
+    } else {
+      const data = await fetchLatestBatch().catch(()=>null);
+      if (data) initQueueFromData(data);
+    }
+    setVoteButtonsDisabled(false);
+  }
+}
+
+function onGoBack(){
+  if (!historyStack.length) return;
+  const prev = historyStack.pop();
+  // Try to position idx to this item if it exists in current queue
+  const pos = prev?.id ? queue.findIndex(g => g.id === prev.id) : -1;
+  if (pos >= 0) idx = pos;
+  renderCurrent(prev);
 }
 
 // ===== Auth listener =====
@@ -370,8 +616,18 @@ window.addEventListener('DOMContentLoaded', () => {
   on($('#show-registration'), 'click', showRegistrationForm);
   on($('#show-login'), 'click', showLoginScreen);
 
-  // "Poetry, Please" acts as skip
+  // "Poetry, Please" acts as skip / first-load fetch
   on($('#load-button'), 'click', onSkip);
+
+  // Populate filters and wire change handlers
+  fetchAndPopulateTypes().then(()=>{
+    const sel = $('#type-filter');
+    if (sel) sel.onchange = () => { selectedType = sel.value; rebuildQueueAfterFilter(); };
+  });
+  fetchAndPopulateCatalogs().then(()=>{
+    const sel = $('#catalog-filter');
+    if (sel) sel.onchange = () => { selectedCatalog = sel.value; rebuildQueueAfterFilter(); };
+  });
 
   updateUserStatusUI();
 });
@@ -394,7 +650,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const mk = (id, txt, val) => {
       const b = document.createElement('button');
-      b.id = id; b.textContent = txt;
+      b.id = id; b.textContent = txt; b.className = 'vote-btn';
       b.addEventListener('click', () => onVoteAny(val));
       return b;
     };
@@ -417,16 +673,11 @@ window.addEventListener('DOMContentLoaded', () => {
     back.id='btn-go-back';
     back.textContent='Go Back';
     back.disabled = true;
+    back.addEventListener('click', onGoBack);
 
     const toBook = document.createElement('button');
     toBook.id='btn-to-book';
     toBook.textContent='Take me to the book';
-
-    back.addEventListener('click', () => {
-      if (!historyStack.length) return;
-      const prev = historyStack.pop();
-      showItem(prev);
-    });
     toBook.addEventListener('click', () => {
       if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer');
     });
@@ -435,7 +686,7 @@ window.addEventListener('DOMContentLoaded', () => {
     mediaWrap.appendChild(row);
   }
 
-  // COUNTERS
+  // COUNTERS BAR
   if (!$('#counters-bar')) {
     const bar = document.createElement('div');
     bar.id='counters-bar';
@@ -448,59 +699,3 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 })();
 
-/* ============================================================
-   Diagnostic overlay (raw payload + what we render)
-   Remove this block once everything looks correct.
-   ============================================================ 
-(function diagPatch(){
-  console.log('[PP] diag patch loaded');
-
-  function banner(msg) {
-    let el = document.getElementById('pp-diag');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'pp-diag';
-      el.style.cssText = 'position:fixed;left:8px;bottom:8px;max-width:60vw;background:#111;color:#fff;padding:6px 8px;font:12px/1.4 monospace;z-index:99999;opacity:.9;border-radius:6px;white-space:pre-wrap;';
-      document.body.appendChild(el);
-    }
-    el.textContent = msg;
-    console.log('[PP]', msg);
-  }
-
-  // Log raw server payload (first row) whenever we fetch next
-  const _fetchNext = window.fetchNextItemFromYourBackend;
-  window.fetchNextItemFromYourBackend = async function() {
-    const data = await _fetchNext();
-    try {
-      const user = firebase.auth().currentUser;
-      let raw;
-      if (user) raw = await fetchDataWrapped();
-      else {
-        const stored = localStorage.getItem('pp_anon') || (await getNextAnonymousIdWrapped());
-        localStorage.setItem('pp_anon', stored);
-        raw = await fetchDataAnonWrapped(stored);
-      }
-      const first = Array.isArray(raw?.newGraphics) ? raw.newGraphics[0]
-                 : Array.isArray(raw?.graphics)    ? raw.graphics[0]
-                 : Array.isArray(raw)              ? raw[0]
-                 : null;
-
-      console.log('[PP] raw first row:', first);
-      banner('Fetched. first row:\n' + JSON.stringify(first, null, 2));
-    } catch(e){ console.warn('[PP diag] fetch fail', e); }
-    return data;
-  };
-
-  // Also summarize what we render
-  const _showItem = window.showItem;
-  window.showItem = function(item){
-    if (typeof _showItem === 'function') _showItem(item);
-    banner('showItem:\n' + JSON.stringify({
-      id: item?.id,
-      mediaUrl: item?.mediaUrl,
-      imageType: item?.imageType,
-      bookUrl: item?.bookUrl
-    }, null, 2));
-  };
-})();
-*/
