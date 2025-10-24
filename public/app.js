@@ -47,11 +47,7 @@ async function api(path, { method = 'POST', body } = {}) {
 // ===== UI Helpers =====
 const $  = (sel) => document.querySelector(sel);
 const on = (el, evt, fn) => el && el.addEventListener(evt, fn);
-
-function show(el, yes) {
-  if (!el) return;
-  el.style.display = yes ? 'block' : 'none';
-}
+function show(el, yes) { if (el) el.style.display = yes ? 'block' : 'none'; }
 
 // ===== Auth UI =====
 function updateUserStatusUI() {
@@ -67,7 +63,6 @@ function updateUserStatusUI() {
       div.innerHTML =
         "<button id='login-google'>Log in with Google</button> or continue anonymously";
     if (loadBtn) loadBtn.disabled = false;
-
     const lg = $('#login-google');
     on(lg, 'click', signInWithGoogle);
   }
@@ -77,7 +72,6 @@ function showLoginScreen() {
   show($('#registration-screen'), false);
   show($('#login-screen'), true);
 }
-
 function showRegistrationForm() {
   show($('#login-screen'), false);
   show($('#registration-screen'), true);
@@ -92,7 +86,6 @@ async function signInWithGoogle() {
     alert('Google sign-in failed');
   }
 }
-
 async function handleEmailLogin(e) {
   e?.preventDefault();
   try {
@@ -103,7 +96,6 @@ async function handleEmailLogin(e) {
     alert('Login error: ' + e2.message);
   }
 }
-
 async function handleRegistration(e) {
   e?.preventDefault();
   try {
@@ -119,42 +111,33 @@ async function handleRegistration(e) {
 async function fetchDataWrapped() {
   return api('fetchData', { body: { limit: 20 } });
 }
-
 async function fetchDataAnonWrapped(anonId) {
   return api('fetchDataAnon', { body: { anonId } });
 }
-
 async function getNextAnonymousIdWrapped() {
   return api('getNextAnonymousId', { method: 'POST' });
 }
-
 async function submitVoteWrapped(imageId, voteType, userId) {
   return api('vote', { body: { imageId, voteType, userId } });
 }
-
 async function fetchReleaseCatalogsWrapped() {
   return api('releaseCatalogs', { method: 'GET' });
 }
-
 async function fetchImageTypesWrapped() {
   return api('imageTypes', { method: 'GET' });
 }
-
 async function getRatingsSummaryWrapped() {
   return api('ratingsSummary', { method: 'GET' });
 }
 
 /* ============================================================
-   NEW: Frontend functionality (history, counters, top bar, etc.)
+   Frontend functionality (history, counters, top bar, etc.)
    ============================================================ */
 
-// --- CSS injection (keeps everything on one line and adds bars) ---
+// --- CSS injection (keep “Logged in as…” inline; add scaffold) ---
 (function injectUIPatchStyles(){
   const css = `
-  .top-bar{
-    display:flex; align-items:center; gap:12px; flex-wrap:nowrap;
-    padding:8px 12px;
-  }
+  .top-bar{ display:flex; align-items:center; gap:12px; flex-wrap:nowrap; padding:8px 12px; }
   .top-bar .spacer{flex:1;}
   #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
 
@@ -162,11 +145,8 @@ async function getRatingsSummaryWrapped() {
   .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; }
   #btn-go-back:disabled{ opacity:.5; cursor:not-allowed; }
 
-  #counters-bar{
-    position:sticky; bottom:0;
-    display:flex; justify-content:center; gap:18px;
-    padding:10px 12px; border-top:1px solid #e6e6e6; background:#fff; z-index:5;
-  }
+  #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
+    padding:10px 12px; border-top:1px solid #e6e6e6; background:#fff; z-index:5; }
   #counters-bar span{ white-space:nowrap; }
   #poem-image{ max-width:100%; height:auto; max-height:80vh; object-fit:contain; }
   `;
@@ -181,24 +161,15 @@ async function getRatingsSummaryWrapped() {
   const topBar = document.createElement('div');
   topBar.className = 'top-bar';
 
-  // If you have a filters container, you can put it here:
   const filters = document.querySelector('#filters') || document.createElement('div');
   if (!filters.id) filters.id = 'filters';
 
-  const spacer = document.createElement('div');
-  spacer.className = 'spacer';
+  const spacer = document.createElement('div'); spacer.className = 'spacer';
 
-  // Use your existing #user-status element if it exists; else make one
   let userStatus = document.querySelector('#user-status');
-  if (!userStatus) {
-    userStatus = document.createElement('div');
-    userStatus.id = 'user-status';
-  }
+  if (!userStatus) { userStatus = document.createElement('div'); userStatus.id = 'user-status'; }
 
-  topBar.appendChild(filters);
-  topBar.appendChild(spacer);
-  topBar.appendChild(userStatus);
-
+  topBar.append(filters, spacer, userStatus);
   document.body.insertBefore(topBar, document.body.firstChild);
 })();
 
@@ -207,62 +178,30 @@ const historyStack = [];
 let currentItem = null;
 
 (function buildMediaAndControls(){
-  let mediaWrap = document.querySelector('#media-wrap');
+  let mediaWrap = $('#media-wrap');
   if (!mediaWrap) {
     mediaWrap = document.createElement('div');
     mediaWrap.id = 'media-wrap';
-    // Prefer to place above #gallery so your gallery can still be used
     const gal = $('#gallery');
-    if (gal && gal.parentElement) {
-      gal.parentElement.insertBefore(mediaWrap, gal);
-    } else {
-      document.body.appendChild(mediaWrap);
-    }
+    (gal?.parentElement || document.body).insertBefore(mediaWrap, gal || null);
   }
 
-  // Image element (used if present)
-  let img = document.querySelector('#poem-image');
-  if (!img) {
-    img = document.createElement('img');
-    img.id = 'poem-image';
-    mediaWrap.appendChild(img);
+  let img = $('#poem-image');
+  if (!img) { img = document.createElement('img'); img.id = 'poem-image'; mediaWrap.appendChild(img); }
+
+  if (!$('.button-row')) {
+    const row = document.createElement('div'); row.className = 'button-row';
+    const btnBack = document.createElement('button'); btnBack.id = 'btn-go-back'; btnBack.textContent = 'Go Back'; btnBack.disabled = true;
+    const btnBook = document.createElement('button'); btnBook.id = 'btn-to-book'; btnBook.textContent = 'Take me to the book';
+
+    btnBack.addEventListener('click', () => { if (!historyStack.length) return; const prev = historyStack.pop(); showItem(prev); });
+    btnBook.addEventListener('click', () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); });
+
+    row.append(btnBack, btnBook); mediaWrap.appendChild(row);
   }
 
-  // Button row under the image
-  if (!document.querySelector('.button-row')) {
-    const row = document.createElement('div');
-    row.className = 'button-row';
-
-    const btnBack = document.createElement('button');
-    btnBack.id = 'btn-go-back';
-    btnBack.textContent = 'Go Back';
-    btnBack.disabled = true;
-
-    const btnBook = document.createElement('button');
-    btnBook.id = 'btn-to-book';
-    btnBook.textContent = 'Take me to the book';
-
-    btnBack.addEventListener('click', () => {
-      if (!historyStack.length) return;
-      const prev = historyStack.pop();
-      showItem(prev);
-    });
-
-    btnBook.addEventListener('click', () => {
-      if (currentItem?.bookUrl) {
-        window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer');
-      }
-    });
-
-    row.appendChild(btnBack);
-    row.appendChild(btnBook);
-    mediaWrap.appendChild(row);
-  }
-
-  // Sticky counters bar at bottom
-  if (!document.querySelector('#counters-bar')) {
-    const bar = document.createElement('div');
-    bar.id = 'counters-bar';
+  if (!$('#counters-bar')) {
+    const bar = document.createElement('div'); bar.id = 'counters-bar';
     bar.innerHTML = `
       <span>Likes: <strong id="count-like">0</strong></span>
       <span>Dislikes: <strong id="count-dislike">0</strong></span>
@@ -273,16 +212,19 @@ let currentItem = null;
 })();
 
 function updateCounters({ like=0, dislike=0, skip=0 }){
-  const likeEl = $('#count-like');
-  const dislikeEl = $('#count-dislike');
-  const skipEl = $('#count-skip');
+  const likeEl = $('#count-like'), dislikeEl = $('#count-dislike'), skipEl = $('#count-skip');
   if (like && likeEl) likeEl.textContent = (+likeEl.textContent + like);
   if (dislike && dislikeEl) dislikeEl.textContent = (+dislikeEl.textContent + dislike);
   if (skip && skipEl) skipEl.textContent = (+skipEl.textContent + skip);
 }
 
-// Normalize one graphic from backend into {id, imageUrl, bookUrl, ...}
+// ---- Array-aware mapping (matches your newGraphics row format) ----
 function mapGraphic(g){
+  if (Array.isArray(g)) {
+    // [0]=author, [1]=title, [2]=book, [3]=imageId, [4]=imageUrl, [5]=bookLink, [6]=releaseCatalog, [7]=imageType, [8]=excerpt
+    return { id: g[3] || null, imageUrl: g[4] || null, bookUrl: g[5] || null, raw: g };
+  }
+  // fallback for object rows
   return {
     id: g?.id ?? g?.imageId ?? g?.contentId ?? g?.uid ?? null,
     imageUrl: g?.imageUrl ?? g?.image ?? g?.url ?? null,
@@ -291,11 +233,13 @@ function mapGraphic(g){
   };
 }
 
-// Pick next item from API result
 function chooseNextFromData(data){
-  const arr = data?.newGraphics || data?.graphics || [];
+  let arr = [];
+  if (Array.isArray(data)) arr = data;
+  else if (Array.isArray(data?.newGraphics)) arr = data.newGraphics;
+  else if (Array.isArray(data?.graphics)) arr = data.graphics;
   if (!arr.length) return null;
-  const idx = Math.floor(Math.random()*arr.length);
+  const idx = Math.floor(Math.random() * arr.length);
   return mapGraphic(arr[idx]);
 }
 
@@ -314,7 +258,7 @@ async function fetchNextItemFromYourBackend(){
 }
 
 // Submit vote using your wrapper
-async function submitVote(item, value /* 'Y' | 'N' | 'M' */){
+async function submitVote(item, value /* 'like'|'dislike'|'meh'|'moved me' */){
   const user = firebase.auth().currentUser;
   const userId = user ? (user.uid || user.email) : (localStorage.getItem('pp_anon') || null);
   if (!item?.id) return;
@@ -334,36 +278,31 @@ function showItem(item){
   const back = $('#btn-go-back');
   if (back) back.disabled = historyStack.length === 0;
 
-  // also update the gallery text minimally so your old UI still shows something
   const gal = $('#gallery');
-  if (gal) {
-    gal.innerHTML = item
-      ? `<p>Showing 1 item.</p>`
-      : `<p>No new items.</p>`;
-  }
+  if (gal) gal.innerHTML = item ? `<p>Showing 1 item.</p>` : `<p>No new items.</p>`;
 }
 
-// Voting wrappers
-async function onVote(value /* 'Y' or 'N' */){
+// Voting wrappers (optional like/dislike buttons if you add them later)
+async function onVote(value /* 'like' | 'dislike' */){
   if (!currentItem) return;
   historyStack.push(currentItem);
   await submitVote(currentItem, value);
-  if (value === 'Y') updateCounters({ like: 1 });
-  else if (value === 'N') updateCounters({ dislike: 1 });
+  if (value === 'like') updateCounters({ like: 1 });
+  else if (value === 'dislike') updateCounters({ dislike: 1 });
 
   const next = await fetchNextItemFromYourBackend();
   showItem(next);
 }
 
+// "Poetry, Please" → record a skip as 'meh' and remain go-back-able
 async function onSkip(){
   if (!currentItem) {
-    // First load acts like skip to show something immediately
     const first = await fetchNextItemFromYourBackend();
     showItem(first);
     return;
   }
   historyStack.push(currentItem);
-  await submitVote(currentItem, 'M');  // count as skip/zero
+  await submitVote(currentItem, 'meh');  // ← skip recorded as 'meh'
   updateCounters({ skip: 1 });
 
   const next = await fetchNextItemFromYourBackend();
@@ -385,12 +324,12 @@ window.addEventListener('DOMContentLoaded', () => {
   on($('#show-registration'), 'click', showRegistrationForm);
   on($('#show-login'), 'click', showLoginScreen);
 
-  // IMPORTANT: "Poetry, Please" now triggers a SKIP (0 / 'M') and supports Go Back
+  // "Poetry, Please" now acts as SKIP ('meh') + supports Go Back
   on($('#load-button'), 'click', onSkip);
 
-  // Optional: if you add Like/Dislike buttons with these IDs, they’ll work automatically
-  on($('#btn-like'), 'click', () => onVote('Y'));
-  on($('#btn-dislike'), 'click', () => onVote('N'));
+  // If you add like/dislike buttons later, these IDs will just work:
+  on($('#btn-like'), 'click', () => onVote('like'));
+  on($('#btn-dislike'), 'click', () => onVote('dislike'));
 
   updateUserStatusUI();
 });
