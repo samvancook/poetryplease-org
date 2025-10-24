@@ -1,5 +1,5 @@
 // ================================
-// Poetry, Please — APP.JS (Parity + Heuristics + Preload)
+// Poetry, Please — APP.JS (Parity + Heuristics + Preload + Viewport fit)
 // ================================
 
 // ===== Constants =====
@@ -104,9 +104,20 @@ const getRatingsSummaryWrapped    = () => api('ratingsSummary',  { method: 'GET'
     padding:10px 12px; border-top:1px solid #e6e6e6; background:#fff; z-index:5; }
   #counters-bar span{ white-space:nowrap; }
 
-  .media-box img, .media-box video { max-width:100%; height:auto; }
-  .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
+  /* Viewport-fit scaffolding */
+  html, body { height: 100%; }
+  body { min-height: 100dvh; }
+  .media-box {
+    max-height: var(--media-max-h, 70dvh);
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; overflow: hidden;
+  }
+  .media-box img, .media-box video {
+    max-width: 100%; max-height: 100%; height: auto; object-fit: contain;
+  }
+  .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
 
+  .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
   .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
   .meta-row p { margin:0; }
   .vote-btn.voted { opacity:.85; }
@@ -284,6 +295,43 @@ function preloadAsset(src, type) {
 function safePreload(i) { if (i < 0 || i >= queue.length) return; const it = queue[i]; return preloadAsset(it.mediaUrl, it.imageType); }
 function renderWhenReady(i) { const it = queue[i]; if (!it) return; const p = preloadCache.get(it.mediaUrl) || Promise.resolve(); p.finally(() => renderCurrent(it)); }
 
+// ===== Viewport fit (dynamic media height) =====
+function setViewportVars() {
+  const vh = window.innerHeight * 0.01;
+  document.documentElement.style.setProperty('--vh', `${vh}px`);
+}
+function adjustViewportFit() {
+  const vh = window.innerHeight;
+  const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
+  const nodes = [
+    ...ids.map(id => document.getElementById(id)).filter(Boolean),
+    document.querySelector('.button-container'),
+    document.getElementById('error'),
+    document.getElementById('message')
+  ].filter(Boolean);
+
+  let occupied = 0;
+  nodes.forEach(el => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    occupied += (r.height + margins);
+  });
+
+  // include bottom controls if present
+  const bottomRow = document.querySelector('#media-wrap .button-row:last-child');
+  if (bottomRow) {
+    const r = bottomRow.getBoundingClientRect();
+    const cs = getComputedStyle(bottomRow);
+    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    occupied += (r.height + margins);
+  }
+
+  const buffer = 24;
+  const maxH = Math.max(160, vh - occupied - buffer);
+  document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
+}
+
 // ===== Init / rebuild =====
 function initQueueFromData(data) {
   lastData = data;
@@ -361,20 +409,31 @@ function renderItemMedia(item) {
   const oldBox = mediaWrap.querySelector('.media-box'); if (oldBox) oldBox.remove();
   const box = document.createElement('div'); box.className='media-box'; mediaWrap.appendChild(box);
 
+  let img = null, v = null;
+
   if (item?.imageType === 'EXC') {
     const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
     const p = document.createElement('p'); p.textContent = item?.excerpt || ''; textDiv.appendChild(p); box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
     const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
-    const v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
+    v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
     a.appendChild(v); box.appendChild(a);
   } else if (item?.mediaUrl) {
     const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
-    const img = document.createElement('img'); img.src=item.mediaUrl; img.alt=item?.id||''; img.style.maxWidth='100%'; img.style.height='auto';
+    img = document.createElement('img'); img.src=item.mediaUrl; img.alt=item?.id||''; img.style.maxWidth='100%'; img.style.height='auto';
     a.appendChild(img); box.appendChild(a);
   } else { const p=document.createElement('p'); p.textContent='No media available for this item.'; box.appendChild(p); }
 
   placeRowsAroundMedia(mediaWrap, box);
+
+  // Trigger viewport fit now and when media is ready
+  requestAnimationFrame(() => { setViewportVars(); adjustViewportFit(); });
+  if (img) img.addEventListener('load', () => requestAnimationFrame(adjustViewportFit), { once: true });
+  if (v) {
+    const recalc = () => requestAnimationFrame(adjustViewportFit);
+    v.addEventListener('loadedmetadata', recalc, { once: true });
+    v.addEventListener('canplay',        recalc, { once: true });
+  }
 }
 function renderCurrent(item){
   resetVoteButtons();
@@ -387,6 +446,9 @@ function renderCurrent(item){
   const toBook = $('#btn-to-book'); if (toBook) toBook.onclick = () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); };
   const gal = $('#gallery'); if (gal) gal.innerHTML = item ? `<p>Showing 1 item.</p>` : `<p>No new items.</p>`;
   renderCounter();
+
+  setViewportVars();
+  adjustViewportFit();
 }
 
 // ===== Heuristic next index chooser =====
@@ -420,8 +482,8 @@ function setVoteButtonsDisabled(disabled) {
 function flashMessage(text) {
   const el = $('#message'); if (!el) return; el.classList.add('toast'); el.textContent = text || ''; setTimeout(()=>{ if (el.textContent === text) el.textContent=''; }, 1500);
 }
-// Always use email for authed users; else anonId.
-// Backend expects votes keyed by email OR anonId (not UID).
+
+// === IMPORTANT: preserve your updated submitVote (email or anonId) ===
 async function submitVote(item, value){
   if (!item?.id) return;
 
@@ -429,18 +491,16 @@ async function submitVote(item, value){
   let userId;
 
   if (user && user.email) {
-    userId = user.email;              // ← key fix (use email, not uid)
+    userId = user.email;              // use email for authed users
   } else {
     let anon = localStorage.getItem('pp_anon');
     if (!anon) {
-      // make sure we have an anon id even if voting before first fetch
       anon = await getNextAnonymousIdWrapped();
       localStorage.setItem('pp_anon', anon);
     }
     userId = anon;
   }
 
-  // Write the vote
   return submitVoteWrapped(item.id, value, userId);
 }
 
@@ -533,6 +593,12 @@ window.addEventListener('DOMContentLoaded', () => {
   getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
 
   updateUserStatusUI();
+
+  // Viewport listeners
+  setViewportVars();
+  adjustViewportFit();
+  window.addEventListener('resize', () => { setViewportVars(); adjustViewportFit(); });
+  window.addEventListener('orientationchange', () => { setViewportVars(); setTimeout(adjustViewportFit, 100); });
 });
 
 // ===== Scaffold UI (vote row, under-controls, counters) =====
@@ -569,4 +635,3 @@ window.addEventListener('DOMContentLoaded', () => {
     document.body.appendChild(bar);
   }
 })();
-
