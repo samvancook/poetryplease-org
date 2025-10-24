@@ -255,13 +255,13 @@ function updateCounters({ like=0, dislike=0, skip=0 }){
 // ---- Array-aware mapping (matches your newGraphics row format) ----
 function mapGraphic(g) {
   if (Array.isArray(g)) {
-    // Your sheet columns sometimes shift between 4–6 for the image
-    const id = g[3] || g[0] || null;
-    const imageUrl = g[4] || g[5] || g[6] || null;
-    const bookUrl = g[5] || g[6] || g[7] || null;
-    return { id, imageUrl, bookUrl, raw: g };
+    return {
+      id: g[3] || null,
+      imageUrl: g[4] || null,   // <- image/video URL
+      bookUrl: g[5] || null,    // <- book URL
+      raw: g
+    };
   }
-  // fallback for object-shaped rows
   return {
     id: g?.id ?? g?.imageId ?? g?.contentId ?? g?.uid ?? null,
     imageUrl: g?.imageUrl ?? g?.image ?? g?.url ?? null,
@@ -269,6 +269,7 @@ function mapGraphic(g) {
     raw: g
   };
 }
+
 
 
 function chooseNextFromData(data){
@@ -379,3 +380,115 @@ window.addEventListener('DOMContentLoaded', () => {
 
   updateUserStatusUI();
 });
+
+
+
+/* ===== FORCE VOTE ROW + WIRING (idempotent) ===== */
+
+// Create the vote row if missing, wire handlers, and make sure it stays put.
+function ensureVoteRow() {
+  let mediaWrap = document.getElementById('media-wrap');
+  if (!mediaWrap) {
+    mediaWrap = document.createElement('div');
+    mediaWrap.id = 'media-wrap';
+    const gal = document.getElementById('gallery');
+    (gal?.parentElement || document.body).insertBefore(mediaWrap, gal || null);
+  }
+
+  // Ensure media element placeholder exists (image/video goes here)
+  let img = document.getElementById('poem-image');
+  if (!img) {
+    img = document.createElement('img');
+    img.id = 'poem-image';
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    mediaWrap.prepend(img);
+  }
+
+  // ----- VOTE ROW -----
+  let voteRow = document.getElementById('vote-row');
+  if (!voteRow) {
+    voteRow = document.createElement('div');
+    voteRow.id = 'vote-row';
+    voteRow.className = 'button-row';
+
+    const btnLike    = document.createElement('button'); btnLike.id    = 'btn-like';    btnLike.textContent    = 'Like';
+    const btnDislike = document.createElement('button'); btnDislike.id = 'btn-dislike'; btnDislike.textContent = 'Dislike';
+    const btnMoved   = document.createElement('button'); btnMoved.id   = 'btn-moved';   btnMoved.textContent   = 'Moved Me';
+    const btnMeh     = document.createElement('button'); btnMeh.id     = 'btn-meh';     btnMeh.textContent     = 'Meh';
+
+    voteRow.append(btnLike, btnDislike, btnMoved, btnMeh);
+    // place vote row just under the media
+    if (img.nextSibling) mediaWrap.insertBefore(voteRow, img.nextSibling);
+    else mediaWrap.appendChild(voteRow);
+
+    // wire once
+    btnLike.addEventListener('click',    () => onVoteAny('like'));
+    btnDislike.addEventListener('click', () => onVoteAny('dislike'));
+    btnMoved.addEventListener('click',   () => onVoteAny('moved me'));
+    btnMeh.addEventListener('click',     () => onVoteAny('meh'));
+  }
+
+  // ----- UNDER-IMAGE CONTROLS (Go Back / Take me to the book) -----
+  let under = document.getElementById('under-controls');
+  if (!under) {
+    under = document.createElement('div');
+    under.id = 'under-controls';
+    under.className = 'button-row';
+
+    const btnBack = document.createElement('button'); btnBack.id = 'btn-go-back'; btnBack.textContent = 'Go Back'; btnBack.disabled = true;
+    const btnBook = document.createElement('button'); btnBook.id = 'btn-to-book'; btnBook.textContent = 'Take me to the book';
+
+    btnBack.addEventListener('click', () => {
+      if (!window.historyStack || !historyStack.length) return;
+      const prev = historyStack.pop();
+      showItem(prev);
+    });
+    btnBook.addEventListener('click', () => {
+      if (window.currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer');
+    });
+
+    mediaWrap.appendChild(under);
+    under.append(btnBack, btnBook);
+  }
+
+  // ----- BOTTOM COUNTERS -----
+  if (!document.getElementById('counters-bar')) {
+    const bar = document.createElement('div');
+    bar.id = 'counters-bar';
+    bar.style.cssText = 'position:sticky;bottom:0;display:flex;justify-content:center;gap:18px;padding:10px 12px;border-top:1px solid #e6e6e6;background:#fff;z-index:5;';
+    bar.innerHTML = `
+      <span>Likes: <strong id="count-like">0</strong></span>
+      <span>Dislikes: <strong id="count-dislike">0</strong></span>
+      <span>Skips: <strong id="count-skip">0</strong></span>
+    `;
+    document.body.appendChild(bar);
+  }
+}
+
+// Make sure vote row exists on load and after each render
+ensureVoteRow();
+
+// Patch showItem to re-ensure the vote row (without changing its behavior)
+const __origShowItem = typeof showItem === 'function' ? showItem : null;
+window.showItem = function(item) {
+  if (__origShowItem) __origShowItem(item);
+  // re-enable / disable Go Back by history length
+  const back = document.getElementById('btn-go-back');
+  if (back && window.historyStack) back.disabled = historyStack.length === 0;
+  ensureVoteRow();
+};
+
+// If you still have onVote (old), ignore; we use onVoteAny.
+// Ensure onVoteAny exists (in case it wasn't added earlier).
+if (typeof onVoteAny !== 'function') {
+  window.onVoteAny = async function(value /* 'like' | 'dislike' | 'meh' | 'moved me' */){
+    if (!window.currentItem) return;
+    historyStack.push(currentItem);
+    await submitVote(currentItem, value);
+    if (value === 'like')     updateCounters({ like: 1 });
+    if (value === 'dislike')  updateCounters({ dislike: 1 });
+    const next = await fetchNextItemFromYourBackend();
+    showItem(next);
+  };
+}
