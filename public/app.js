@@ -1,5 +1,3 @@
-// added on oct 24 for testing
-
 // ================================
 // Poetry, Please — FULL APP.JS
 // ================================
@@ -453,7 +451,7 @@ window.addEventListener('DOMContentLoaded', () => {
 /* ============================================================
    Diagnostic overlay (raw payload + what we render)
    Remove this block once everything looks correct.
-   ============================================================ */
+   ============================================================ 
 (function diagPatch(){
   console.log('[PP] diag patch loaded');
 
@@ -505,3 +503,4 @@ window.addEventListener('DOMContentLoaded', () => {
     }, null, 2));
   };
 })();
+*/
