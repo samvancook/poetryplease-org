@@ -268,28 +268,26 @@ app.post(getBoth("/nextAnonymousId"), async (_req, res) => {
   res.json({ anonId: `poetrylover${next}` });
 });
 
-// --- Add this vote endpoint before the export ---
-app.post('/vote', async (req, res) => {
+app.post(getBoth("/vote"), async (req, res) => {
   try {
     const { imageId, voteType, userId } = req.body;
 
     if (!imageId || !voteType || !userId) {
-      return res.status(400).json({ error: 'missing_fields' });
+      return res.status(400).json({ error: "missing_fields" });
     }
 
     const vote = {
       imageId,
       voteType,
       userId,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: FieldValue.serverTimestamp(),
     };
 
-    await admin.firestore().collection('votes').add(vote);
-
+    await db.collection(COLLECTIONS.votes).add(vote);
     res.status(204).end(); // success
   } catch (err) {
-    console.error('Vote error:', err);
-    res.status(500).json({ error: 'internal', message: err.message });
+    console.error("Vote error:", err);
+    res.status(500).json({ error: "internal", message: err.message });
   }
 });
 
