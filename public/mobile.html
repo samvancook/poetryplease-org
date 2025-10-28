@@ -105,6 +105,30 @@
   </script>
   <script src="/app.js"></script>
 
+<script>
+  // Make buttons work even if app.js didn’t inject window.PP
+  window.PP = {
+    vote:  (v) => (window.onVoteAny ? onVoteAny(v) : console.warn('onVoteAny missing')),
+    skip:  ()  => (window.onSkip ? onSkip() : console.warn('onSkip missing')),
+    goBack:()  => (window.onGoBack ? onGoBack() : console.warn('onGoBack missing')),
+    openBook: () => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl, '_blank','noopener,noreferrer'); },
+    getState: () => ({ user: (firebase?.auth?.().currentUser || null) })
+  };
+
+  // Auto-start one item on mobile if nothing has rendered yet
+  setTimeout(() => { if (!window.currentItem && window.onSkip) onSkip(); }, 800);
+
+  // Minimal on-screen error box so you can see runtime errors on phone
+  (function(){
+    const box = document.createElement('div');
+    box.style.cssText='position:fixed;left:8px;bottom:8px;max-width:90vw;background:#fee;border:1px solid #f99;border-radius:8px;padding:6px 8px;font:12px system-ui;z-index:99999;display:none';
+    document.body.appendChild(box);
+    const show = (msg)=>{ box.textContent = msg; box.style.display = 'block'; };
+    window.addEventListener('error', e => show('JS error: ' + (e.message || e)));
+    window.addEventListener('unhandledrejection', e => show('Promise: ' + (e.reason?.message || e.reason || e)));
+  })();
+</script>
+
   <script>
     // Wire buttons to your app logic in a sticky bottom bar
     (function mountStickyControls(){
