@@ -5,6 +5,22 @@
 // ===== Constants =====
 const CONSTANTS = { API_BASE: '/api' };
 
+// Mobile mode detection (attr, URL, or explicit flag)
+const IS_MOBILE_UI =
+  (document.body?.dataset?.ui === 'mobile') ||
+  /\/mobile\.html(?:$|\?|#)/.test(location.pathname + location.search + location.hash) ||
+  window.__PP_FORCE_MOBILE === true;
+
+// Optional corner badge — disable with window.__PP_HIDE_BADGE = true before this file
+(function(){
+  if (window.__PP_HIDE_BADGE) return;
+  const b = document.createElement('div');
+  b.style.cssText = 'position:fixed;right:8px;top:8px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;background:#fff;font:12px/1.2 system-ui;z-index:9999';
+  b.textContent = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(b));
+})();
+
+
 // Detect whether this page is the mobile shell (mobile.html) or desktop (index.html)
 const IS_MOBILE_UI = (document.body?.dataset?.ui === 'mobile');
 const RUNTIME_MODE = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
@@ -720,3 +736,43 @@ window.addEventListener('DOMContentLoaded', () => {
     document.body.appendChild(bar);
   }
 })();
+
+// ===== Mobile shim (window.PP) + state events =====
+(function(){
+  const getNum = id => +(document.getElementById(id)?.textContent || 0);
+  function readCounts(){ return {
+    likes:getNum('count-like'), dislikes:getNum('count-dislike'),
+    moved:getNum('count-moved'), meh:getNum('count-meh'), skips:getNum('count-skip')
+  };}
+
+  function emitState(){
+    try {
+      const detail = { user: firebase.auth().currentUser || null,
+        ...readCounts(), currentId: currentItem?.id ?? null };
+      window.dispatchEvent(new CustomEvent('pp:state', { detail }));
+    } catch(_) {}
+  }
+
+  // API for mobile.html
+  window.PP = Object.assign({}, window.PP, {
+    vote: (v)=>onVoteAny(v),
+    skip: ()=>onSkip(),
+    goBack: ()=>onGoBack(),
+    openBook: ()=>{ if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank','noopener,noreferrer'); },
+    getState: ()=>({ user: firebase.auth().currentUser || null, ...readCounts(), currentId: currentItem?.id ?? null })
+  });
+
+  // Keep mobile UI synced
+  const _updateCounters = updateCounters; updateCounters = (d)=>{ _updateCounters(d); emitState(); };
+  const _renderCurrent  = renderCurrent;  renderCurrent  = (i)=>{ _renderCurrent(i);  emitState(); };
+
+  firebase.auth().onAuthStateChanged(()=>emitState());
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', ()=>setTimeout(emitState,0), { once:true });
+  } else setTimeout(emitState,0);
+
+  // Failsafe: if mobile shell loads and nothing rendered, auto-start once
+  if (IS_MOBILE_UI) setTimeout(()=>{ if (!currentItem) { try{ onSkip(); }catch(_){} } }, 1200);
+})();
+
