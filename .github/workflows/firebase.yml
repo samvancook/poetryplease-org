@@ -33,6 +33,14 @@ jobs:
               - 'app.js'
               - 'styles.css'
 
+      - name: Debug paths-filter outputs
+        run: |
+          echo "functions changed? -> ${{ steps.changes.outputs.functions }}"
+          echo "hosting   changed? -> ${{ steps.changes.outputs.hosting }}"
+          echo "Changed files vs previous commit:"
+          git --no-pager diff --name-only HEAD~1 HEAD || true
+
+
       - name: Show repo tree (top level)
         run: ls -la
 
@@ -74,9 +82,8 @@ jobs:
           firebase projects:list --json || true
           firebase use poetry-please || true
 
-      # Deploy HOSTING only when hosting files changed
+      # Deploy HOSTING (always)
       - name: Deploy Hosting (debug)
-        if: steps.changes.outputs.hosting == 'true'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
@@ -86,6 +93,7 @@ jobs:
           else
             echo "Skipping hosting: firebase.json missing"; exit 4
           fi
+
 
       # Deploy FUNCTIONS only when functions/** changed
       - name: Deploy Functions (debug)
