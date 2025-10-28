@@ -1,9 +1,31 @@
 // ================================
-// Poetry, Please — APP.JS (Parity + Heuristics + Preload + Viewport fit)
+// Poetry, Please — APP.JS (Desktop + Mobile split ready)
 // ================================
 
 // ===== Constants =====
 const CONSTANTS = { API_BASE: '/api' };
+
+// Detect whether this page is the mobile shell (mobile.html) or desktop (index.html)
+const IS_MOBILE_UI = (document.body?.dataset?.ui === 'mobile');
+const RUNTIME_MODE = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
+
+// Tiny visual badge so you can tell at a glance during testing
+(function showEnvironmentBadge(){
+  const el = document.createElement('div');
+  el.textContent = RUNTIME_MODE;
+  el.style.position = 'fixed';
+  el.style.zIndex = '9999';
+  el.style.top = '8px';
+  el.style.left = '8px';
+  el.style.padding = '4px 8px';
+  el.style.fontSize = '11px';
+  el.style.fontFamily = 'system-ui, Arial';
+  el.style.background = IS_MOBILE_UI ? '#E6FFED' : '#E8F0FE';
+  el.style.border = '1px solid ' + (IS_MOBILE_UI ? '#34C759' : '#4285F4');
+  el.style.borderRadius = '6px';
+  el.style.opacity = '0.9';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(el));
+})();
 
 // ===== Small API client with Firebase ID token =====
 async function getIdTokenOrNull() {
@@ -127,8 +149,9 @@ const getRatingsSummaryWrapped    = () => api('ratingsSummary',  { method: 'GET'
   const tag = document.createElement('style'); tag.appendChild(document.createTextNode(css)); document.head.appendChild(tag);
 })();
 
-// --- Top bar slotting existing user-status ---
+// --- Top bar slotting existing user-status (skip on mobile UI) ---
 (function buildTopBar(){
+  if (IS_MOBILE_UI) return; // do not inject desktop top bar on mobile.html
   if (document.querySelector('.top-bar')) return;
   const topBar = document.createElement('div'); topBar.className = 'top-bar';
   const filters = document.createElement('div'); filters.id = 'filters';
@@ -172,6 +195,33 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   inc('count-meh', meh);
   inc('count-skip', skip);
 }
+
+// ---- Shim for mobile.html to call desktop logic & expose state ----
+(function exposePP(){
+  const state = { likes:0, dislikes:0, skips:0 };
+
+  // Keep a reference to original updateCounters and augment it
+  const __updateCounters = updateCounters;
+  updateCounters = function(patch){
+    __updateCounters(patch || {});
+    state.likes    += (patch?.like||0);
+    state.dislikes += (patch?.dislike||0);
+    state.skips    += (patch?.skip||0);
+    dispatchEvent(new CustomEvent('pp:state'));
+  };
+
+  window.PP = {
+    vote: (kind) => onVoteAny(kind),
+    skip: () => onSkip(),
+    goBack: () => onGoBack(),
+    openBook: () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); },
+    getState: () => ({
+      user: firebase.auth().currentUser || null,
+      item: currentItem,
+      likes: state.likes, dislikes: state.dislikes, skips: state.skips
+    })
+  };
+})();
 
 // ===== Mapping (matches your GAS) =====
 function mapGraphic(g){
@@ -375,6 +425,8 @@ function renderMetaRows(item) {
       const lb=document.createElement('label'); lb.htmlFor=checkboxId; lb.textContent=label; wrap.append(cb,lb); r.appendChild(wrap); }
     return r;
   };
+
+  // On mobile we still show the metadata, but the checkboxes still work
   mediaWrap.prepend(row(`Title: ${item.title || ''}`));
   mediaWrap.prepend(row(`Author: ${item.author || ''}`, 'authorCheckbox', filterByAuthor, 'More from this author', () => { filterByAuthor = !filterByAuthor; rebuildQueueAfterFilter(); }));
   mediaWrap.prepend(row(`From their book: ${item.book || ''}`,   'bookCheckbox',   filterByBook,   'More from this book',   () => { filterByBook   = !filterByBook;   rebuildQueueAfterFilter(); }));
@@ -395,9 +447,9 @@ function renderCounter() {
   let counter = $('#domain-counter');
   if (!counter) {
     counter = document.createElement('div'); counter.id='domain-counter'; counter.className='vote-counter';
-    const bar = $('#counters-bar'); const span = document.createElement('span'); span.appendChild(counter); bar.appendChild(span);
+    const bar = $('#counters-bar'); if (bar) { const span = document.createElement('span'); span.appendChild(counter); bar.appendChild(span); }
   }
-  counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} — ${remaining} remaining.`;
+  if (counter) counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} — ${remaining} remaining.`;
 }
 function resetVoteButtons(){
   [['btn-like','Like'],['btn-dislike','Dislike'],['btn-moved','Moved Me'],['btn-meh','Meh']].forEach(([id,txt])=>{
@@ -449,6 +501,9 @@ function renderCurrent(item){
 
   setViewportVars();
   adjustViewportFit();
+
+  // Notify mobile shell
+  dispatchEvent(new CustomEvent('pp:state'));
 }
 
 // ===== Heuristic next index chooser =====
@@ -581,25 +636,40 @@ function onGoBack(){
 
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
-  show($('#login-screen'), !user);
-  show($('#poetry-screen'), !!user);
+  // Desktop shows/hides screens; mobile keeps its own shell UI
+  if (!IS_MOBILE_UI) {
+    show($('#login-screen'), !user);
+    show($('#poetry-screen'), !!user);
+  }
   updateUserStatusUI();
+
+  // Let mobile shell know to refresh its counters/status
+  dispatchEvent(new CustomEvent('pp:state'));
 });
 
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
-  on($('#login-google'), 'click', signInWithGoogle);
-  on($('#email-login-form'), 'submit', handleEmailLogin);
-  on($('#registration-form'), 'submit', handleRegistration);
-  on($('#show-registration'), 'click', showRegistrationForm);
-  on($('#show-login'), 'click', showLoginScreen);
+  // Desktop-only login UI wiring
+  if (!IS_MOBILE_UI) {
+    on($('#login-google'), 'click', signInWithGoogle);
+    on($('#email-login-form'), 'submit', handleEmailLogin);
+    on($('#registration-form'), 'submit', handleRegistration);
+    on($('#show-registration'), 'click', showRegistrationForm);
+    on($('#show-login'), 'click', showLoginScreen);
 
-  // "Poetry, Please" acts as skip / first-load fetch
-  on($('#load-button'), 'click', onSkip);
+    // "Poetry, Please" acts as skip / first-load fetch (desktop)
+    on($('#load-button'), 'click', onSkip);
 
-  // Populate filters and wire change handlers
-  fetchAndPopulateTypes().then(()=>{ const sel=$('#type-filter'); if (sel) sel.onchange = () => { selectedType = sel.value; rebuildQueueAfterFilter(); }; });
-  fetchAndPopulateCatalogs().then(()=>{ const sel=$('#catalog-filter'); if (sel) sel.onchange = () => { selectedCatalog = sel.value; rebuildQueueAfterFilter(); }; });
+    // Populate filters and wire change handlers
+    fetchAndPopulateTypes().then(()=>{ const sel=$('#type-filter'); if (sel) sel.onchange = () => { selectedType = sel.value; rebuildQueueAfterFilter(); }; });
+    fetchAndPopulateCatalogs().then(()=>{ const sel=$('#catalog-filter'); if (sel) sel.onchange = () => { selectedCatalog = sel.value; rebuildQueueAfterFilter(); }; });
+  } else {
+    // On mobile, we still want filters if present in DOM (they're hidden in mobile.html by default)
+    const selType = $('#type-filter');
+    const selCat  = $('#catalog-filter');
+    if (selType) { fetchAndPopulateTypes().then(()=>{ selType.onchange = () => { selectedType = selType.value; rebuildQueueAfterFilter(); }; }); }
+    if (selCat)  { fetchAndPopulateCatalogs().then(()=>{ selCat.onchange  = () => { selectedCatalog = selCat.value; rebuildQueueAfterFilter(); }; }); }
+  }
 
   // Load ratings once (for heuristics)
   getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
@@ -614,7 +684,10 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ===== Scaffold UI (vote row, under-controls, counters) =====
+// Skip injecting the desktop scaffold on mobile UI
 (function ensureScaffold() {
+  if (IS_MOBILE_UI) return;
+
   let mediaWrap = $('#media-wrap');
   if (!mediaWrap) { mediaWrap=document.createElement('div'); mediaWrap.id='media-wrap'; const gal=$('#gallery'); (gal?.parentElement||document.body).insertBefore(mediaWrap, gal||null); }
 
