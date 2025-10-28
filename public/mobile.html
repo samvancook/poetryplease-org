@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Poetry, Please — Mobile</title>
+
+  <!-- (Optional) lightweight styles just for mobile shell -->
+  <style>
+    :root { --pad: 12px; }
+    html, body { margin:0; padding:0; font-family: system-ui, Arial; background:#fff; color:#111; }
+    body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    .wrap { max-width: 600px; margin: 0 auto; padding: var(--pad); }
+    header { display:flex; align-items:center; gap:10px; justify-content:space-between; }
+    header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .media-box { margin-top:10px; }
+    .media-box img, .media-box video { width:100%; height:auto; max-height:70vh; object-fit:contain; display:block; border-radius:14px; }
+    .controls { display:flex; gap:8px; margin-top:10px; }
+    .controls button { flex:1; padding:14px; border-radius:14px; border:1px solid #ddd; background:#f7f7f7; font-size:18px; touch-action:manipulation; }
+    .controls button:disabled { opacity:.4; }
+    .row { display:flex; align-items:center; gap:8px; margin-top:10px; }
+    .badge { padding:8px 10px; border:1px solid #eee; border-radius:12px; font-size:14px; }
+    @media (orientation:landscape) { .media-box img, .media-box video { max-height:65vh; } }
+  </style>
+
+  <!-- Firebase (compat) SDKs to match index.html -->
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.appspot.com",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  </script>
+</head>
+<body data-ui="mobile">
+  <div class="wrap">
+    <header>
+      <div>Poetry, Please</div>
+      <div class="status" id="mobile-login-status">Loading…</div>
+    </header>
+
+    <div class="media-box">
+      <!-- app.js will render into #media-wrap just like desktop -->
+      <div id="media-wrap"></div>
+    </div>
+
+    <div class="controls">
+      <button id="btnBack">Go Back</button>
+      <button id="btnBook">Take me to the book</button>
+    </div>
+
+    <div class="row">
+      <div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div>
+    </div>
+
+    <div class="controls" style="margin-top:12px">
+      <button id="btnLike">Like</button>
+      <button id="btnDislike">Dislike</button>
+      <button id="btnSkip">Poetry, Please</button>
+    </div>
+
+    <!-- Needed elements that app.js expects but we’ll keep out of sight -->
+    <div id="gallery" style="display:none"></div>
+    <div id="message" class="message" style="min-height:1.4em"></div>
+    <div id="error" class="error" style="display:none"></div>
+  </div>
+
+  <script src="/app.js"></script>
+  <script>
+    // Wire buttons to the app.js shim
+    const $ = (s) => document.querySelector(s);
+    $('#btnBack').addEventListener('click',   () => window.PP?.goBack());
+    $('#btnBook').addEventListener('click',   () => window.PP?.openBook());
+    $('#btnLike').addEventListener('click',   () => window.PP?.vote('like'));
+    $('#btnDislike').addEventListener('click',() => window.PP?.vote('dislike'));
+    $('#btnSkip').addEventListener('click',   () => window.PP?.skip());
+
+    // Hydrate counters + “Logged in” line when state changes
+    function refreshMobileUI() {
+      const s = window.PP?.getState?.() || {};
+      const counts = `Likes: ${s.likes||0} • Dislikes: ${s.dislikes||0} • Skips: ${s.skips||0}`;
+      const status = s.user ? `Logged in as ${s.user.email || s.user.uid}` : 'Browsing anonymously';
+      document.getElementById('mobile-counts').textContent = counts;
+      document.getElementById('mobile-login-status').textContent = status;
+    }
+    // Try once after load; app.js will call back again after auth/rendering
+    setTimeout(refreshMobileUI, 300);
+    window.addEventListener('pp:state', refreshMobileUI, { passive:true });
+  </script>
+</body>
+</html>
