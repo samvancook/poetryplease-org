@@ -5,22 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Poetry, Please — Mobile</title>
 
-  <!-- (Optional) lightweight styles just for mobile shell -->
   <style>
-    :root { --pad: 12px; }
-    html, body { margin:0; padding:0; font-family: system-ui, Arial; background:#fff; color:#111; }
-    body { padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
-    .wrap { max-width: 600px; margin: 0 auto; padding: var(--pad); }
-    header { display:flex; align-items:center; gap:10px; justify-content:space-between; }
+    :root {
+      --pad: 14px;
+      --radius: 14px;
+      --shadow: 0 2px 10px rgba(0,0,0,.06);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin:0; padding:0; background:#fff; color:#111; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    body {
+      /* leave bottom space for sticky controls; includes iOS safe-area */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 72px) env(safe-area-inset-left);
+    }
+    .wrap { max-width: 640px; margin: 0 auto; padding: var(--pad); }
+
+    header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    header h1 { font-size:18px; margin:0; font-weight:600; }
     header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .media-box { margin-top:10px; }
-    .media-box img, .media-box video { width:100%; height:auto; max-height:70vh; object-fit:contain; display:block; border-radius:14px; }
-    .controls { display:flex; gap:8px; margin-top:10px; }
-    .controls button { flex:1; padding:14px; border-radius:14px; border:1px solid #ddd; background:#f7f7f7; font-size:18px; touch-action:manipulation; }
-    .controls button:disabled { opacity:.4; }
-    .row { display:flex; align-items:center; gap:8px; margin-top:10px; }
-    .badge { padding:8px 10px; border:1px solid #eee; border-radius:12px; font-size:14px; }
-    @media (orientation:landscape) { .media-box img, .media-box video { max-height:65vh; } }
+
+    /* Media area */
+    .media-outer { margin-top: 10px; }
+    #media-wrap { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); background:#fafafa; }
+    #media-wrap .media-box { margin:0; }
+    #media-wrap img, #media-wrap video {
+      width:100%; height:auto; max-height: 70vh; object-fit: contain; display:block;
+    }
+    @media (orientation:landscape) {
+      #media-wrap img, #media-wrap video { max-height: 65vh; }
+    }
+
+    /* Counters badge */
+    .row { display:flex; align-items:center; gap:8px; margin-top: 10px; }
+    .badge { padding:8px 10px; border:1px solid #eee; border-radius:12px; font-size:14px; background:#fff; box-shadow: var(--shadow); }
+
+    /* Sticky bottom button bar */
+    .sticky-controls {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+      padding: 10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #ffffff 30%);
+      display:flex; gap:10px; justify-content: center;
+    }
+    .controls { display:flex; gap:10px; width: min(640px, 100%); margin: 0 auto; }
+    .controls button {
+      flex:1; padding:14px 12px; border-radius: var(--radius);
+      border:1px solid #e6e6e6; background:#f7f7f7; font-size:16px; line-height:1.1;
+      touch-action: manipulation; box-shadow: var(--shadow);
+    }
+    .controls button:active { transform: translateY(1px); }
+    .controls button:disabled { opacity:.45; }
+
+    /* Hide desktop-only chrome if it ever leaks in */
+    #counters-bar, .top-bar { display:none !important; }
+
+    #message { min-height: 1.2em; margin-top: 6px; font-size:14px; color:#0a7e22; }
   </style>
 
   <!-- Firebase (compat) SDKs to match index.html -->
@@ -42,39 +79,49 @@
 <body data-ui="mobile">
   <div class="wrap">
     <header>
-      <div>Poetry, Please</div>
+      <h1>Poetry, Please</h1>
       <div class="status" id="mobile-login-status">Loading…</div>
     </header>
 
-    <div class="media-box">
-      <!-- app.js will render into #media-wrap just like desktop -->
+    <div class="media-outer">
+      <!-- app.js will render into #media-wrap -->
       <div id="media-wrap"></div>
-    </div>
-
-    <div class="controls">
-      <button id="btnBack">Go Back</button>
-      <button id="btnBook">Take me to the book</button>
     </div>
 
     <div class="row">
       <div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div>
     </div>
 
-    <div class="controls" style="margin-top:12px">
-      <button id="btnLike">Like</button>
-      <button id="btnDislike">Dislike</button>
-      <button id="btnSkip">Poetry, Please</button>
-    </div>
-
     <!-- Needed elements that app.js expects but we’ll keep out of sight -->
     <div id="gallery" style="display:none"></div>
-    <div id="message" class="message" style="min-height:1.4em"></div>
+    <div id="message" class="message"></div>
     <div id="error" class="error" style="display:none"></div>
   </div>
 
-  <script src="/app.js"></script>
+  <!-- Force mobile mode in app.js and (optionally) hide the corner badge -->
   <script>
-    // Wire buttons to the app.js shim
+    window.__PP_FORCE_MOBILE = true;
+    // window.__PP_HIDE_BADGE = true; // uncomment to hide the debug badge
+  </script>
+  <script src="/app.js"></script>
+
+  <script>
+    // Wire buttons to your app logic in a sticky bottom bar
+    (function mountStickyControls(){
+      const bar = document.createElement('div');
+      bar.className = 'sticky-controls';
+      bar.innerHTML = `
+        <div class="controls">
+          <button id="btnBack">Go Back</button>
+          <button id="btnBook">Take me to the book</button>
+          <button id="btnLike">Like</button>
+          <button id="btnDislike">Dislike</button>
+          <button id="btnSkip">Poetry, Please</button>
+        </div>
+      `;
+      document.body.appendChild(bar);
+    })();
+
     const $ = (s) => document.querySelector(s);
     $('#btnBack').addEventListener('click',   () => window.PP?.goBack());
     $('#btnBook').addEventListener('click',   () => window.PP?.openBook());
@@ -82,15 +129,17 @@
     $('#btnDislike').addEventListener('click',() => window.PP?.vote('dislike'));
     $('#btnSkip').addEventListener('click',   () => window.PP?.skip());
 
-    // Hydrate counters + “Logged in” line when state changes
+    // Update counters + “Logged in” line as app.js state changes
     function refreshMobileUI() {
       const s = window.PP?.getState?.() || {};
       const counts = `Likes: ${s.likes||0} • Dislikes: ${s.dislikes||0} • Skips: ${s.skips||0}`;
       const status = s.user ? `Logged in as ${s.user.email || s.user.uid}` : 'Browsing anonymously';
-      document.getElementById('mobile-counts').textContent = counts;
-      document.getElementById('mobile-login-status').textContent = status;
+      const countsEl = document.getElementById('mobile-counts');
+      const statusEl = document.getElementById('mobile-login-status');
+      if (countsEl) countsEl.textContent = counts;
+      if (statusEl) statusEl.textContent = status;
     }
-    // Try once after load; app.js will call back again after auth/rendering
+    // Try once after load; app.js will fire pp:state after auth/render
     setTimeout(refreshMobileUI, 300);
     window.addEventListener('pp:state', refreshMobileUI, { passive:true });
   </script>
