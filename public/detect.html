@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Poetry, Please — Detect</title>
+  <script>
+    const ROUTES = { DESKTOP: "/index.html", MOBILE: "/mobile.html" };
+    const MOBILE_BREAKPOINT = 900;
+
+    function isProbablyMobile() {
+      if (navigator.userAgentData?.mobile === true) return true;
+      const ua = (navigator.userAgent || navigator.vendor || "").toLowerCase();
+      const uaMobile = /(android|iphone|ipad|ipod|windows phone|blackberry|bb10|opera mini|mobile)/i.test(ua);
+      const coarse = matchMedia("(pointer:coarse)").matches && matchMedia("(hover:none)").matches;
+      const smallSide = Math.min(screen.width, screen.height);
+      return uaMobile || (coarse && smallSide <= MOBILE_BREAKPOINT);
+    }
+    (function route(){ location.replace(isProbablyMobile() ? ROUTES.MOBILE : ROUTES.DESKTOP); })();
+  </script>
+  <noscript><meta http-equiv="refresh" content="0; url=/index.html"/></noscript>
+</head>
+<body></body>
+</html>
