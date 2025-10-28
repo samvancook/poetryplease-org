@@ -16,6 +16,23 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Determine changed areas
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            functions:
+              - 'functions/**'
+            hosting:
+              - 'public/**'
+              - 'firebase.json'
+              - '.firebaserc'
+              - 'index.html'
+              - 'mobile.html'
+              - 'detect.html'
+              - 'app.js'
+              - 'styles.css'
+
       - name: Show repo tree (top level)
         run: ls -la
 
@@ -24,18 +41,16 @@ jobs:
           test -f firebase.json && echo "=== firebase.json ===" && cat firebase.json || echo "firebase.json NOT FOUND"
           test -f .firebaserc  && echo "=== .firebaserc  ===" && cat .firebaserc  || echo ".firebaserc NOT FOUND"
 
-      - name: Functions deps (if functions/ exists)
+      # Run functions npm install ONLY if functions/** changed
+      - name: Functions deps (if functions/ changed)
+        if: steps.changes.outputs.functions == 'true'
         run: |
-          if [ -d functions ]; then
-            echo "Installing functions deps…"
-            cd functions
-            if [ -f package.json ]; then
-              npm install --no-audit --no-fund
-            else
-              echo "functions/package.json NOT FOUND"; exit 2
-            fi
+          echo "Installing functions deps…"
+          cd functions
+          if [ -f package.json ]; then
+            npm install --no-audit --no-fund
           else
-            echo "No functions/ directory; skipping functions install."
+            echo "functions/package.json NOT FOUND"; exit 2
           fi
 
       - name: Install Firebase CLI
@@ -59,7 +74,9 @@ jobs:
           firebase projects:list --json || true
           firebase use poetry-please || true
 
+      # Deploy HOSTING only when hosting files changed
       - name: Deploy Hosting (debug)
+        if: steps.changes.outputs.hosting == 'true'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
@@ -70,13 +87,11 @@ jobs:
             echo "Skipping hosting: firebase.json missing"; exit 4
           fi
 
-      - name: Deploy Functions (debug; skip if no functions/)
+      # Deploy FUNCTIONS only when functions/** changed
+      - name: Deploy Functions (debug)
+        if: steps.changes.outputs.functions == 'true'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
-          if [ -d functions ]; then
-            echo "Deploying FUNCTIONS…"
-            firebase --project poetry-please deploy --only functions --debug
-          else
-            echo "No functions/ directory; skipping functions deploy."
-          fi
+          echo "Deploying FUNCTIONS…"
+          firebase --project poetry-please deploy --only functions --debug
