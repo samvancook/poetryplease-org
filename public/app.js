@@ -130,9 +130,33 @@ function updateUserStatusUI() {
 function showLoginScreen() { show($('#registration-screen'), false); show($('#login-screen'), true); }
 function showRegistrationForm() { show($('#login-screen'), false); show($('#registration-screen'), true); }
 async function signInWithGoogle() {
-  try { await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
-  catch (e) { console.error(e); alert('Google sign-in failed'); }
+  const auth = firebase.auth();
+  const provider = new firebase.auth.GoogleAuthProvider();
+
+  // Prefer redirect on mobile; try popup on desktop and fallback to redirect
+  const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  try {
+    if (isMobileUA) {
+      await auth.signInWithRedirect(provider);
+      return; // redirect flow takes over
+    }
+    await auth.signInWithPopup(provider);
+  } catch (err) {
+    // COOP/popup blockers → seamless fallback
+    if (
+      err?.code === 'auth/popup-blocked' ||
+      err?.code === 'auth/cancelled-popup-request' ||
+      /opener|blocked|closed|COOP/i.test(err?.message || '')
+    ) {
+      await auth.signInWithRedirect(provider);
+    } else {
+      console.error('Google sign-in failed:', err);
+      alert('Google sign-in failed. Please try again.');
+    }
+  }
 }
+
 async function handleEmailLogin(e) {
   e?.preventDefault();
   try { await firebase.auth().signInWithEmailAndPassword($('#email')?.value, $('#password')?.value); }
@@ -685,10 +709,16 @@ function onGoBack(){
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
   // Desktop shows/hides screens; mobile keeps its own shell UI
-  if (!IS_MOBILE_UI) {
-    show($('#login-screen'), !user);
-    show($('#poetry-screen'), !!user);
+  firebase.auth().onAuthStateChanged(async (user) => {
+  const hasScreens = document.getElementById('login-screen') && document.getElementById('poetry-screen');
+  if (hasScreens) {
+    show(document.getElementById('login-screen'), !user);
+    show(document.getElementById('poetry-screen'), !!user);
   }
+  updateUserStatusUI();
+  dispatchEvent(new CustomEvent('pp:state'));
+});
+
   updateUserStatusUI();
 
   // Let mobile shell know to refresh its counters/status
