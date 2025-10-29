@@ -38,11 +38,12 @@ const CONSTANTS = { API_BASE: '/api' };
     /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     Math.min(window.innerWidth, window.screen?.width || 0) <= 768;
 
-  // Choose final
-  var computed = (forced !== null) ? forced
-                : byAttr ? true
-                : byURL ? true
-                : byHeuristic;
+  // Choose final (NO heuristics here to avoid mismatch with detect.html)
+var computed =
+  (forced !== null) ? forced :
+  (byAttr || byURL) ? true :
+  false; // default to desktop unless page/URL/force says mobile
+
 
   // Expose as global without redeclare errors
   window.IS_MOBILE_UI = computed;
