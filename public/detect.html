@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
   <title>Poetry, Please — Detect</title>
   <meta name="robots" content="noindex,noarchive">
+  <meta http-equiv="Cache-Control" content="no-store" />
   <style>
-    body { margin:0; font: 14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    .wrap { max-width: 640px; margin: 18vh auto; padding: 16px; color:#333; }
+    body { margin:0; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial; }
+    .wrap { max-width:640px; margin:18vh auto; padding:16px; color:#333; }
     .hint { opacity:.7; font-size:12px; }
   </style>
 </head>
@@ -18,32 +19,32 @@
   </div>
 
   <script>
-    // --- Query param overrides: /?view=mobile or /?view=desktop
-    const qp = new URLSearchParams(location.search);
-    const view = (qp.get('view') || '').toLowerCase();
-    if (view === 'mobile') location.replace('/mobile.html');
-    else if (view === 'desktop') location.replace('/index.html');
-    else {
-      // --- Heuristics for mobile
-      const MOBILE_BREAKPOINT = 900; // px on short side
-      const ua = (navigator.userAgent || navigator.vendor || '').toLowerCase();
-      const isUAMobile = /(android|iphone|ipod|blackberry|bb10|mini|mobile|windows phone)/i.test(ua);
-      const isIPad = /ipad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      const hasUADataMobile = (navigator.userAgentData && navigator.userAgentData.mobile) === true;
-      const coarse = matchMedia('(pointer:coarse)').matches && matchMedia('(hover:none)').matches;
-      const smallSide = Math.min(screen.width || 0, screen.height || 0);
-      const isSmallScreen = smallSide && smallSide <= MOBILE_BREAKPOINT;
+    (function () {
+      const url = new URL(location.href);
+      const q = (k) => (url.searchParams.get(k) || '').toLowerCase();
 
-      const probablyMobile = hasUADataMobile || isUAMobile || isIPad || (coarse && isSmallScreen);
+      // Explicit overrides (either style is accepted)
+      const forced =
+        (q('desktop') === '1' || q('view') === 'desktop') ? 'desktop' :
+        (q('mobile')  === '1' || q('view') === 'mobile')  ? 'mobile'  :
+        null;
 
-      // Optional breadcrumb for debugging
+      // Simple UA-based heuristic (stable + reliable)
+      const isMobileUA =
+        (navigator.userAgentData && navigator.userAgentData.mobile === true) ||
+        /\b(Android|iPhone|iPad|iPod|Windows Phone)\b/i.test(navigator.userAgent || '');
+
+      const target = forced || (isMobileUA ? 'mobile' : 'desktop');
+
+      // Optional breadcrumb for quick sanity checks
       try {
         document.getElementById('why').textContent =
-          probablyMobile ? '(mobile heuristics matched)' : '(desktop heuristics matched)';
+          forced ? `(forced: ${forced})` : (isMobileUA ? '(mobile UA)' : '(desktop UA)');
       } catch (_) {}
 
-      location.replace(probablyMobile ? '/mobile.html' : '/index.html');
-    }
+      // Use Hosting rewrites
+      location.replace(target === 'mobile' ? '/m' : '/app');
+    })();
   </script>
 </body>
 </html>
