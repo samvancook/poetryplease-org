@@ -725,8 +725,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (selCat)  fetchAndPopulateCatalogs().then(() => { selCat.onchange  = () => { selectedCatalog = selCat.value; rebuildQueueAfterFilter(); }; });
   }
 
-  // (keep your existing viewport setup and the rest of your code after this)
-});
 
 
   // Load ratings once (for heuristics)
