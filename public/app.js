@@ -5,11 +5,13 @@
 // ===== Constants =====
 const CONSTANTS = { API_BASE: '/api' };
 
-// Mobile mode detection (attr, URL, or explicit flag)
-const IS_MOBILE_UI =
-  (document.body?.dataset?.ui === 'mobile') ||
-  /\/mobile\.html(?:$|\?|#)/.test(location.pathname + location.search + location.hash) ||
-  window.__PP_FORCE_MOBILE === true;
+// Mobile mode detection (attr, URL, or explicit flag) — guarded so it can't redeclare
+var IS_MOBILE_UI = typeof IS_MOBILE_UI !== 'undefined' ? IS_MOBILE_UI
+  : (
+      (document.body?.dataset?.ui === 'mobile') ||
+      /\/mobile\.html(?:$|\?|#)/.test(location.pathname + location.search + location.hash) ||
+      window.__PP_FORCE_MOBILE === true
+    );
 
 // Optional corner badge — disable with window.__PP_HIDE_BADGE = true before this file
 (function(){
@@ -20,10 +22,9 @@ const IS_MOBILE_UI =
   document.addEventListener('DOMContentLoaded', () => document.body.appendChild(b));
 })();
 
-
-// Detect whether this page is the mobile shell (mobile.html) or desktop (index.html)
-const IS_MOBILE_UI = (document.body?.dataset?.ui === 'mobile');
+// Runtime label
 const RUNTIME_MODE = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
+
 
 // Tiny visual badge so you can tell at a glance during testing
 (function showEnvironmentBadge(){
