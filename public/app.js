@@ -107,8 +107,8 @@ async function api(path, { method = 'POST', body } = {}) {
 }
 
 // ===== UI Helpers =====
-const $  = (sel) => document.querySelector(sel);
-const on = (el, evt, fn) => el && el.addEventListener(evt, fn);
+window.$  = window.$  || ((sel) => document.querySelector(sel));
+window.on = window.on || ((el, evt, fn) => el && el.addEventListener(evt, fn));
 function show(el, yes) { if (el) el.style.display = yes ? 'block' : 'none'; }
 
 // ===== Auth UI =====
