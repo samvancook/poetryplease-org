@@ -110,6 +110,55 @@
     // window.__PP_HIDE_BADGE = true; // uncomment to hide the debug badge
   </script>
   <script src="/app.js" defer></script>
+
+  <!-- Ensure mobile controls are visible + mounted even if something interferes -->
+<style>
+  /* Force the sticky controls to show on top of everything */
+  .sticky-controls { display: block !important; z-index: 9999 !important; }
+  .sticky-controls .controls { display: flex !important; gap: 10px; }
+  .sticky-controls .controls button { display: inline-block !important; }
+</style>
+
+<script>
+  (function ensureMobileControls(){
+    function mount() {
+      if (document.getElementById('btnSkip')) return; // already mounted
+
+      const bar = document.createElement('div');
+      bar.className = 'sticky-controls';
+      bar.innerHTML = `
+        <div class="controls">
+          <button id="btnBack">Go Back</button>
+          <button id="btnBook">Take me to the book</button>
+          <button id="btnLike">Like</button>
+          <button id="btnDislike">Dislike</button>
+          <button id="btnSkip">Poetry, Please</button>
+        </div>
+      `;
+      document.body.appendChild(bar);
+
+      const $ = (s) => document.querySelector(s);
+      $('#btnBack')   ?.addEventListener('click', () => (window.PP?.goBack?.() || window.onGoBack?.()));
+      $('#btnBook')   ?.addEventListener('click', () => (window.PP?.openBook?.()));
+      $('#btnLike')   ?.addEventListener('click', () => (window.PP?.vote?.('like')     || window.onVoteAny?.('like')));
+      $('#btnDislike')?.addEventListener('click', () => (window.PP?.vote?.('dislike')  || window.onVoteAny?.('dislike')));
+      $('#btnSkip')   ?.addEventListener('click', () => (window.PP?.skip?.()           || window.onSkip?.()));
+    }
+
+    // Mount as soon as DOM is ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', mount, { once: true });
+    } else {
+      mount();
+    }
+
+    // If app.js re-renders and something removes the bar, put it back
+    window.addEventListener('pp:state', () => {
+      if (!document.getElementById('btnSkip')) mount();
+    }, { passive: true });
+  })();
+</script>
+
   
   <script>
   // Attach Google Sign-In for mobile — uses the same signInWithGoogle() from app.js
