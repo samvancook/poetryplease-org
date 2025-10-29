@@ -697,27 +697,37 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
-  // Desktop-only login UI wiring
+  // Wire login UI if present (works for both desktop & mobile)
+  on(document.getElementById('login-google'), 'click', signInWithGoogle);
+  on(document.getElementById('email-login-form'), 'submit', handleEmailLogin);
+  on(document.getElementById('registration-form'), 'submit', handleRegistration);
+  on(document.getElementById('show-registration'), 'click', showRegistrationForm);
+  on(document.getElementById('show-login'), 'click', showLoginScreen);
+
+  // Desktop-only extras
   if (!IS_MOBILE_UI) {
-    on($('#login-google'), 'click', signInWithGoogle);
-    on($('#email-login-form'), 'submit', handleEmailLogin);
-    on($('#registration-form'), 'submit', handleRegistration);
-    on($('#show-registration'), 'click', showRegistrationForm);
-    on($('#show-login'), 'click', showLoginScreen);
+    on(document.getElementById('load-button'), 'click', onSkip);
 
-    // "Poetry, Please" acts as skip / first-load fetch (desktop)
-    on($('#load-button'), 'click', onSkip);
+    fetchAndPopulateTypes().then(() => {
+      const sel = document.getElementById('type-filter');
+      if (sel) sel.onchange = () => { selectedType = sel.value; rebuildQueueAfterFilter(); };
+    });
 
-    // Populate filters and wire change handlers
-    fetchAndPopulateTypes().then(()=>{ const sel=$('#type-filter'); if (sel) sel.onchange = () => { selectedType = sel.value; rebuildQueueAfterFilter(); }; });
-    fetchAndPopulateCatalogs().then(()=>{ const sel=$('#catalog-filter'); if (sel) sel.onchange = () => { selectedCatalog = sel.value; rebuildQueueAfterFilter(); }; });
+    fetchAndPopulateCatalogs().then(() => {
+      const sel = document.getElementById('catalog-filter');
+      if (sel) sel.onchange = () => { selectedCatalog = sel.value; rebuildQueueAfterFilter(); };
+    });
   } else {
-    // On mobile, we still want filters if present in DOM (they're hidden in mobile.html by default)
-    const selType = $('#type-filter');
-    const selCat  = $('#catalog-filter');
-    if (selType) { fetchAndPopulateTypes().then(()=>{ selType.onchange = () => { selectedType = selType.value; rebuildQueueAfterFilter(); }; }); }
-    if (selCat)  { fetchAndPopulateCatalogs().then(()=>{ selCat.onchange  = () => { selectedCatalog = selCat.value; rebuildQueueAfterFilter(); }; }); }
+    // Mobile: still populate filters if present
+    const selType = document.getElementById('type-filter');
+    const selCat  = document.getElementById('catalog-filter');
+    if (selType) fetchAndPopulateTypes().then(() => { selType.onchange = () => { selectedType = selType.value; rebuildQueueAfterFilter(); }; });
+    if (selCat)  fetchAndPopulateCatalogs().then(() => { selCat.onchange  = () => { selectedCatalog = selCat.value; rebuildQueueAfterFilter(); }; });
   }
+
+  // (keep your existing viewport setup and the rest of your code after this)
+});
+
 
   // Load ratings once (for heuristics)
   getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
