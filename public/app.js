@@ -5,25 +5,56 @@
 // ===== Constants =====
 const CONSTANTS = { API_BASE: '/api' };
 
-// Mobile mode detection (attr, URL, or explicit flag) — guarded so it can't redeclare
-var IS_MOBILE_UI = typeof IS_MOBILE_UI !== 'undefined' ? IS_MOBILE_UI
-  : (
-      (document.body?.dataset?.ui === 'mobile') ||
-      /\/mobile\.html(?:$|\?|#)/.test(location.pathname + location.search + location.hash) ||
-      window.__PP_FORCE_MOBILE === true
-    );
-
-// Optional corner badge — disable with window.__PP_HIDE_BADGE = true before this file
+// --- Mobile mode detection (robust + testable) ---
+// Order of precedence:
+// 1) window.__PP_FORCE_MOBILE / window.__PP_FORCE_DESKTOP
+// 2) URL query (?mobile=1 / ?desktop=1)
+// 3) localStorage flags ('pp_force_mobile' / 'pp_force_desktop' = "1")
+// 4) <body data-ui="mobile">
+// 5) /mobile.html in the URL
+// 6) Heuristic: user agent OR narrow viewport (<= 768px)
+// Guarded to avoid redeclarations.
 (function(){
-  if (window.__PP_HIDE_BADGE) return;
-  const b = document.createElement('div');
-  b.style.cssText = 'position:fixed;right:8px;top:8px;padding:4px 6px;border:1px solid #ddd;border-radius:6px;background:#fff;font:12px/1.2 system-ui;z-index:9999';
-  b.textContent = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
-  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(b));
-})();
+  if (typeof IS_MOBILE_UI !== 'undefined') return; // already set elsewhere
 
-// Runtime label
+  const url = new URL(location.href);
+  const q = (k) => url.searchParams.get(k);
+  const ls = (k) => (localStorage.getItem(k) || '').trim();
+
+  const forced =
+    (window.__PP_FORCE_MOBILE === true) ? true :
+    (window.__PP_FORCE_DESKTOP === true) ? false :
+    (q('mobile') === '1') ? true :
+    (q('desktop') === '1') ? false :
+    (ls('pp_force_mobile') === '1') ? true :
+    (ls('pp_force_desktop') === '1') ? false :
+    null;
+
+  const byAttr   = (document.body?.dataset?.ui === 'mobile');
+  const byURL    = /\/mobile\.html(?:$|\?|#)/.test(location.pathname + location.search + location.hash);
+
+  // Heuristic: UA or narrow viewport
+  const byHeuristic =
+    /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    Math.min(window.innerWidth, window.screen?.width || 0) <= 768;
+
+  // Choose final
+  var computed = (forced !== null) ? forced
+                : byAttr ? true
+                : byURL ? true
+                : byHeuristic;
+
+  // Expose as global without redeclare errors
+  window.IS_MOBILE_UI = computed;
+
+  // Optional: quick debug so you can see *why* it chose mobile
+  console.debug('[PP] IS_MOBILE_UI =', computed, {
+    forced, byAttr, byURL, byHeuristic,
+    vw: window.innerWidth, sw: window.screen?.width, ua: navigator.userAgent
+  });
+})();
 const RUNTIME_MODE = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
+
 
 
 // Tiny visual badge so you can tell at a glance during testing
