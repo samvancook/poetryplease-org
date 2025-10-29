@@ -708,18 +708,18 @@ function onGoBack(){
 
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
-  // Desktop shows/hides screens; mobile keeps its own shell UI
-  firebase.auth().onAuthStateChanged(async (user) => {
-  const hasScreens = document.getElementById('login-screen') && document.getElementById('poetry-screen');
-  if (hasScreens) {
-    show(document.getElementById('login-screen'), !user);
-    show(document.getElementById('poetry-screen'), !!user);
+  // If the screen elements exist, toggle them (works for desktop or mobile)
+  const loginEl  = document.getElementById('login-screen');
+  const poetryEl = document.getElementById('poetry-screen');
+  if (loginEl && poetryEl) {
+    show(loginEl, !user);
+    show(poetryEl, !!user);
   }
-  updateUserStatusUI();
-  dispatchEvent(new CustomEvent('pp:state'));
+
+  updateUserStatusUI();                      // run once
+  dispatchEvent(new CustomEvent('pp:state'));// notify once
 });
 
-  updateUserStatusUI();
 
   // Let mobile shell know to refresh its counters/status
   dispatchEvent(new CustomEvent('pp:state'));
