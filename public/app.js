@@ -717,12 +717,8 @@ firebase.auth().onAuthStateChanged(async (user) => {
   }
 
   updateUserStatusUI();                      // run once
-  dispatchEvent(new CustomEvent('pp:state'));// notify once
-});
-
-
   // Let mobile shell know to refresh its counters/status
-  dispatchEvent(new CustomEvent('pp:state'));
+  dispatchEvent(new CustomEvent('pp:state'));// notify once
 });
 
 // ===== DOM Ready =====
