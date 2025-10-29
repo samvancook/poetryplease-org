@@ -78,10 +78,16 @@
 </head>
 <body data-ui="mobile">
   <div class="wrap">
-    <header>
+   <header>
       <h1>Poetry, Please</h1>
       <div class="status" id="mobile-login-status">Loading…</div>
+      <button id="mobile-google"
+              style="font-size:12px;padding:6px 10px;border:1px solid #e6e6e6;
+                     border-radius:10px;background:#f7f7f7;">
+        Sign in with Google
+      </button>
     </header>
+
 
     <div class="media-outer">
       <!-- app.js will render into #media-wrap -->
@@ -103,7 +109,22 @@
     window.__PP_FORCE_MOBILE = true;
     // window.__PP_HIDE_BADGE = true; // uncomment to hide the debug badge
   </script>
-  <script src="/app.js"></script>
+  <script src="/app.js" defer></script>
+  
+  <script>
+  // Attach Google Sign-In for mobile — uses the same signInWithGoogle() from app.js
+  window.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('mobile-google');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      if (typeof signInWithGoogle === 'function') {
+        signInWithGoogle();  // this triggers redirect flow on mobile
+      } else {
+        alert('Sign-in not ready yet — please try again in a moment.');
+      }
+    });
+  });
+</script>
 
 <script>
   // Make buttons work even if app.js didn’t inject window.PP
