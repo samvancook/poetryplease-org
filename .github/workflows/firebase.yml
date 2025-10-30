@@ -2,8 +2,14 @@ name: Deploy to Firebase
 
 on:
   push:
-    branches: [ main ]
-
+    branches:
+      - main
+      - '**'        # run on every branch push (for previews)
+  pull_request:
+    branches:
+      - '**'        # run on PRs too
+  workflow_dispatch:  # allow manual runs from the Actions tab
+  
 jobs:
   deploy:
     runs-on: ubuntu-latest
