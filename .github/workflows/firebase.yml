@@ -103,3 +103,40 @@ jobs:
         run: |
           echo "Deploying FUNCTIONS…"
           firebase --project poetry-please deploy --only functions --debug
+
+
+            # ------------------------------------------------------------
+  # DEPLOY PREVIEW CHANNEL for non-main branches
+  # ------------------------------------------------------------
+  deploy_preview:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+
+      - name: Write service account key
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Secret FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE is EMPTY or missing"; exit 3
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
+          echo "Key written to $RUNNER_TEMP/gcloud-key.json"
+
+      - name: Deploy Hosting Preview (branch channel)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          firebase hosting:channel:deploy "$BRANCH" --project poetry-please --expires 7d
+
