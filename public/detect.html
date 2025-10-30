@@ -9,8 +9,8 @@
     html,body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
     .wrap { max-width: 680px; margin: 18vh auto 0; padding: 16px; color:#222; }
     h1 { font-size: 18px; margin: 0 0 8px; }
-    code { background:#f4f5f7; padding:2px 6px; border-radius:6px; }
     .hint { opacity:.7; font-size:13px; margin-top:10px; }
+    code { background:#f4f5f7; padding:2px 6px; border-radius:6px; }
   </style>
 </head>
 <body>
@@ -23,73 +23,108 @@
     (function () {
       const params = new URLSearchParams(location.search);
 
-      // Debug escape hatch: stay here and show what we'd do.
+      // --- Debug: stay put and show what we'd do ---
       if (params.get("noredirect") === "1") {
-        document.getElementById("msg").textContent = "Debug: noredirect=1 (no redirect will occur).";
+        document.getElementById("msg").textContent = "Debug mode: noredirect=1 — no redirect will occur.";
         return;
       }
 
-      // Normalize explicit overrides
+      // --- Original legacy overrides (preserved) ---
+      const forceMobileLegacy  = params.get("mobile")  === "1";
+      const forceDesktopLegacy = params.get("desktop") === "1";
+
+      // --- New explicit override (added) ---
       let view = params.get("view");
-      if (!view) {
-        if (params.get("mobile") === "1") view = "mobile";
-        if (params.get("desktop") === "1") view = "desktop";
-      }
       if (view !== "mobile" && view !== "desktop") view = null;
 
-      // Optional persisted preference
-      const pinned = localStorage.getItem("pp_view"); // "mobile"|"desktop"|null
+      // --- Optional persisted preference (added) ---
+      let pinned = null;
+      try { pinned = localStorage.getItem("pp_view"); } catch (_) {}
 
-      // Heuristic detection
-      function isMobileAuto() {
+      // --- Original auto logic (PRESERVED exactly) ---
+      const ua = navigator.userAgent || "";
+      const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+      const isSkinny   = (function(){ try { return window.innerWidth < 900; } catch { return false; } })();
+      const originalAutoMobile = (isMobileUA || isSkinny);   // <— your original heuristic
+      const originalTarget = (function(){
+        if (forceMobileLegacy)  return "/m";
+        if (forceDesktopLegacy) return "/app";
+        if (originalAutoMobile) return "/m";
+        return "/app";
+      })();
+
+      // --- Enhanced auto logic (ADDED; original preserved) ---
+      function enhancedAutoIsMobile() {
         try {
-          // 1) userAgentData if available
+          // Keep original signal first (never remove it)
+          if (originalAutoMobile) return true;
+
+          // 1) userAgentData.mobile (Chromium)
           if (navigator.userAgentData && typeof navigator.userAgentData.mobile === "boolean") {
-            return navigator.userAgentData.mobile;
+            if (navigator.userAgentData.mobile) return true;
           }
-          // 2) iPadOS 13+ masquerades as Mac; treat multi-touch "Mac" as mobile
-          const ua = navigator.userAgent || "";
+
+          // 2) iPadOS 13+ pretending to be Mac
           const platform = navigator.platform || "";
-          const iPadPretender = /Mac/.test(platform) && navigator.maxTouchPoints > 1;
-          if (iPadPretender) return true;
+          if (/Mac/.test(platform) && navigator.maxTouchPoints > 1) return true;
 
-          // 3) generic mobile UA matches
-          if (/(Mobi|Android|iPhone|iPad|iPod)/i.test(ua)) return true;
-
-          // 4) coarse pointer / small viewport hint
+          // 3) Coarse pointer / small viewport hint
           if (window.matchMedia && window.matchMedia("(pointer:coarse)").matches) return true;
           if (window.matchMedia && window.matchMedia("(max-width: 768px)").matches) return true;
 
           return false;
         } catch (e) {
-          return false;
+          return originalAutoMobile;
         }
       }
 
-      // Decide target with precedence: URL override > pinned > auto
-      const decided = view || pinned || (isMobileAuto() ? "mobile" : "desktop");
-      const target = decided === "mobile" ? "/m" : "/app";
-
-      // If we got an explicit view override, persist it as the user's pin.
+      // --- Decide with precedence (no removals of legacy behavior) ---
+      // Highest → Lowest:
+      // 1) ?view=mobile|desktop (new)
+      // 2) Legacy flags ?mobile=1 / ?desktop=1 (original)
+      // 3) Pinned choice (new)
+      // 4) Original auto logic (original)
+      // 5) Enhanced auto fallback (new)
+      let decided; // "mobile" | "desktop"
       if (view) {
-        try { localStorage.setItem("pp_view", view); } catch (_) {}
+        decided = view;
+      } else if (forceMobileLegacy) {
+        decided = "mobile";
+      } else if (forceDesktopLegacy) {
+        decided = "desktop";
+      } else if (pinned === "mobile" || pinned === "desktop") {
+        decided = pinned;
+      } else if (originalAutoMobile) {
+        decided = "mobile";   // preserve original outcome
+      } else {
+        decided = enhancedAutoIsMobile() ? "mobile" : "desktop";
       }
 
-      // Avoid redirect loops if user manually visits /m or /app
+      const target = decided === "mobile" ? "/m" : "/app";
+
+      // Persist only explicit view or legacy flags to avoid surprising pins.
+      try {
+        if (view) {
+          localStorage.setItem("pp_view", decided);
+        } else if (forceMobileLegacy || forceDesktopLegacy) {
+          localStorage.setItem("pp_view", decided);
+        }
+      } catch (_) {}
+
+      // --- Avoid redirect loops if already at /m or /app ---
       const here = location.pathname.replace(/\/+$/, "");
-      if ((decided === "mobile" && here === "/m") || (decided === "desktop" && here === "/app")) {
-        // Already on the right surface—do nothing.
+      if ((decided === "mobile"  && here === "/m") ||
+          (decided === "desktop" && here === "/app")) {
         document.getElementById("msg").textContent = `Already on ${decided}.`;
         return;
       }
 
-      // Preserve only whitelisted params when redirecting (drop detection flags)
+      // --- Preserve only non-detection params on redirect ---
       const passthrough = new URLSearchParams(location.search);
-      ["view", "mobile", "desktop", "noredirect"].forEach(k => passthrough.delete(k));
-      const qs = passthrough.toString();
+      ["view","mobile","desktop","noredirect"].forEach(k => passthrough.delete(k));
+      const qs  = passthrough.toString();
       const dest = qs ? `${target}?${qs}` : target;
 
-      // Perform redirect
       location.replace(dest);
     })();
   </script>
