@@ -2,48 +2,95 @@
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-  <title>Poetry, Please — Detect</title>
-  <meta name="robots" content="noindex,noarchive">
-  <meta http-equiv="Cache-Control" content="no-store" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+  <title>Detecting…</title>
+  <meta name="robots" content="noindex, nofollow">
   <style>
-    body { margin:0; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial; }
-    .wrap { max-width:640px; margin:18vh auto; padding:16px; color:#333; }
-    .hint { opacity:.7; font-size:12px; }
+    html,body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+    .wrap { max-width: 680px; margin: 18vh auto 0; padding: 16px; color:#222; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    code { background:#f4f5f7; padding:2px 6px; border-radius:6px; }
+    .hint { opacity:.7; font-size:13px; margin-top:10px; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    Routing you to the right experience… <span class="hint" id="why"></span>
-    <noscript>Please enable JavaScript.</noscript>
+    <h1>Detecting your device…</h1>
+    <div id="msg" class="hint">Just a moment.</div>
   </div>
 
   <script>
     (function () {
-      const url = new URL(location.href);
-      const q = (k) => (url.searchParams.get(k) || '').toLowerCase();
+      const params = new URLSearchParams(location.search);
 
-      // Explicit overrides (either style is accepted)
-      const forced =
-        (q('desktop') === '1' || q('view') === 'desktop') ? 'desktop' :
-        (q('mobile')  === '1' || q('view') === 'mobile')  ? 'mobile'  :
-        null;
+      // Debug escape hatch: stay here and show what we'd do.
+      if (params.get("noredirect") === "1") {
+        document.getElementById("msg").textContent = "Debug: noredirect=1 (no redirect will occur).";
+        return;
+      }
 
-      // Simple UA-based heuristic (stable + reliable)
-      const isMobileUA =
-        (navigator.userAgentData && navigator.userAgentData.mobile === true) ||
-        /\b(Android|iPhone|iPad|iPod|Windows Phone)\b/i.test(navigator.userAgent || '');
+      // Normalize explicit overrides
+      let view = params.get("view");
+      if (!view) {
+        if (params.get("mobile") === "1") view = "mobile";
+        if (params.get("desktop") === "1") view = "desktop";
+      }
+      if (view !== "mobile" && view !== "desktop") view = null;
 
-      const target = forced || (isMobileUA ? 'mobile' : 'desktop');
+      // Optional persisted preference
+      const pinned = localStorage.getItem("pp_view"); // "mobile"|"desktop"|null
 
-      // Optional breadcrumb for quick sanity checks
-      try {
-        document.getElementById('why').textContent =
-          forced ? `(forced: ${forced})` : (isMobileUA ? '(mobile UA)' : '(desktop UA)');
-      } catch (_) {}
+      // Heuristic detection
+      function isMobileAuto() {
+        try {
+          // 1) userAgentData if available
+          if (navigator.userAgentData && typeof navigator.userAgentData.mobile === "boolean") {
+            return navigator.userAgentData.mobile;
+          }
+          // 2) iPadOS 13+ masquerades as Mac; treat multi-touch "Mac" as mobile
+          const ua = navigator.userAgent || "";
+          const platform = navigator.platform || "";
+          const iPadPretender = /Mac/.test(platform) && navigator.maxTouchPoints > 1;
+          if (iPadPretender) return true;
 
-      // Use Hosting rewrites
-      location.replace(target === 'mobile' ? '/m' : '/app');
+          // 3) generic mobile UA matches
+          if (/(Mobi|Android|iPhone|iPad|iPod)/i.test(ua)) return true;
+
+          // 4) coarse pointer / small viewport hint
+          if (window.matchMedia && window.matchMedia("(pointer:coarse)").matches) return true;
+          if (window.matchMedia && window.matchMedia("(max-width: 768px)").matches) return true;
+
+          return false;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      // Decide target with precedence: URL override > pinned > auto
+      const decided = view || pinned || (isMobileAuto() ? "mobile" : "desktop");
+      const target = decided === "mobile" ? "/m" : "/app";
+
+      // If we got an explicit view override, persist it as the user's pin.
+      if (view) {
+        try { localStorage.setItem("pp_view", view); } catch (_) {}
+      }
+
+      // Avoid redirect loops if user manually visits /m or /app
+      const here = location.pathname.replace(/\/+$/, "");
+      if ((decided === "mobile" && here === "/m") || (decided === "desktop" && here === "/app")) {
+        // Already on the right surface—do nothing.
+        document.getElementById("msg").textContent = `Already on ${decided}.`;
+        return;
+      }
+
+      // Preserve only whitelisted params when redirecting (drop detection flags)
+      const passthrough = new URLSearchParams(location.search);
+      ["view", "mobile", "desktop", "noredirect"].forEach(k => passthrough.delete(k));
+      const qs = passthrough.toString();
+      const dest = qs ? `${target}?${qs}` : target;
+
+      // Perform redirect
+      location.replace(dest);
     })();
   </script>
 </body>
