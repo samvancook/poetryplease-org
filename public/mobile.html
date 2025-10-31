@@ -170,10 +170,17 @@
     PP.openBook= PP.openBook|| (() => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl,'_blank','noopener,noreferrer'); });
 
     PP.toggleInfo = function(open){
-      if (open) PP.updateInfo?.(window.currentItem);
-      const el = document.getElementById('pp-info');
-      if (el) el.dataset.open = open ? 'true' : 'false';
-    };
+  const el = document.getElementById('pp-info');
+  if (!el) return;
+
+  if (open) {
+    // Update immediately and again on the next tick in case the item just changed.
+    PP.updateInfo(window.currentItem);
+    setTimeout(() => PP.updateInfo(window.currentItem), 0);
+  }
+  el.dataset.open = open ? 'true' : 'false';
+};
+
 
     function pick(o, keys, fb){ if(!o) return fb; for(const k of keys){const v=o[k]; if(v!=null && String(v).trim()!=='') return v;} return fb; }
     function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=(v&&String(v).trim())||'—'; }
