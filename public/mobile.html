@@ -34,18 +34,6 @@
       #media-wrap img, #media-wrap video { max-height: 65vh; }
     }
 
-    <script>
-    (function () {
-      const q = new URLSearchParams(location.search);
-      if (q.has('info') || localStorage.getItem('pp.info') === '1') {
-        document.documentElement.classList.add('info-on');   // CSS switch
-      }
-      // optional: persist via ?info=1 once
-      if (q.has('info')) localStorage.setItem('pp.info','1');
-    })();
-  </script>
-
-    
     /* Counters badge */
     .row { display:flex; align-items:center; gap:8px; margin-top: 10px; }
     .badge { padding:8px 10px; border:1px solid #eee; border-radius:12px; font-size:14px; background:#fff; box-shadow: var(--shadow); }
@@ -250,7 +238,5 @@
     setTimeout(refreshMobileUI, 300);
     window.addEventListener('pp:state', refreshMobileUI, { passive:true });
   </script>
-
-  
 </body>
 </html>
