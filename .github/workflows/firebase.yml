@@ -12,6 +12,7 @@ on:
   
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,7 +47,6 @@ jobs:
           echo "Changed files vs previous commit:"
           git --no-pager diff --name-only HEAD~1 HEAD || true
 
-
       - name: Show repo tree (top level)
         run: ls -la
 
@@ -55,7 +55,6 @@ jobs:
           test -f firebase.json && echo "=== firebase.json ===" && cat firebase.json || echo "firebase.json NOT FOUND"
           test -f .firebaserc  && echo "=== .firebaserc  ===" && cat .firebaserc  || echo ".firebaserc NOT FOUND"
 
-      # Run functions npm install ONLY if functions/** changed
       - name: Functions deps (if functions/ changed)
         if: steps.changes.outputs.functions == 'true'
         run: |
@@ -88,7 +87,6 @@ jobs:
           firebase projects:list --json || true
           firebase use poetry-please || true
 
-      # Deploy HOSTING (always)
       - name: Deploy Hosting (debug)
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
@@ -100,8 +98,6 @@ jobs:
             echo "Skipping hosting: firebase.json missing"; exit 4
           fi
 
-
-      # Deploy FUNCTIONS only when functions/** changed
       - name: Deploy Functions (debug)
         if: steps.changes.outputs.functions == 'true'
         env:
@@ -110,8 +106,7 @@ jobs:
           echo "Deploying FUNCTIONS…"
           firebase --project poetry-please deploy --only functions --debug
 
-
-            # ------------------------------------------------------------
+  # ------------------------------------------------------------
   # DEPLOY PREVIEW CHANNEL for non-main branches
   # ------------------------------------------------------------
   deploy_preview:
@@ -145,4 +140,3 @@ jobs:
         run: |
           BRANCH="${{ github.ref_name }}"
           firebase hosting:channel:deploy "$BRANCH" --project poetry-please --expires 7d
-
