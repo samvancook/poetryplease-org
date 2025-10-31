@@ -216,63 +216,148 @@
   })();
   </script>
 
-  <!-- MOBILE QUICK FIX: hide legacy info + fill slide-out -->
+  <!-- MOBILE QUICK FIX: hard-move any inline meta into the bottom sheet -->
 <script>
 (function () {
-  /* 1) Hide the legacy inline info + the badge row */
-  const css = document.createElement('style');
-  css.textContent = `
-    /* hide any extra top-of-page info blocks injected by app.js */
-    body[data-ui="mobile"] .wrap > div:not(.media-outer):not(.row):not(#pp-info):not(#gallery):not(.message):not(.error) {
-      display: none !important;
-    }
-    /* hide the inline counts badge */
-    #mobile-counts { display: none !important; }
-  `;
-  document.head.appendChild(css);
+  const PP = (window.PP = window.PP || {});
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-  /* 2) If the sheet shows "—", scrape the legacy lines to fill it */
-  function scrapeLegacy() {
-    const wrap = document.querySelector('.wrap');
+  // 1) Find & remove any inline meta, return {book,title,author}
+  function harvestInlineMeta() {
+    const wrap = $('.wrap');
     if (!wrap) return {};
-    // look through siblings after the header, before the media block
-    const kids = Array.from(wrap.children);
-    const start = kids.findIndex(el => el.classList?.contains('media-outer'));
-    const scan = (start > 0) ? kids.slice(1, start) : kids.slice(1);
 
-    let book, title, author;
-    for (const el of scan) {
-      const t = (el.textContent || '').trim();
-      if (/^\s*Author:/i.test(t)) author = t.replace(/^\s*Author:\s*/i, '').trim();
-      if (/^\s*Title:/i.test(t))  title  = t.replace(/^\s*Title:\s*/i,  '').trim();
-      if (/from (the|their)?\s*book:/i.test(t)) book = t.replace(/^.*book:\s*/i, '').trim();
+    // Prefer explicit IDs if your app uses them
+    const idPick = (sel) => {
+      const el = $(sel, wrap);
+      const t = (el && el.textContent || '').trim();
+      return t || null;
+    };
+
+    let title  = idPick('#poem-title, #title');
+    let author = idPick('#poem-author, #author');
+    let book   = idPick('#book, [data-book]');
+
+    // Fallback: scan visible blocks between header and media for label patterns
+    if (!title || !author || !book) {
+      const kids = Array.from(wrap.children);
+      const headerIdx = kids.findIndex(el => el.tagName === 'HEADER');
+      const mediaIdx  = kids.findIndex(el => el.classList && el.classList.contains('media-outer'));
+      const scan = kids.slice(
+        headerIdx >= 0 ? headerIdx + 1 : 0,
+        mediaIdx  >= 0 ? mediaIdx : kids.length
+      );
+
+      for (const el of scan) {
+        if (!el || el.dataset.ppProcessed === '1') continue;
+        const txt = (el.innerText || el.textContent || '').trim();
+
+        // Match common label formats
+        if (!title)  {
+          const m = txt.match(/^\s*(?:Poem|Title)\s*:\s*(.+)$/im);
+          if (m) title = m[1].trim();
+        }
+        if (!author) {
+          const m = txt.match(/^\s*Author\s*:\s*(.+)$/im);
+          if (m) author = m[1].trim();
+        }
+        if (!book) {
+          // Handles "from book:", "from the book:", etc.
+          const m = txt.match(/from\s+(?:the|their)?\s*book\s*:\s*(.+)$/im);
+          if (m) book = m[1].trim();
+        }
+
+        // If this node looks like meta (has at least one field), remove it
+        if (title || author || book) {
+          el.dataset.ppProcessed = '1';
+          // Hide immediately to avoid flicker; then remove on next frame
+          el.style.display = 'none';
+          requestAnimationFrame(() => el.remove());
+        }
+      }
     }
+
     return { book, title, author };
   }
 
-  const PP = (window.PP = window.PP || {});
+  // 2) Update bottom sheet fields, using item first then harvested values
+  function setTxt(id, v) {
+    const el = document.getElementById(id);
+    if (el && v && String(v).trim()) el.textContent = String(v).trim();
+  }
+
+  function fillCountersFromInline() {
+    const badge = document.getElementById('mobile-counts');
+    if (!badge) return;
+    const txt = (badge.textContent || '').trim();
+    if (!txt) return;
+    const el = document.getElementById('info-counters');
+    if (el) el.textContent = txt;
+    // Never show the badge on mobile
+    badge.style.display = 'none';
+  }
+
   const oldUpdate = PP.updateInfo;
-
   PP.updateInfo = function (item) {
-    // run the normal updater first
-    if (typeof oldUpdate === 'function') oldUpdate(item);
+    // Run any existing updater first
+    if (typeof oldUpdate === 'function') try { oldUpdate(item); } catch {}
 
-    // if any fields are still "—", try to fill from the legacy text
-    const needBook   = (document.getElementById('info-book')?.textContent || '—') === '—';
-    const needTitle  = (document.getElementById('info-title')?.textContent || '—') === '—';
-    const needAuthor = (document.getElementById('info-author')?.textContent || '—') === '—';
-    if (needBook || needTitle || needAuthor) {
-      const s = scrapeLegacy();
-      if (needBook   && s.book)   document.getElementById('info-book').textContent   = s.book;
-      if (needTitle  && s.title)  document.getElementById('info-title').textContent  = s.title;
-      if (needAuthor && s.author) document.getElementById('info-author').textContent = s.author;
+    // Harvest any stray inline meta (once per update call; cheap & safe)
+    const harvested = harvestInlineMeta();
+
+    // Use the best available value for each field
+    const pick = (...vals) => vals.find(v => v != null && String(v).trim() !== '') || '—';
+
+    const book   = pick(item?.book, item?.bookTitle, item?.collection, harvested.book);
+    const title  = pick(item?.title, item?.poemTitle, item?.name, harvested.title);
+    const author = pick(item?.author, item?.authorName, item?.writer, harvested.author);
+
+    setTxt('info-book',   book);
+    setTxt('info-title',  title);
+    setTxt('info-author', author);
+
+    // Counters: prefer item; else adopt the inline badge if present
+    const likes    = item?.likes ?? item?.likeCount;
+    const dislikes = item?.dislikes ?? item?.dislikeCount;
+    const skips    = item?.skips ?? item?.skipCount;
+
+    const c = document.getElementById('info-counters');
+    if (c && (likes != null || dislikes != null || skips != null)) {
+      c.textContent = `Likes: ${likes ?? 0} • Dislikes: ${dislikes ?? 0} • Skips: ${skips ?? 0}`;
+    } else {
+      fillCountersFromInline();
     }
   };
 
-  // nudge an update shortly after load (and whenever your app fires pp:state, your existing listener runs too)
-  setTimeout(() => PP.updateInfo(window.currentItem || {}), 500);
+  // 3) MutationObserver: kill any future inline meta instantly and re-fill the sheet
+  const wrap = $('.wrap');
+  if (wrap) {
+    const observer = new MutationObserver(() => {
+      const before = {
+        book:  $('#info-book')?.textContent,
+        title: $('#info-title')?.textContent,
+        auth:  $('#info-author')?.textContent
+      };
+      const h = harvestInlineMeta();
+      if (h.book || h.title || h.author) {
+        if (h.book)  setTxt('info-book', h.book);
+        if (h.title) setTxt('info-title', h.title);
+        if (h.author)setTxt('info-author', h.author);
+      }
+      fillCountersFromInline();
+    });
+    observer.observe(wrap, { childList: true, subtree: true });
+  }
+
+  // 4) One initial nudge (works even before your first pp:state)
+  setTimeout(() => PP.updateInfo(window.currentItem || {}), 200);
+
+  // 5) Also react whenever your app broadcasts state
+  window.addEventListener('pp:state', () => PP.updateInfo(window.currentItem || {}), { passive: true });
 })();
 </script>
+
 
 </body>
 </html>
