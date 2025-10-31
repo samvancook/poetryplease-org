@@ -6,61 +6,64 @@
   <title>Poetry, Please — Mobile</title>
 
   <style>
-    :root {
-      --pad: 14px;
-      --radius: 14px;
-      --shadow: 0 2px 10px rgba(0,0,0,.06);
-    }
-    * { box-sizing: border-box; }
-    html, body { margin:0; padding:0; background:#fff; color:#111; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-    body {
-      /* leave bottom space for sticky controls; includes iOS safe-area */
-      padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 72px) env(safe-area-inset-left);
-    }
-    .wrap { max-width: 640px; margin: 0 auto; padding: var(--pad); }
+    :root { --pad:14px; --radius:14px; --shadow:0 2px 10px rgba(0,0,0,.06); }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:#fff;color:#111;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
+    body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 72px) env(safe-area-inset-left)}
+    .wrap{max-width:640px;margin:0 auto;padding:var(--pad)}
+    header{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    header h1{font-size:18px;margin:0;font-weight:600}
+    header .status{font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .media-outer{margin-top:10px;position:relative}
+    #media-wrap{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);background:#fafafa}
+    #media-wrap img,#media-wrap video{width:100%;height:auto;max-height:70vh;object-fit:contain;display:block}
+    @media(orientation:landscape){#media-wrap img,#media-wrap video{max-height:65vh}}
+    .row{display:flex;align-items:center;gap:8px;margin-top:10px}
+    .badge{padding:8px 10px;border:1px solid #eee;border-radius:12px;font-size:14px;background:#fff;box-shadow:var(--shadow)}
+    #counters-bar,.top-bar{display:none!important}
 
-    header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    header h1 { font-size:18px; margin:0; font-weight:600; }
-    header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* Floating "i" button */
+    .info-btn{position:absolute;left:8px;top:8px;width:32px;height:32px;border-radius:50%;
+      border:1px solid #e6e6e6;background:#fff;box-shadow:var(--shadow);font-weight:700}
 
-    /* Media area */
-    .media-outer { margin-top: 10px; position: relative; } /* positioning context for the info button */
-    #media-wrap { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); background:#fafafa; }
-    #media-wrap .media-box { margin:0; }
-    #media-wrap img, #media-wrap video {
-      width:100%; height:auto; max-height: 70vh; object-fit: contain; display:block;
-    }
-    @media (orientation:landscape) {
-      #media-wrap img, #media-wrap video { max-height: 65vh; }
-    }
+    /* Sticky bottom controls */
+    .sticky-controls{position:fixed;left:0;right:0;bottom:0;z-index:9999;
+      padding:10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+      background:linear-gradient(180deg,rgba(255,255,255,0) 0%,#fff 30%);display:flex;justify-content:center}
+    .controls{display:flex;gap:10px;width:min(640px,100%);margin:0 auto}
+    .controls button{flex:1;padding:14px 12px;border-radius:var(--radius);border:1px solid #e6e6e6;background:#f7f7f7;font-size:16px;line-height:1.1;touch-action:manipulation;box-shadow:var(--shadow)}
+    .controls button:active{transform:translateY(1px)}
+    .controls button:disabled{opacity:.45}
 
-    /* Counters badge */
-    .row { display:flex; align-items:center; gap:8px; margin-top: 10px; }
-    .badge { padding:8px 10px; border:1px solid #eee; border-radius:12px; font-size:14px; background:#fff; box-shadow: var(--shadow); }
+    /* Hide any inline meta on mobile (we'll show it in the sheet instead) */
+    body[data-ui="mobile"] .inline-info,
+    body[data-ui="mobile"] .meta,
+    body[data-ui="mobile"] .details,
+    body[data-ui="mobile"] .caption,
+    body[data-ui="mobile"] #title,
+    body[data-ui="mobile"] #author,
+    body[data-ui="mobile"] #book,
+    body[data-ui="mobile"] #poem-title,
+    body[data-ui="mobile"] #poem-author{display:none!important}
 
-    /* Sticky bottom button bar */
-    .sticky-controls {
-      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-      padding: 10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
-      background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #ffffff 30%);
-      display:flex; gap:10px; justify-content: center;
-    }
-    .controls { display:flex; gap:10px; width: min(640px, 100%); margin: 0 auto; }
-    .controls button {
-      flex:1; padding:14px 12px; border-radius: var(--radius);
-      border:1px solid #e6e6e6; background:#f7f7f7; font-size:16px; line-height:1.1;
-      touch-action: manipulation; box-shadow: var(--shadow);
-    }
-    .controls button:active { transform: translateY(1px); }
-    .controls button:disabled { opacity:.45; }
-
-    /* Hide desktop-only chrome if it ever leaks in */
-    #counters-bar, .top-bar { display:none !important; }
-
-    #message { min-height: 1.2em; margin-top: 6px; font-size:14px; color:#0a7e22; }
+    /* Bottom-sheet styles */
+    #pp-info{position:fixed;inset:0;z-index:10000;pointer-events:none}
+    #pp-info[data-open="true"]{pointer-events:auto}
+    .pp-info__backdrop{position:absolute;inset:0;background:rgba(0,0,0,.25);opacity:0;transition:.2s}
+    #pp-info[data-open="true"] .pp-info__backdrop{opacity:1}
+    .pp-info__sheet{position:absolute;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;
+      box-shadow:0 -8px 30px rgba(0,0,0,.15);transform:translateY(110%);transition:.25s;padding:16px}
+    #pp-info[data-open="true"] .pp-info__sheet{transform:translateY(0)}
+    .pp-info__header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .pp-info__header h2{margin:0;font-size:16px}
+    .pp-info__close{border:0;background:#f2f2f2;border-radius:10px;padding:6px 10px}
+    .pp-info__meta{display:grid;grid-template-columns:auto 1fr;gap:8px 10px;font-size:14px;margin:8px 0}
+    .pp-info__label{opacity:.7}
+    .pp-info__check{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+    .pp-info__counters{margin-top:8px;font-size:14px;opacity:.9}
   </style>
 
-  <!-- Firebase (compat) SDKs to match index.html -->
+  <!-- Firebase (compat) SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <script>
@@ -75,172 +78,49 @@
     };
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   </script>
-  <link rel="stylesheet" href="/mobile.css" />
 </head>
 <body data-ui="mobile">
   <div class="wrap">
     <header>
       <h1>Poetry, Please</h1>
       <div class="status" id="mobile-login-status">Loading…</div>
-      <button id="mobile-google"
-              style="font-size:12px;padding:6px 10px;border:1px solid #e6e6e6;
-                     border-radius:10px;background:#f7f7f7;">
+      <button id="mobile-google" style="font-size:12px;padding:6px 10px;border:1px solid #e6e6e6;border-radius:10px;background:#f7f7f7;">
         Sign in with Google
       </button>
     </header>
 
     <div class="media-outer">
-      <!-- app.js will render into #media-wrap -->
       <div id="media-wrap"></div>
-
-      <!-- Floating info button (top-left, over image) -->
-      <button class="info-btn" aria-label="Show info"
-              onclick="window.PP && window.PP.toggleInfo(true)">i</button>
+      <button class="info-btn" aria-label="Show info" onclick="window.PP.toggleInfo(true)">i</button>
     </div>
 
-    <div class="row">
-      <div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div>
-    </div>
+    <div class="row"><div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div></div>
 
-    <!-- Needed elements that app.js expects but we’ll keep out of sight -->
+    <!-- elements app.js expects but we keep hidden -->
     <div id="gallery" style="display:none"></div>
     <div id="message" class="message"></div>
     <div id="error" class="error" style="display:none"></div>
   </div>
 
-  <!-- Force mobile mode in app.js and (optionally) hide the corner badge -->
-  <script>
-    window.__PP_FORCE_MOBILE = true;
-    // window.__PP_HIDE_BADGE = true; // uncomment to hide the debug badge
-  </script>
-  <script src="/app.js" defer></script>
-
-  <!-- Ensure mobile controls are visible + mounted even if something interferes -->
-  <style>
-    /* Force the sticky controls to show on top of everything */
-    .sticky-controls { display: block !important; z-index: 9999 !important; }
-    .sticky-controls .controls { display: flex !important; gap: 10px; }
-    .sticky-controls .controls button { display: inline-block !important; }
-  </style>
-
-  <script>
-    (function ensureMobileControls(){
-      function mount() {
-        if (document.getElementById('btnSkip')) return; // already mounted
-
-        const bar = document.createElement('div');
-        bar.className = 'sticky-controls';
-        bar.innerHTML = `
-          <div class="controls">
-            <button id="btnBack">Go Back</button>
-            <button id="btnBook">Take me to the book</button>
-            <button id="btnLike">Like</button>
-            <button id="btnDislike">Dislike</button>
-            <button id="btnSkip">Poetry, Please</button>
-          </div>
-        `;
-        document.body.appendChild(bar);
-
-        const $ = (s) => document.querySelector(s);
-        $('#btnBack')   ?.addEventListener('click', () => (window.PP?.goBack?.() || window.onGoBack?.()));
-        $('#btnBook')   ?.addEventListener('click', () => (window.PP?.openBook?.()));
-        $('#btnLike')   ?.addEventListener('click', () => (window.PP?.vote?.('like')     || window.onVoteAny?.('like')));
-        $('#btnDislike')?.addEventListener('click', () => (window.PP?.vote?.('dislike')  || window.onVoteAny?.('dislike')));
-        $('#btnSkip')   ?.addEventListener('click', () => (window.PP?.skip?.()           || window.onSkip?.()));
-      }
-
-      // Mount as soon as DOM is ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', mount, { once: true });
-      } else {
-        mount();
-      }
-
-      // If app.js re-renders and something removes the bar, put it back
-      window.addEventListener('pp:state', () => {
-        if (!document.getElementById('btnSkip')) mount();
-      }, { passive: true });
-    })();
-  </script>
-
-  <script>
-    // Attach Google Sign-In for mobile — uses the same signInWithGoogle() from app.js
-    window.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('mobile-google');
-      if (!btn) return;
-      btn.addEventListener('click', () => {
-        if (typeof signInWithGoogle === 'function') {
-          signInWithGoogle();  // this triggers redirect flow on mobile
-        } else {
-          alert('Sign-in not ready yet — please try again in a moment.');
-        }
-      });
-    });
-  </script>
-
-  <script>
-    // Make buttons work even if app.js didn’t inject window.PP
-    window.PP = {
-      vote:  (v) => (window.onVoteAny ? onVoteAny(v) : console.warn('onVoteAny missing')),
-      skip:  ()  => (window.onSkip ? onSkip() : console.warn('onSkip missing')),
-      goBack:()  => (window.onGoBack ? onGoBack() : console.warn('onGoBack missing')),
-      openBook: () => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl, '_blank','noopener,noreferrer'); },
-      getState: () => ({ user: (firebase?.auth?.().currentUser || null) })
-    };
-
-    // Define the popout toggler (JS-driven)
-    window.PP.toggleInfo = (open) => {
-      const el = document.getElementById('pp-info');
-      if (el) el.dataset.open = open ? 'true' : 'false';
-    };
-
-    // Auto-start one item on mobile if nothing has rendered yet
-    setTimeout(() => { if (!window.currentItem && window.onSkip) onSkip(); }, 800);
-
-    // Minimal on-screen error box so you can see runtime errors on phone
-    (function(){
-      const box = document.createElement('div');
-      box.style.cssText='position:fixed;left:8px;bottom:8px;max-width:90vw;background:#fee;border:1px solid #f99;border-radius:8px;padding:6px 8px;font:12px system-ui;z-index:99999;display:none';
-      document.body.appendChild(box);
-      const show = (msg)=>{ box.textContent = msg; box.style.display = 'block'; };
-      window.addEventListener('error', e => show('JS error: ' + (e.message || e)));
-      window.addEventListener('unhandledrejection', e => show('Promise: ' + (e.reason?.message || e.reason || e)));
-    })();
-  </script>
-  
-<script>
-  // Prevent race: ensure updateInfo exists before app.js emits pp:state
-  window.PP = window.PP || {};
-  if (typeof window.PP.updateInfo !== 'function') {
-    window.PP.updateInfo = function () { /* no-op until real impl is loaded later */ };
-  }
-</script>
-  
-  <!-- JS-driven bottom-sheet popout -->
+  <!-- Bottom-sheet -->
   <div id="pp-info" data-open="false" aria-hidden="true">
-    <div class="pp-info__backdrop" onclick="window.PP && window.PP.toggleInfo(false)"></div>
+    <div class="pp-info__backdrop" onclick="window.PP.toggleInfo(false)"></div>
     <section class="pp-info__sheet" role="dialog" aria-modal="true" aria-labelledby="pp-info-title">
       <header class="pp-info__header">
         <h2 id="pp-info-title">Info</h2>
-        <button class="pp-info__close" aria-label="Close" onclick="window.PP && window.PP.toggleInfo(false)">✕</button>
+        <button class="pp-info__close" aria-label="Close" onclick="window.PP.toggleInfo(false)">✕</button>
       </header>
 
       <div class="pp-info__body">
         <div class="pp-info__meta">
-          <div><span class="pp-info__label">Book</span><span id="info-book">—</span></div>
-          <div><span class="pp-info__label">Poem</span><span id="info-title">—</span></div>
-          <div><span class="pp-info__label">Author</span><span id="info-author">—</span></div>
+          <div class="pp-info__label">Book</div><div id="info-book">—</div>
+          <div class="pp-info__label">Poem</div><div id="info-title">—</div>
+          <div class="pp-info__label">Author</div><div id="info-author">—</div>
         </div>
 
         <div class="pp-info__filters">
-          <label class="pp-info__check">
-            <input type="checkbox" id="info-filter-author" />
-            More from this author
-          </label>
-          <label class="pp-info__check">
-            <input type="checkbox" id="info-filter-book" />
-            More from this book
-          </label>
+          <label class="pp-info__check"><input type="checkbox" id="info-filter-author"/> More from this author</label>
+          <label class="pp-info__check"><input type="checkbox" id="info-filter-book"/> More from this book</label>
         </div>
 
         <div class="pp-info__counters" id="info-counters">—</div>
@@ -248,277 +128,93 @@
     </section>
   </div>
 
+  <!-- Force mobile mode for app.js and load it -->
+  <script>window.__PP_FORCE_MOBILE = true;</script>
+  <script src="/app.js" defer></script>
+
+  <!-- One tiny script to wire everything -->
   <script>
-  // Populate the info panel from your current item
-  window.PP = window.PP || {};
-  window.PP.updateInfo = (item) => {
-    if (!item) return;
-    const setTxt = (id, val) => {
-      const el = document.getElementById(id);
-      if (el) el.textContent = (val ?? '—');
-    };
-    setTxt('info-book',   item.book || item.bookTitle || item.collection || '—');
-    setTxt('info-title',  item.title || item.poemTitle || item.name || '—');
-    setTxt('info-author', item.author || item.authorName || '—');
+  (function(){
+    /* ---------- Auth: use popup if allowed, else redirect (fixes COOP) ---------- */
+    const auth = firebase.auth();
+    const provider = new firebase.auth.GoogleAuthProvider();
 
-    const c = document.getElementById('info-counters');
-    if (c) {
-      const likes    = item.likes    ?? item.likeCount    ?? 0;
-      const dislikes = item.dislikes ?? item.dislikeCount ?? 0;
-      const skips    = item.skips    ?? item.skipCount    ?? 0;
-      c.textContent = `Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
+    async function signInWithGoogle() {
+      try { await auth.signInWithPopup(provider); }
+      catch (e) { try { await auth.signOut(); } catch{} await auth.signInWithRedirect(provider); }
     }
-  };
+    auth.getRedirectResult().catch(console.error); // complete redirect if returning
 
-  // Call update when your app broadcasts state changes
-  window.addEventListener('pp:state', () => {
-    window.PP.updateInfo(window.currentItem);
-  }, { passive: true });
-
-  // Ensure opening the sheet also refreshes details
-  const _oldToggleInfo = window.PP.toggleInfo;
-  window.PP.toggleInfo = (open) => {
-    if (open) window.PP.updateInfo(window.currentItem);
-    if (typeof _oldToggleInfo === 'function') return _oldToggleInfo(open);
-    // fallback to the standard toggler if not wrapped yet
-    const el = document.getElementById('pp-info');
-    if (el) el.dataset.open = open ? 'true' : 'false';
-  };
-
-  // Wire the filter checkboxes (no-ops if not implemented in your app yet)
-  document.getElementById('info-filter-author')?.addEventListener('change', (e) => {
-    if (window.PP?.setFilter) window.PP.setFilter('author', !!e.target.checked);
-    else window.PP_FILTER_AUTHOR = !!e.target.checked;
-  });
-  document.getElementById('info-filter-book')?.addEventListener('change', (e) => {
-    if (window.PP?.setFilter) window.PP.setFilter('book', !!e.target.checked);
-    else window.PP_FILTER_BOOK = !!e.target.checked;
-  });
-</script>
-
-
-  <script>
-/* === 1. HIDE INLINE INFO ON MOBILE === */
-const hideCSS = document.createElement('style');
-hideCSS.textContent = `
-  body[data-ui="mobile"] .inline-info,
-  body[data-ui="mobile"] .meta,
-  body[data-ui="mobile"] .details,
-  body[data-ui="mobile"] .caption,
-  body[data-ui="mobile"] #title,
-  body[data-ui="mobile"] #author,
-  body[data-ui="mobile"] #book,
-  body[data-ui="mobile"] #poem-title,
-  body[data-ui="mobile"] #poem-author {
-    display: none !important;
-  }
-`;
-document.head.appendChild(hideCSS);
-
-/* === 2. POPULATE "i" PANEL DYNAMICALLY === */
-function setTxt(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = (val && String(val).trim()) ? String(val).trim() : '—';
-}
-function pick(obj, keys, fallback) {
-  if (!obj) return fallback;
-  for (const k of keys) {
-    if (obj[k] != null && String(obj[k]).trim() !== '') return obj[k];
-  }
-  return fallback;
-}
-function scrape(selectors) {
-  for (const sel of selectors) {
-    const el = document.querySelector(sel);
-    const t = el?.textContent?.trim();
-    if (t) return t;
-  }
-  return null;
-}
-
-window.PP = window.PP || {};
-window.PP.updateInfo = (item) => {
-  const book = pick(item, ['book','bookTitle','collection','series'], null)
-            || scrape(['#book','.book','.meta .book','.inline-info .book']);
-  const title = pick(item, ['title','poemTitle','name'], null)
-             || scrape(['#title','#poem-title','.title','.caption .title','.inline-info .title']);
-  const author = pick(item, ['author','authorName','writer'], null)
-              || scrape(['#author','#poem-author','.author','.meta .author','.inline-info .author']);
-
-  setTxt('info-book',   book);
-  setTxt('info-title',  title);
-  setTxt('info-author', author);
-
-  const likes    = pick(item, ['likes','likeCount'], 0) ?? 0;
-  const dislikes = pick(item, ['dislikes','dislikeCount'], 0) ?? 0;
-  const skips    = pick(item, ['skips','skipCount'], 0) ?? 0;
-
-  const c = document.getElementById('info-counters');
-  if (c) c.textContent = `Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
-};
-
-// refresh whenever app.js changes the state
-window.addEventListener('pp:state', () => {
-  window.PP.updateInfo(window.currentItem);
-}, { passive: true });
-
-// ensure opening the popout also updates info
-(function wrapToggle(){
-  const orig = window.PP.toggleInfo;
-  window.PP.toggleInfo = (open) => {
-    if (open) window.PP.updateInfo(window.currentItem);
-    if (typeof orig === 'function') return orig(open);
-    const el = document.getElementById('pp-info');
-    if (el) el.dataset.open = open ? 'true' : 'false';
-  };
-})();
-
-// optional: checkbox filters (harmless if not used)
-document.getElementById('info-filter-author')?.addEventListener('change', (e) => {
-  if (window.PP?.setFilter) window.PP.setFilter('author', !!e.target.checked);
-  else window.PP_FILTER_AUTHOR = !!e.target.checked;
-});
-document.getElementById('info-filter-book')?.addEventListener('change', (e) => {
-  if (window.PP?.setFilter) window.PP.setFilter('book', !!e.target.checked);
-  else window.PP_FILTER_BOOK = !!e.target.checked;
-});
-</script>
-
-<script>
-/* ---------------------------------------------------------
-   Poetry, Please — Mobile "i" panel stabilizer (single drop-in)
-   - Hides inline title/author/book on the main screen
-   - Guarantees PP.updateInfo + PP.toggleInfo exist
-   - Survives any later window.PP reassignments (proxy setter)
-   - Populates the bottom-sheet each time state changes or "i" opens
---------------------------------------------------------- */
-
-/* 1) Hide inline info on the main screen (mobile only) */
-(function hideInlineInfo(){
-  const css = document.createElement('style');
-  css.textContent = `
-    body[data-ui="mobile"] .inline-info,
-    body[data-ui="mobile"] .meta,
-    body[data-ui="mobile"] .details,
-    body[data-ui="mobile"] .caption,
-    body[data-ui="mobile"] #title,
-    body[data-ui="mobile"] #author,
-    body[data-ui="mobile"] #book,
-    body[data-ui="mobile"] #poem-title,
-    body[data-ui="mobile"] #poem-author {
-      display: none !important;
-    }
-  `;
-  document.head.appendChild(css);
-})();
-
-/* 2) Helpers used by updateInfo() */
-function _ppSetTxt(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = (val && String(val).trim()) ? String(val).trim() : '—';
-}
-function _ppPick(obj, keys, fallback) {
-  if (!obj) return fallback;
-  for (const k of keys) {
-    const v = obj[k];
-    if (v != null && String(v).trim() !== '') return v;
-  }
-  return fallback;
-}
-function _ppScrape(selectors) {
-  for (const sel of selectors) {
-    const el = document.querySelector(sel);
-    const t = el?.textContent?.trim();
-    if (t) return t;
-  }
-  return null;
-}
-
-/* 3) The augmentation we want to persist on window.PP */
-function _augmentPP(pp) {
-  pp = pp || {};
-
-  // Core fallback actions (don’t override if app.js already provided)
-  pp.vote    = pp.vote    || ((v) => (window.onVoteAny ? onVoteAny(v) : console.warn('onVoteAny missing')));
-  pp.skip    = pp.skip    || (()  => (window.onSkip ? onSkip() : console.warn('onSkip missing')));
-  pp.goBack  = pp.goBack  || (()  => (window.onGoBack ? onGoBack() : console.warn('onGoBack missing')));
-  pp.openBook= pp.openBook|| (()  => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl, '_blank','noopener,noreferrer'); });
-  pp.getState= pp.getState|| (()  => ({ user: (firebase?.auth?.().currentUser || null) }));
-
-  // Toggle for the bottom-sheet
-  const baseToggle = pp.toggleInfo;
-  pp.toggleInfo = function(open) {
-    if (open && typeof pp.updateInfo === 'function') {
-      pp.updateInfo(window.currentItem);
-    }
-    if (typeof baseToggle === 'function') return baseToggle(open);
-    const el = document.getElementById('pp-info');
-    if (el) el.dataset.open = open ? 'true' : 'false';
-  };
-
-  // The info updater (idempotent—safe to overwrite)
-  pp.updateInfo = function(item) {
-    // Prefer data from item; fall back to scraping legacy inline spots if present
-    const book   = _ppPick(item, ['book','bookTitle','collection','series'], null) ||
-                   _ppScrape(['#book','.book','.meta .book','.inline-info .book']);
-    const title  = _ppPick(item, ['title','poemTitle','name'], null) ||
-                   _ppScrape(['#title','#poem-title','.title','.caption .title','.inline-info .title']);
-    const author = _ppPick(item, ['author','authorName','writer'], null) ||
-                   _ppScrape(['#author','#poem-author','.author','.meta .author','.inline-info .author']);
-
-    _ppSetTxt('info-book',   book);
-    _ppSetTxt('info-title',  title);
-    _ppSetTxt('info-author', author);
-
-    const likes    = _ppPick(item, ['likes','likeCount'], 0) ?? 0;
-    const dislikes = _ppPick(item, ['dislikes','dislikeCount'], 0) ?? 0;
-    const skips    = _ppPick(item, ['skips','skipCount'], 0) ?? 0;
-    const c = document.getElementById('info-counters');
-    if (c) c.textContent = `Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
-  };
-
-  return pp;
-}
-
-/* 4) Make window.PP resilient to reassignment (merge on every set) */
-(function installPPProxy(){
-  // Preserve any existing value
-  const _store = { value: window.PP ? _augmentPP(window.PP) : _augmentPP({}) };
-
-  try {
-    Object.defineProperty(window, 'PP', {
-      configurable: true, enumerable: true,
-      get() { return _store.value; },
-      set(v) { _store.value = _augmentPP(v); } // merge every time something sets window.PP
+    document.getElementById('mobile-google')?.addEventListener('click', signInWithGoogle);
+    auth.onAuthStateChanged(u=>{
+      document.getElementById('mobile-login-status').textContent = u ? (u.email || 'Signed in') : 'Signed out';
     });
-  } catch (e) {
-    // If defineProperty is blocked, fall back to a one-time set + poll repair
-    window.PP = _store.value;
-    setInterval(() => {
-      if (!window.PP || typeof window.PP.updateInfo !== 'function') {
-        window.PP = _augmentPP(window.PP || {});
-      }
-    }, 250);
-  }
-})();
 
-/* 5) Update the sheet whenever app state changes (safe if fired early/late) */
-window.addEventListener('pp:state', () => {
-  if (typeof window.PP?.updateInfo === 'function') {
-    window.PP.updateInfo(window.currentItem);
-  }
-}, { passive: true });
+    /* ---------- Minimal PP surface so buttons always work ---------- */
+    const PP = (window.PP = Object.assign({}, window.PP));
+    PP.vote    = PP.vote    || (v => window.onVoteAny ? onVoteAny(v) : null);
+    PP.skip    = PP.skip    || (() => window.onSkip ? onSkip() : null);
+    PP.goBack  = PP.goBack  || (() => window.onGoBack ? onGoBack() : null);
+    PP.openBook= PP.openBook|| (() => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl,'_blank','noopener,noreferrer'); });
 
-/* 6) Optional: tiny on-screen error box for mobile debugging */
-(function debugBox(){
-  const box = document.createElement('div');
-  box.style.cssText='position:fixed;left:8px;bottom:8px;max-width:90vw;background:#fee;border:1px solid #f99;border-radius:8px;padding:6px 8px;font:12px system-ui;z-index:99999;display:none';
-  document.body.appendChild(box);
-  const show = (msg)=>{ box.textContent = msg; box.style.display = 'block'; };
-  window.addEventListener('error', e => show('JS error: ' + (e.message || e)));
-  window.addEventListener('unhandledrejection', e => show('Promise: ' + (e.reason?.message || e.reason || e)));
-})();
-</script>
+    PP.toggleInfo = function(open){
+      if (open) PP.updateInfo?.(window.currentItem);
+      const el = document.getElementById('pp-info');
+      if (el) el.dataset.open = open ? 'true' : 'false';
+    };
 
+    function pick(o, keys, fb){ if(!o) return fb; for(const k of keys){const v=o[k]; if(v!=null && String(v).trim()!=='') return v;} return fb; }
+    function setTxt(id,v){ const el=document.getElementById(id); if(el) el.textContent=(v&&String(v).trim())||'—'; }
+
+    PP.updateInfo = function(item){
+      item = item || window.currentItem || {};
+      setTxt('info-book',   pick(item,['book','bookTitle','collection','series'], null));
+      setTxt('info-title',  pick(item,['title','poemTitle','name'], null));
+      setTxt('info-author', pick(item,['author','authorName','writer'], null));
+      const likes    = pick(item,['likes','likeCount'],0) ?? 0;
+      const dislikes = pick(item,['dislikes','dislikeCount'],0) ?? 0;
+      const skips    = pick(item,['skips','skipCount'],0) ?? 0;
+      const c=document.getElementById('info-counters'); if(c) c.textContent=`Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
+    };
+
+    window.addEventListener('pp:state', ()=>PP.updateInfo(window.currentItem), {passive:true});
+
+    /* ---------- Sticky control bar ---------- */
+    function mountControls(){
+      if (document.getElementById('btnSkip')) return;
+      const bar=document.createElement('div');
+      bar.className='sticky-controls';
+      bar.innerHTML=`
+        <div class="controls">
+          <button id="btnBack">Go Back</button>
+          <button id="btnBook">Take me to the book</button>
+          <button id="btnLike">Like</button>
+          <button id="btnDislike">Dislike</button>
+          <button id="btnSkip">Poetry, Please</button>
+        </div>`;
+      document.body.appendChild(bar);
+      const $=s=>document.querySelector(s);
+      $('#btnBack')?.addEventListener('click', ()=>PP.goBack());
+      $('#btnBook')?.addEventListener('click', ()=>PP.openBook());
+      $('#btnLike')?.addEventListener('click', ()=>PP.vote('like'));
+      $('#btnDislike')?.addEventListener('click', ()=>PP.vote('dislike'));
+      $('#btnSkip')?.addEventListener('click', ()=>PP.skip());
+    }
+    if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', mountControls, {once:true}); else mountControls();
+    window.addEventListener('pp:state', ()=>{ if(!document.getElementById('btnSkip')) mountControls(); }, {passive:true});
+
+    /* ---------- Filters in the sheet (optional pass-through) ---------- */
+    document.getElementById('info-filter-author')?.addEventListener('change', e=>{
+      if (PP.setFilter) PP.setFilter('author', !!e.target.checked); else window.PP_FILTER_AUTHOR = !!e.target.checked;
+    });
+    document.getElementById('info-filter-book')?.addEventListener('change', e=>{
+      if (PP.setFilter) PP.setFilter('book', !!e.target.checked); else window.PP_FILTER_BOOK = !!e.target.checked;
+    });
+
+    /* Auto-start one item if nothing rendered yet */
+    setTimeout(()=>{ if(!window.currentItem && window.onSkip) onSkip(); }, 800);
+  })();
+  </script>
 </body>
 </html>
+
