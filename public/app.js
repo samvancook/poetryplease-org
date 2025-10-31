@@ -933,12 +933,17 @@ window.addEventListener('DOMContentLoaded', () => {
   };}
 
   function emitState(){
-    try {
-      const detail = { user: firebase.auth().currentUser || null,
-        ...readCounts(), currentId: currentItem?.id ?? null };
-      window.dispatchEvent(new CustomEvent('pp:state', { detail }));
-    } catch(_) {}
-  }
+  try {
+    const detail = {
+      user: firebase.auth().currentUser || null,
+      item: currentItem || null,                 // <-- add this
+      currentId: currentItem?.id ?? null,
+      ...readCounts()
+    };
+    window.dispatchEvent(new CustomEvent('pp:state', { detail }));
+  } catch(_) {}
+}
+
 
   // API for mobile.html
   window.PP = Object.assign({}, window.PP, {
@@ -946,7 +951,13 @@ window.addEventListener('DOMContentLoaded', () => {
     skip: ()=>onSkip(),
     goBack: ()=>onGoBack(),
     openBook: ()=>{ if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank','noopener,noreferrer'); },
-    getState: ()=>({ user: firebase.auth().currentUser || null, ...readCounts(), currentId: currentItem?.id ?? null })
+    getState: ()=>({
+  user: firebase.auth().currentUser || null,
+  item: currentItem || null,                    // <-- add this
+  currentId: currentItem?.id ?? null,
+  ...readCounts()
+})
+
   });
 
   // Keep mobile UI synced
