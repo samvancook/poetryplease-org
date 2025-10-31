@@ -16,7 +16,16 @@
     header .status{font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .media-outer{margin-top:10px;position:relative}
     #media-wrap{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);background:#fafafa}
-    #media-wrap img,#media-wrap video{width:100%;height:auto;max-height:70vh;object-fit:contain;display:block}
+    #media-wrap img,
+    #media-wrap video {
+      width: 100%;
+      height: calc(100vh - 180px); /* fill nearly all vertical space */
+      max-height: calc(100vh - 180px);
+      object-fit: contain;
+      display: block;
+      background: #000; /* optional: gives photos and text a clean frame */
+    }
+
     @media(orientation:landscape){#media-wrap img,#media-wrap video{max-height:65vh}}
     .row{display:flex;align-items:center;gap:8px;margin-top:10px}
     .badge{padding:8px 10px;border:1px solid #eee;border-radius:12px;font-size:14px;background:#fff;box-shadow:var(--shadow)}
