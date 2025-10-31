@@ -275,6 +275,23 @@
     </div>
   </section>
 </div>
+<!-- Hidden source: keep info out of the visible page -->
+<div id="info-source" hidden>
+  <!-- Put whatever info you currently show on the page here instead.
+       If you’re already rendering that info somewhere else, move it into this div. -->
+  <h3>About this piece</h3>
+  <p id="about-text">…dynamic or static info goes here…</p>
+</div>
+
+<!-- Modal / Popout -->
+<div id="info-overlay" aria-hidden="true" hidden></div>
+<div id="info-dialog" role="dialog" aria-modal="true" aria-labelledby="info-title" hidden>
+  <div class="info-header">
+    <h2 id="info-title">Info</h2>
+    <button id="info-close" aria-label="Close">✕</button>
+  </div>
+  <div id="info-body" class="info-body"><!-- filled by JS --></div>
+</div>
 
 
   
