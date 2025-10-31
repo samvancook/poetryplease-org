@@ -216,140 +216,89 @@
   })();
   </script>
 
- <!-- MOBILE QUICK FIX v2: move inline meta to bottom sheet + hide top block -->
+ <!-- MOBILE QUICK FIX v3: remove EVERYTHING between header and media; fill bottom sheet -->
 <script>
 (function () {
   const PP = (window.PP = window.PP || {});
   const $  = (s, r=document) => r.querySelector(s);
 
-  /* 1) Hard-hide anything that looks like the legacy meta row */
-  const css = document.createElement('style');
-  css.textContent = `
-    body[data-ui="mobile"] .wrap > *:not(header):not(.media-outer):not(#pp-info):not(script):not(style) {
-      /* temporarily hide; JS will remove the specific meta row below */
-      visibility: hidden;
-    }
-  `;
-  document.head.appendChild(css);
+  function extractFields(txt){
+    const out = {};
+    const grab = (re) => { const m = txt.match(re); return m ? m[1].trim() : null; };
 
-  function looksLikeMeta(el){
-    if (!el) return false;
-    const t = (el.innerText || el.textContent || '').trim();
-    return /(^|\n)\s*(Title|Author)\s*:/i.test(t) ||
-           /(^|\n)\s*(?:their|the)?\s*book\s*:/i.test(t) ||
-           /from\s+(?:the|their)?\s*book\s*:/i.test(t);
-  }
+    // flexible patterns
+    out.title  = grab(/^\s*(?:Poem|Title)\s*:\s*(.+)$/im) || null;
+    out.author = grab(/^\s*Author\s*:\s*(.+)$/im) || null;
+    out.book   = grab(/^\s*(?:their|the)?\s*book\s*:\s*(.+)$/im)
+              || grab(/from\s+(?:the|their)?\s*book\s*:\s*(.+)$/im)
+              || null;
 
-  /* 2) Find the legacy meta block between header and media, scrape it, remove it */
-  function harvestAndRemoveMeta() {
-    const wrap = $('.wrap'); if (!wrap) return {};
-    const kids = Array.from(wrap.children);
-    const headerIdx = kids.findIndex(n => n.tagName === 'HEADER');
-    const mediaIdx  = kids.findIndex(n => n.classList && n.classList.contains('media-outer'));
-
-    const scan = kids.slice(
-      headerIdx >= 0 ? headerIdx + 1 : 0,
-      mediaIdx  >= 0 ? mediaIdx : kids.length
-    );
-
-    let metaEl = scan.find(looksLikeMeta);
-    if (!metaEl) {
-      // Nothing obvious; restore visibility and bail
-      css.remove();
-      return {};
-    }
-
-    // Now that we found it, restore visibility for others and only nuke this one
-    css.remove();
-    for (const el of scan) if (el !== metaEl) el.style.visibility = '';
-
-    const txt = (metaEl.innerText || metaEl.textContent || '').trim();
-
-    // Extract values (multiline-safe)
-    const grab = (re) => {
-      const m = txt.match(re);
-      return m ? m[1].trim() : null;
-    };
-
-    const title  = grab(/^\s*(?:Poem|Title)\s*:\s*(.+)$/im);
-    const author = grab(/^\s*Author\s*:\s*(.+)$/im);
-
-    // accept: "their book: X", "the book: X", "book: X", or "from the book: X"
-    const book   = grab(/^\s*(?:their|the)?\s*book\s*:\s*(.+)$/im) ||
-                   grab(/from\s+(?:the|their)?\s*book\s*:\s*(.+)$/im);
-
-    // Sync checkbox states if present
-    const topAuthorChk = metaEl.querySelector('input[type="checkbox"][id*="author" i]');
-    const topBookChk   = metaEl.querySelector('input[type="checkbox"][id*="book" i]');
-    const sheetAuthor  = $('#info-filter-author');
-    const sheetBook    = $('#info-filter-book');
-    if (topAuthorChk && sheetAuthor) sheetAuthor.checked = !!topAuthorChk.checked;
-    if (topBookChk && sheetBook)     sheetBook.checked   = !!topBookChk.checked;
-
-    // Remove the whole block
-    metaEl.remove();
-
-    // Also hide any stray “mobile-counts” badge up top
-    const badge = $('#mobile-counts');
-    if (badge) {
-      const counters = $('#info-counters');
-      const text = (badge.textContent || '').trim();
-      if (counters && text) counters.textContent = text;
-      badge.remove();
-    }
-
-    return { title, author, book };
+    // counters: "Likes: N • Dislikes: M • Skips: K"
+    const c = txt.match(/Likes:\s*(\d+).*?Dislikes:\s*(\d+).*?Skips:\s*(\d+)/i);
+    if (c) out.counters = `Likes: ${c[1]} • Dislikes: ${c[2]} • Skips: ${c[3]}`;
+    return out;
   }
 
   function setTxt(id, v){
     const el = document.getElementById(id);
-    if (el && v && String(v).trim()) el.textContent = String(v).trim();
+    if (el && v != null && String(v).trim() !== '') el.textContent = String(v).trim();
+  }
+
+  function harvestAndPurge(){
+    const wrap = $('.wrap'); if (!wrap) return;
+
+    const kids = Array.from(wrap.children);
+    const headerIdx = kids.findIndex(n => n.tagName === 'HEADER');
+    const mediaIdx  = kids.findIndex(n => n.classList && n.classList.contains('media-outer'));
+    if (headerIdx < 0 || mediaIdx < 0 || mediaIdx <= headerIdx + 0) return;
+
+    const slice = kids.slice(headerIdx + 1, mediaIdx); // EVERYTHING between header and media
+
+    // Scrape text from slice
+    let combined = '';
+    for (const el of slice) combined += '\n' + (el.innerText || el.textContent || '');
+
+    const scraped = extractFields(combined);
+
+    // Remove all nodes in slice
+    for (const el of slice) el.remove();
+
+    // Apply to bottom sheet (prefer currentItem values when present)
+    const item = window.currentItem || {};
+    const pick = (...vals) => vals.find(v => v != null && String(v).trim() !== '') || null;
+
+    const book   = pick(item.book, item.bookTitle, item.collection, scraped.book);
+    const title  = pick(item.title, item.poemTitle, item.name, scraped.title);
+    const author = pick(item.author, item.authorName, item.writer, scraped.author);
+
+    setTxt('info-book',   book   || '—');
+    setTxt('info-title',  title  || '—');
+    setTxt('info-author', author || '—');
+
+    if (scraped.counters) {
+      const c = document.getElementById('info-counters');
+      if (c) c.textContent = scraped.counters;
+    }
   }
 
   const oldUpdate = PP.updateInfo;
   PP.updateInfo = function(item){
     if (typeof oldUpdate === 'function') try { oldUpdate(item); } catch {}
-
-    const harvested = harvestAndRemoveMeta();
-
-    const pick = (...vals) => vals.find(v => v != null && String(v).trim() !== '') || null;
-
-    const book   = pick(item?.book, item?.bookTitle, item?.collection, harvested.book);
-    const title  = pick(item?.title, item?.poemTitle, item?.name,       harvested.title);
-    const author = pick(item?.author, item?.authorName, item?.writer,   harvested.author);
-
-    setTxt('info-book',   book || '—');
-    setTxt('info-title',  title || '—');
-    setTxt('info-author', author || '—');
-
-    // Counters (prefer item, else keep existing text)
-    const likes    = item?.likes ?? item?.likeCount;
-    const dislikes = item?.dislikes ?? item?.dislikeCount;
-    const skips    = item?.skips ?? item?.skipCount;
-    const c = document.getElementById('info-counters');
-    if (c && (likes != null || dislikes != null || skips != null)) {
-      c.textContent = `Likes: ${likes ?? 0} • Dislikes: ${dislikes ?? 0} • Skips: ${skips ?? 0}`;
-    }
+    harvestAndPurge();
   };
 
-  // React to future injections immediately
+  // Keep the zone clean if your app injects again
   const wrap = document.querySelector('.wrap');
   if (wrap) {
-    const mo = new MutationObserver(() => {
-      const got = harvestAndRemoveMeta();
-      if (got.title || got.author || got.book) {
-        setTxt('info-book',   got.book   || document.getElementById('info-book')?.textContent || '—');
-        setTxt('info-title',  got.title  || document.getElementById('info-title')?.textContent || '—');
-        setTxt('info-author', got.author || document.getElementById('info-author')?.textContent || '—');
-      }
-    });
-    mo.observe(wrap, { childList: true, subtree: true });
+    new MutationObserver(() => harvestAndPurge())
+      .observe(wrap, { childList: true, subtree: true });
   }
 
-  // One nudge so the sheet shows real data fast
-  setTimeout(() => PP.updateInfo(window.currentItem || {}), 150);
+  // First pass
+  setTimeout(() => PP.updateInfo(window.currentItem || {}), 100);
 })();
 </script>
+
 
 
 
