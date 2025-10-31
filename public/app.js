@@ -236,6 +236,7 @@ const getRatingsSummaryWrapped    = () => api('ratingsSummary',  { method: 'GET'
 // ===== State =====
 const historyStack = [];
 let currentItem = null;
+window.currentItem = null; // <-- expose for mobile.html
 
 let lastData = null;     // server payload (fetchData / fetchDataAnon)
 let queue = [];          // filtered & shuffled list
@@ -664,23 +665,38 @@ function renderItemMedia(item) {
     v.addEventListener('canplay',        recalc, { once: true });
   }
 }
-function renderCurrent(item){
+function renderCurrent(item) {
   resetVoteButtons();
   currentItem = item;
+  window.currentItem = currentItem; // <-- make it available to mobile.html
+
   servedCounter = (servedCounter || 0) + 1;
   renderMetaRows(item);
   renderItemMedia(item);
 
-  const back = $('#btn-go-back'); if (back) back.disabled = historyStack.length === 0;
-  const toBook = $('#btn-to-book'); if (toBook) toBook.onclick = () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); };
-  const gal = $('#gallery'); if (gal) gal.innerHTML = item ? `<p>Showing 1 item.</p>` : `<p>No new items.</p>`;
+  const back = $('#btn-go-back');
+  if (back) back.disabled = historyStack.length === 0;
+
+  const toBook = $('#btn-to-book');
+  if (toBook)
+    toBook.onclick = () => {
+      if (currentItem?.bookUrl)
+        window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer');
+    };
+
+  const gal = $('#gallery');
+  if (gal)
+    gal.innerHTML = item
+      ? `<p>Showing 1 item.</p>`
+      : `<p>No new items.</p>`;
+
   renderCounter();
 
   setViewportVars();
   adjustViewportFit();
 
-  // Notify mobile shell
-  dispatchEvent(new CustomEvent('pp:state'));
+  // ✅ Notify mobile shell *with* the item payload
+  window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: currentItem } }));
 }
 
 // ===== Heuristic next index chooser =====
