@@ -288,5 +288,94 @@
   });
 </script>
 
+
+  <script>
+/* === 1. HIDE INLINE INFO ON MOBILE === */
+const hideCSS = document.createElement('style');
+hideCSS.textContent = `
+  body[data-ui="mobile"] .inline-info,
+  body[data-ui="mobile"] .meta,
+  body[data-ui="mobile"] .details,
+  body[data-ui="mobile"] .caption,
+  body[data-ui="mobile"] #title,
+  body[data-ui="mobile"] #author,
+  body[data-ui="mobile"] #book,
+  body[data-ui="mobile"] #poem-title,
+  body[data-ui="mobile"] #poem-author {
+    display: none !important;
+  }
+`;
+document.head.appendChild(hideCSS);
+
+/* === 2. POPULATE "i" PANEL DYNAMICALLY === */
+function setTxt(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = (val && String(val).trim()) ? String(val).trim() : '—';
+}
+function pick(obj, keys, fallback) {
+  if (!obj) return fallback;
+  for (const k of keys) {
+    if (obj[k] != null && String(obj[k]).trim() !== '') return obj[k];
+  }
+  return fallback;
+}
+function scrape(selectors) {
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    const t = el?.textContent?.trim();
+    if (t) return t;
+  }
+  return null;
+}
+
+window.PP = window.PP || {};
+window.PP.updateInfo = (item) => {
+  const book = pick(item, ['book','bookTitle','collection','series'], null)
+            || scrape(['#book','.book','.meta .book','.inline-info .book']);
+  const title = pick(item, ['title','poemTitle','name'], null)
+             || scrape(['#title','#poem-title','.title','.caption .title','.inline-info .title']);
+  const author = pick(item, ['author','authorName','writer'], null)
+              || scrape(['#author','#poem-author','.author','.meta .author','.inline-info .author']);
+
+  setTxt('info-book',   book);
+  setTxt('info-title',  title);
+  setTxt('info-author', author);
+
+  const likes    = pick(item, ['likes','likeCount'], 0) ?? 0;
+  const dislikes = pick(item, ['dislikes','dislikeCount'], 0) ?? 0;
+  const skips    = pick(item, ['skips','skipCount'], 0) ?? 0;
+
+  const c = document.getElementById('info-counters');
+  if (c) c.textContent = `Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
+};
+
+// refresh whenever app.js changes the state
+window.addEventListener('pp:state', () => {
+  window.PP.updateInfo(window.currentItem);
+}, { passive: true });
+
+// ensure opening the popout also updates info
+(function wrapToggle(){
+  const orig = window.PP.toggleInfo;
+  window.PP.toggleInfo = (open) => {
+    if (open) window.PP.updateInfo(window.currentItem);
+    if (typeof orig === 'function') return orig(open);
+    const el = document.getElementById('pp-info');
+    if (el) el.dataset.open = open ? 'true' : 'false';
+  };
+})();
+
+// optional: checkbox filters (harmless if not used)
+document.getElementById('info-filter-author')?.addEventListener('change', (e) => {
+  if (window.PP?.setFilter) window.PP.setFilter('author', !!e.target.checked);
+  else window.PP_FILTER_AUTHOR = !!e.target.checked;
+});
+document.getElementById('info-filter-book')?.addEventListener('change', (e) => {
+  if (window.PP?.setFilter) window.PP.setFilter('book', !!e.target.checked);
+  else window.PP_FILTER_BOOK = !!e.target.checked;
+});
+</script>
+
+
 </body>
 </html>
