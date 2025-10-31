@@ -19,11 +19,17 @@
     #media-wrap img,
     #media-wrap video {
       width: 100%;
-      height: calc(100vh - 180px); /* fill nearly all vertical space */
-      max-height: calc(100vh - 180px);
+      height: calc(100svh - 200px);  /* header + gaps + sticky controls */
+      max-height: calc(100svh - 200px);
       object-fit: contain;
       display: block;
-      background: #000; /* optional: gives photos and text a clean frame */
+      background: #000;
+    }
+    
+    @media (orientation:landscape){
+      #media-wrap img, #media-wrap video {
+        max-height: calc(100svh - 200px);
+      }
     }
 
     @media(orientation:landscape){#media-wrap img,#media-wrap video{max-height:65vh}}
