@@ -180,7 +180,14 @@
       const c=document.getElementById('info-counters'); if(c) c.textContent=`Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
     };
 
-    window.addEventListener('pp:state', ()=>PP.updateInfo(window.currentItem), {passive:true});
+    window.addEventListener('pp:state', (e) => {
+  // grab the item from the event and expose it globally for the pop-out
+  const itm = e?.detail?.item || e?.detail?.current || e?.detail || null;
+  if (itm) window.currentItem = itm;
+
+  // update the bottom sheet now that we have the item
+  PP.updateInfo(window.currentItem);
+}, { passive: true });
 
     /* ---------- Sticky control bar ---------- */
     function mountControls(){
