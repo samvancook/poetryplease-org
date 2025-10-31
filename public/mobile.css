@@ -107,3 +107,13 @@ header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidde
   background:#fafafa; box-shadow: var(--shadow);
 }
 
+/* Hide desktop/legacy info when in mobile UI */
+.mobile-ui [id^="mobile-login-status"],
+.mobile-ui .row,
+.mobile-ui .badge,
+.mobile-ui .top-bar,
+.mobile-ui .old-info {
+  display: none !important;
+}
+
+
