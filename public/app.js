@@ -584,6 +584,17 @@ function renderMetaRows(item) {
   mediaWrap.querySelectorAll('.meta-row').forEach(n=>n.remove());
   if (!item) return;
 
+    // --- MOBILE: do not render inline meta; update bottom sheet instead ---
+  if (window.__PP_FORCE_MOBILE || (document.body && document.body.dataset.ui === 'mobile')) {
+    if (window.PP && typeof window.PP.updateInfo === 'function') {
+      window.PP.updateInfo(item);
+    }
+    const badge = document.getElementById('mobile-counts');
+    if (badge) badge.style.display = 'none';
+    return; // prevent the three mediaWrap.prepend(...) lines from running
+  }
+
+
   const row = (text, checkboxId, checked, label, onToggle) => {
     const r = document.createElement('div'); r.className='meta-row';
     const p = document.createElement('p'); p.textContent = text || ''; r.appendChild(p);
