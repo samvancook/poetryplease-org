@@ -24,7 +24,7 @@
     header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
     /* Media area */
-    .media-outer { margin-top: 10px; }
+    .media-outer { margin-top: 10px; position: relative; } /* positioning context for the info button */
     #media-wrap { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); background:#fafafa; }
     #media-wrap .media-box { margin:0; }
     #media-wrap img, #media-wrap video {
@@ -79,7 +79,7 @@
 </head>
 <body data-ui="mobile">
   <div class="wrap">
-   <header>
+    <header>
       <h1>Poetry, Please</h1>
       <div class="status" id="mobile-login-status">Loading…</div>
       <button id="mobile-google"
@@ -89,21 +89,18 @@
       </button>
     </header>
 
+    <div class="media-outer">
+      <!-- app.js will render into #media-wrap -->
+      <div id="media-wrap"></div>
 
-   <div class="media-outer">
-  <!-- app.js will render into #media-wrap -->
-  <div id="media-wrap">
-    <!-- NEW: floating info button (top-left, over image) -->
-    <button class="info-btn" aria-label="Show info" onclick="window.PP && window.PP.toggleInfo(true)">
-      i
-    </button>
-  </div>
-</div>
+      <!-- Floating info button (top-left, over image) -->
+      <button class="info-btn" aria-label="Show info"
+              onclick="window.PP && window.PP.toggleInfo(true)">i</button>
+    </div>
 
-<div class="row">
-  <div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div>
-</div>
-
+    <div class="row">
+      <div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div>
+    </div>
 
     <!-- Needed elements that app.js expects but we’ll keep out of sight -->
     <div id="gallery" style="display:none"></div>
@@ -119,181 +116,128 @@
   <script src="/app.js" defer></script>
 
   <!-- Ensure mobile controls are visible + mounted even if something interferes -->
-<style>
-  /* Force the sticky controls to show on top of everything */
-  .sticky-controls { display: block !important; z-index: 9999 !important; }
-  .sticky-controls .controls { display: flex !important; gap: 10px; }
-  .sticky-controls .controls button { display: inline-block !important; }
-</style>
+  <style>
+    /* Force the sticky controls to show on top of everything */
+    .sticky-controls { display: block !important; z-index: 9999 !important; }
+    .sticky-controls .controls { display: flex !important; gap: 10px; }
+    .sticky-controls .controls button { display: inline-block !important; }
+  </style>
 
-<script>
-  (function ensureMobileControls(){
-    function mount() {
-      if (document.getElementById('btnSkip')) return; // already mounted
-
-      const bar = document.createElement('div');
-      bar.className = 'sticky-controls';
-      bar.innerHTML = `
-        <div class="controls">
-          <button id="btnBack">Go Back</button>
-          <button id="btnBook">Take me to the book</button>
-          <button id="btnLike">Like</button>
-          <button id="btnDislike">Dislike</button>
-          <button id="btnSkip">Poetry, Please</button>
-        </div>
-      `;
-      document.body.appendChild(bar);
-
-      const $ = (s) => document.querySelector(s);
-      $('#btnBack')   ?.addEventListener('click', () => (window.PP?.goBack?.() || window.onGoBack?.()));
-      $('#btnBook')   ?.addEventListener('click', () => (window.PP?.openBook?.()));
-      $('#btnLike')   ?.addEventListener('click', () => (window.PP?.vote?.('like')     || window.onVoteAny?.('like')));
-      $('#btnDislike')?.addEventListener('click', () => (window.PP?.vote?.('dislike')  || window.onVoteAny?.('dislike')));
-      $('#btnSkip')   ?.addEventListener('click', () => (window.PP?.skip?.()           || window.onSkip?.()));
-    }
-
-    // Mount as soon as DOM is ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', mount, { once: true });
-    } else {
-      mount();
-    }
-
-    // If app.js re-renders and something removes the bar, put it back
-    window.addEventListener('pp:state', () => {
-      if (!document.getElementById('btnSkip')) mount();
-    }, { passive: true });
-  })();
-</script>
-
-  
   <script>
-  // Attach Google Sign-In for mobile — uses the same signInWithGoogle() from app.js
-  window.addEventListener('DOMContentLoaded', () => {
-    const btn = document.getElementById('mobile-google');
-    if (!btn) return;
-    btn.addEventListener('click', () => {
-      if (typeof signInWithGoogle === 'function') {
-        signInWithGoogle();  // this triggers redirect flow on mobile
-      } else {
-        alert('Sign-in not ready yet — please try again in a moment.');
+    (function ensureMobileControls(){
+      function mount() {
+        if (document.getElementById('btnSkip')) return; // already mounted
+
+        const bar = document.createElement('div');
+        bar.className = 'sticky-controls';
+        bar.innerHTML = `
+          <div class="controls">
+            <button id="btnBack">Go Back</button>
+            <button id="btnBook">Take me to the book</button>
+            <button id="btnLike">Like</button>
+            <button id="btnDislike">Dislike</button>
+            <button id="btnSkip">Poetry, Please</button>
+          </div>
+        `;
+        document.body.appendChild(bar);
+
+        const $ = (s) => document.querySelector(s);
+        $('#btnBack')   ?.addEventListener('click', () => (window.PP?.goBack?.() || window.onGoBack?.()));
+        $('#btnBook')   ?.addEventListener('click', () => (window.PP?.openBook?.()));
+        $('#btnLike')   ?.addEventListener('click', () => (window.PP?.vote?.('like')     || window.onVoteAny?.('like')));
+        $('#btnDislike')?.addEventListener('click', () => (window.PP?.vote?.('dislike')  || window.onVoteAny?.('dislike')));
+        $('#btnSkip')   ?.addEventListener('click', () => (window.PP?.skip?.()           || window.onSkip?.()));
       }
-    });
-  });
-</script>
 
-<script>
-  // Make buttons work even if app.js didn’t inject window.PP
-  window.PP = {
-    vote:  (v) => (window.onVoteAny ? onVoteAny(v) : console.warn('onVoteAny missing')),
-    skip:  ()  => (window.onSkip ? onSkip() : console.warn('onSkip missing')),
-    goBack:()  => (window.onGoBack ? onGoBack() : console.warn('onGoBack missing')),
-    openBook: () => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl, '_blank','noopener,noreferrer'); },
-    getState: () => ({ user: (firebase?.auth?.().currentUser || null) })
-  };
+      // Mount as soon as DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', mount, { once: true });
+      } else {
+        mount();
+      }
 
-  // Auto-start one item on mobile if nothing has rendered yet
-  setTimeout(() => { if (!window.currentItem && window.onSkip) onSkip(); }, 800);
-
-  // Minimal on-screen error box so you can see runtime errors on phone
-  (function(){
-    const box = document.createElement('div');
-    box.style.cssText='position:fixed;left:8px;bottom:8px;max-width:90vw;background:#fee;border:1px solid #f99;border-radius:8px;padding:6px 8px;font:12px system-ui;z-index:99999;display:none';
-    document.body.appendChild(box);
-    const show = (msg)=>{ box.textContent = msg; box.style.display = 'block'; };
-    window.addEventListener('error', e => show('JS error: ' + (e.message || e)));
-    window.addEventListener('unhandledrejection', e => show('Promise: ' + (e.reason?.message || e.reason || e)));
-  })();
-</script>
+      // If app.js re-renders and something removes the bar, put it back
+      window.addEventListener('pp:state', () => {
+        if (!document.getElementById('btnSkip')) mount();
+      }, { passive: true });
+    })();
+  </script>
 
   <script>
-    // Wire buttons to your app logic in a sticky bottom bar
-    (function mountStickyControls(){
-      const bar = document.createElement('div');
-      bar.className = 'sticky-controls';
-      bar.innerHTML = `
-        <div class="controls">
-          <button id="btnBack">Go Back</button>
-          <button id="btnBook">Take me to the book</button>
-          <button id="btnLike">Like</button>
-          <button id="btnDislike">Dislike</button>
-          <button id="btnSkip">Poetry, Please</button>
-        </div>
-      `;
-      document.body.appendChild(bar);
-    })();
-
-    const $ = (s) => document.querySelector(s);
-    $('#btnBack').addEventListener('click',   () => window.PP?.goBack());
-    $('#btnBook').addEventListener('click',   () => window.PP?.openBook());
-    $('#btnLike').addEventListener('click',   () => window.PP?.vote('like'));
-    $('#btnDislike').addEventListener('click',() => window.PP?.vote('dislike'));
-    $('#btnSkip').addEventListener('click',   () => window.PP?.skip());
-
-    // Update counters + “Logged in” line as app.js state changes
-    function refreshMobileUI() {
-      const s = window.PP?.getState?.() || {};
-      const counts = `Likes: ${s.likes||0} • Dislikes: ${s.dislikes||0} • Skips: ${s.skips||0}`;
-      const status = s.user ? `Logged in as ${s.user.email || s.user.uid}` : 'Browsing anonymously';
-      const countsEl = document.getElementById('mobile-counts');
-      const statusEl = document.getElementById('mobile-login-status');
-      if (countsEl) countsEl.textContent = counts;
-      if (statusEl) statusEl.textContent = status;
-    }
-    // Try once after load; app.js will fire pp:state after auth/render
-    setTimeout(refreshMobileUI, 300);
-    window.addEventListener('pp:state', refreshMobileUI, { passive:true });
+    // Attach Google Sign-In for mobile — uses the same signInWithGoogle() from app.js
+    window.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('mobile-google');
+      if (!btn) return;
+      btn.addEventListener('click', () => {
+        if (typeof signInWithGoogle === 'function') {
+          signInWithGoogle();  // this triggers redirect flow on mobile
+        } else {
+          alert('Sign-in not ready yet — please try again in a moment.');
+        }
+      });
+    });
   </script>
-<!-- NEW: bottom-sheet popout -->
-<div id="pp-info" data-open="false" aria-hidden="true">
-  <div class="pp-info__backdrop" onclick="window.PP && window.PP.toggleInfo(false)"></div>
-  <section class="pp-info__sheet" role="dialog" aria-modal="true" aria-labelledby="pp-info-title">
-    <header class="pp-info__header">
-      <h2 id="pp-info-title">Info</h2>
-      <button class="pp-info__close" aria-label="Close" onclick="window.PP && window.PP.toggleInfo(false)">✕</button>
-    </header>
 
-    <div class="pp-info__body">
-      <div class="pp-info__meta">
-        <div><span class="pp-info__label">Book</span><span id="info-book">—</span></div>
-        <div><span class="pp-info__label">Poem</span><span id="info-title">—</span></div>
-        <div><span class="pp-info__label">Author</span><span id="info-author">—</span></div>
+  <script>
+    // Make buttons work even if app.js didn’t inject window.PP
+    window.PP = {
+      vote:  (v) => (window.onVoteAny ? onVoteAny(v) : console.warn('onVoteAny missing')),
+      skip:  ()  => (window.onSkip ? onSkip() : console.warn('onSkip missing')),
+      goBack:()  => (window.onGoBack ? onGoBack() : console.warn('onGoBack missing')),
+      openBook: () => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl, '_blank','noopener,noreferrer'); },
+      getState: () => ({ user: (firebase?.auth?.().currentUser || null) })
+    };
+
+    // Define the popout toggler (JS-driven)
+    window.PP.toggleInfo = (open) => {
+      const el = document.getElementById('pp-info');
+      if (el) el.dataset.open = open ? 'true' : 'false';
+    };
+
+    // Auto-start one item on mobile if nothing has rendered yet
+    setTimeout(() => { if (!window.currentItem && window.onSkip) onSkip(); }, 800);
+
+    // Minimal on-screen error box so you can see runtime errors on phone
+    (function(){
+      const box = document.createElement('div');
+      box.style.cssText='position:fixed;left:8px;bottom:8px;max-width:90vw;background:#fee;border:1px solid #f99;border-radius:8px;padding:6px 8px;font:12px system-ui;z-index:99999;display:none';
+      document.body.appendChild(box);
+      const show = (msg)=>{ box.textContent = msg; box.style.display = 'block'; };
+      window.addEventListener('error', e => show('JS error: ' + (e.message || e)));
+      window.addEventListener('unhandledrejection', e => show('Promise: ' + (e.reason?.message || e.reason || e)));
+    })();
+  </script>
+
+  <!-- JS-driven bottom-sheet popout -->
+  <div id="pp-info" data-open="false" aria-hidden="true">
+    <div class="pp-info__backdrop" onclick="window.PP && window.PP.toggleInfo(false)"></div>
+    <section class="pp-info__sheet" role="dialog" aria-modal="true" aria-labelledby="pp-info-title">
+      <header class="pp-info__header">
+        <h2 id="pp-info-title">Info</h2>
+        <button class="pp-info__close" aria-label="Close" onclick="window.PP && window.PP.toggleInfo(false)">✕</button>
+      </header>
+
+      <div class="pp-info__body">
+        <div class="pp-info__meta">
+          <div><span class="pp-info__label">Book</span><span id="info-book">—</span></div>
+          <div><span class="pp-info__label">Poem</span><span id="info-title">—</span></div>
+          <div><span class="pp-info__label">Author</span><span id="info-author">—</span></div>
+        </div>
+
+        <div class="pp-info__filters">
+          <label class="pp-info__check">
+            <input type="checkbox" id="info-filter-author" />
+            More from this author
+          </label>
+          <label class="pp-info__check">
+            <input type="checkbox" id="info-filter-book" />
+            More from this book
+          </label>
+        </div>
+
+        <div class="pp-info__counters" id="info-counters">—</div>
       </div>
-
-      <div class="pp-info__filters">
-        <label class="pp-info__check">
-          <input type="checkbox" id="info-filter-author" />
-          More from this author
-        </label>
-        <label class="pp-info__check">
-          <input type="checkbox" id="info-filter-book" />
-          More from this book
-        </label>
-      </div>
-
-      <div class="pp-info__counters" id="info-counters">—</div>
-    </div>
-  </section>
-</div>
-<!-- Hidden source: keep info out of the visible page -->
-<div id="info-source" hidden>
-  <!-- Put whatever info you currently show on the page here instead.
-       If you’re already rendering that info somewhere else, move it into this div. -->
-  <h3>About this piece</h3>
-  <p id="about-text">…dynamic or static info goes here…</p>
-</div>
-
-<!-- Modal / Popout -->
-<div id="info-overlay" aria-hidden="true" hidden></div>
-<div id="info-dialog" role="dialog" aria-modal="true" aria-labelledby="info-title" hidden>
-  <div class="info-header">
-    <h2 id="info-title">Info</h2>
-    <button id="info-close" aria-label="Close">✕</button>
+    </section>
   </div>
-  <div id="info-body" class="info-body"><!-- filled by JS --></div>
-</div>
-
-
-  
 </body>
 </html>
