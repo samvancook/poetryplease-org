@@ -41,38 +41,3 @@ header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidde
 
 /* Hide desktop-only chrome if anything leaks in */
 #counters-bar, .top-bar { display:none !important; }
-
-
-/* default: hide new UI */
-.info-btn, #pp-info { display: none; }
-
-/* enable new UI when the flag is on */
-html.info-on .info-btn,
-html.info-on #pp-info { display: initial; }
-
-/* hide old inline bits only when flag is on */
-html.info-on .row,            /* the counter row */
-html.info-on .badge,          /* the counter badge */
-html.info-on #mobile-counts,  /* explicit id if present */
-html.info-on .top-bar         /* any desktop chrome that leaks */
-{ display: none !important; }
-
-/* Positioning context for the floating button */
-.media-outer { position: relative; }
-
-/* --- Feature flag control (info-on) --- */
-/* Default: hide new UI until flag is enabled */
-.info-btn, #pp-info { display: none; }
-
-/* Enable new UI when the flag is on */
-html.info-on .info-btn,
-html.info-on #pp-info { display: initial; }
-
-/* Hide old inline bits only when flag is on */
-html.info-on .row,            /* the counter row */
-html.info-on .badge,          /* the counter badge */
-html.info-on #mobile-counts,  /* explicit id if present */
-html.info-on .top-bar         /* any desktop chrome that leaks */
-{ display: none !important; }
-
-
