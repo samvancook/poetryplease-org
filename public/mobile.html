@@ -215,6 +215,65 @@
     setTimeout(()=>{ if(!window.currentItem && window.onSkip) onSkip(); }, 800);
   })();
   </script>
+
+  <!-- MOBILE QUICK FIX: hide legacy info + fill slide-out -->
+<script>
+(function () {
+  /* 1) Hide the legacy inline info + the badge row */
+  const css = document.createElement('style');
+  css.textContent = `
+    /* hide any extra top-of-page info blocks injected by app.js */
+    body[data-ui="mobile"] .wrap > div:not(.media-outer):not(.row):not(#pp-info):not(#gallery):not(.message):not(.error) {
+      display: none !important;
+    }
+    /* hide the inline counts badge */
+    #mobile-counts { display: none !important; }
+  `;
+  document.head.appendChild(css);
+
+  /* 2) If the sheet shows "—", scrape the legacy lines to fill it */
+  function scrapeLegacy() {
+    const wrap = document.querySelector('.wrap');
+    if (!wrap) return {};
+    // look through siblings after the header, before the media block
+    const kids = Array.from(wrap.children);
+    const start = kids.findIndex(el => el.classList?.contains('media-outer'));
+    const scan = (start > 0) ? kids.slice(1, start) : kids.slice(1);
+
+    let book, title, author;
+    for (const el of scan) {
+      const t = (el.textContent || '').trim();
+      if (/^\s*Author:/i.test(t)) author = t.replace(/^\s*Author:\s*/i, '').trim();
+      if (/^\s*Title:/i.test(t))  title  = t.replace(/^\s*Title:\s*/i,  '').trim();
+      if (/from (the|their)?\s*book:/i.test(t)) book = t.replace(/^.*book:\s*/i, '').trim();
+    }
+    return { book, title, author };
+  }
+
+  const PP = (window.PP = window.PP || {});
+  const oldUpdate = PP.updateInfo;
+
+  PP.updateInfo = function (item) {
+    // run the normal updater first
+    if (typeof oldUpdate === 'function') oldUpdate(item);
+
+    // if any fields are still "—", try to fill from the legacy text
+    const needBook   = (document.getElementById('info-book')?.textContent || '—') === '—';
+    const needTitle  = (document.getElementById('info-title')?.textContent || '—') === '—';
+    const needAuthor = (document.getElementById('info-author')?.textContent || '—') === '—';
+    if (needBook || needTitle || needAuthor) {
+      const s = scrapeLegacy();
+      if (needBook   && s.book)   document.getElementById('info-book').textContent   = s.book;
+      if (needTitle  && s.title)  document.getElementById('info-title').textContent  = s.title;
+      if (needAuthor && s.author) document.getElementById('info-author').textContent = s.author;
+    }
+  };
+
+  // nudge an update shortly after load (and whenever your app fires pp:state, your existing listener runs too)
+  setTimeout(() => PP.updateInfo(window.currentItem || {}), 500);
+})();
+</script>
+
 </body>
 </html>
 
