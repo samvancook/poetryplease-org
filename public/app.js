@@ -842,4 +842,3 @@ window.addEventListener('DOMContentLoaded', () => {
   // Failsafe: if mobile shell loads and nothing rendered, auto-start once
   if (IS_MOBILE_UI) setTimeout(()=>{ if (!currentItem) { try{ onSkip(); }catch(_){} } }, 1200);
 })();
-
