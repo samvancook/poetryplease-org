@@ -74,14 +74,23 @@ header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidde
 #pp-info[data-open="true"] .pp-info__backdrop{ opacity: 1; }
 
 /* Sheet panel */
+/* === override for better placement above sticky buttons === */
 .pp-info__sheet{
-  position: absolute; left: 0; right: 0; bottom: 0;
-  background: #fff; border-radius: 16px 16px 0 0;
+  position: fixed;
+  left: 50%;
+  transform: translate(-50%, 0);
+  bottom: calc(env(safe-area-inset-bottom) + 90px); /* lift above sticky bar */
+  width: min(92vw, 640px);
+  max-height: 70vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
   box-shadow: 0 -6px 30px rgba(0,0,0,.18);
-  max-height: 70vh; overflow: auto;
-  padding: 12px 14px calc(14px + env(safe-area-inset-bottom));
-  transform: translateY(100%); transition: transform .22s ease;
+  padding: 14px;
+  transition: transform .22s ease;
+  z-index: 9998;
 }
+
 #pp-info[data-open="true"] .pp-info__sheet{ transform: translateY(0); }
 
 /* Sheet internals */
