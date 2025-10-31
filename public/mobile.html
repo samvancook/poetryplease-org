@@ -384,6 +384,141 @@ document.getElementById('info-filter-book')?.addEventListener('change', (e) => {
 });
 </script>
 
+<script>
+/* ---------------------------------------------------------
+   Poetry, Please — Mobile "i" panel stabilizer (single drop-in)
+   - Hides inline title/author/book on the main screen
+   - Guarantees PP.updateInfo + PP.toggleInfo exist
+   - Survives any later window.PP reassignments (proxy setter)
+   - Populates the bottom-sheet each time state changes or "i" opens
+--------------------------------------------------------- */
+
+/* 1) Hide inline info on the main screen (mobile only) */
+(function hideInlineInfo(){
+  const css = document.createElement('style');
+  css.textContent = `
+    body[data-ui="mobile"] .inline-info,
+    body[data-ui="mobile"] .meta,
+    body[data-ui="mobile"] .details,
+    body[data-ui="mobile"] .caption,
+    body[data-ui="mobile"] #title,
+    body[data-ui="mobile"] #author,
+    body[data-ui="mobile"] #book,
+    body[data-ui="mobile"] #poem-title,
+    body[data-ui="mobile"] #poem-author {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(css);
+})();
+
+/* 2) Helpers used by updateInfo() */
+function _ppSetTxt(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = (val && String(val).trim()) ? String(val).trim() : '—';
+}
+function _ppPick(obj, keys, fallback) {
+  if (!obj) return fallback;
+  for (const k of keys) {
+    const v = obj[k];
+    if (v != null && String(v).trim() !== '') return v;
+  }
+  return fallback;
+}
+function _ppScrape(selectors) {
+  for (const sel of selectors) {
+    const el = document.querySelector(sel);
+    const t = el?.textContent?.trim();
+    if (t) return t;
+  }
+  return null;
+}
+
+/* 3) The augmentation we want to persist on window.PP */
+function _augmentPP(pp) {
+  pp = pp || {};
+
+  // Core fallback actions (don’t override if app.js already provided)
+  pp.vote    = pp.vote    || ((v) => (window.onVoteAny ? onVoteAny(v) : console.warn('onVoteAny missing')));
+  pp.skip    = pp.skip    || (()  => (window.onSkip ? onSkip() : console.warn('onSkip missing')));
+  pp.goBack  = pp.goBack  || (()  => (window.onGoBack ? onGoBack() : console.warn('onGoBack missing')));
+  pp.openBook= pp.openBook|| (()  => { if (window.currentItem?.bookUrl) window.open(window.currentItem.bookUrl, '_blank','noopener,noreferrer'); });
+  pp.getState= pp.getState|| (()  => ({ user: (firebase?.auth?.().currentUser || null) }));
+
+  // Toggle for the bottom-sheet
+  const baseToggle = pp.toggleInfo;
+  pp.toggleInfo = function(open) {
+    if (open && typeof pp.updateInfo === 'function') {
+      pp.updateInfo(window.currentItem);
+    }
+    if (typeof baseToggle === 'function') return baseToggle(open);
+    const el = document.getElementById('pp-info');
+    if (el) el.dataset.open = open ? 'true' : 'false';
+  };
+
+  // The info updater (idempotent—safe to overwrite)
+  pp.updateInfo = function(item) {
+    // Prefer data from item; fall back to scraping legacy inline spots if present
+    const book   = _ppPick(item, ['book','bookTitle','collection','series'], null) ||
+                   _ppScrape(['#book','.book','.meta .book','.inline-info .book']);
+    const title  = _ppPick(item, ['title','poemTitle','name'], null) ||
+                   _ppScrape(['#title','#poem-title','.title','.caption .title','.inline-info .title']);
+    const author = _ppPick(item, ['author','authorName','writer'], null) ||
+                   _ppScrape(['#author','#poem-author','.author','.meta .author','.inline-info .author']);
+
+    _ppSetTxt('info-book',   book);
+    _ppSetTxt('info-title',  title);
+    _ppSetTxt('info-author', author);
+
+    const likes    = _ppPick(item, ['likes','likeCount'], 0) ?? 0;
+    const dislikes = _ppPick(item, ['dislikes','dislikeCount'], 0) ?? 0;
+    const skips    = _ppPick(item, ['skips','skipCount'], 0) ?? 0;
+    const c = document.getElementById('info-counters');
+    if (c) c.textContent = `Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
+  };
+
+  return pp;
+}
+
+/* 4) Make window.PP resilient to reassignment (merge on every set) */
+(function installPPProxy(){
+  // Preserve any existing value
+  const _store = { value: window.PP ? _augmentPP(window.PP) : _augmentPP({}) };
+
+  try {
+    Object.defineProperty(window, 'PP', {
+      configurable: true, enumerable: true,
+      get() { return _store.value; },
+      set(v) { _store.value = _augmentPP(v); } // merge every time something sets window.PP
+    });
+  } catch (e) {
+    // If defineProperty is blocked, fall back to a one-time set + poll repair
+    window.PP = _store.value;
+    setInterval(() => {
+      if (!window.PP || typeof window.PP.updateInfo !== 'function') {
+        window.PP = _augmentPP(window.PP || {});
+      }
+    }, 250);
+  }
+})();
+
+/* 5) Update the sheet whenever app state changes (safe if fired early/late) */
+window.addEventListener('pp:state', () => {
+  if (typeof window.PP?.updateInfo === 'function') {
+    window.PP.updateInfo(window.currentItem);
+  }
+}, { passive: true });
+
+/* 6) Optional: tiny on-screen error box for mobile debugging */
+(function debugBox(){
+  const box = document.createElement('div');
+  box.style.cssText='position:fixed;left:8px;bottom:8px;max-width:90vw;background:#fee;border:1px solid #f99;border-radius:8px;padding:6px 8px;font:12px system-ui;z-index:99999;display:none';
+  document.body.appendChild(box);
+  const show = (msg)=>{ box.textContent = msg; box.style.display = 'block'; };
+  window.addEventListener('error', e => show('JS error: ' + (e.message || e)));
+  window.addEventListener('unhandledrejection', e => show('Promise: ' + (e.reason?.message || e.reason || e)));
+})();
+</script>
 
 </body>
 </html>
