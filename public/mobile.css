@@ -116,4 +116,14 @@ header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidde
   display: none !important;
 }
 
+/* The floating info button sits over the media; make the container a positioning context */
+.media-outer { position: relative; }
+
+/* Hide legacy inline UI on the mobile page */
+body[data-ui="mobile"] .row,
+body[data-ui="mobile"] .badge,
+body[data-ui="mobile"] #mobile-counts,
+body[data-ui="mobile"] .top-bar {
+  display: none !important;
+}
 
