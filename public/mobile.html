@@ -207,7 +207,15 @@
       window.addEventListener('unhandledrejection', e => show('Promise: ' + (e.reason?.message || e.reason || e)));
     })();
   </script>
-
+  
+<script>
+  // Prevent race: ensure updateInfo exists before app.js emits pp:state
+  window.PP = window.PP || {};
+  if (typeof window.PP.updateInfo !== 'function') {
+    window.PP.updateInfo = function () { /* no-op until real impl is loaded later */ };
+  }
+</script>
+  
   <!-- JS-driven bottom-sheet popout -->
   <div id="pp-info" data-open="false" aria-hidden="true">
     <div class="pp-info__backdrop" onclick="window.PP && window.PP.toggleInfo(false)"></div>
