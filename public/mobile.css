@@ -135,4 +135,83 @@ body[data-ui="mobile"] #mobile-counts,
 body[data-ui="mobile"] .top-bar {
   display: none !important;
 }
+/* === Mobile "i" popout — drop-in (no JS, uses :target) === */
+
+/* Floating info button (sits over the media) */
+.media-outer { position: relative; } /* ensure positioning context */
+.info-btn{
+  position:absolute;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: calc(env(safe-area-inset-left) + 10px);
+  width: 36px; height: 36px;
+  border-radius: 999px;
+  border: 1px solid #e6e6e6;
+  background: rgba(255,255,255,.55);
+  backdrop-filter: blur(6px);
+  font-weight: 700; font-size: 16px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow);
+}
+
+/* Container is inert unless targeted */
+#pp-info{
+  position: fixed; inset: 0; z-index: 50;
+  pointer-events: none;
+}
+#pp-info:target{ pointer-events: auto; }
+
+/* Backdrop */
+.pp-info__backdrop{
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.35);
+  opacity: 0; transition: opacity .18s ease;
+}
+#pp-info:target .pp-info__backdrop{ opacity: 1; }
+
+/* Bottom sheet (positioned ABOVE sticky buttons) */
+.pp-info__sheet{
+  position: fixed;
+  left: 50%;
+  bottom: calc(env(safe-area-inset-bottom) + 90px); /* adjust 90px to your sticky bar height */
+  width: min(92vw, 640px);
+  max-height: 70vh;
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 -6px 30px rgba(0,0,0,.18);
+  padding: 14px;
+  z-index: 9998;
+
+  /* closed state (off-screen) */
+  transform: translate(-50%, 100%);
+  transition: transform .22s ease;
+}
+/* open state (slides up) */
+#pp-info:target .pp-info__sheet{ transform: translate(-50%, 0); }
+
+/* Sheet internals */
+.pp-info__header{
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding-bottom: 6px; border-bottom: 1px solid #eee;
+}
+.pp-info__header h2{ font-size: 16px; margin:0; }
+.pp-info__close{
+  border:1px solid #e6e6e6; border-radius: 10px;
+  background:#f7f7f7; padding:6px 10px; text-decoration: none; color: inherit;
+}
+.pp-info__body{ display:grid; gap:12px; padding-top:10px; }
+.pp-info__meta div{ display:flex; gap:8px; }
+.pp-info__label{ min-width:64px; color:#666; }
+.pp-info__filters{ display:flex; gap:12px; flex-wrap:wrap; }
+.pp-info__check{ display:flex; align-items:center; gap:8px; }
+.pp-info__counters{
+  border:1px solid #eee; border-radius:12px; padding:8px 10px;
+  background:#fafafa; box-shadow: var(--shadow);
+}
+
+/* Hide any legacy inline info on mobile-only UI (safety) */
+body[data-ui="mobile"] .row,
+body[data-ui="mobile"] .badge,
+body[data-ui="mobile"] #mobile-counts,
+body[data-ui="mobile"] .top-bar { display: none !important; }
 
