@@ -309,16 +309,22 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   const cbBook   = $('info-filter-book');
 
   function getCurrentItem() {
-    // Prefer an explicit helper if you expose one
-    if (window.PP && typeof window.PP.getCurrentItem === 'function') return window.PP.getCurrentItem();
-    // Fallbacks: many builds keep a global current item
-    return window.PP?.state?.currentItem || window.currentItem || null;
-  }
+  if (window.PP?.getCurrentItem) return window.PP.getCurrentItem();
+  const s = window.PP?.getState?.();
+  if (s && s.item) return s.item;
+  return window.PP?.state?.currentItem || window.currentItem || null;
+}
+
 
   function getCounters() {
-    if (window.PP && typeof window.PP.getCounters === 'function') return window.PP.getCounters();
-    return window.PP?.state?.counters || null; // {likes, dislikes, skips} if you keep one
+  if (window.PP?.getCounters) return window.PP.getCounters();
+  const s = window.PP?.getState?.();
+  if (s && ('likes' in s || 'dislikes' in s || 'skips' in s)) {
+    return { likes: s.likes || 0, dislikes: s.dislikes || 0, skips: s.skips || 0 };
   }
+  return window.PP?.state?.counters || null;
+}
+
 
   function getFilters() {
     // Expecting booleans like { authorOnly, bookOnly } from your state
@@ -373,10 +379,13 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   // Sync checkbox changes
   if (cbAuthor) cbAuthor.addEventListener('change', (e) => setAuthorOnly(!!e.target.checked));
   if (cbBook)   cbBook.addEventListener('change',   (e) => setBookOnly(!!e.target.checked));
+  
 
   // Keep content fresh when item changes (if you already dispatch something like this)
   window.addEventListener('pp:item-changed', populate);
   document.addEventListener('DOMContentLoaded', populate);
+  window.addEventListener('pp:state', populate);
+
 })();
 
 
