@@ -16,21 +16,46 @@
     header .status{font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .media-outer{margin-top:10px;position:relative}
     #media-wrap{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);background:#fafafa}
-    #media-wrap img,
-    #media-wrap video {
-      width: 100%;
-      height: calc(100svh - 200px);  /* header + gaps + sticky controls */
-      max-height: calc(100svh - 200px);
-      object-fit: contain;
-      display: block;
-      background: #000;
-    }
-    
-    @media (orientation:landscape){
-      #media-wrap img, #media-wrap video {
-        max-height: calc(100svh - 200px);
-      }
-    }
+    /* Viewport + layout scaffolding */
+html, body { height: 100%; }
+body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
+.wrap { 
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Make the media area flex to fill everything between header and the body padding */
+.media-outer {
+  position: relative;
+  flex: 1;          /* take remaining vertical space */
+  min-height: 0;    /* critical so children can shrink inside a flex column */
+  display: flex;
+}
+
+/* Center the media and let it expand to the full available height */
+#media-wrap{
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background: #000;  /* optional: gives photos a clean frame */
+}
+
+/* Media fills the box while preserving aspect ratio */
+#media-wrap img,
+#media-wrap video{
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
 
     @media(orientation:landscape){#media-wrap img,#media-wrap video{max-height:65vh}}
     .row{display:flex;align-items:center;gap:8px;margin-top:10px}
