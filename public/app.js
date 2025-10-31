@@ -296,6 +296,99 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   };
 })();
 
+// ---- Info sheet wiring (non-breaking) ----
+(function () {
+  const $ = (id) => document.getElementById(id);
+
+  const sheet    = $('pp-info');
+  const bookEl   = $('info-book');
+  const titleEl  = $('info-title');
+  const authorEl = $('info-author');
+  const cntEl    = $('info-counters');
+  const cbAuthor = $('info-filter-author');
+  const cbBook   = $('info-filter-book');
+
+  function getCurrentItem() {
+  if (window.PP?.getCurrentItem) return window.PP.getCurrentItem();
+  const s = window.PP?.getState?.();
+  if (s && s.item) return s.item;
+  return window.PP?.state?.currentItem || window.currentItem || null;
+}
+
+
+  function getCounters() {
+  if (window.PP?.getCounters) return window.PP.getCounters();
+  const s = window.PP?.getState?.();
+  if (s && ('likes' in s || 'dislikes' in s || 'skips' in s)) {
+    return { likes: s.likes || 0, dislikes: s.dislikes || 0, skips: s.skips || 0 };
+  }
+  return window.PP?.state?.counters || null;
+}
+
+
+  function getFilters() {
+    // Expecting booleans like { authorOnly, bookOnly } from your state
+    return window.PP?.state?.filters || {};
+  }
+
+  function setAuthorOnly(v) {
+    if (window.PP?.setFilterAuthor) return window.PP.setFilterAuthor(v);
+    if (window.PP?.setFilters) return window.PP.setFilters({ authorOnly: !!v });
+    // no-op fallback
+  }
+
+  function setBookOnly(v) {
+    if (window.PP?.setFilterBook) return window.PP.setFilterBook(v);
+    if (window.PP?.setFilters) return window.PP.setFilters({ bookOnly: !!v });
+    // no-op fallback
+  }
+
+  function populate() {
+    const item = getCurrentItem();
+      bookEl.textContent   = item?.book || item?.bookTitle || '—';
+      titleEl.textContent  = item?.title || item?.poemTitle || '—';
+      authorEl.textContent = item?.author || item?.writer || '—';
+
+
+    const f = getFilters();
+    if (cbAuthor) cbAuthor.checked = !!(f.authorOnly || f.sameAuthor || f.author);
+    if (cbBook)   cbBook.checked   = !!(f.bookOnly   || f.sameBook   || f.book);
+
+    const c = getCounters();
+    if (cntEl) {
+      if (c && (typeof c.likes !== 'undefined')) {
+        cntEl.textContent = `Likes: ${c.likes} · Dislikes: ${c.dislikes} · Skips: ${c.skips}`;
+      } else {
+        // fallback to your existing badge if you store text there
+        const badge = document.querySelector('.badge');
+        cntEl.textContent = badge ? badge.textContent : '—';
+      }
+    }
+  }
+
+  // Public toggle
+  window.PP = window.PP || {};
+  window.PP.toggleInfo = function (open) {
+    if (!sheet) return;
+    const next = (typeof open === 'boolean') ? open : sheet.getAttribute('data-open') !== 'true';
+    if (next) populate();
+    sheet.setAttribute('data-open', next ? 'true' : 'false');
+    sheet.setAttribute('aria-hidden', next ? 'false' : 'true');
+  };
+
+  // Sync checkbox changes
+  if (cbAuthor) cbAuthor.addEventListener('change', (e) => setAuthorOnly(!!e.target.checked));
+  if (cbBook)   cbBook.addEventListener('change',   (e) => setBookOnly(!!e.target.checked));
+  
+
+  // Keep content fresh when item changes (if you already dispatch something like this)
+  window.addEventListener('pp:item-changed', populate);
+  document.addEventListener('DOMContentLoaded', populate);
+  window.addEventListener('pp:state', populate);
+
+})();
+
+
 // ===== Mapping (matches your GAS) =====
 function mapGraphic(g){
   if (Array.isArray(g)) {

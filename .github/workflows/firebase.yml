@@ -2,10 +2,17 @@ name: Deploy to Firebase
 
 on:
   push:
-    branches: [ main ]
-
+    branches:
+      - main
+      - '**'        # run on every branch push (for previews)
+  pull_request:
+    branches:
+      - '**'        # run on PRs too
+  workflow_dispatch:  # allow manual runs from the Actions tab
+  
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -40,7 +47,6 @@ jobs:
           echo "Changed files vs previous commit:"
           git --no-pager diff --name-only HEAD~1 HEAD || true
 
-
       - name: Show repo tree (top level)
         run: ls -la
 
@@ -49,7 +55,6 @@ jobs:
           test -f firebase.json && echo "=== firebase.json ===" && cat firebase.json || echo "firebase.json NOT FOUND"
           test -f .firebaserc  && echo "=== .firebaserc  ===" && cat .firebaserc  || echo ".firebaserc NOT FOUND"
 
-      # Run functions npm install ONLY if functions/** changed
       - name: Functions deps (if functions/ changed)
         if: steps.changes.outputs.functions == 'true'
         run: |
@@ -82,7 +87,6 @@ jobs:
           firebase projects:list --json || true
           firebase use poetry-please || true
 
-      # Deploy HOSTING (always)
       - name: Deploy Hosting (debug)
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
@@ -94,8 +98,6 @@ jobs:
             echo "Skipping hosting: firebase.json missing"; exit 4
           fi
 
-
-      # Deploy FUNCTIONS only when functions/** changed
       - name: Deploy Functions (debug)
         if: steps.changes.outputs.functions == 'true'
         env:
@@ -103,3 +105,38 @@ jobs:
         run: |
           echo "Deploying FUNCTIONS…"
           firebase --project poetry-please deploy --only functions --debug
+
+  # ------------------------------------------------------------
+  # DEPLOY PREVIEW CHANNEL for non-main branches
+  # ------------------------------------------------------------
+  deploy_preview:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
+
+      - name: Write service account key
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
+        run: |
+          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "Secret FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE is EMPTY or missing"; exit 3
+          fi
+          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
+          echo "Key written to $RUNNER_TEMP/gcloud-key.json"
+
+      - name: Deploy Hosting Preview (branch channel)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          firebase hosting:channel:deploy "$BRANCH" --project poetry-please --expires 7d

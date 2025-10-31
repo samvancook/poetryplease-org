@@ -90,14 +90,20 @@
     </header>
 
 
-    <div class="media-outer">
-      <!-- app.js will render into #media-wrap -->
-      <div id="media-wrap"></div>
-    </div>
+   <div class="media-outer">
+  <!-- app.js will render into #media-wrap -->
+  <div id="media-wrap">
+    <!-- NEW: floating info button (top-left, over image) -->
+    <button class="info-btn" aria-label="Show info" onclick="window.PP && window.PP.toggleInfo(true)">
+      i
+    </button>
+  </div>
+</div>
 
-    <div class="row">
-      <div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div>
-    </div>
+<div class="row">
+  <div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div>
+</div>
+
 
     <!-- Needed elements that app.js expects but we’ll keep out of sight -->
     <div id="gallery" style="display:none"></div>
@@ -238,5 +244,39 @@
     setTimeout(refreshMobileUI, 300);
     window.addEventListener('pp:state', refreshMobileUI, { passive:true });
   </script>
+<!-- NEW: bottom-sheet popout -->
+<div id="pp-info" data-open="false" aria-hidden="true">
+  <div class="pp-info__backdrop" onclick="window.PP && window.PP.toggleInfo(false)"></div>
+  <section class="pp-info__sheet" role="dialog" aria-modal="true" aria-labelledby="pp-info-title">
+    <header class="pp-info__header">
+      <h2 id="pp-info-title">Info</h2>
+      <button class="pp-info__close" aria-label="Close" onclick="window.PP && window.PP.toggleInfo(false)">✕</button>
+    </header>
+
+    <div class="pp-info__body">
+      <div class="pp-info__meta">
+        <div><span class="pp-info__label">Book</span><span id="info-book">—</span></div>
+        <div><span class="pp-info__label">Poem</span><span id="info-title">—</span></div>
+        <div><span class="pp-info__label">Author</span><span id="info-author">—</span></div>
+      </div>
+
+      <div class="pp-info__filters">
+        <label class="pp-info__check">
+          <input type="checkbox" id="info-filter-author" />
+          More from this author
+        </label>
+        <label class="pp-info__check">
+          <input type="checkbox" id="info-filter-book" />
+          More from this book
+        </label>
+      </div>
+
+      <div class="pp-info__counters" id="info-counters">—</div>
+    </div>
+  </section>
+</div>
+
+
+  
 </body>
 </html>
