@@ -3,83 +3,146 @@
   --radius: 14px;
   --shadow: 0 2px 10px rgba(0,0,0,.06);
 }
+
 * { box-sizing: border-box; }
-html, body { margin:0; padding:0; background:#fff; color:#111; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+
+html, body {
+  margin:0; padding:0;
+  background:#fff; color:#111;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+}
+
 body {
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 64px) env(safe-area-inset-left);
+  /* leave bottom space for sticky controls (with iOS safe-area inset) */
+  padding: env(safe-area-inset-top)
+           env(safe-area-inset-right)
+           calc(env(safe-area-inset-bottom) + 64px)
+           env(safe-area-inset-left);
 }
-.wrap { max-width: 640px; margin: 0 auto; padding: var(--pad); }
 
-header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.wrap {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--pad);
+}
+
+/* --------------------------------------------------------
+   HEADER
+-------------------------------------------------------- */
+header {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+}
 header h1 { font-size:18px; margin:0; font-weight:600; }
-header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-.media-box { margin-top: 10px; }
-#media-wrap { border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); background:#fafafa; }
-#media-wrap .media-box { margin:0; } /* neutralize app.js inner margin */
-#media-wrap img, #media-wrap video {
-  width:100%; height:auto; max-height: 70vh; object-fit: contain; display:block;
+header .status {
+  font-size:12px; opacity:.75;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
-.controls { display:flex; gap:10px; margin-top: 12px; }
+/* --------------------------------------------------------
+   MEDIA AREA
+-------------------------------------------------------- */
+.media-box { margin-top: 10px; }
+#media-wrap {
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  background:#fafafa;
+}
+#media-wrap .media-box { margin:0; }
+#media-wrap img, #media-wrap video {
+  width:100%; height:auto; max-height:70vh;
+  object-fit:contain; display:block;
+}
+
+@media (orientation:landscape) {
+  #media-wrap img, #media-wrap video { max-height:65vh; }
+}
+
+/* --------------------------------------------------------
+   CONTROLS + BUTTONS
+-------------------------------------------------------- */
+.controls { display:flex; gap:10px; margin-top:12px; }
 .controls button {
-  flex:1; padding:14px 12px; border-radius: var(--radius);
-  border:1px solid #e6e6e6; background:#f7f7f7; font-size:16px; line-height:1.1;
-  touch-action: manipulation; box-shadow: var(--shadow);
+  flex:1;
+  padding:14px 12px;
+  border-radius: var(--radius);
+  border:1px solid #e6e6e6;
+  background:#f7f7f7;
+  font-size:16px; line-height:1.1;
+  touch-action: manipulation;
+  box-shadow: var(--shadow);
 }
 .controls button:active { transform: translateY(1px); }
 .controls button:disabled { opacity:.45; }
 
-.row { display:flex; align-items:center; gap:8px; margin-top: 10px; }
-.badge { padding:8px 10px; border:1px solid #eee; border-radius:12px; font-size:14px; background:#fff; box-shadow: var(--shadow); }
-
-#message { min-height: 1.2em; margin-top: 6px; font-size:14px; color:#0a7e22; }
-
-@media (orientation:landscape) {
-  #media-wrap img, #media-wrap video { max-height: 65vh; }
+.row {
+  display:flex; align-items:center; gap:8px; margin-top:10px;
 }
-
-/* Hide desktop-only chrome if anything leaks in */
-#counters-bar, .top-bar { display:none !important; }
-
-
-/* Floating info button (top-left over image) */
-.info-btn{
-  position:absolute;
-  top: calc(env(safe-area-inset-top) + 10px);
-  left: calc(env(safe-area-inset-left) + 10px);
-  width: 36px; height: 36px;
-  border-radius: 999px;
-  border: 1px solid #e6e6e6;
-  background: rgba(255,255,255,.55);
-  backdrop-filter: blur(6px);
-  font-weight: 700; font-size: 16px; line-height: 1;
-  display: flex; align-items: center; justify-content: center;
+.badge {
+  padding:8px 10px;
+  border:1px solid #eee;
+  border-radius:12px;
+  font-size:14px;
+  background:#fff;
   box-shadow: var(--shadow);
 }
 
-/* Bottom sheet container */
-#pp-info{
-  position: fixed; inset: 0; z-index: 50;
+#message {
+  min-height:1.2em;
+  margin-top:6px;
+  font-size:14px;
+  color:#0a7e22;
+}
+
+/* Hide any stray desktop-only UI */
+#counters-bar, .top-bar { display:none !important; }
+
+/* --------------------------------------------------------
+   FLOATING INFO BUTTON + BOTTOM SHEET (JS-DRIVEN)
+-------------------------------------------------------- */
+
+/* Positioning context for floating info button */
+.media-outer { position: relative; }
+
+/* Floating "i" button */
+.info-btn {
+  position:absolute;
+  top: calc(env(safe-area-inset-top) + 10px);
+  left: calc(env(safe-area-inset-left) + 10px);
+  width:36px; height:36px;
+  border-radius:999px;
+  border:1px solid #e6e6e6;
+  background: rgba(255,255,255,.55);
+  backdrop-filter: blur(6px);
+  font-weight:700; font-size:16px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow: var(--shadow);
+  z-index:9999;
+}
+
+/* Popout container */
+#pp-info {
+  position: fixed;
+  inset: 0;
+  z-index: 9997;
   pointer-events: none;
 }
-#pp-info[data-open="true"]{ pointer-events: auto; }
+#pp-info[data-open="true"] { pointer-events: auto; }
 
-/* Backdrop */
-.pp-info__backdrop{
-  position: absolute; inset: 0;
+/* Backdrop overlay */
+.pp-info__backdrop {
+  position:absolute; inset:0;
   background: rgba(0,0,0,.35);
-  opacity: 0; transition: opacity .18s ease;
+  opacity:0;
+  transition: opacity .18s ease;
 }
-#pp-info[data-open="true"] .pp-info__backdrop{ opacity: 1; }
+#pp-info[data-open="true"] .pp-info__backdrop { opacity:1; }
 
-/* Sheet panel */
-/* === override for better placement above sticky buttons === */
-.pp-info__sheet{
+/* Bottom sheet panel (slides up above sticky buttons) */
+.pp-info__sheet {
   position: fixed;
   left: 50%;
-  transform: translate(-50%, 0);
-  bottom: calc(env(safe-area-inset-bottom) + 90px); /* lift above sticky bar */
+  bottom: calc(env(safe-area-inset-bottom) + 90px);
   width: min(92vw, 640px);
   max-height: 70vh;
   overflow: auto;
@@ -87,131 +150,48 @@ header .status { font-size:12px; opacity:.75; white-space:nowrap; overflow:hidde
   border-radius: 16px;
   box-shadow: 0 -6px 30px rgba(0,0,0,.18);
   padding: 14px;
-  transition: transform .22s ease;
   z-index: 9998;
+  transform: translate(-50%, 100%); /* closed */
+  transition: transform .22s ease;
 }
-
-#pp-info[data-open="true"] .pp-info__sheet{ transform: translateY(0); }
+#pp-info[data-open="true"] .pp-info__sheet {
+  transform: translate(-50%, 0); /* open */
+}
 
 /* Sheet internals */
-.pp-info__header{
+.pp-info__header {
   display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding-bottom: 6px; border-bottom: 1px solid #eee;
+  padding-bottom:6px; border-bottom:1px solid #eee;
 }
-.pp-info__header h2{ font-size: 16px; margin:0; }
-.pp-info__close{
-  border:1px solid #e6e6e6; border-radius: 10px;
+.pp-info__header h2 { font-size:16px; margin:0; }
+.pp-info__close {
+  border:1px solid #e6e6e6; border-radius:10px;
   background:#f7f7f7; padding:6px 10px;
 }
-
-.pp-info__body{ display:grid; gap:12px; padding-top:10px; }
-.pp-info__meta div{ display:flex; gap:8px; }
-.pp-info__label{ min-width:64px; color:#666; }
-
-.pp-info__filters{ display:flex; gap:12px; flex-wrap:wrap; }
-.pp-info__check{ display:flex; align-items:center; gap:8px; }
-
-.pp-info__counters{
+.pp-info__body { display:grid; gap:12px; padding-top:10px; }
+.pp-info__meta div { display:flex; gap:8px; }
+.pp-info__label { min-width:64px; color:#666; }
+.pp-info__filters { display:flex; gap:12px; flex-wrap:wrap; }
+.pp-info__check { display:flex; align-items:center; gap:8px; }
+.pp-info__counters {
   border:1px solid #eee; border-radius:12px; padding:8px 10px;
   background:#fafafa; box-shadow: var(--shadow);
 }
 
-/* Hide desktop/legacy info when in mobile UI */
+/* --------------------------------------------------------
+   CLEANUP / HIDE LEGACY ELEMENTS ON MOBILE
+-------------------------------------------------------- */
 .mobile-ui [id^="mobile-login-status"],
 .mobile-ui .row,
 .mobile-ui .badge,
 .mobile-ui .top-bar,
 .mobile-ui .old-info {
-  display: none !important;
+  display:none !important;
 }
 
-/* The floating info button sits over the media; make the container a positioning context */
-.media-outer { position: relative; }
-
-/* Hide legacy inline UI on the mobile page */
 body[data-ui="mobile"] .row,
 body[data-ui="mobile"] .badge,
 body[data-ui="mobile"] #mobile-counts,
 body[data-ui="mobile"] .top-bar {
-  display: none !important;
+  display:none !important;
 }
-/* === Mobile "i" popout — drop-in (no JS, uses :target) === */
-
-/* Floating info button (sits over the media) */
-.media-outer { position: relative; } /* ensure positioning context */
-.info-btn{
-  position:absolute;
-  top: calc(env(safe-area-inset-top) + 10px);
-  left: calc(env(safe-area-inset-left) + 10px);
-  width: 36px; height: 36px;
-  border-radius: 999px;
-  border: 1px solid #e6e6e6;
-  background: rgba(255,255,255,.55);
-  backdrop-filter: blur(6px);
-  font-weight: 700; font-size: 16px; line-height: 1;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: var(--shadow);
-}
-
-/* Container is inert unless targeted */
-#pp-info{
-  position: fixed; inset: 0; z-index: 50;
-  pointer-events: none;
-}
-#pp-info:target{ pointer-events: auto; }
-
-/* Backdrop */
-.pp-info__backdrop{
-  position: absolute; inset: 0;
-  background: rgba(0,0,0,.35);
-  opacity: 0; transition: opacity .18s ease;
-}
-#pp-info:target .pp-info__backdrop{ opacity: 1; }
-
-/* Bottom sheet (positioned ABOVE sticky buttons) */
-.pp-info__sheet{
-  position: fixed;
-  left: 50%;
-  bottom: calc(env(safe-area-inset-bottom) + 90px); /* adjust 90px to your sticky bar height */
-  width: min(92vw, 640px);
-  max-height: 70vh;
-  overflow: auto;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 -6px 30px rgba(0,0,0,.18);
-  padding: 14px;
-  z-index: 9998;
-
-  /* closed state (off-screen) */
-  transform: translate(-50%, 100%);
-  transition: transform .22s ease;
-}
-/* open state (slides up) */
-#pp-info:target .pp-info__sheet{ transform: translate(-50%, 0); }
-
-/* Sheet internals */
-.pp-info__header{
-  display:flex; align-items:center; justify-content:space-between; gap:8px;
-  padding-bottom: 6px; border-bottom: 1px solid #eee;
-}
-.pp-info__header h2{ font-size: 16px; margin:0; }
-.pp-info__close{
-  border:1px solid #e6e6e6; border-radius: 10px;
-  background:#f7f7f7; padding:6px 10px; text-decoration: none; color: inherit;
-}
-.pp-info__body{ display:grid; gap:12px; padding-top:10px; }
-.pp-info__meta div{ display:flex; gap:8px; }
-.pp-info__label{ min-width:64px; color:#666; }
-.pp-info__filters{ display:flex; gap:12px; flex-wrap:wrap; }
-.pp-info__check{ display:flex; align-items:center; gap:8px; }
-.pp-info__counters{
-  border:1px solid #eee; border-radius:12px; padding:8px 10px;
-  background:#fafafa; box-shadow: var(--shadow);
-}
-
-/* Hide any legacy inline info on mobile-only UI (safety) */
-body[data-ui="mobile"] .row,
-body[data-ui="mobile"] .badge,
-body[data-ui="mobile"] #mobile-counts,
-body[data-ui="mobile"] .top-bar { display: none !important; }
-
