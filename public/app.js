@@ -339,9 +339,10 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
 
   function populate() {
     const item = getCurrentItem();
-    bookEl && (bookEl.textContent   = item?.bookTitle || item?.book || '—');
-    titleEl && (titleEl.textContent  = item?.title     || item?.poemTitle || '—');
-    authorEl && (authorEl.textContent = item?.author   || item?.writer || '—');
+      bookEl.textContent   = item?.book || item?.bookTitle || '—';
+      titleEl.textContent  = item?.title || item?.poemTitle || '—';
+      authorEl.textContent = item?.author || item?.writer || '—';
+
 
     const f = getFilters();
     if (cbAuthor) cbAuthor.checked = !!(f.authorOnly || f.sameAuthor || f.author);
