@@ -239,5 +239,54 @@
       </div>
     </section>
   </div>
+
+  <script>
+  // Populate the info panel from your current item
+  window.PP = window.PP || {};
+  window.PP.updateInfo = (item) => {
+    if (!item) return;
+    const setTxt = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = (val ?? '—');
+    };
+    setTxt('info-book',   item.book || item.bookTitle || item.collection || '—');
+    setTxt('info-title',  item.title || item.poemTitle || item.name || '—');
+    setTxt('info-author', item.author || item.authorName || '—');
+
+    const c = document.getElementById('info-counters');
+    if (c) {
+      const likes    = item.likes    ?? item.likeCount    ?? 0;
+      const dislikes = item.dislikes ?? item.dislikeCount ?? 0;
+      const skips    = item.skips    ?? item.skipCount    ?? 0;
+      c.textContent = `Likes: ${likes} • Dislikes: ${dislikes} • Skips: ${skips}`;
+    }
+  };
+
+  // Call update when your app broadcasts state changes
+  window.addEventListener('pp:state', () => {
+    window.PP.updateInfo(window.currentItem);
+  }, { passive: true });
+
+  // Ensure opening the sheet also refreshes details
+  const _oldToggleInfo = window.PP.toggleInfo;
+  window.PP.toggleInfo = (open) => {
+    if (open) window.PP.updateInfo(window.currentItem);
+    if (typeof _oldToggleInfo === 'function') return _oldToggleInfo(open);
+    // fallback to the standard toggler if not wrapped yet
+    const el = document.getElementById('pp-info');
+    if (el) el.dataset.open = open ? 'true' : 'false';
+  };
+
+  // Wire the filter checkboxes (no-ops if not implemented in your app yet)
+  document.getElementById('info-filter-author')?.addEventListener('change', (e) => {
+    if (window.PP?.setFilter) window.PP.setFilter('author', !!e.target.checked);
+    else window.PP_FILTER_AUTHOR = !!e.target.checked;
+  });
+  document.getElementById('info-filter-book')?.addEventListener('change', (e) => {
+    if (window.PP?.setFilter) window.PP.setFilter('book', !!e.target.checked);
+    else window.PP_FILTER_BOOK = !!e.target.checked;
+  });
+</script>
+
 </body>
 </html>
