@@ -827,9 +827,25 @@ function onGoBack(){
   renderCurrent(prev);
 }
 
+// ===== AUTOLOAD FIRST ITEM =====
+let __pp_initialLoad = false;
+
+async function ppAutoloadFirstItem() {
+  if (__pp_initialLoad) return;
+  if (currentItem) return;
+  __pp_initialLoad = true;
+
+  try {
+    const data = await fetchLatestBatch().catch(() => null);
+    if (data) initQueueFromData(data);
+  } catch (e) {
+    console.warn('autoload error', e);
+  }
+}
+
+
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
-  // If the screen elements exist, toggle them (works for desktop or mobile)
   const loginEl  = document.getElementById('login-screen');
   const poetryEl = document.getElementById('poetry-screen');
   if (loginEl && poetryEl) {
@@ -837,10 +853,12 @@ firebase.auth().onAuthStateChanged(async (user) => {
     show(poetryEl, !!user);
   }
 
-  updateUserStatusUI();                      // run once
-  // Let mobile shell know to refresh its counters/status
-  dispatchEvent(new CustomEvent('pp:state'));// notify once
+  updateUserStatusUI();
+  dispatchEvent(new CustomEvent('pp:state'));
+
+  ppAutoloadFirstItem();   // <-- added
 });
+
 
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
