@@ -902,6 +902,7 @@ window.addEventListener('DOMContentLoaded', () => {
   adjustViewportFit();
   window.addEventListener('resize', () => { setViewportVars(); adjustViewportFit(); });
   window.addEventListener('orientationchange', () => { setViewportVars(); setTimeout(adjustViewportFit, 100); });
+  setTimeout(ppAutoloadFirstItem, 75);  // <-- added
 });
 
 // ===== Scaffold UI (vote row, under-controls, counters) =====
