@@ -309,10 +309,6 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   const cbAuthor = $('info-filter-author');
   const cbBook   = $('info-filter-book');
 
-  // ✅ Desktop does NOT have a pp-info sheet.
-  //    Skip everything in this block to avoid errors.
-  if (!sheet) return;
-
   function getCurrentItem() {
   if (window.PP?.getCurrentItem) return window.PP.getCurrentItem();
   const s = window.PP?.getState?.();
@@ -349,11 +345,23 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   }
 
   function populate() {
-    const item = getCurrentItem();
-      bookEl.textContent   = item?.book || item?.bookTitle || '—';
-      titleEl.textContent  = item?.title || item?.poemTitle || '—';
-      authorEl.textContent = item?.author || item?.writer || '—';
+    const sheet    = document.getElementById('pp-info');
+    const bookEl   = document.getElementById('info-book');
+    const titleEl  = document.getElementById('info-title');
+    const authorEl = document.getElementById('info-author');
+    const cntEl    = document.getElementById('info-counters');
+    const cbAuthor = document.getElementById('info-filter-author');
+    const cbBook   = document.getElementById('info-filter-book');
 
+    // ✅ Desktop: no info sheet → do nothing
+    if (!sheet) return;
+
+    const item = getCurrentItem();
+    if (!item) return;
+
+    if (bookEl)   bookEl.textContent   = item.book  || item.bookTitle  || '—';
+    if (titleEl)  titleEl.textContent  = item.title || item.poemTitle  || '—';
+    if (authorEl) authorEl.textContent = item.author || item.writer    || '—';
 
     const f = getFilters();
     if (cbAuthor) cbAuthor.checked = !!(f.authorOnly || f.sameAuthor || f.author);
@@ -361,15 +369,15 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
 
     const c = getCounters();
     if (cntEl) {
-      if (c && (typeof c.likes !== 'undefined')) {
+      if (c && typeof c.likes !== 'undefined') {
         cntEl.textContent = `Likes: ${c.likes} · Dislikes: ${c.dislikes} · Skips: ${c.skips}`;
       } else {
-        // fallback to your existing badge if you store text there
         const badge = document.querySelector('.badge');
         cntEl.textContent = badge ? badge.textContent : '—';
       }
     }
   }
+
 
   // Public toggle
   window.PP = window.PP || {};
