@@ -832,16 +832,22 @@ let __pp_initialLoad = false;
 
 async function ppAutoloadFirstItem() {
   if (__pp_initialLoad) return;
-  if (currentItem) return;
+  if (currentItem) return;   // if something is already loaded, don't touch it
   __pp_initialLoad = true;
 
+  console.debug('[PP] ppAutoloadFirstItem firing — no currentItem yet');
+
   try {
-    const data = await fetchLatestBatch().catch(() => null);
-    if (data) initQueueFromData(data);
+    // Reuse the existing "first load" branch:
+    // when currentItem is null, onSkip() just fetches & initQueueFromData,
+    // it does NOT record a skip vote.
+    await onSkip();
   } catch (e) {
     console.warn('autoload error', e);
+    __pp_initialLoad = false;  // allow a retry if something truly blew up
   }
 }
+
 
 
 // ===== Auth listener =====
