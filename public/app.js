@@ -309,6 +309,10 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   const cbAuthor = $('info-filter-author');
   const cbBook   = $('info-filter-book');
 
+  // ✅ Desktop does NOT have a pp-info sheet.
+  //    Skip everything in this block to avoid errors.
+  if (!sheet) return;
+
   function getCurrentItem() {
   if (window.PP?.getCurrentItem) return window.PP.getCurrentItem();
   const s = window.PP?.getState?.();
