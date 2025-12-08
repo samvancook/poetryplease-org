@@ -172,7 +172,6 @@ async function handleRegistration(e) {
 // ===== API Mappings (to your Cloud Functions) =====
 const fetchDataWrapped            = () => api('fetchData',        { body: { limit: 20 } });
 const fetchDataAnonWrapped        = (anonId) => api('fetchDataAnon', { body: { anonId } });
-const getNextAnonymousIdWrapped   = () => api('getNextAnonymousId', { method: 'POST' });
 const submitVoteWrapped           = (imageId, voteType, userId) => api('vote', { body: { imageId, voteType, userId } });
 const fetchReleaseCatalogsWrapped = () => api('releaseCatalogs', { method: 'GET' });
 const fetchImageTypesWrapped      = () => api('imageTypes',      { method: 'GET' });
