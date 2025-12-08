@@ -178,6 +178,17 @@ const fetchReleaseCatalogsWrapped = () => api('releaseCatalogs', { method: 'GET'
 const fetchImageTypesWrapped      = () => api('imageTypes',      { method: 'GET' });
 const getRatingsSummaryWrapped    = () => api('ratingsSummary',  { method: 'GET' });
 
+// ===== Anonymous ID helper (local only, no API) =====
+async function getOrCreateAnonId() {
+  let anon = localStorage.getItem('pp_anon');
+  if (anon) return anon;
+
+  anon = 'local-' + Math.random().toString(36).slice(2, 10);
+  localStorage.setItem('pp_anon', anon);
+  return anon;
+}
+
+
 /* ============================================================
    Frontend functionality (filters, metadata, votes, counters)
    ============================================================ */
@@ -452,12 +463,12 @@ function isLowRated(g)  { return ratingOf(g) < 1; }
 function isHighRated(g) { return ratingOf(g) >= 1; }
 
 // ===== Data fetch wrappers =====
-async function fetchLatestBatch(){
+async function fetchLatestBatch() {
   const user = firebase.auth().currentUser;
   if (user) return fetchDataWrapped();
-  const stored = localStorage.getItem('pp_anon') || (await getNextAnonymousIdWrapped());
-  localStorage.setItem('pp_anon', stored);
-  return fetchDataAnonWrapped(stored);
+
+  const anonId = await getOrCreateAnonId();
+  return fetchDataAnonWrapped(anonId);
 }
 
 // ===== Filters: population =====
@@ -762,15 +773,10 @@ async function submitVote(item, value){
   let userId;
   if (user && user.email) {
     userId = user.email;              // <- stored key for authed users
-  } else {
-    let anon = localStorage.getItem('pp_anon');
-    if (!anon) {
-      anon = await getNextAnonymousIdWrapped();
-      localStorage.setItem('pp_anon', anon);
-    }
-    userId = anon;                    // <- stored key for anon users
+    } else {
+    userId = await getOrCreateAnonId();   // <- stored key for anon users
   }
-
+  
   // Write the vote (ID token is handled by api() automatically via currentUser)
   return submitVoteWrapped(item.id, value, userId);
 }
@@ -844,21 +850,24 @@ let __pp_initialLoad = false;
 
 async function ppAutoloadFirstItem() {
   if (__pp_initialLoad) return;
-  if (currentItem) return;   // if something is already loaded, don't touch it
+  if (currentItem) return;
   __pp_initialLoad = true;
 
-  console.debug('[PP] ppAutoloadFirstItem firing — no currentItem yet');
+  console.debug('[PP] autoload: starting initial fetch');
 
   try {
-    // Reuse the existing "first load" branch:
-    // when currentItem is null, onSkip() just fetches & initQueueFromData,
-    // it does NOT record a skip vote.
-    await onSkip();
+    const data = await fetchLatestBatch().catch(() => null);
+    if (data) {
+      console.debug('[PP] autoload: got data, initializing queue');
+      initQueueFromData(data);
+    } else {
+      console.debug('[PP] autoload: no data returned');
+    }
   } catch (e) {
     console.warn('autoload error', e);
-    __pp_initialLoad = false;  // allow a retry if something truly blew up
   }
 }
+
 
 
 
