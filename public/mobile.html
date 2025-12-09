@@ -10,13 +10,41 @@
     #mobile-side-votes {
   position: absolute;
   right: 12px;
-  top: 60%;               /* bottom half */
+  top: 50%;
   transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   gap: 14px;
-  z-index: 5000;          /* above the image and info button */
+  z-index: 5000;
   pointer-events: auto;
+}
+
+.mobile-vote-btn {
+  width: 58px;
+  height: 58px;
+  background: #ffffff;
+  border: 2px solid #e6e6e6;
+  border-radius: 50%;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+}
+
+/* bottom bar full width buttons */
+.controls {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.controls button {
+  flex: 1;
+}
+
+/* media extends behind bottom bar */
+.media-outer {
+  padding-bottom: 80px;
 }
 
 .mobile-vote-btn {
@@ -175,12 +203,15 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
   <button class="info-btn" aria-label="Show info" onclick="window.PP.toggleInfo(true)">i</button>
 
-  <!-- ❤️ Moved Me + 😐 Meh buttons (mobile) -->
+  <!-- Right-side vote stack -->
   <div id="mobile-side-votes">
     <button id="btn-mobile-moved" class="mobile-vote-btn">❤️</button>
     <button id="btn-mobile-meh" class="mobile-vote-btn">😐</button>
+    <button id="btn-mobile-like" class="mobile-vote-btn">👍</button>
+    <button id="btn-mobile-dislike" class="mobile-vote-btn">👎</button>
   </div>
 </div>
+
 
 
     <div class="row"><div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div></div>
@@ -291,10 +322,10 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
         <div class="controls">
           <button id="btnBack">Go Back</button>
           <button id="btnBook">Take me to the book</button>
-          <button id="btnLike">Like</button>
-          <button id="btnDislike">Dislike</button>
+          <button id="btnMoreInfo">More Info</button>
           <button id="btnSkip">Poetry, Please</button>
-        </div>`;
+        </div>
+        `;
       document.body.appendChild(bar);
       const $=s=>document.querySelector(s);
       $('#btnBack')?.addEventListener('click', ()=>PP.goBack());
@@ -302,6 +333,8 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
       $('#btnLike')?.addEventListener('click', ()=>PP.vote('like'));
       $('#btnDislike')?.addEventListener('click', ()=>PP.vote('dislike'));
       $('#btnSkip')?.addEventListener('click', ()=>PP.skip());
+      $('#btnMoreInfo')?.addEventListener('click', () => window.PP.toggleInfo(true));
+
     }
     if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', mountControls, {once:true}); else mountControls();
     window.addEventListener('pp:state', ()=>{ if(!document.getElementById('btnSkip')) mountControls(); }, {passive:true});
