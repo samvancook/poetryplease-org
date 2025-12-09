@@ -158,6 +158,31 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
     body[data-ui="mobile"] #mobile-counts { display: none !important; }
 
+          /* --------------------------------------------------------
+         FIX: Make right-side vote buttons clickable
+      -------------------------------------------------------- */
+      
+      #mobile-side-votes {
+        z-index: 999999 !important;
+        pointer-events: auto !important;
+      }
+      
+      /* Stop the media container from blocking touches */
+      .media-outer,
+      #media-wrap,
+      #media-wrap .media-box {
+        position: relative;
+        z-index: 1 !important;
+        pointer-events: none !important;
+      }
+      
+      /* Let the actual media stay interactive (book link + video controls) */
+      #media-wrap img,
+      #media-wrap video {
+        pointer-events: auto !important;
+      }
+
+
   </style>
 
   <!-- Firebase (compat) SDKs -->
