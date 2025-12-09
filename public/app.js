@@ -896,6 +896,8 @@ window.addEventListener('DOMContentLoaded', () => {
   on(document.getElementById('show-login'), 'click', showLoginScreen);
   on(document.getElementById('btn-mobile-moved'), () => onVoteAny('moved me'));
   on(document.getElementById('btn-mobile-meh'),   () => onVoteAny('meh'));
+  on(document.getElementById('btn-mobile-like'),    () => onVoteAny('like'));
+  on(document.getElementById('btn-mobile-dislike'), () => onVoteAny('dislike'));
 
   // Desktop-only extras
   if (!IS_MOBILE_UI) {
