@@ -7,6 +7,33 @@
 
   <style>
 
+    #mobile-side-votes {
+  position: absolute;
+  right: 12px;
+  top: 60%;               /* bottom half */
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 5000;          /* above the image and info button */
+  pointer-events: auto;
+}
+
+.mobile-vote-btn {
+  width: 58px;
+  height: 58px;
+  background: #ffffff;
+  border: 2px solid #e6e6e6;
+  border-radius: 50%;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  touch-action: manipulation;
+}
+
+
 /* Make excerpt text white when shown on the black background */
 #media-wrap .excerpt-text {
   color: #fff;
@@ -144,9 +171,17 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
     </header>
 
     <div class="media-outer">
-      <div id="media-wrap"></div>
-      <button class="info-btn" aria-label="Show info" onclick="window.PP.toggleInfo(true)">i</button>
-    </div>
+  <div id="media-wrap"></div>
+
+  <button class="info-btn" aria-label="Show info" onclick="window.PP.toggleInfo(true)">i</button>
+
+  <!-- ❤️ Moved Me + 😐 Meh buttons (mobile) -->
+  <div id="mobile-side-votes">
+    <button id="btn-mobile-moved" class="mobile-vote-btn">❤️</button>
+    <button id="btn-mobile-meh" class="mobile-vote-btn">😐</button>
+  </div>
+</div>
+
 
     <div class="row"><div class="badge" id="mobile-counts">Likes: 0 • Dislikes: 0 • Skips: 0</div></div>
 
