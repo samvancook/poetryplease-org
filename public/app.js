@@ -894,10 +894,11 @@ window.addEventListener('DOMContentLoaded', () => {
   on(document.getElementById('registration-form'), 'submit', handleRegistration);
   on(document.getElementById('show-registration'), 'click', showRegistrationForm);
   on(document.getElementById('show-login'), 'click', showLoginScreen);
-  on(document.getElementById('btn-mobile-moved'), () => onVoteAny('moved me'));
-  on(document.getElementById('btn-mobile-meh'),   () => onVoteAny('meh'));
-  on(document.getElementById('btn-mobile-like'),    () => onVoteAny('like'));
-  on(document.getElementById('btn-mobile-dislike'), () => onVoteAny('dislike'));
+  on(document.getElementById('btn-mobile-moved'),  'click', () => onVoteAny('moved me'));
+  on(document.getElementById('btn-mobile-meh'),    'click', () => onVoteAny('meh'));
+  on(document.getElementById('btn-mobile-like'),   'click', () => onVoteAny('like'));
+  on(document.getElementById('btn-mobile-dislike'), 'click', () => onVoteAny('dislike'));
+
 
   // Desktop-only extras
   if (!IS_MOBILE_UI) {
