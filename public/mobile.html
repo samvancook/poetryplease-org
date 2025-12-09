@@ -217,13 +217,42 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
   <button class="info-btn" aria-label="Show info" onclick="window.PP.toggleInfo(true)">i</button>
 
+ 
   <!-- Right-side vote stack -->
-  <div id="mobile-side-votes">
-    <button id="btn-mobile-moved" class="mobile-vote-btn">❤️</button>
-    <button id="btn-mobile-meh" class="mobile-vote-btn">😐</button>
-    <button id="btn-mobile-like" class="mobile-vote-btn">👍</button>
-    <button id="btn-mobile-dislike" class="mobile-vote-btn">👎</button>
-  </div>
+<div id="mobile-side-votes">
+  <button
+    id="btn-mobile-moved"
+    class="mobile-vote-btn"
+    onclick="window.PP && window.PP.vote && window.PP.vote('moved me')"
+  >
+    ❤️
+  </button>
+
+  <button
+    id="btn-mobile-meh"
+    class="mobile-vote-btn"
+    onclick="window.PP && window.PP.vote && window.PP.vote('meh')"
+  >
+    😐
+  </button>
+
+  <button
+    id="btn-mobile-like"
+    class="mobile-vote-btn"
+    onclick="window.PP && window.PP.vote && window.PP.vote('like')"
+  >
+    👍
+  </button>
+
+  <button
+    id="btn-mobile-dislike"
+    class="mobile-vote-btn"
+    onclick="window.PP && window.PP.vote && window.PP.vote('dislike')"
+  >
+    👎
+  </button>
+</div>
+
 </div>
 
 
