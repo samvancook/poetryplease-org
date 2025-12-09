@@ -894,6 +894,8 @@ window.addEventListener('DOMContentLoaded', () => {
   on(document.getElementById('registration-form'), 'submit', handleRegistration);
   on(document.getElementById('show-registration'), 'click', showRegistrationForm);
   on(document.getElementById('show-login'), 'click', showLoginScreen);
+  on(document.getElementById('btn-mobile-moved'), () => onVoteAny('moved me'));
+  on(document.getElementById('btn-mobile-meh'),   () => onVoteAny('meh'));
 
   // Desktop-only extras
   if (!IS_MOBILE_UI) {
