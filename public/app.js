@@ -738,22 +738,22 @@ function renderItemMedia(item) {
     const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
     v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
     a.appendChild(v); box.appendChild(a);
-  } else if (item?.mediaUrl) {
-    const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
-    img = document.createElement('img'); img.src=item.mediaUrl; img.alt=item?.id||''; img.style.maxWidth='100%'; img.style.height='auto';
-    a.appendChild(img); box.appendChild(a);
-    img = document.createElement('img');
-img.src = item.mediaUrl;
-img.alt = item?.id || '';
-img.style.maxWidth = '100%';
-img.style.height = 'auto';
+ } else if (item?.mediaUrl) {
+  const a = document.createElement('a');
+  if (item?.bookUrl) { a.href = item.bookUrl; a.target = '_blank'; }
 
-a.appendChild(img);
-box.appendChild(a);
+  img = document.createElement('img');
+  img.src = item.mediaUrl;
+  img.alt = item?.id || '';
+  img.style.maxWidth = '100%';
+  img.style.height = 'auto';
 
-attachPinchZoomToImage_(img);
+  a.appendChild(img);
+  box.appendChild(a);
 
-  } else { const p=document.createElement('p'); p.textContent='No media available for this item.'; box.appendChild(p); }
+  attachPinchZoomToImage_(img);
+}
+ else { const p=document.createElement('p'); p.textContent='No media available for this item.'; box.appendChild(p); }
 
   placeRowsAroundMedia(mediaWrap, box);
 
