@@ -15,7 +15,7 @@ const CONSTANTS = { API_BASE: '/api' };
 // 6) Heuristic: user agent OR narrow viewport (<= 768px)
 // Guarded to avoid redeclarations.
 (function(){
-  if (typeof IS_MOBILE_UI !== 'undefined') return; // already set elsewhere
+  if (typeof window.IS_MOBILE_UI !== 'undefined') return;// already set elsewhere
 
   const url = new URL(location.href);
   const q = (k) => url.searchParams.get(k);
@@ -47,7 +47,6 @@ var computed =
 
   // Expose as global without redeclare errors
   window.IS_MOBILE_UI = computed;
-  var IS_MOBILE_UI = window.IS_MOBILE_UI;
 
 
   // Optional: quick debug so you can see *why* it chose mobile
@@ -56,6 +55,7 @@ var computed =
     vw: window.innerWidth, sw: window.screen?.width, ua: navigator.userAgent
   });
 })();
+const IS_MOBILE_UI = window.IS_MOBILE_UI;
 const RUNTIME_MODE = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
 
 
