@@ -1054,7 +1054,6 @@ window.addEventListener('DOMContentLoaded', () => {
   adjustViewportFit();
   window.addEventListener('resize', () => { setViewportVars(); adjustViewportFit(); });
   window.addEventListener('orientationchange', () => { setViewportVars(); setTimeout(adjustViewportFit, 100); });
-  setTimeout(ppAutoloadFirstItem, 75);  // <-- added
 });
 
 // ===== Scaffold UI (vote row, under-controls, counters) =====
@@ -1142,5 +1141,10 @@ window.addEventListener('DOMContentLoaded', () => {
   } else setTimeout(emitState,0);
 
   // Failsafe: if mobile shell loads and nothing rendered, auto-start once
-  if (IS_MOBILE_UI) setTimeout(()=>{ if (!currentItem) { try{ onSkip(); }catch(_){} } }, 1200);
+  if (IS_MOBILE_UI) setTimeout(() => {
+  if (!currentItem && !__pp_initialLoad) {
+    try { ppAutoloadFirstItem(); } catch (_) {}
+  }
+}, 1200);
+
 })();
