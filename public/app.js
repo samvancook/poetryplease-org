@@ -47,6 +47,8 @@ var computed =
 
   // Expose as global without redeclare errors
   window.IS_MOBILE_UI = computed;
+  var IS_MOBILE_UI = window.IS_MOBILE_UI;
+
 
   // Optional: quick debug so you can see *why* it chose mobile
   console.debug('[PP] IS_MOBILE_UI =', computed, {
@@ -926,25 +928,65 @@ function onGoBack(){
 // ===== AUTOLOAD FIRST ITEM =====
 let __pp_initialLoad = false;
 
+// Simple promise timeout helper
+function withTimeout_(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    )
+  ]);
+}
+
 async function ppAutoloadFirstItem() {
-  if (__pp_initialLoad) return;
-  if (currentItem) return;
+  if (__pp_initialLoad || currentItem) return;
+
+  console.debug('[PP] autoload: starting');
+
+  // Lock while we try; we’ll unlock in finally if we didn’t actually render an item
   __pp_initialLoad = true;
 
-  console.debug('[PP] autoload: starting initial fetch');
-
   try {
-    const data = await fetchLatestBatch().catch(() => null);
-    if (data) {
-      console.debug('[PP] autoload: got data, initializing queue');
-      initQueueFromData(data);
-    } else {
-      console.debug('[PP] autoload: no data returned');
+    // 2 retries (3 total attempts), each with a timeout
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      console.debug(`[PP] autoload attempt ${attempt}/3`);
+
+      const data = await withTimeout_(
+        fetchLatestBatch(),
+        12000,
+        '[PP] fetchLatestBatch'
+      ).catch((e) => {
+        console.warn('[PP] autoload fetch error:', e);
+        return null;
+      });
+
+      if (data && Array.isArray(data.newGraphics) && data.newGraphics.length) {
+        console.debug('[PP] autoload: got data, initializing queue');
+        initQueueFromData(data);
+
+        // If something prevented render, allow future attempts
+        if (!currentItem) {
+          console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
+          __pp_initialLoad = false;
+        }
+        return; // ✅ success (or unlocked above if render didn’t happen)
+      }
+
+      console.warn('[PP] autoload: no usable data this attempt');
+      // short backoff before retry
+      await new Promise(r => setTimeout(r, 600));
     }
+
+    console.warn('[PP] autoload: no usable data after retries');
   } catch (e) {
-    console.warn('autoload error', e);
+    console.warn('[PP] autoload: fatal error', e);
+  } finally {
+    // ✅ If we *still* don’t have an item, allow future attempts (e.g., user logs in later)
+    if (!currentItem) __pp_initialLoad = false;
   }
 }
+
+
 
 
 
