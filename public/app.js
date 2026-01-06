@@ -217,9 +217,20 @@ async function getOrCreateAnonId() {
     display: flex; align-items: center; justify-content: center;
     width: 100%; overflow: hidden;
   }
-  .media-box img, .media-box video {
-    max-width: 100%; max-height: 100%; height: auto; object-fit: contain;
+    .media-box img, .media-box video {
+    max-width: 100%;
+    max-height: 100%;
+    height: auto;
+    object-fit: contain;
   }
+
+  /* Mobile: zoom only the IMAGE pixels, not the UI/layout */
+  .media-box img {
+    transform: scale(var(--pp-media-zoom, 1));
+    transform-origin: center center;
+    transition: transform 120ms ease;
+  }
+
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
 
   .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
@@ -252,6 +263,63 @@ let lastData = null;     // server payload (fetchData / fetchDataAnon)
 let queue = [];          // filtered & shuffled list
 let idx = -1;            // position in queue
 let isTransitioning = false;
+
+// ===== Mobile pinch-to-zoom (image only) =====
+let __ppMediaZoom = Number(localStorage.getItem('pp_media_zoom') || 1);
+
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+function applyMediaZoom_(imgEl) {
+  __ppMediaZoom = clamp(Number(__ppMediaZoom || 1), 1, 2.75);
+  // Apply to the closest media-box so it only affects the media element
+  const box = imgEl?.closest?.('.media-box');
+  if (box) box.style.setProperty('--pp-media-zoom', String(__ppMediaZoom));
+  localStorage.setItem('pp_media_zoom', String(__ppMediaZoom));
+}
+
+function attachPinchZoomToImage_(imgEl) {
+  if (!IS_MOBILE_UI) return;
+  if (!imgEl || imgEl.__ppPinchBound) return;
+  imgEl.__ppPinchBound = true;
+
+  // Ensure we start from stored zoom
+  applyMediaZoom_(imgEl);
+
+  let pinching = false;
+  let startDist = 0;
+  let startZoom = 1;
+
+  const dist = (t1, t2) => {
+    const dx = t1.clientX - t2.clientX;
+    const dy = t1.clientY - t2.clientY;
+    return Math.hypot(dx, dy);
+  };
+
+  imgEl.addEventListener('touchstart', (e) => {
+    if (e.touches && e.touches.length === 2) {
+      pinching = true;
+      startDist = dist(e.touches[0], e.touches[1]);
+      startZoom = Number(__ppMediaZoom || 1);
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  imgEl.addEventListener('touchmove', (e) => {
+    if (!pinching || !e.touches || e.touches.length !== 2) return;
+    const d = dist(e.touches[0], e.touches[1]);
+    const ratio = d / (startDist || d);
+    __ppMediaZoom = clamp(startZoom * ratio, 1, 2.75);
+    applyMediaZoom_(imgEl);
+    e.preventDefault();
+  }, { passive: false });
+
+  imgEl.addEventListener('touchend', (e) => {
+    if (!e.touches || e.touches.length < 2) pinching = false;
+  }, { passive: true });
+
+  imgEl.addEventListener('touchcancel', () => { pinching = false; }, { passive: true });
+}
+
 
 // Filters
 let filterByAuthor = false;
@@ -674,6 +742,17 @@ function renderItemMedia(item) {
     const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
     img = document.createElement('img'); img.src=item.mediaUrl; img.alt=item?.id||''; img.style.maxWidth='100%'; img.style.height='auto';
     a.appendChild(img); box.appendChild(a);
+    img = document.createElement('img');
+img.src = item.mediaUrl;
+img.alt = item?.id || '';
+img.style.maxWidth = '100%';
+img.style.height = 'auto';
+
+a.appendChild(img);
+box.appendChild(a);
+
+attachPinchZoomToImage_(img);
+
   } else { const p=document.createElement('p'); p.textContent='No media available for this item.'; box.appendChild(p); }
 
   placeRowsAroundMedia(mediaWrap, box);
