@@ -21,6 +21,14 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
+
+    
+  // 🔹 Analytics init (v8)
+  const analytics = firebase.analytics();
+
+  // 🔹 Explicit page view
+  analytics.logEvent('page_view');
+    
   </script>
 </head>
 <body>
