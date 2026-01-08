@@ -201,6 +201,13 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
     };
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
   </script>
+
+  <script>
+  const analytics = firebase.analytics();
+  analytics.logEvent('page_view');
+</script>
+
+  
 </head>
 <body data-ui="mobile">
   <div class="wrap">
