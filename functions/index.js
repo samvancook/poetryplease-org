@@ -31,6 +31,10 @@ app.use(
     origin: [
       "https://poetry-please.web.app",
       "https://poetry-please.firebaseapp.com",
+      "https://poetryplease-org.web.app",
+      "https://poetryplease-org.firebaseapp.com",
+      "https://poetryplease.org",
+      "https://www.poetryplease.org",
       "https://buttonpoetry.com",
     ],
     methods: ["GET", "POST", "OPTIONS"],
