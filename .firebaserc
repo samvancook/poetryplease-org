@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "poetry-please"
+  },
+  "targets": {
+    "poetry-please": {
+      "hosting": {
+        "poetryplease-org": [
+          "poetryplease-org"
+        ]
+      }
+    }
+  }
+}

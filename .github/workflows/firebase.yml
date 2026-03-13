@@ -93,7 +93,7 @@ jobs:
         run: |
           if [ -f firebase.json ]; then
             echo "Deploying HOSTING…"
-            firebase --project poetry-please deploy --only hosting --debug
+            firebase --project poetry-please deploy --only hosting:poetryplease-org --debug
           else
             echo "Skipping hosting: firebase.json missing"; exit 4
           fi
@@ -139,4 +139,4 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           BRANCH="${{ github.ref_name }}"
-          firebase hosting:channel:deploy "$BRANCH" --project poetry-please --expires 7d
+          firebase hosting:channel:deploy "$BRANCH" --project poetry-please --site poetryplease-org --expires 7d

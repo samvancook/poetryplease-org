@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "target": "poetryplease-org",
     "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "headers": [
