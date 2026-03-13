@@ -56,27 +56,6 @@ var computed =
   });
 })();
 const IS_MOBILE_UI = window.IS_MOBILE_UI;
-const RUNTIME_MODE = IS_MOBILE_UI ? 'MOBILE UI' : 'DESKTOP UI';
-
-
-
-// Tiny visual badge so you can tell at a glance during testing
-(function showEnvironmentBadge(){
-  const el = document.createElement('div');
-  el.textContent = RUNTIME_MODE;
-  el.style.position = 'fixed';
-  el.style.zIndex = '9999';
-  el.style.top = '8px';
-  el.style.left = '8px';
-  el.style.padding = '4px 8px';
-  el.style.fontSize = '11px';
-  el.style.fontFamily = 'system-ui, Arial';
-  el.style.background = IS_MOBILE_UI ? '#E6FFED' : '#E8F0FE';
-  el.style.border = '1px solid ' + (IS_MOBILE_UI ? '#34C759' : '#4285F4');
-  el.style.borderRadius = '6px';
-  el.style.opacity = '0.9';
-  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(el));
-})();
 
 // ===== Small API client with Firebase ID token =====
 async function getIdTokenOrNull() {
@@ -156,7 +135,17 @@ function updateUserStatusUI() {
   const div = $('#user-status');
   const loadBtn = $('#load-button');
   if (user) {
-    if (div) div.textContent = 'Logged in as ' + (user.email || user.uid);
+    if (div) {
+      const label = user.email || user.uid;
+      div.innerHTML = `Logged in as ${label} <button id="logout-button" type="button">Log out</button>`;
+      on($('#logout-button'), 'click', async () => {
+        try {
+          await firebase.auth().signOut();
+        } catch (err) {
+          console.warn('Logout failed', err);
+        }
+      });
+    }
     if (loadBtn) loadBtn.disabled = false;
   } else {
     if (div) {
@@ -872,15 +861,27 @@ function renderCounter() {
     return true;
   });
   const totalInDomain = domainAll.length;
-  const remaining = (idx >= 0 && queue.length > 0) ? Math.max(queue.length - (idx + 1), 0) : 0;
-  const votedInDomain = Math.max(totalInDomain - remaining - 1, 0);
+  const totalImages = Number(lastData?.totalImages || all.length || 0);
+  const votedOverall = Number(lastData?.votedImagesCount || 0);
+  const remainingOverall = Number(lastData?.remainingImagesCount || 0);
+  const domainRemaining = queue.length;
+  let votedInDomain = Math.max(totalInDomain - domainRemaining, 0);
+
+  if (!selectedType && !selectedCatalog && !filterByAuthor && !filterByBook && totalInDomain === totalImages) {
+    votedInDomain = votedOverall;
+  }
 
   let counter = $('#domain-counter');
   if (!counter) {
     counter = document.createElement('div'); counter.id='domain-counter'; counter.className='vote-counter';
     const bar = $('#counters-bar'); if (bar) { const span = document.createElement('span'); span.appendChild(counter); bar.appendChild(span); }
   }
-  if (counter) counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} — ${remaining} remaining.`;
+  if (counter) {
+    const remainingText = (!selectedType && !selectedCatalog && !filterByAuthor && !filterByBook && totalInDomain === totalImages)
+      ? remainingOverall
+      : domainRemaining;
+    counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} — ${remainingText} remaining.`;
+  }
 }
 function resetVoteButtons(){
   [['btn-like','Like'],['btn-dislike','Dislike'],['btn-moved','Moved Me'],['btn-meh','Meh']].forEach(([id,txt])=>{
