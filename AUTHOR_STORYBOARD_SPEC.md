@@ -85,6 +85,11 @@ The goal is to let invited authors manage how their work appears in the product,
 - Can edit author profiles and content metadata.
 - Can manage roles.
 
+Current bootstrap rule for the new app:
+
+- `sam@buttonpoetry.com` is the only automatic admin account for now.
+- Admin role is assigned server-side from a configured allowlist, not from the client.
+
 ## Firestore Model
 
 This spec keeps workflow data separate from live content as much as possible.

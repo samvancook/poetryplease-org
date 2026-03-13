@@ -21,6 +21,10 @@ const COLLECTIONS = {
   contentSubmissions: "contentSubmissions",
 };
 
+const ADMIN_EMAILS = new Set([
+  "sam@buttonpoetry.com",
+]);
+
 /** ====== ADMIN INIT ====== */
 const appAdmin = initializeApp();
 
@@ -176,6 +180,17 @@ function uniq(values) {
   return [...new Set((values || []).map(normalizeText).filter(Boolean))];
 }
 
+function resolveRoles(existingRoles = [], email = "") {
+  const roles = new Set(
+    (Array.isArray(existingRoles) && existingRoles.length ? existingRoles : ["user"])
+      .map(normalizeText)
+      .filter(Boolean)
+  );
+  roles.add("user");
+  if (ADMIN_EMAILS.has(normalizeKey(email))) roles.add("admin");
+  return [...roles];
+}
+
 function mapProfileDoc(id, data = {}) {
   return {
     id,
@@ -240,7 +255,7 @@ async function ensureUserRecord(decoded) {
     const payload = {
       email: decoded.email || "",
       displayName: decoded.name || decoded.email || "",
-      roles: ["user"],
+      roles: resolveRoles([], decoded.email),
       createdAt: FieldValue.serverTimestamp(),
       lastLoginAt: FieldValue.serverTimestamp(),
       status: "active",
@@ -255,7 +270,7 @@ async function ensureUserRecord(decoded) {
       displayName: decoded.name || existing.displayName || decoded.email || "",
       lastLoginAt: FieldValue.serverTimestamp(),
       status: existing.status || "active",
-      roles: Array.isArray(existing.roles) && existing.roles.length ? existing.roles : ["user"],
+      roles: resolveRoles(existing.roles, decoded.email || existing.email || ""),
     },
     { merge: true }
   );
