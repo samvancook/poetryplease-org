@@ -11,20 +11,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 
   <script>
-    const AUTH_HOSTS = new Set([
-      "poetry-please.web.app",
-      "poetry-please.firebaseapp.com",
-      "poetryplease-org.web.app",
-      "poetryplease-org.firebaseapp.com",
-      "poetryplease.org",
-      "www.poetryplease.org"
-    ]);
-    const currentAuthHost = AUTH_HOSTS.has(window.location.hostname)
-      ? window.location.hostname
-      : "poetry-please.web.app";
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
-      authDomain: currentAuthHost,
+      authDomain: "poetry-please.firebaseapp.com",
       projectId: "poetry-please",
       storageBucket: "poetry-please.appspot.com",
       messagingSenderId: "609992589187",
