@@ -89,6 +89,7 @@ async function api(path, { method = 'POST', body } = {}) {
 }
 
 let authorInviteStatus = { checked: false, inFlight: false, redeemed: false };
+let currentAccount = null;
 
 function readAuthorInviteToken() {
   const params = new URLSearchParams(window.location.search);
@@ -137,7 +138,10 @@ function updateUserStatusUI() {
   if (user) {
     if (div) {
       const label = user.email || user.uid;
-      div.innerHTML = `Logged in as ${label} <button id="logout-button" type="button">Log out</button>`;
+      const roleBadge = currentAccount?.roles?.includes('admin')
+        ? ' <span id="admin-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;">Admin</span>'
+        : '';
+      div.innerHTML = `Logged in as ${label}${roleBadge} <button id="logout-button" type="button">Log out</button>`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -154,6 +158,21 @@ function updateUserStatusUI() {
     }
     if (loadBtn) loadBtn.disabled = false;
   }
+}
+
+async function refreshCurrentAccount() {
+  const user = firebase.auth().currentUser;
+  if (!user) {
+    currentAccount = null;
+    return null;
+  }
+  try {
+    currentAccount = await api('me', { method: 'GET' });
+  } catch (err) {
+    console.warn('Failed to load account state', err);
+    currentAccount = null;
+  }
+  return currentAccount;
 }
 function showLoginScreen() { show($('#registration-screen'), false); show($('#login-screen'), true); }
 function showRegistrationForm() { show($('#login-screen'), false); show($('#registration-screen'), true); }
@@ -1162,6 +1181,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
     show(poetryEl, !!user);
   }
 
+  await refreshCurrentAccount();
   updateUserStatusUI();
   dispatchEvent(new CustomEvent('pp:state'));
   if (user) await redeemAuthorInviteIfPresent();
