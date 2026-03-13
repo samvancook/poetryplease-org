@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Author Profile | Poetry, Please</title>
+  <style>
+    :root {
+      --paper: #f8f5ee;
+      --ink: #1c1b18;
+      --muted: #6b6458;
+      --line: #d9d0c2;
+      --card: #fffdf8;
+      --accent: #2f5d62;
+      --accent-soft: #d7e7e9;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      background:
+        radial-gradient(circle at top left, rgba(47, 93, 98, 0.12), transparent 35%),
+        linear-gradient(180deg, #f9f6ef 0%, var(--paper) 100%);
+      color: var(--ink);
+    }
+
+    .shell {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    .crumb {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+      gap: 24px;
+      margin-top: 28px;
+      align-items: start;
+    }
+
+    .intro h1 {
+      margin: 0 0 12px;
+      font-size: clamp(42px, 8vw, 84px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .lede {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.6;
+      color: var(--muted);
+      max-width: 54ch;
+    }
+
+    .card {
+      background: rgba(255, 253, 248, 0.88);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 20px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 18px 60px rgba(32, 26, 18, 0.08);
+    }
+
+    .portrait {
+      width: 100%;
+      aspect-ratio: 4 / 5;
+      object-fit: cover;
+      border-radius: 18px;
+      background: var(--accent-soft);
+      display: none;
+      margin-bottom: 16px;
+    }
+
+    .meta h2, .section h2 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .links a, .content-card a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 14px;
+    }
+
+    .section {
+      margin-top: 36px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .content-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .content-card h3 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      line-height: 1.15;
+    }
+
+    .content-card p {
+      margin: 6px 0;
+      color: var(--muted);
+    }
+
+    .empty, .error {
+      border-radius: 18px;
+      padding: 18px;
+      background: rgba(255, 255, 255, 0.6);
+      border: 1px dashed var(--line);
+      color: var(--muted);
+    }
+
+    @media (max-width: 760px) {
+      .hero { grid-template-columns: 1fr; }
+      .shell { padding-top: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <a class="crumb" href="/app">Back to app</a>
+    <section class="hero">
+      <div class="intro">
+        <h1 id="name">Loading author…</h1>
+        <p class="lede" id="short-bio">Please hold while we load this author profile.</p>
+      </div>
+      <aside class="card meta">
+        <img id="photo" class="portrait" alt="" />
+        <h2>Links</h2>
+        <div id="links" class="links"></div>
+      </aside>
+    </section>
+
+    <section class="section">
+      <div class="card">
+        <h2>About</h2>
+        <div id="bio" class="empty">No author bio has been published yet.</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Featured Work</h2>
+      <div id="featured" class="grid"></div>
+    </section>
+
+    <section class="section">
+      <h2>All Associated Content</h2>
+      <div id="authored" class="grid"></div>
+    </section>
+  </main>
+
+  <script>
+    function pathSlug() {
+      const clean = location.pathname.replace(/\/+$/, "");
+      const parts = clean.split("/").filter(Boolean);
+      return parts[0] === "author" ? decodeURIComponent(parts[1] || "") : "";
+    }
+
+    function esc(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;");
+    }
+
+    function makeCard(item) {
+      const itemId = encodeURIComponent(item.imageId || item.id || "");
+      return `
+        <article class="content-card">
+          <span class="chip">${esc(item.imageType || "Content")}</span>
+          <h3>${esc(item.title || "Untitled")}</h3>
+          <p>${esc(item.author || "")}</p>
+          <p>${esc(item.releaseCatalog || "")}</p>
+          <a href="/app?item=${itemId}">Open in app</a>
+        </article>
+      `;
+    }
+
+    async function loadProfile() {
+      const slug = pathSlug();
+      if (!slug) {
+        document.getElementById("name").textContent = "Author not found";
+        document.getElementById("short-bio").textContent = "This profile link is missing a slug.";
+        return;
+      }
+
+      const response = await fetch(`/api/authorProfiles/${encodeURIComponent(slug)}`);
+      if (!response.ok) {
+        const msg = response.status === 404 ? "No published author profile exists for this slug yet." : "We couldn't load this author profile.";
+        document.getElementById("name").textContent = "Profile unavailable";
+        document.getElementById("short-bio").textContent = msg;
+        document.getElementById("bio").className = "error";
+        document.getElementById("bio").textContent = msg;
+        return;
+      }
+
+      const payload = await response.json();
+      const profile = payload.profile || {};
+      const featured = payload.featuredContent || [];
+      const authored = payload.authoredContent || [];
+
+      document.title = `${profile.displayName || "Author"} | Poetry, Please`;
+      document.getElementById("name").textContent = profile.displayName || "Author";
+      document.getElementById("short-bio").textContent = profile.shortBio || "Featured work and linked content from this author.";
+
+      const bio = document.getElementById("bio");
+      bio.className = profile.bio ? "" : "empty";
+      bio.textContent = profile.bio || "No author bio has been published yet.";
+
+      const photo = document.getElementById("photo");
+      if (profile.photoUrl) {
+        photo.src = profile.photoUrl;
+        photo.alt = `${profile.displayName || "Author"} portrait`;
+        photo.style.display = "block";
+      }
+
+      const links = [];
+      [
+        ["Website", profile.websiteUrl],
+        ["Instagram", profile.instagramUrl],
+        ["TikTok", profile.tiktokUrl],
+        ["YouTube", profile.youtubeUrl],
+        ["Newsletter", profile.newsletterUrl],
+        ["Bookstore", profile.bookstoreUrl],
+      ].forEach(([label, url]) => {
+        if (url) links.push(`<a class="chip" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`);
+      });
+      (profile.customLinks || []).forEach((link) => {
+        if (link && link.url && link.label) {
+          links.push(`<a class="chip" href="${esc(link.url)}" target="_blank" rel="noopener noreferrer">${esc(link.label)}</a>`);
+        }
+      });
+      document.getElementById("links").innerHTML = links.length ? links.join("") : '<div class="empty">No external links have been added yet.</div>';
+
+      document.getElementById("featured").innerHTML = featured.length
+        ? featured.map(makeCard).join("")
+        : '<div class="empty">No featured content is available yet.</div>';
+
+      document.getElementById("authored").innerHTML = authored.length
+        ? authored.map(makeCard).join("")
+        : '<div class="empty">No associated content is available yet.</div>';
+    }
+
+    loadProfile().catch((err) => {
+      console.error(err);
+      document.getElementById("name").textContent = "Profile unavailable";
+      document.getElementById("short-bio").textContent = "We couldn't load this author profile.";
+      document.getElementById("bio").className = "error";
+      document.getElementById("bio").textContent = "We couldn't load this author profile.";
+    });
+  </script>
+</body>
+</html>

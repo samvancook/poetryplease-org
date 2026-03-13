@@ -1,6 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
 import cors from "cors";
+import { createHash, randomBytes } from "node:crypto";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -14,6 +15,10 @@ const COLLECTIONS = {
   videos: "videos",
   votes: "votes",
   users: "users",
+  authorProfiles: "authorProfiles",
+  authorInvites: "authorInvites",
+  contentClaims: "contentClaims",
+  contentSubmissions: "contentSubmissions",
 };
 
 /** ====== ADMIN INIT ====== */
@@ -145,6 +150,137 @@ async function verifyIdTokenFromHeader(req) {
   } catch {
     return null;
   }
+}
+
+function normalizeText(value) {
+  return String(value || "").trim();
+}
+
+function normalizeKey(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function slugify(value) {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function sha256(value) {
+  return createHash("sha256").update(String(value || "")).digest("hex");
+}
+
+function uniq(values) {
+  return [...new Set((values || []).map(normalizeText).filter(Boolean))];
+}
+
+function mapProfileDoc(id, data = {}) {
+  return {
+    id,
+    userId: data.userId || "",
+    email: data.email || "",
+    displayName: data.displayName || "",
+    slug: data.slug || "",
+    bio: data.bio || "",
+    shortBio: data.shortBio || "",
+    photoUrl: data.photoUrl || "",
+    websiteUrl: data.websiteUrl || "",
+    instagramUrl: data.instagramUrl || "",
+    tiktokUrl: data.tiktokUrl || "",
+    youtubeUrl: data.youtubeUrl || "",
+    newsletterUrl: data.newsletterUrl || "",
+    bookstoreUrl: data.bookstoreUrl || "",
+    customLinks: Array.isArray(data.customLinks) ? data.customLinks : [],
+    authorNameVariants: uniq(data.authorNameVariants),
+    featuredContentIds: uniq(data.featuredContentIds),
+    published: data.published !== false,
+    createdAt: data.createdAt || null,
+    updatedAt: data.updatedAt || null,
+  };
+}
+
+function pickProfileContent(profile, allContent, ratings) {
+  const authorKeys = new Set(
+    uniq([profile.displayName, ...(profile.authorNameVariants || [])]).map(normalizeKey)
+  );
+  const authored = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)));
+  const byId = new Map(authored.map((item) => [normalizeKey(item.imageId), item]));
+  const featured = (profile.featuredContentIds || [])
+    .map((id) => byId.get(normalizeKey(id)))
+    .filter(Boolean);
+
+  const fallback = authored
+    .slice()
+    .sort((a, b) => {
+      const ra = ratings[a.imageId] || { rating: -Infinity, total: 0 };
+      const rb = ratings[b.imageId] || { rating: -Infinity, total: 0 };
+      if (rb.rating !== ra.rating) return rb.rating - ra.rating;
+      if (rb.total !== ra.total) return rb.total - ra.total;
+      return a.title.localeCompare(b.title);
+    })
+    .slice(0, 12);
+
+  return {
+    authored,
+    featured: featured.length ? featured : fallback,
+  };
+}
+
+async function getUserRecord(uid) {
+  const snap = await db.collection(COLLECTIONS.users).doc(uid).get();
+  return snap.exists ? snap.data() || {} : null;
+}
+
+async function ensureUserRecord(decoded) {
+  const ref = db.collection(COLLECTIONS.users).doc(decoded.uid);
+  const snap = await ref.get();
+  if (!snap.exists) {
+    const payload = {
+      email: decoded.email || "",
+      displayName: decoded.name || decoded.email || "",
+      roles: ["user"],
+      createdAt: FieldValue.serverTimestamp(),
+      lastLoginAt: FieldValue.serverTimestamp(),
+      status: "active",
+    };
+    await ref.set(payload, { merge: true });
+    return payload;
+  }
+  const existing = snap.data() || {};
+  await ref.set(
+    {
+      email: decoded.email || existing.email || "",
+      displayName: decoded.name || existing.displayName || decoded.email || "",
+      lastLoginAt: FieldValue.serverTimestamp(),
+      status: existing.status || "active",
+      roles: Array.isArray(existing.roles) && existing.roles.length ? existing.roles : ["user"],
+    },
+    { merge: true }
+  );
+  return existing;
+}
+
+async function requireDecodedUser(req, res) {
+  const decoded = await verifyIdTokenFromHeader(req);
+  if (!decoded?.uid || !decoded?.email) {
+    res.status(401).json({ error: "auth" });
+    return null;
+  }
+  const userRecord = await ensureUserRecord(decoded);
+  return { decoded, userRecord };
+}
+
+async function requireRole(req, res, roles) {
+  const ctx = await requireDecodedUser(req, res);
+  if (!ctx) return null;
+  const currentRoles = Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [];
+  if (!roles.some((role) => currentRoles.includes(role))) {
+    res.status(403).json({ error: "forbidden", requiredRoles: roles });
+    return null;
+  }
+  return ctx;
 }
 
 /** ====== ROOT + HEALTH ====== */
@@ -293,6 +429,217 @@ app.post(getBoth("/vote"), async (req, res) => {
     console.error("Vote error:", err);
     res.status(500).json({ error: "internal", message: err.message });
   }
+});
+
+app.get(getBoth("/me"), async (req, res) => {
+  const ctx = await requireDecodedUser(req, res);
+  if (!ctx) return;
+  const fresh = (await getUserRecord(ctx.decoded.uid)) || ctx.userRecord || {};
+  res.json({
+    uid: ctx.decoded.uid,
+    email: ctx.decoded.email || "",
+    displayName: ctx.decoded.name || fresh.displayName || "",
+    roles: Array.isArray(fresh.roles) ? fresh.roles : ["user"],
+    authorProfileId: fresh.authorProfileId || null,
+  });
+});
+
+app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {
+  const slug = slugify(req.params.slug || "");
+  if (!slug) return res.status(400).json({ error: "missing_slug" });
+
+  const snap = await db
+    .collection(COLLECTIONS.authorProfiles)
+    .where("slug", "==", slug)
+    .limit(1)
+    .get();
+  if (snap.empty) return res.status(404).json({ error: "not_found" });
+
+  const profile = mapProfileDoc(snap.docs[0].id, snap.docs[0].data());
+  if (!profile.published) return res.status(404).json({ error: "not_found" });
+
+  const [g, e, v, votes] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+    getAllFrom(COLLECTIONS.votes),
+  ]);
+  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
+  const allContent = [...g, ...e, ...v];
+  const { authored, featured } = pickProfileContent(profile, allContent, ratings);
+
+  res.json({
+    profile,
+    stats: {
+      authoredCount: authored.length,
+      featuredCount: featured.length,
+    },
+    featuredContent: featured,
+    authoredContent: authored,
+  });
+});
+
+app.get(getBoth("/my/authorProfile"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+  const userRecord = (await getUserRecord(ctx.decoded.uid)) || ctx.userRecord || {};
+  if (!userRecord.authorProfileId) return res.json({ profile: null });
+
+  const snap = await db.collection(COLLECTIONS.authorProfiles).doc(userRecord.authorProfileId).get();
+  if (!snap.exists) return res.json({ profile: null });
+  res.json({ profile: mapProfileDoc(snap.id, snap.data()) });
+});
+
+app.post(getBoth("/authorProfiles"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+
+  const userRef = db.collection(COLLECTIONS.users).doc(ctx.decoded.uid);
+  const latestUser = (await userRef.get()).data() || {};
+  const profileId = latestUser.authorProfileId || ctx.userRecord.authorProfileId || ctx.decoded.uid;
+  const ref = db.collection(COLLECTIONS.authorProfiles).doc(profileId);
+  const existing = (await ref.get()).data() || {};
+
+  const displayName = normalizeText(req.body?.displayName || existing.displayName || ctx.decoded.name || ctx.decoded.email);
+  const payload = {
+    userId: ctx.decoded.uid,
+    email: ctx.decoded.email,
+    displayName,
+    slug: slugify(req.body?.slug || existing.slug || displayName),
+    bio: normalizeText(req.body?.bio || existing.bio),
+    shortBio: normalizeText(req.body?.shortBio || existing.shortBio),
+    photoUrl: normalizeText(req.body?.photoUrl || existing.photoUrl),
+    websiteUrl: normalizeText(req.body?.websiteUrl || existing.websiteUrl),
+    instagramUrl: normalizeText(req.body?.instagramUrl || existing.instagramUrl),
+    tiktokUrl: normalizeText(req.body?.tiktokUrl || existing.tiktokUrl),
+    youtubeUrl: normalizeText(req.body?.youtubeUrl || existing.youtubeUrl),
+    newsletterUrl: normalizeText(req.body?.newsletterUrl || existing.newsletterUrl),
+    bookstoreUrl: normalizeText(req.body?.bookstoreUrl || existing.bookstoreUrl),
+    customLinks: Array.isArray(req.body?.customLinks) ? req.body.customLinks : existing.customLinks || [],
+    authorNameVariants: uniq(req.body?.authorNameVariants || existing.authorNameVariants || [displayName]),
+    featuredContentIds: uniq(req.body?.featuredContentIds || existing.featuredContentIds || []),
+    published: req.body?.published ?? existing.published ?? false,
+    createdAt: existing.createdAt || FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  await ref.set(payload, { merge: true });
+  await userRef.set(
+    {
+      authorProfileId: ref.id,
+      roles: Array.isArray(latestUser.roles) && latestUser.roles.includes("author")
+        ? latestUser.roles
+        : [...new Set([...(latestUser.roles || ["user"]), "author"])],
+    },
+    { merge: true }
+  );
+
+  const saved = await ref.get();
+  res.json({ ok: true, profile: mapProfileDoc(saved.id, saved.data()) });
+});
+
+app.post(getBoth("/authorInvites/create"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const email = normalizeKey(req.body?.email);
+  if (!email) return res.status(400).json({ error: "missing_email" });
+  const token = randomBytes(24).toString("hex");
+  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc();
+  const expiresInDays = Math.max(1, Number(req.body?.expiresInDays || 14));
+  const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+
+  await inviteRef.set({
+    email,
+    createdBy: ctx.decoded.uid,
+    createdAt: FieldValue.serverTimestamp(),
+    expiresAt,
+    claimedAt: null,
+    claimedByUserId: "",
+    status: "active",
+    tokenHash: sha256(token),
+  });
+
+  res.json({
+    ok: true,
+    inviteId: inviteRef.id,
+    inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
+    email,
+    expiresAt: expiresAt.toISOString(),
+  });
+});
+
+app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
+  const ctx = await requireDecodedUser(req, res);
+  if (!ctx) return;
+
+  const token = normalizeText(req.body?.token);
+  if (!token) return res.status(400).json({ error: "missing_token" });
+  const tokenHash = sha256(token);
+  const snap = await db
+    .collection(COLLECTIONS.authorInvites)
+    .where("tokenHash", "==", tokenHash)
+    .where("status", "==", "active")
+    .limit(1)
+    .get();
+  if (snap.empty) return res.status(404).json({ error: "invite_not_found" });
+
+  const inviteDoc = snap.docs[0];
+  const invite = inviteDoc.data() || {};
+  const inviteEmail = normalizeKey(invite.email);
+  if (inviteEmail !== normalizeKey(ctx.decoded.email)) {
+    return res.status(403).json({ error: "email_mismatch", inviteEmail });
+  }
+  if (invite.expiresAt?.toDate && invite.expiresAt.toDate() < new Date()) {
+    return res.status(410).json({ error: "invite_expired" });
+  }
+
+  const userRef = db.collection(COLLECTIONS.users).doc(ctx.decoded.uid);
+  const userSnap = await userRef.get();
+  const userData = userSnap.data() || {};
+  const profileId = userData.authorProfileId || ctx.decoded.uid;
+  const profileRef = db.collection(COLLECTIONS.authorProfiles).doc(profileId);
+  const profileSnap = await profileRef.get();
+  const displayName = normalizeText(
+    profileSnap.data()?.displayName || ctx.decoded.name || userData.displayName || ctx.decoded.email
+  );
+
+  await profileRef.set(
+    {
+      userId: ctx.decoded.uid,
+      email: ctx.decoded.email,
+      displayName,
+      slug: slugify(profileSnap.data()?.slug || displayName),
+      authorNameVariants: uniq(profileSnap.data()?.authorNameVariants || [displayName]),
+      published: profileSnap.data()?.published ?? false,
+      createdAt: profileSnap.data()?.createdAt || FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await userRef.set(
+    {
+      email: ctx.decoded.email,
+      displayName,
+      authorProfileId: profileRef.id,
+      roles: [...new Set([...(userData.roles || ["user"]), "author"])],
+      lastLoginAt: FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await inviteDoc.ref.set(
+    {
+      status: "claimed",
+      claimedAt: FieldValue.serverTimestamp(),
+      claimedByUserId: ctx.decoded.uid,
+    },
+    { merge: true }
+  );
+
+  const savedProfile = await profileRef.get();
+  res.json({ ok: true, profile: mapProfileDoc(savedProfile.id, savedProfile.data()) });
 });
 
 

@@ -16,6 +16,7 @@
 ],
 "rewrites": [
   { "source": "/api/**", "function": { "functionId": "api" } },
+  { "source": "/author/**", "destination": "/author.html" },
   { "source": "/m", "destination": "/mobile.html" },
   { "source": "/app", "destination": "/index.html" }
 ]

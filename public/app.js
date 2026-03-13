@@ -109,6 +109,42 @@ async function api(path, { method = 'POST', body } = {}) {
   return isJSON ? res.json() : res.text();
 }
 
+let authorInviteStatus = { checked: false, inFlight: false, redeemed: false };
+
+function readAuthorInviteToken() {
+  const params = new URLSearchParams(window.location.search);
+  return (params.get('authorInvite') || '').trim();
+}
+
+function clearAuthorInviteToken() {
+  const params = new URLSearchParams(window.location.search);
+  params.delete('authorInvite');
+  const nextQuery = params.toString();
+  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash}`;
+  window.history.replaceState({}, '', nextUrl);
+}
+
+async function redeemAuthorInviteIfPresent() {
+  const token = readAuthorInviteToken();
+  if (!token || authorInviteStatus.inFlight || authorInviteStatus.redeemed) return;
+  const user = firebase.auth().currentUser;
+  if (!user) return;
+
+  authorInviteStatus.inFlight = true;
+  try {
+    const result = await api('authorInvites/redeem', { body: { token } });
+    authorInviteStatus.redeemed = true;
+    clearAuthorInviteToken();
+    flashMessage('Author invite redeemed.');
+    console.info('Author invite redeemed', result);
+  } catch (err) {
+    console.warn('Author invite redemption failed', err);
+  } finally {
+    authorInviteStatus.inFlight = false;
+    authorInviteStatus.checked = true;
+  }
+}
+
 // ===== UI Helpers =====
 window.$  = window.$  || ((sel) => document.querySelector(sel));
 window.on = window.on || ((el, evt, fn) => el && el.addEventListener(evt, fn));
@@ -1127,6 +1163,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
   updateUserStatusUI();
   dispatchEvent(new CustomEvent('pp:state'));
+  if (user) await redeemAuthorInviteIfPresent();
 
   ppAutoloadFirstItem();   // <-- added
 });
