@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin | Poetry, Please</title>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <style>
+    :root {
+      --paper: #f7f3ea;
+      --ink: #1e1a15;
+      --muted: #6c6558;
+      --line: #dad0c1;
+      --card: rgba(255, 253, 248, 0.88);
+      --accent: #2f5d62;
+      --accent-soft: #d7e7e9;
+      --warn: #8a3b2f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(47, 93, 98, 0.14), transparent 35%),
+        linear-gradient(180deg, #faf7f0 0%, var(--paper) 100%);
+    }
+    .shell {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .topbar a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    h1 {
+      margin: 18px 0 8px;
+      font-size: clamp(36px, 5vw, 58px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+    .lede {
+      margin: 0 0 24px;
+      color: var(--muted);
+      max-width: 64ch;
+      line-height: 1.6;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 22px 60px rgba(24, 19, 12, 0.08);
+      backdrop-filter: blur(8px);
+    }
+    .controls {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    input[type="search"] {
+      min-width: min(360px, 100%);
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    button {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--line);
+    }
+    .status {
+      color: var(--muted);
+      min-height: 1.4em;
+      margin-bottom: 12px;
+    }
+    .error {
+      color: var(--warn);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+      text-align: left;
+    }
+    th {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+    .role-set {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .role-set label {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      font-size: 14px;
+      color: var(--ink);
+    }
+    .user-name {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 3px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .empty {
+      padding: 16px;
+      border: 1px dashed var(--line);
+      border-radius: 16px;
+      color: var(--muted);
+      text-align: center;
+    }
+    @media (max-width: 860px) {
+      table, thead, tbody, tr, th, td { display: block; }
+      thead { display: none; }
+      tr {
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        margin-bottom: 14px;
+        background: rgba(255,255,255,0.7);
+      }
+      td { border-bottom: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <a href="/app">Back to app</a>
+      <button id="logout" class="secondary" type="button">Log out</button>
+    </div>
+
+    <h1>Admin</h1>
+    <p class="lede">Manage user roles for the new Poetry Please app. This is the first admin surface, focused on account visibility and role assignment.</p>
+
+    <section class="card">
+      <div class="controls">
+        <input id="search" type="search" placeholder="Search by email, name, or role" />
+        <button id="refresh" type="button">Refresh users</button>
+      </div>
+      <div id="status" class="status">Loading account…</div>
+      <div id="results"></div>
+    </section>
+  </main>
+
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.appspot.com",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    firebase.initializeApp(FIREBASE_CONFIG);
+
+    async function getIdTokenOrNull() {
+      const user = firebase.auth().currentUser;
+      return user ? await user.getIdToken(false) : null;
+    }
+
+    async function api(path, { method = "GET", body } = {}) {
+      const token = await getIdTokenOrNull();
+      const res = await fetch(`/api/${path.replace(/^\//, "")}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`API ${method} /api/${path} failed: ${res.status} ${text}`);
+      }
+      return res.json();
+    }
+
+    const state = {
+      me: null,
+      users: [],
+      query: "",
+    };
+
+    function setStatus(message, isError = false) {
+      const el = document.getElementById("status");
+      el.textContent = message;
+      el.className = `status${isError ? " error" : ""}`;
+    }
+
+    function filteredUsers() {
+      const q = state.query.trim().toLowerCase();
+      if (!q) return state.users;
+      return state.users.filter((user) => {
+        const haystack = [
+          user.email,
+          user.displayName,
+          ...(Array.isArray(user.roles) ? user.roles : []),
+        ].join(" ").toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+
+    function roleCheckbox(uid, role, checked) {
+      return `
+        <label>
+          <input type="checkbox" data-uid="${uid}" data-role="${role}" ${checked ? "checked" : ""} />
+          ${role}
+        </label>
+      `;
+    }
+
+    function renderUsers() {
+      const users = filteredUsers();
+      const container = document.getElementById("results");
+      if (!users.length) {
+        container.innerHTML = '<div class="empty">No users match the current search.</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Roles</th>
+              <th>Profile</th>
+              <th>Status</th>
+              <th>Save</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map((user) => `
+              <tr>
+                <td>
+                  <div class="user-name">${user.displayName || "Unnamed user"}</div>
+                  <div>${user.email || user.uid}</div>
+                  ${user.email === "sam@buttonpoetry.com" ? '<div class="pill">Bootstrap admin</div>' : ""}
+                </td>
+                <td>
+                  <div class="role-set">
+                    ${roleCheckbox(user.uid, "user", (user.roles || []).includes("user"))}
+                    ${roleCheckbox(user.uid, "author", (user.roles || []).includes("author"))}
+                    ${roleCheckbox(user.uid, "admin", (user.roles || []).includes("admin"))}
+                  </div>
+                </td>
+                <td>${user.authorProfileId || "—"}</td>
+                <td>${user.status || "active"}</td>
+                <td><button type="button" data-save="${user.uid}">Save roles</button></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      `;
+
+      container.querySelectorAll("[data-save]").forEach((button) => {
+        button.addEventListener("click", () => saveRoles(button.getAttribute("data-save")));
+      });
+    }
+
+    function selectedRolesFor(uid) {
+      return [...document.querySelectorAll(`input[data-uid="${uid}"]:checked`)].map((el) => el.getAttribute("data-role"));
+    }
+
+    async function saveRoles(uid) {
+      const roles = selectedRolesFor(uid);
+      setStatus("Saving roles…");
+      try {
+        const payload = await api(`admin/users/${uid}/roles`, { method: "POST", body: { roles } });
+        const idx = state.users.findIndex((user) => user.uid === uid);
+        if (idx >= 0) state.users[idx] = { ...state.users[idx], ...(payload.user || {}) };
+        renderUsers();
+        setStatus("Roles updated.");
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "Failed to update roles.", true);
+      }
+    }
+
+    async function loadUsers() {
+      setStatus("Loading users…");
+      try {
+        const payload = await api("admin/users", { method: "GET" });
+        state.users = payload.users || [];
+        renderUsers();
+        setStatus(`Loaded ${state.users.length} users.`);
+      } catch (err) {
+        console.error(err);
+        document.getElementById("results").innerHTML = '<div class="empty">Could not load users.</div>';
+        setStatus(err.message || "Could not load users.", true);
+      }
+    }
+
+    async function init() {
+      firebase.auth().onAuthStateChanged(async (user) => {
+        if (!user) {
+          setStatus("Please sign in with your admin account first.", true);
+          document.getElementById("results").innerHTML = '<div class="empty">You need to sign in before accessing admin tools.</div>';
+          return;
+        }
+
+        try {
+          state.me = await api("me", { method: "GET" });
+        } catch (err) {
+          console.error(err);
+        }
+
+        if (!state.me?.roles?.includes("admin")) {
+          setStatus("This account does not have admin access.", true);
+          document.getElementById("results").innerHTML = '<div class="empty">Admin access is required for this page.</div>';
+          return;
+        }
+
+        await loadUsers();
+      });
+
+      document.getElementById("search").addEventListener("input", (event) => {
+        state.query = event.target.value || "";
+        renderUsers();
+      });
+
+      document.getElementById("refresh").addEventListener("click", () => loadUsers());
+      document.getElementById("logout").addEventListener("click", async () => {
+        await firebase.auth().signOut();
+        location.href = "/app";
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

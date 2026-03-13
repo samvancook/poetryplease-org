@@ -191,6 +191,14 @@ function resolveRoles(existingRoles = [], email = "") {
   return [...roles];
 }
 
+function sanitizeManagedRoles(inputRoles = [], email = "") {
+  const allowed = new Set(["user", "author", "admin"]);
+  const roles = (Array.isArray(inputRoles) ? inputRoles : [])
+    .map(normalizeText)
+    .filter((role) => allowed.has(role));
+  return resolveRoles(roles, email);
+}
+
 function mapProfileDoc(id, data = {}) {
   return {
     id,
@@ -655,6 +663,70 @@ app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
 
   const savedProfile = await profileRef.get();
   res.json({ ok: true, profile: mapProfileDoc(savedProfile.id, savedProfile.data()) });
+});
+
+app.get(getBoth("/admin/users"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const queryText = normalizeKey(req.query?.q || "");
+  const snap = await db.collection(COLLECTIONS.users).limit(250).get();
+  const rows = snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter((row) => {
+      if (!queryText) return true;
+      const haystack = [
+        row.email,
+        row.displayName,
+        ...(Array.isArray(row.roles) ? row.roles : []),
+      ].map(normalizeKey);
+      return haystack.some((value) => value.includes(queryText));
+    })
+    .sort((a, b) => normalizeKey(a.email).localeCompare(normalizeKey(b.email)))
+    .map((row) => ({
+      uid: row.id,
+      email: row.email || "",
+      displayName: row.displayName || "",
+      roles: Array.isArray(row.roles) ? row.roles : ["user"],
+      status: row.status || "active",
+      authorProfileId: row.authorProfileId || null,
+      createdAt: row.createdAt || null,
+      lastLoginAt: row.lastLoginAt || null,
+    }));
+
+  res.json({ users: rows });
+});
+
+app.post(getBoth("/admin/users/:uid/roles"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const uid = normalizeText(req.params.uid);
+  if (!uid) return res.status(400).json({ error: "missing_uid" });
+
+  const ref = db.collection(COLLECTIONS.users).doc(uid);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "user_not_found" });
+
+  const userData = snap.data() || {};
+  const roles = sanitizeManagedRoles(req.body?.roles, userData.email || "");
+  await ref.set(
+    {
+      roles,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: ctx.decoded.uid,
+    },
+    { merge: true }
+  );
+
+  const saved = await ref.get();
+  res.json({
+    ok: true,
+    user: {
+      uid: saved.id,
+      ...(saved.data() || {}),
+    },
+  });
 });
 
 

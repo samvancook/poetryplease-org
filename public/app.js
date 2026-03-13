@@ -139,7 +139,7 @@ function updateUserStatusUI() {
     if (div) {
       const label = user.email || user.uid;
       const roleBadge = currentAccount?.roles?.includes('admin')
-        ? ' <span id="admin-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;">Admin</span>'
+        ? ' <a id="admin-badge" href="/admin" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
         : '';
       div.innerHTML = `Logged in as ${label}${roleBadge} <button id="logout-button" type="button">Log out</button>`;
       on($('#logout-button'), 'click', async () => {
