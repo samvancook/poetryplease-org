@@ -6,6 +6,7 @@
   <title>Edit Author Profile | Poetry, Please</title>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-storage-compat.js"></script>
   <style>
     :root {
       --paper: #f7f3ea;
@@ -89,10 +90,16 @@
           Display name
           <input id="displayName" type="text" />
         </label>
-        <label>
-          Photo URL
-          <input id="photoUrl" type="url" />
-        </label>
+        <div>
+          <label>Author photo</label>
+          <div class="hint">Upload `jpg`, `jpeg`, `png`, or `webp`. Max 5 MB. Minimum 800×1000. Preferred 4:5 portrait.</div>
+          <div class="actions" style="margin-top:10px;">
+            <input id="photoFile" type="file" accept="image/png,image/jpeg,image/webp" />
+            <button id="upload-photo" type="button" class="secondary">Upload photo</button>
+          </div>
+          <div id="photo-upload-status" class="status">No photo uploaded yet.</div>
+          <img id="photo-preview" alt="Author photo preview" style="display:none;width:180px;aspect-ratio:4/5;object-fit:cover;border-radius:16px;border:1px solid var(--line);margin-top:10px;background:var(--accent-soft);" />
+        </div>
         <label>
           Website URL
           <input id="websiteUrl" type="url" />
@@ -186,6 +193,7 @@
       authoredContent: [],
       featuredIds: [],
       slugTouched: false,
+      photoUrl: "",
     };
 
     function slugify(value) {
@@ -205,6 +213,12 @@
 
     function setStatus(message, kind = "") {
       const el = document.getElementById("status");
+      el.textContent = message;
+      el.className = `status${kind ? ` ${kind}` : ""}`;
+    }
+
+    function setPhotoStatus(message, kind = "") {
+      const el = document.getElementById("photo-upload-status");
       el.textContent = message;
       el.className = `status${kind ? ` ${kind}` : ""}`;
     }
@@ -304,7 +318,17 @@
       state.workingProfile = workingProfile;
       document.getElementById("displayName").value = workingProfile.displayName || "";
       document.getElementById("slug").value = workingProfile.slug || "";
-      document.getElementById("photoUrl").value = workingProfile.photoUrl || "";
+      state.photoUrl = workingProfile.photoUrl || "";
+      const preview = document.getElementById("photo-preview");
+      if (state.photoUrl) {
+        preview.src = state.photoUrl;
+        preview.style.display = "block";
+        setPhotoStatus("Current author photo loaded.");
+      } else {
+        preview.removeAttribute("src");
+        preview.style.display = "none";
+        setPhotoStatus("No photo uploaded yet.");
+      }
       document.getElementById("websiteUrl").value = workingProfile.websiteUrl || "";
       document.getElementById("instagramUrl").value = workingProfile.instagramUrl || "";
       document.getElementById("tiktokUrl").value = workingProfile.tiktokUrl || "";
@@ -328,7 +352,7 @@
       return {
         displayName,
         slug,
-        photoUrl: document.getElementById("photoUrl").value.trim(),
+        photoUrl: state.photoUrl,
         websiteUrl: document.getElementById("websiteUrl").value.trim(),
         instagramUrl: document.getElementById("instagramUrl").value.trim(),
         tiktokUrl: document.getElementById("tiktokUrl").value.trim(),
@@ -349,6 +373,68 @@
       fillProfile(payload.profile || null, payload.workingProfile || payload.profile || {});
       renderContentPicker();
       setStatus(payload.profile ? "Profile loaded." : "No profile yet. Fill this out to create one.");
+    }
+
+
+    function validatePhotoFile(file) {
+      const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+      if (!file) throw new Error("Choose an image file first.");
+      if (!allowed.has(file.type)) throw new Error("Use JPG, PNG, or WEBP for author photos.");
+      if (file.size > 5 * 1024 * 1024) throw new Error("Author photos must be 5 MB or smaller.");
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            if (img.width < 800 || img.height < 1000) {
+              reject(new Error("Author photos must be at least 800×1000 pixels."));
+              return;
+            }
+            resolve({ width: img.width, height: img.height, dataUrl: reader.result });
+          };
+          img.onerror = () => reject(new Error("Could not read that image file."));
+          img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error("Could not read that image file."));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function uploadAuthorPhoto() {
+      const file = document.getElementById("photoFile").files?.[0];
+      setPhotoStatus("Checking image…");
+      try {
+        const checked = await validatePhotoFile(file);
+        const user = firebase.auth().currentUser;
+        if (!user) throw new Error("Please sign in again before uploading.");
+        const storage = firebase.storage();
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const path = `author-profile-images/${user.uid}/${Date.now()}.${ext}`;
+        const ref = storage.ref().child(path);
+        setPhotoStatus("Uploading photo…");
+        await ref.put(file, { contentType: file.type, cacheControl: 'public,max-age=3600' });
+        const publicUrl = await ref.getDownloadURL();
+        state.photoUrl = publicUrl;
+        const preview = document.getElementById("photo-preview");
+        preview.src = checked.dataUrl;
+        preview.style.display = "block";
+        await api("authorAssets", {
+          method: "POST",
+          body: {
+            assetType: "profile_photo",
+            storagePath: path,
+            publicUrl,
+            width: checked.width,
+            height: checked.height,
+            fileSize: file.size,
+            mimeType: file.type,
+          }
+        });
+        setPhotoStatus("Photo uploaded. Save the profile to publish it.", "ok");
+      } catch (err) {
+        console.error(err);
+        setPhotoStatus(err.message || "Photo upload failed.", "error");
+      }
     }
 
     async function saveProfile() {
@@ -385,6 +471,7 @@
       });
 
       document.getElementById("save").addEventListener("click", () => saveProfile());
+      document.getElementById("upload-photo").addEventListener("click", () => uploadAuthorPhoto());
       document.getElementById("displayName").addEventListener("input", () => updateSlugUI());
       document.getElementById("slug").addEventListener("input", () => {
         state.slugTouched = true;

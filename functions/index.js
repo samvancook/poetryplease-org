@@ -17,6 +17,7 @@ const COLLECTIONS = {
   users: "users",
   authorProfiles: "authorProfiles",
   authorInvites: "authorInvites",
+  authorAssets: "authorAssets",
   contentClaims: "contentClaims",
   contentSubmissions: "contentSubmissions",
 };
@@ -647,6 +648,36 @@ app.post(getBoth("/authorProfiles"), async (req, res) => {
 
   const saved = await ref.get();
   res.json({ ok: true, profile: mapProfileDoc(saved.id, saved.data()) });
+});
+
+
+app.post(getBoth("/authorAssets"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+
+  const assetType = normalizeText(req.body?.assetType || "profile_photo");
+  const storagePath = normalizeText(req.body?.storagePath);
+  const publicUrl = normalizeText(req.body?.publicUrl);
+  if (!storagePath || !publicUrl) {
+    return res.status(400).json({ error: "missing_asset_fields" });
+  }
+
+  const assetRef = db.collection(COLLECTIONS.authorAssets).doc();
+  await assetRef.set({
+    ownerUid: ctx.decoded.uid,
+    ownerEmail: ctx.decoded.email,
+    assetType,
+    storagePath,
+    publicUrl,
+    width: Number(req.body?.width || 0) || null,
+    height: Number(req.body?.height || 0) || null,
+    fileSize: Number(req.body?.fileSize || 0) || null,
+    mimeType: normalizeText(req.body?.mimeType),
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  res.json({ ok: true, assetId: assetRef.id });
 });
 
 app.post(getBoth("/authorInvites/create"), async (req, res) => {
