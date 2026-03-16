@@ -70,12 +70,19 @@
       flex-wrap: wrap;
       margin-bottom: 18px;
     }
-    input[type="search"] {
-      min-width: min(360px, 100%);
+    input[type="search"],
+    select,
+    input[type="email"],
+    input[type="number"] {
+      min-width: min(220px, 100%);
       padding: 10px 12px;
       border-radius: 12px;
       border: 1px solid var(--line);
       background: #fff;
+      color: var(--ink);
+    }
+    input[type="search"] {
+      min-width: min(360px, 100%);
     }
     button {
       border: 0;
@@ -140,6 +147,14 @@
       padding: 3px 8px;
       font-size: 12px;
       font-weight: 700;
+      margin-top: 6px;
+      margin-right: 6px;
+    }
+    .meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
     }
     .empty {
       padding: 16px;
@@ -174,6 +189,19 @@
     <section class="card">
       <div class="controls">
         <input id="search" type="search" placeholder="Search by email, name, or role" />
+        <select id="role-filter">
+          <option value="all">All roles</option>
+          <option value="admin">Admins</option>
+          <option value="author">Authors</option>
+          <option value="user">Users</option>
+        </select>
+        <select id="status-filter">
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+          <option value="recent">Active in last 30 days</option>
+          <option value="stale">No recent activity</option>
+        </select>
         <button id="refresh" type="button">Refresh users</button>
       </div>
       <div id="status" class="status">Loading account…</div>
@@ -231,6 +259,8 @@
       me: null,
       users: [],
       query: "",
+      roleFilter: "all",
+      statusFilter: "all",
       syncedCount: 0,
     };
 
@@ -240,16 +270,64 @@
       el.className = `status${isError ? " error" : ""}`;
     }
 
+    function normalizeTimestamp(value) {
+      if (!value) return null;
+      if (value instanceof Date) return value;
+      if (typeof value?.toDate === "function") return value.toDate();
+      if (typeof value?._seconds === "number") return new Date(value._seconds * 1000);
+      if (typeof value?.seconds === "number") return new Date(value.seconds * 1000);
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+
+    function formatLastActive(value) {
+      const date = normalizeTimestamp(value);
+      if (!date) return "No activity recorded yet";
+      return `${date.toLocaleString()} (${relativeTimeFromNow(date)})`;
+    }
+
+    function relativeTimeFromNow(date) {
+      const diffMs = Date.now() - date.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays <= 0) return "today";
+      if (diffDays === 1) return "1 day ago";
+      if (diffDays < 30) return `${diffDays} days ago`;
+      const diffMonths = Math.floor(diffDays / 30);
+      if (diffMonths === 1) return "1 month ago";
+      if (diffMonths < 12) return `${diffMonths} months ago`;
+      const diffYears = Math.floor(diffMonths / 12);
+      return diffYears === 1 ? "1 year ago" : `${diffYears} years ago`;
+    }
+
+    function userMatchesStatusFilter(user) {
+      const status = (user.status || "active").toLowerCase();
+      const lastActive = normalizeTimestamp(user.lastLoginAt);
+      switch (state.statusFilter) {
+        case "active":
+          return status === "active";
+        case "disabled":
+          return status === "disabled";
+        case "recent":
+          return !!lastActive && (Date.now() - lastActive.getTime()) <= 30 * 24 * 60 * 60 * 1000;
+        case "stale":
+          return !lastActive || (Date.now() - lastActive.getTime()) > 30 * 24 * 60 * 60 * 1000;
+        default:
+          return true;
+      }
+    }
+
     function filteredUsers() {
       const q = state.query.trim().toLowerCase();
-      if (!q) return state.users;
       return state.users.filter((user) => {
         const haystack = [
           user.email,
           user.displayName,
           ...(Array.isArray(user.roles) ? user.roles : []),
         ].join(" ").toLowerCase();
-        return haystack.includes(q);
+        const matchesQuery = !q || haystack.includes(q);
+        const matchesRole = state.roleFilter === "all" || (Array.isArray(user.roles) && user.roles.includes(state.roleFilter));
+        const matchesStatus = userMatchesStatusFilter(user);
+        return matchesQuery && matchesRole && matchesStatus;
       });
     }
 
@@ -287,7 +365,10 @@
                 <td>
                   <div class="user-name">${user.displayName || "Unnamed user"}</div>
                   <div>${user.email || user.uid}</div>
-                  ${user.email === "sam@buttonpoetry.com" ? '<div class="pill">Bootstrap admin</div>' : ""}
+                  ${user.email === "sam@buttonpoetry.com" ? '<span class="pill">Bootstrap admin</span>' : ""}
+                  ${(user.roles || []).includes("admin") ? '<span class="pill">Admin</span>' : ""}
+                  ${(user.roles || []).includes("author") ? '<span class="pill">Author</span>' : ""}
+                  <div class="meta">Last active: ${formatLastActive(user.lastLoginAt)}</div>
                 </td>
                 <td>
                   <div class="role-set">
@@ -400,6 +481,14 @@
 
       document.getElementById("search").addEventListener("input", (event) => {
         state.query = event.target.value || "";
+        renderUsers();
+      });
+      document.getElementById("role-filter").addEventListener("change", (event) => {
+        state.roleFilter = event.target.value || "all";
+        renderUsers();
+      });
+      document.getElementById("status-filter").addEventListener("change", (event) => {
+        state.statusFilter = event.target.value || "all";
         renderUsers();
       });
 
