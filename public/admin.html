@@ -179,6 +179,18 @@
       <div id="status" class="status">Loading account…</div>
       <div id="results"></div>
     </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h2 style="margin-top:0;">Author Invites</h2>
+      <p class="lede" style="margin-bottom:16px;max-width:none;">Create invite links for authors. The invited email must match the Google account they use to redeem the link.</p>
+      <div class="controls">
+        <input id="invite-email" type="email" placeholder="author@example.com" />
+        <input id="invite-days" type="number" min="1" max="90" value="14" style="width:120px;" />
+        <button id="create-invite" type="button">Create invite</button>
+      </div>
+      <div id="invite-status" class="status">No invite created yet.</div>
+      <div id="invite-result" class="empty">New invite links will appear here.</div>
+    </section>
   </main>
 
   <script>
@@ -219,6 +231,7 @@
       me: null,
       users: [],
       query: "",
+      syncedCount: 0,
     };
 
     function setStatus(message, isError = false) {
@@ -321,12 +334,44 @@
       try {
         const payload = await api("admin/users", { method: "GET" });
         state.users = payload.users || [];
+        state.syncedCount = payload.syncedCount || state.users.length;
         renderUsers();
-        setStatus(`Loaded ${state.users.length} users.`);
+        setStatus(`Loaded ${state.users.length} users from ${state.syncedCount} authenticated accounts.`);
       } catch (err) {
         console.error(err);
         document.getElementById("results").innerHTML = '<div class="empty">Could not load users.</div>';
         setStatus(err.message || "Could not load users.", true);
+      }
+    }
+
+    async function createInvite() {
+      const email = (document.getElementById("invite-email").value || "").trim();
+      const expiresInDays = Number(document.getElementById("invite-days").value || 14);
+      const statusEl = document.getElementById("invite-status");
+      const resultEl = document.getElementById("invite-result");
+      if (!email) {
+        statusEl.textContent = "Please enter an email address first.";
+        statusEl.className = "status error";
+        return;
+      }
+      statusEl.textContent = "Creating invite…";
+      statusEl.className = "status";
+      try {
+        const payload = await api("authorInvites/create", {
+          method: "POST",
+          body: { email, expiresInDays }
+        });
+        statusEl.textContent = `Invite created for ${payload.email}.`;
+        resultEl.innerHTML = `
+          <div><strong>Email:</strong> ${payload.email}</div>
+          <div><strong>Expires:</strong> ${new Date(payload.expiresAt).toLocaleString()}</div>
+          <div style="margin-top:10px;"><strong>Invite link:</strong></div>
+          <div style="margin-top:6px;word-break:break-all;">${payload.inviteUrl}</div>
+        `;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || "Failed to create invite.";
+        statusEl.className = "status error";
       }
     }
 
@@ -359,6 +404,7 @@
       });
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
+      document.getElementById("create-invite").addEventListener("click", () => createInvite());
       document.getElementById("logout").addEventListener("click", async () => {
         await firebase.auth().signOut();
         location.href = "/app";

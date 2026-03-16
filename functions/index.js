@@ -269,7 +269,8 @@ async function ensureUserRecord(decoded) {
       status: "active",
     };
     await ref.set(payload, { merge: true });
-    return payload;
+    const saved = await ref.get();
+    return saved.data() || payload;
   }
   const existing = snap.data() || {};
   await ref.set(
@@ -282,7 +283,38 @@ async function ensureUserRecord(decoded) {
     },
     { merge: true }
   );
-  return existing;
+  const saved = await ref.get();
+  return saved.data() || existing;
+}
+
+async function syncUserRecordFromAuthUser(authUser) {
+  const ref = db.collection(COLLECTIONS.users).doc(authUser.uid);
+  const snap = await ref.get();
+  const existing = snap.exists ? (snap.data() || {}) : {};
+  const payload = {
+    email: authUser.email || existing.email || "",
+    displayName: authUser.displayName || existing.displayName || authUser.email || authUser.uid,
+    status: authUser.disabled ? "disabled" : (existing.status || "active"),
+    roles: resolveRoles(existing.roles, authUser.email || existing.email || ""),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  if (!snap.exists) payload.createdAt = FieldValue.serverTimestamp();
+  await ref.set(payload, { merge: true });
+  const saved = await ref.get();
+  return { uid: authUser.uid, ...(saved.data() || payload) };
+}
+
+async function listAllAuthUsers(limit = 1000) {
+  const users = [];
+  let pageToken;
+  do {
+    const batchSize = Math.min(1000, limit - users.length);
+    if (batchSize <= 0) break;
+    const page = await auth.listUsers(batchSize, pageToken);
+    users.push(...page.users);
+    pageToken = page.pageToken;
+  } while (pageToken && users.length < limit);
+  return users;
 }
 
 async function requireDecodedUser(req, res) {
@@ -670,9 +702,9 @@ app.get(getBoth("/admin/users"), async (req, res) => {
   if (!ctx) return;
 
   const queryText = normalizeKey(req.query?.q || "");
-  const snap = await db.collection(COLLECTIONS.users).limit(250).get();
-  const rows = snap.docs
-    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+  const authUsers = await listAllAuthUsers(1000);
+  const synced = await Promise.all(authUsers.map((authUser) => syncUserRecordFromAuthUser(authUser)));
+  const rows = synced
     .filter((row) => {
       if (!queryText) return true;
       const haystack = [
@@ -682,9 +714,9 @@ app.get(getBoth("/admin/users"), async (req, res) => {
       ].map(normalizeKey);
       return haystack.some((value) => value.includes(queryText));
     })
-    .sort((a, b) => normalizeKey(a.email).localeCompare(normalizeKey(b.email)))
+    .sort((a, b) => normalizeKey(a.email || a.uid).localeCompare(normalizeKey(b.email || b.uid)))
     .map((row) => ({
-      uid: row.id,
+      uid: row.uid,
       email: row.email || "",
       displayName: row.displayName || "",
       roles: Array.isArray(row.roles) ? row.roles : ["user"],
@@ -694,7 +726,7 @@ app.get(getBoth("/admin/users"), async (req, res) => {
       lastLoginAt: row.lastLoginAt || null,
     }));
 
-  res.json({ users: rows });
+  res.json({ users: rows, syncedCount: authUsers.length });
 });
 
 app.post(getBoth("/admin/users/:uid/roles"), async (req, res) => {
