@@ -213,11 +213,13 @@
       <p class="lede" style="margin-bottom:16px;max-width:none;">Create invite links for authors. The invited email must match the Google account they use to redeem the link.</p>
       <div class="controls">
         <input id="invite-email" type="email" placeholder="author@example.com" />
-        <input id="invite-days" type="number" min="1" max="90" value="14" style="width:120px;" />
+        <input id="invite-days" type="number" min="1" max="90" value="14" style="width:180px;" aria-label="Invite expiration in days" title="Invite expiration in days" />
         <button id="create-invite" type="button">Create invite</button>
       </div>
       <div id="invite-status" class="status">No invite created yet.</div>
       <div id="invite-result" class="empty">New invite links will appear here.</div>
+      <div id="invite-list-status" class="status" style="margin-top:16px;">Loading invites…</div>
+      <div id="invite-list"></div>
     </section>
   </main>
 
@@ -262,6 +264,7 @@
       roleFilter: "all",
       statusFilter: "all",
       syncedCount: 0,
+      invites: [],
     };
 
     function setStatus(message, isError = false) {
@@ -355,7 +358,9 @@
               <th>User</th>
               <th>Roles</th>
               <th>Profile</th>
+              <th>Last active</th>
               <th>Status</th>
+              <th>Votes</th>
               <th>Save</th>
             </tr>
           </thead>
@@ -378,7 +383,9 @@
                   </div>
                 </td>
                 <td>${user.authorProfileId || "—"}</td>
+                <td>${formatLastActive(user.lastLoginAt)}</td>
                 <td>${user.status || "active"}</td>
+                <td>${Number(user.voteCount || 0).toLocaleString()}</td>
                 <td><button type="button" data-save="${user.uid}">Save roles</button></td>
               </tr>
             `).join("")}
@@ -449,10 +456,65 @@
           <div style="margin-top:10px;"><strong>Invite link:</strong></div>
           <div style="margin-top:6px;word-break:break-all;">${payload.inviteUrl}</div>
         `;
+        await loadInvites();
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || "Failed to create invite.";
         statusEl.className = "status error";
+      }
+    }
+
+
+    function renderInvites() {
+      const container = document.getElementById("invite-list");
+      const statusEl = document.getElementById("invite-list-status");
+      if (!state.invites.length) {
+        container.innerHTML = '<div class="empty">No invites yet.</div>';
+        statusEl.textContent = 'No invites to show.';
+        return;
+      }
+      const activeInvites = state.invites.filter((invite) => invite.status === 'active');
+      const claimedInvites = state.invites.filter((invite) => invite.status === 'claimed');
+      const expiredInvites = state.invites.filter((invite) => invite.status === 'expired');
+      statusEl.textContent = `${activeInvites.length} active, ${claimedInvites.length} claimed, ${expiredInvites.length} expired.`;
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Expires</th>
+              <th>Claimed</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.invites.map((invite) => `
+              <tr>
+                <td>${invite.email || '—'}</td>
+                <td>${invite.status || 'active'}</td>
+                <td>${formatLastActive(invite.createdAt)}</td>
+                <td>${invite.expiresAt ? formatLastActive(invite.expiresAt) : '—'}</td>
+                <td>${invite.claimedAt ? formatLastActive(invite.claimedAt) : 'Not yet'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function loadInvites() {
+      const statusEl = document.getElementById("invite-list-status");
+      statusEl.textContent = 'Loading invites…';
+      try {
+        const payload = await api('admin/authorInvites', { method: 'GET' });
+        state.invites = payload.invites || [];
+        renderInvites();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('invite-list').innerHTML = '<div class="empty">Could not load invites.</div>';
+        statusEl.textContent = err.message || 'Could not load invites.';
+        statusEl.className = 'status error';
       }
     }
 
@@ -476,7 +538,7 @@
           return;
         }
 
-        await loadUsers();
+        await Promise.all([loadUsers(), loadInvites()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {

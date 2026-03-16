@@ -317,6 +317,23 @@ async function listAllAuthUsers(limit = 1000) {
   return users;
 }
 
+
+async function getVoteCountsByUserId() {
+  const counts = new Map();
+  let page = await db.collection(COLLECTIONS.votes).limit(1000).get();
+  while (!page.empty) {
+    page.forEach((doc) => {
+      const data = doc.data() || {};
+      const key = normalizeKey(data.userId || "");
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    const last = page.docs[page.docs.length - 1];
+    page = await db.collection(COLLECTIONS.votes).startAfter(last).limit(1000).get();
+  }
+  return counts;
+}
+
 async function requireDecodedUser(req, res) {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.uid || !decoded?.email) {
@@ -697,12 +714,47 @@ app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
   res.json({ ok: true, profile: mapProfileDoc(savedProfile.id, savedProfile.data()) });
 });
 
+
+app.get(getBoth("/admin/authorInvites"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const snap = await db.collection(COLLECTIONS.authorInvites).limit(250).get();
+  const invites = snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .map((invite) => {
+      const expiresAt = invite.expiresAt?.toDate ? invite.expiresAt.toDate() : (invite.expiresAt || null);
+      const claimedAt = invite.claimedAt?.toDate ? invite.claimedAt.toDate() : (invite.claimedAt || null);
+      const status = invite.status || ((expiresAt && expiresAt < new Date()) ? 'expired' : 'active');
+      return {
+        id: invite.id,
+        email: invite.email || '',
+        status,
+        createdBy: invite.createdBy || '',
+        createdAt: invite.createdAt || null,
+        expiresAt: expiresAt ? expiresAt.toISOString() : null,
+        claimedAt: claimedAt ? claimedAt.toISOString() : null,
+        claimedByUserId: invite.claimedByUserId || '',
+      };
+    })
+    .sort((a, b) => {
+      const aTime = a.createdAt?._seconds || 0;
+      const bTime = b.createdAt?._seconds || 0;
+      return bTime - aTime;
+    });
+
+  res.json({ invites });
+});
+
 app.get(getBoth("/admin/users"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
 
   const queryText = normalizeKey(req.query?.q || "");
-  const authUsers = await listAllAuthUsers(1000);
+  const [authUsers, voteCounts] = await Promise.all([
+    listAllAuthUsers(1000),
+    getVoteCountsByUserId(),
+  ]);
   const synced = await Promise.all(authUsers.map((authUser) => syncUserRecordFromAuthUser(authUser)));
   const rows = synced
     .filter((row) => {
@@ -724,6 +776,7 @@ app.get(getBoth("/admin/users"), async (req, res) => {
       authorProfileId: row.authorProfileId || null,
       createdAt: row.createdAt || null,
       lastLoginAt: row.lastLoginAt || null,
+      voteCount: voteCounts.get(normalizeKey(row.email || "")) || 0,
     }));
 
   res.json({ users: rows, syncedCount: authUsers.length });
