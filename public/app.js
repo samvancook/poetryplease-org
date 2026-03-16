@@ -140,10 +140,14 @@ function updateUserStatusUI() {
       const label = user.email || user.uid;
       const normalizedEmail = (user.email || '').trim().toLowerCase();
       const isAdmin = !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
+      const canEditAuthorProfile = !!currentAccount?.roles?.some((role) => role === 'author' || role === 'admin') || isAdmin;
       const roleBadge = isAdmin
         ? ' <a id="admin-badge" href="/admin.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge} <button id="logout-button" type="button">Log out</button>`;
+      const profileBadge = canEditAuthorProfile
+        ? ' <a id="author-profile-badge" href="/author/edit" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;text-decoration:none;">Edit profile</a>'
+        : '';
+      div.innerHTML = `Logged in as ${label}${roleBadge}${profileBadge} <button id="logout-button" type="button">Log out</button>`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
