@@ -98,6 +98,22 @@
       color: var(--accent);
       border: 1px solid var(--line);
     }
+    .copy-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+    .copy-row code {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.8);
+      word-break: break-all;
+      flex: 1 1 360px;
+    }
     .status {
       color: var(--muted);
       min-height: 1.4em;
@@ -213,7 +229,10 @@
       <p class="lede" style="margin-bottom:16px;max-width:none;">Create invite links for authors. The invited email must match the Google account they use to redeem the link.</p>
       <div class="controls">
         <input id="invite-email" type="email" placeholder="author@example.com" />
-        <input id="invite-days" type="number" min="1" max="90" value="14" style="width:180px;" aria-label="Invite expiration in days" title="Invite expiration in days" />
+        <label style="display:inline-flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);">
+          Expires in days
+          <input id="invite-days" type="number" min="1" max="90" value="14" style="width:180px;" aria-label="Invite expiration in days" title="Invite expiration in days" />
+        </label>
         <button id="create-invite" type="button">Create invite</button>
       </div>
       <div id="invite-status" class="status">No invite created yet.</div>
@@ -454,8 +473,20 @@
           <div><strong>Email:</strong> ${payload.email}</div>
           <div><strong>Expires:</strong> ${new Date(payload.expiresAt).toLocaleString()}</div>
           <div style="margin-top:10px;"><strong>Invite link:</strong></div>
-          <div style="margin-top:6px;word-break:break-all;">${payload.inviteUrl}</div>
+          <div class="copy-row">
+            <code id="latest-invite-link">${payload.inviteUrl}</code>
+            <button id="copy-invite-link" type="button" class="secondary">Copy link</button>
+          </div>
         `;
+        document.getElementById("copy-invite-link")?.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(payload.inviteUrl);
+            statusEl.textContent = `Invite created for ${payload.email}. Link copied.`;
+          } catch (err) {
+            console.warn('Copy failed', err);
+            statusEl.textContent = `Invite created for ${payload.email}. Copy the link manually below.`;
+          }
+        });
         await loadInvites();
       } catch (err) {
         console.error(err);
