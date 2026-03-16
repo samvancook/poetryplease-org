@@ -562,6 +562,45 @@ app.get(getBoth("/my/authorProfile"), async (req, res) => {
   res.json({ profile: mapProfileDoc(snap.id, snap.data()) });
 });
 
+
+app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+
+  const userRecord = (await getUserRecord(ctx.decoded.uid)) || ctx.userRecord || {};
+  const profileId = userRecord.authorProfileId || ctx.decoded.uid;
+  const snap = await db.collection(COLLECTIONS.authorProfiles).doc(profileId).get();
+  const existingProfile = snap.exists ? mapProfileDoc(snap.id, snap.data()) : null;
+  const workingProfile = existingProfile || mapProfileDoc(profileId, {
+    displayName: ctx.decoded.name || userRecord.displayName || ctx.decoded.email,
+    slug: slugify(ctx.decoded.name || userRecord.displayName || ctx.decoded.email),
+    authorNameVariants: uniq([ctx.decoded.name, userRecord.displayName, ctx.decoded.email]),
+    featuredContentIds: [],
+    published: false,
+  });
+
+  const [g, e, v, votes] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+    getAllFrom(COLLECTIONS.votes),
+  ]);
+  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
+  const allContent = [...g, ...e, ...v];
+  const { authored, featured } = pickProfileContent(workingProfile, allContent, ratings);
+
+  res.json({
+    profile: existingProfile,
+    workingProfile,
+    authoredContent: authored,
+    featuredContent: featured,
+    stats: {
+      authoredCount: authored.length,
+      featuredCount: featured.length,
+    },
+  });
+});
+
 app.post(getBoth("/authorProfiles"), async (req, res) => {
   const ctx = await requireRole(req, res, ["author", "admin"]);
   if (!ctx) return;

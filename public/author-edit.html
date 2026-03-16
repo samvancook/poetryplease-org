@@ -15,6 +15,7 @@
       --card: rgba(255, 253, 248, 0.9);
       --accent: #2f5d62;
       --accent-soft: #d7e7e9;
+      --accent-warm: #f0e3d2;
       --warn: #8a3b2f;
       --ok: #2f6b44;
     }
@@ -27,110 +28,46 @@
         radial-gradient(circle at top left, rgba(47, 93, 98, 0.12), transparent 35%),
         linear-gradient(180deg, #faf7f0 0%, var(--paper) 100%);
     }
-    .shell {
-      max-width: 1040px;
-      margin: 0 auto;
-      padding: 28px 20px 64px;
-    }
+    .shell { max-width: 1120px; margin: 0 auto; padding: 28px 20px 64px; }
     .topbar {
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      flex-wrap: wrap;
-      align-items: center;
+      display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center;
     }
-    .topbar a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    h1 {
-      margin: 18px 0 8px;
-      font-size: clamp(34px, 6vw, 56px);
-      line-height: 0.95;
-      letter-spacing: -0.04em;
-    }
-    .lede {
-      margin: 0 0 22px;
-      color: var(--muted);
-      line-height: 1.6;
-      max-width: 68ch;
-    }
+    .topbar a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    h1 { margin: 18px 0 8px; font-size: clamp(34px, 6vw, 56px); line-height: 0.95; letter-spacing: -0.04em; }
+    .lede { margin: 0 0 22px; color: var(--muted); line-height: 1.6; max-width: 68ch; }
     .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      padding: 20px;
-      box-shadow: 0 22px 60px rgba(24, 19, 12, 0.08);
-      backdrop-filter: blur(8px);
-      margin-top: 18px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px;
+      box-shadow: 0 22px 60px rgba(24, 19, 12, 0.08); backdrop-filter: blur(8px); margin-top: 18px;
     }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
+    input[type="text"], input[type="url"], textarea {
+      width: 100%; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit;
     }
-    label {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      font-size: 14px;
-      color: var(--muted);
-    }
-    input[type="text"],
-    input[type="url"],
-    textarea {
-      width: 100%;
-      padding: 10px 12px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: #fff;
-      color: var(--ink);
-      font: inherit;
-    }
-    textarea {
-      min-height: 120px;
-      resize: vertical;
-    }
-    .actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-top: 18px;
-    }
+    textarea { min-height: 120px; resize: vertical; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 18px; }
     button {
-      border: 0;
-      border-radius: 12px;
-      padding: 10px 14px;
-      background: var(--accent);
-      color: #fff;
-      cursor: pointer;
-      font-weight: 600;
+      border: 0; border-radius: 12px; padding: 10px 14px; background: var(--accent); color: #fff; cursor: pointer; font-weight: 600;
     }
-    button.secondary {
-      background: transparent;
-      color: var(--accent);
-      border: 1px solid var(--line);
-    }
-    .status {
-      min-height: 1.4em;
-      margin-top: 12px;
-      color: var(--muted);
-    }
+    button.secondary { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+    button.ghost { background: var(--accent-soft); color: var(--accent); }
+    button.active-feature { background: var(--accent-warm); color: #7a4d20; }
+    .status { min-height: 1.4em; margin-top: 12px; color: var(--muted); }
     .status.error { color: var(--warn); }
     .status.ok { color: var(--ok); }
-    .inline {
-      display: inline-flex;
-      gap: 8px;
-      align-items: center;
-      color: var(--ink);
-    }
-    .preview {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-    }
+    .inline { display: inline-flex; gap: 8px; align-items: center; color: var(--ink); }
+    .preview { color: var(--accent); text-decoration: none; font-weight: 600; }
+    details { margin-top: 16px; }
+    summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+    .hint { color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .chip { display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 700; }
+    .picker-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; margin-top: 16px; }
+    .content-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 16px; }
+    .content-card h3 { margin: 8px 0; font-size: 18px; line-height: 1.2; }
+    .content-card p { margin: 6px 0; color: var(--muted); font-size: 14px; }
+    .featured-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    .featured-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--accent-warm); color: #7a4d20; font-size: 13px; }
+    .empty { border: 1px dashed var(--line); border-radius: 16px; padding: 16px; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -144,17 +81,13 @@
     </div>
 
     <h1>Author Profile Editor</h1>
-    <p class="lede">This is the working profile editor for authors and admins. It controls the public author page, social links, and the hand-picked featured content list.</p>
+    <p class="lede">This editor controls the public author page, social links, and featured work. Slugs are generated automatically, and featured content comes from the content we currently associate with the author.</p>
 
     <section class="card">
       <div class="grid">
         <label>
           Display name
           <input id="displayName" type="text" />
-        </label>
-        <label>
-          Public slug
-          <input id="slug" type="text" placeholder="mary-oliver" />
         </label>
         <label>
           Photo URL
@@ -195,16 +128,25 @@
         <textarea id="bio"></textarea>
       </label>
 
-      <div class="grid" style="margin-top:16px;">
-        <label>
-          Author name variants
-          <textarea id="authorNameVariants" placeholder="One per line or comma separated"></textarea>
-        </label>
-        <label>
-          Featured content IDs
-          <textarea id="featuredContentIds" placeholder="One per line or comma separated"></textarea>
-        </label>
+      <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+        <span class="chip">Public slug: <span id="slug-display" style="margin-left:6px;">—</span></span>
+        <a id="preview-link" class="preview" href="#" target="_blank" rel="noopener" style="display:none;">Open public profile</a>
       </div>
+
+      <details>
+        <summary>Advanced profile settings</summary>
+        <div class="grid" style="margin-top:16px;">
+          <label>
+            Slug override
+            <input id="slug" type="text" placeholder="Optional override" />
+          </label>
+          <label>
+            Author name variants
+            <textarea id="authorNameVariants" placeholder="Used internally to match content. One per line or comma separated."></textarea>
+          </label>
+        </div>
+        <p class="hint">Author name variants are for matching differences like pen names, initials, or metadata inconsistencies. Most authors should rarely need to touch this.</p>
+      </details>
 
       <label style="margin-top:16px;" class="inline">
         <input id="published" type="checkbox" />
@@ -213,9 +155,15 @@
 
       <div class="actions">
         <button id="save" type="button">Save profile</button>
-        <a id="preview-link" class="preview" href="#" target="_blank" rel="noopener" style="display:none;">Open public profile</a>
       </div>
       <div id="status" class="status">Loading profile…</div>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0;">Featured Work</h2>
+      <p class="hint">Select featured work from the content we currently associate with this author. If nothing is selected, the public page falls back to top-rated content automatically.</p>
+      <div id="featured-list" class="featured-list"></div>
+      <div id="content-picker" class="picker-grid"></div>
     </section>
   </main>
 
@@ -231,7 +179,29 @@
     };
     firebase.initializeApp(FIREBASE_CONFIG);
 
-    const state = { me: null, profile: null };
+    const state = {
+      me: null,
+      profile: null,
+      workingProfile: null,
+      authoredContent: [],
+      featuredIds: [],
+      slugTouched: false,
+    };
+
+    function slugify(value) {
+      return String(value || "")
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    function splitList(value) {
+      return String(value || "")
+        .split(/[\n,]/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
 
     function setStatus(message, kind = "") {
       const el = document.getElementById("status");
@@ -261,47 +231,103 @@
       return res.json();
     }
 
-    function splitList(value) {
-      return String(value || "")
-        .split(/[\n,]/)
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-
-    function fillProfile(profile = {}) {
-      state.profile = profile;
-      document.getElementById("displayName").value = profile.displayName || "";
-      document.getElementById("slug").value = profile.slug || "";
-      document.getElementById("photoUrl").value = profile.photoUrl || "";
-      document.getElementById("websiteUrl").value = profile.websiteUrl || "";
-      document.getElementById("instagramUrl").value = profile.instagramUrl || "";
-      document.getElementById("tiktokUrl").value = profile.tiktokUrl || "";
-      document.getElementById("youtubeUrl").value = profile.youtubeUrl || "";
-      document.getElementById("newsletterUrl").value = profile.newsletterUrl || "";
-      document.getElementById("bookstoreUrl").value = profile.bookstoreUrl || "";
-      document.getElementById("shortBio").value = profile.shortBio || "";
-      document.getElementById("bio").value = profile.bio || "";
-      document.getElementById("authorNameVariants").value = (profile.authorNameVariants || []).join("\n");
-      document.getElementById("featuredContentIds").value = (profile.featuredContentIds || []).join("\n");
-      document.getElementById("published").checked = profile.published !== false;
-      updatePreviewLink(profile.slug);
-    }
-
-    function updatePreviewLink(slug) {
+    function updateSlugUI() {
+      const displayName = document.getElementById("displayName").value.trim();
+      const slugInput = document.getElementById("slug");
+      if (!state.slugTouched && !slugInput.value.trim()) {
+        slugInput.value = slugify(displayName);
+      }
+      const slug = slugInput.value.trim() || slugify(displayName);
+      document.getElementById("slug-display").textContent = slug || '—';
       const link = document.getElementById("preview-link");
       if (!slug) {
-        link.style.display = "none";
-        link.href = "#";
+        link.style.display = 'none';
+        link.href = '#';
         return;
       }
       link.href = `/author/${encodeURIComponent(slug)}`;
-      link.style.display = "inline-block";
+      link.style.display = 'inline-block';
+    }
+
+    function renderFeaturedList() {
+      const container = document.getElementById("featured-list");
+      if (!state.featuredIds.length) {
+        container.innerHTML = '<div class="empty">No featured picks yet. The public page will fall back to top-rated associated content.</div>';
+        return;
+      }
+      const byId = new Map(state.authoredContent.map((item) => [item.imageId, item]));
+      container.innerHTML = state.featuredIds.map((id) => {
+        const item = byId.get(id);
+        const title = item?.title || id;
+        return `<span class="featured-pill">${title}</span>`;
+      }).join('');
+    }
+
+    function toggleFeatured(id) {
+      if (state.featuredIds.includes(id)) {
+        state.featuredIds = state.featuredIds.filter((value) => value !== id);
+      } else {
+        state.featuredIds = [...state.featuredIds, id];
+      }
+      renderFeaturedList();
+      renderContentPicker();
+    }
+
+    function renderContentPicker() {
+      const container = document.getElementById("content-picker");
+      if (!state.authoredContent.length) {
+        container.innerHTML = '<div class="empty">We do not currently infer any associated content for this author yet. Saving name variants can help refine matching.</div>';
+        return;
+      }
+      container.innerHTML = state.authoredContent.map((item) => {
+        const isFeatured = state.featuredIds.includes(item.imageId);
+        return `
+          <article class="content-card">
+            <span class="chip">${item.imageType || 'Content'}</span>
+            <h3>${item.title || 'Untitled'}</h3>
+            <p>${item.author || ''}</p>
+            <p>${item.releaseCatalog || ''}</p>
+            <div class="actions" style="margin-top:12px;">
+              <button type="button" class="${isFeatured ? 'active-feature' : 'ghost'}" data-feature-id="${item.imageId}">${isFeatured ? 'Featured' : 'Add to featured'}</button>
+              <a class="preview" href="/app?item=${encodeURIComponent(item.imageId)}" target="_blank" rel="noopener">Open</a>
+            </div>
+          </article>
+        `;
+      }).join('');
+      container.querySelectorAll('[data-feature-id]').forEach((button) => {
+        button.addEventListener('click', () => toggleFeatured(button.getAttribute('data-feature-id')));
+      });
+    }
+
+    function fillProfile(profile = {}, workingProfile = profile) {
+      state.profile = profile;
+      state.workingProfile = workingProfile;
+      document.getElementById("displayName").value = workingProfile.displayName || "";
+      document.getElementById("slug").value = workingProfile.slug || "";
+      document.getElementById("photoUrl").value = workingProfile.photoUrl || "";
+      document.getElementById("websiteUrl").value = workingProfile.websiteUrl || "";
+      document.getElementById("instagramUrl").value = workingProfile.instagramUrl || "";
+      document.getElementById("tiktokUrl").value = workingProfile.tiktokUrl || "";
+      document.getElementById("youtubeUrl").value = workingProfile.youtubeUrl || "";
+      document.getElementById("newsletterUrl").value = workingProfile.newsletterUrl || "";
+      document.getElementById("bookstoreUrl").value = workingProfile.bookstoreUrl || "";
+      document.getElementById("shortBio").value = workingProfile.shortBio || "";
+      document.getElementById("bio").value = workingProfile.bio || "";
+      document.getElementById("authorNameVariants").value = (workingProfile.authorNameVariants || []).join("\n");
+      document.getElementById("published").checked = workingProfile.published !== false;
+      state.featuredIds = [...(workingProfile.featuredContentIds || [])];
+      state.slugTouched = false;
+      updateSlugUI();
+      renderFeaturedList();
     }
 
     function collectPayload() {
-      const payload = {
-        displayName: document.getElementById("displayName").value.trim(),
-        slug: document.getElementById("slug").value.trim(),
+      const displayName = document.getElementById("displayName").value.trim();
+      const slugInput = document.getElementById("slug").value.trim();
+      const slug = slugInput || slugify(displayName);
+      return {
+        displayName,
+        slug,
         photoUrl: document.getElementById("photoUrl").value.trim(),
         websiteUrl: document.getElementById("websiteUrl").value.trim(),
         instagramUrl: document.getElementById("instagramUrl").value.trim(),
@@ -312,15 +338,16 @@
         shortBio: document.getElementById("shortBio").value.trim(),
         bio: document.getElementById("bio").value.trim(),
         authorNameVariants: splitList(document.getElementById("authorNameVariants").value),
-        featuredContentIds: splitList(document.getElementById("featuredContentIds").value),
+        featuredContentIds: state.featuredIds,
         published: document.getElementById("published").checked,
       };
-      return payload;
     }
 
-    async function loadProfile() {
-      const payload = await api("my/authorProfile", { method: "GET" });
-      fillProfile(payload.profile || {});
+    async function loadEditorData() {
+      const payload = await api("my/authorProfileEditorData", { method: "GET" });
+      state.authoredContent = payload.authoredContent || [];
+      fillProfile(payload.profile || null, payload.workingProfile || payload.profile || {});
+      renderContentPicker();
       setStatus(payload.profile ? "Profile loaded." : "No profile yet. Fill this out to create one.");
     }
 
@@ -328,7 +355,8 @@
       setStatus("Saving profile…");
       try {
         const payload = await api("authorProfiles", { method: "POST", body: collectPayload() });
-        fillProfile(payload.profile || {});
+        await loadEditorData();
+        fillProfile(payload.profile || {}, payload.profile || {});
         setStatus("Profile saved.", "ok");
       } catch (err) {
         console.error(err);
@@ -353,11 +381,15 @@
           setStatus("You need author or admin access to edit author profiles.", "error");
           return;
         }
-        await loadProfile();
+        await loadEditorData();
       });
 
       document.getElementById("save").addEventListener("click", () => saveProfile());
-      document.getElementById("slug").addEventListener("input", (event) => updatePreviewLink(event.target.value.trim()));
+      document.getElementById("displayName").addEventListener("input", () => updateSlugUI());
+      document.getElementById("slug").addEventListener("input", () => {
+        state.slugTouched = true;
+        updateSlugUI();
+      });
       document.getElementById("logout").addEventListener("click", async () => {
         await firebase.auth().signOut();
         location.href = "/app";
