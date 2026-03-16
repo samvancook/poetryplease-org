@@ -138,8 +138,10 @@ function updateUserStatusUI() {
   if (user) {
     if (div) {
       const label = user.email || user.uid;
-      const roleBadge = currentAccount?.roles?.includes('admin')
-        ? ' <a id="admin-badge" href="/admin" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
+      const normalizedEmail = (user.email || '').trim().toLowerCase();
+      const isAdmin = !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
+      const roleBadge = isAdmin
+        ? ' <a id="admin-badge" href="/admin.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
         : '';
       div.innerHTML = `Logged in as ${label}${roleBadge} <button id="logout-button" type="button">Log out</button>`;
       on($('#logout-button'), 'click', async () => {
