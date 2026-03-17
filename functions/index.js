@@ -7,6 +7,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
+import { getStorage, getDownloadURL } from "firebase-admin/storage";
 
 /** ====== CONFIG / CONSTANTS ====== */
 const COLLECTIONS = {
@@ -27,12 +28,13 @@ const ADMIN_EMAILS = new Set([
 ]);
 
 /** ====== ADMIN INIT ====== */
-const appAdmin = initializeApp();
+const appAdmin = initializeApp({ storageBucket: "poetry-please.appspot.com" });
 
 // If your Firestore DB is the **default** "(default)", use: getFirestore(appAdmin)
 // If your DB id is really "poetrypleasedatabase", keep the 2nd argument.
 const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
+const storage = getStorage(appAdmin);
 
 /** ====== EXPRESS / CORS ====== */
 const app = express();
@@ -51,7 +53,7 @@ app.use(
     credentials: false,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 /** ====== HELPERS ====== */
 function parseDoc(snap) {
@@ -678,6 +680,53 @@ app.post(getBoth("/authorAssets"), async (req, res) => {
   });
 
   res.json({ ok: true, assetId: assetRef.id });
+});
+
+
+app.post(getBoth("/authorAssets/uploadPhoto"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+
+  const mimeType = normalizeText(req.body?.mimeType);
+  const base64Data = normalizeText(req.body?.base64Data);
+  const fileName = normalizeText(req.body?.fileName || "author-photo");
+  const width = Number(req.body?.width || 0) || null;
+  const height = Number(req.body?.height || 0) || null;
+  const fileSize = Number(req.body?.fileSize || 0) || null;
+  if (!mimeType || !base64Data) {
+    return res.status(400).json({ error: "missing_upload_payload" });
+  }
+
+  const ext = (fileName.split('.').pop() || 'jpg').toLowerCase();
+  const storagePath = `author-profile-images/${ctx.decoded.uid}/${Date.now()}.${ext}`;
+  const bucket = storage.bucket();
+  const file = bucket.file(storagePath);
+  const buffer = Buffer.from(base64Data, 'base64');
+  await file.save(buffer, {
+    metadata: {
+      contentType: mimeType,
+      cacheControl: 'public,max-age=3600',
+    },
+    resumable: false,
+  });
+
+  const publicUrl = await getDownloadURL(file);
+  const assetRef = db.collection(COLLECTIONS.authorAssets).doc();
+  await assetRef.set({
+    ownerUid: ctx.decoded.uid,
+    ownerEmail: ctx.decoded.email,
+    assetType: 'profile_photo',
+    storagePath,
+    publicUrl,
+    width,
+    height,
+    fileSize,
+    mimeType,
+    status: 'active',
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  res.json({ ok: true, assetId: assetRef.id, storagePath, publicUrl });
 });
 
 app.post(getBoth("/authorInvites/create"), async (req, res) => {

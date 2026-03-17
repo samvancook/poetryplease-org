@@ -6,7 +6,6 @@
   <title>Edit Author Profile | Poetry, Please</title>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-storage-compat.js"></script>
   <style>
     :root {
       --paper: #f7f3ea;
@@ -405,31 +404,22 @@
       setPhotoStatus("Checking image…");
       try {
         const checked = await validatePhotoFile(file);
-        const user = firebase.auth().currentUser;
-        if (!user) throw new Error("Please sign in again before uploading.");
-        const storage = firebase.storage();
-        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-        const path = `author-profile-images/${user.uid}/${Date.now()}.${ext}`;
-        const ref = storage.ref().child(path);
         setPhotoStatus("Uploading photo…");
-        await ref.put(file, { contentType: file.type, cacheControl: 'public,max-age=3600' });
-        const publicUrl = await ref.getDownloadURL();
-        state.photoUrl = publicUrl;
+        const payload = await api("authorAssets/uploadPhoto", {
+          method: "POST",
+          body: {
+            fileName: file.name,
+            mimeType: file.type,
+            fileSize: file.size,
+            width: checked.width,
+            height: checked.height,
+            base64Data: String(checked.dataUrl).split(',')[1] || "",
+          }
+        });
+        state.photoUrl = payload.publicUrl;
         const preview = document.getElementById("photo-preview");
         preview.src = checked.dataUrl;
         preview.style.display = "block";
-        await api("authorAssets", {
-          method: "POST",
-          body: {
-            assetType: "profile_photo",
-            storagePath: path,
-            publicUrl,
-            width: checked.width,
-            height: checked.height,
-            fileSize: file.size,
-            mimeType: file.type,
-          }
-        });
         setPhotoStatus("Photo uploaded. Save the profile to publish it.", "ok");
       } catch (err) {
         console.error(err);
