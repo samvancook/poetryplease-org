@@ -28,7 +28,7 @@ const ADMIN_EMAILS = new Set([
 ]);
 
 /** ====== ADMIN INIT ====== */
-const appAdmin = initializeApp({ storageBucket: "poetry-please.appspot.com" });
+const appAdmin = initializeApp({ storageBucket: "poetry-please.firebasestorage.app" });
 
 // If your Firestore DB is the **default** "(default)", use: getFirestore(appAdmin)
 // If your DB id is really "poetrypleasedatabase", keep the 2nd argument.
