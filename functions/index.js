@@ -128,6 +128,17 @@ function extensionForUpload(fileName = "", mimeType = "") {
   return map[String(mimeType || "").toLowerCase()] || "jpg";
 }
 
+function buildFlagHistoryEntry(eventType, actor, note = "", extra = {}) {
+  return {
+    eventType,
+    actorUid: actor?.uid || "",
+    actorEmail: actor?.email || "",
+    note: normalizeText(note || ""),
+    createdAtIso: new Date().toISOString(),
+    ...extra,
+  };
+}
+
 async function getVotesByUser(userId) {
   const list = [];
   let q = db.collection(COLLECTIONS.votes).where("userId", "==", userId).limit(1000);
@@ -907,6 +918,11 @@ app.post(getBoth("/contentFlags"), async (req, res) => {
     note,
     status: "pending",
     createdAt: FieldValue.serverTimestamp(),
+    moderationHistory: [
+      buildFlagHistoryEntry("flagged", { uid: ctx.decoded.uid, email: ctx.decoded.email }, note, {
+        roles: Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [],
+      }),
+    ],
   });
 
   res.json({ ok: true, flagId: flagRef.id });
@@ -954,12 +970,18 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
     .limit(25)
     .get();
   const targets = matchingFlags.empty ? [flagRef] : matchingFlags.docs.map((doc) => doc.ref);
+  const historyEntry = buildFlagHistoryEntry(
+    decision === "approved" ? "reapproved" : "marked_updated",
+    { uid: ctx.decoded.uid, email: ctx.decoded.email },
+    note
+  );
   await Promise.all(targets.map((ref) => ref.set({
     status: "resolved",
     resolution: decision,
     reviewNote: note,
     reviewedBy: ctx.decoded.uid,
     reviewedAt: FieldValue.serverTimestamp(),
+    moderationHistory: FieldValue.arrayUnion(historyEntry),
   }, { merge: true })));
 
   const saved = await flagRef.get();
@@ -1039,6 +1061,15 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     .limit(25)
     .get();
   const targets = matchingFlags.empty ? [flagRef] : matchingFlags.docs.map((doc) => doc.ref);
+  const historyEntry = buildFlagHistoryEntry(
+    "asset_replaced",
+    { uid: ctx.decoded.uid, email: ctx.decoded.email },
+    reviewNote,
+    {
+      replacementAssetId: assetRef.id,
+      replacementUrl: publicUrl,
+    }
+  );
   await Promise.all(targets.map((ref) => ref.set({
     status: "resolved",
     resolution: "updated",
@@ -1047,6 +1078,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     replacementUrl: publicUrl,
     reviewedBy: ctx.decoded.uid,
     reviewedAt: FieldValue.serverTimestamp(),
+    moderationHistory: FieldValue.arrayUnion(historyEntry),
   }, { merge: true })));
 
   const saved = await flagRef.get();

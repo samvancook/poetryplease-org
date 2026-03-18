@@ -365,6 +365,15 @@
       return `${date.toLocaleString()} (${relativeTimeFromNow(date)})`;
     }
 
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     function relativeTimeFromNow(date) {
       const diffMs = Date.now() - date.getTime();
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -376,6 +385,62 @@
       if (diffMonths < 12) return `${diffMonths} months ago`;
       const diffYears = Math.floor(diffMonths / 12);
       return diffYears === 1 ? "1 year ago" : `${diffYears} years ago`;
+    }
+
+    function formatHistoryEventType(type) {
+      switch (type) {
+        case 'flagged': return 'Flagged';
+        case 'reapproved': return 'Re-approved';
+        case 'marked_updated': return 'Marked updated';
+        case 'asset_replaced': return 'Asset replaced';
+        default: return type || 'Update';
+      }
+    }
+
+    function buildFlagHistory(flag) {
+      const history = Array.isArray(flag.moderationHistory) ? [...flag.moderationHistory] : [];
+      if (!history.length) {
+        if (flag.createdAt) {
+          history.push({
+            eventType: 'flagged',
+            actorEmail: flag.flaggedByEmail || '',
+            note: flag.note || '',
+            createdAtIso: normalizeTimestamp(flag.createdAt)?.toISOString?.() || '',
+          });
+        }
+        if (flag.reviewedAt) {
+          history.push({
+            eventType: flag.resolution === 'approved' ? 'reapproved' : 'marked_updated',
+            actorUid: flag.reviewedBy || '',
+            note: flag.reviewNote || '',
+            createdAtIso: normalizeTimestamp(flag.reviewedAt)?.toISOString?.() || '',
+          });
+        }
+      }
+      history.sort((a, b) => {
+        const left = new Date(a.createdAtIso || 0).getTime();
+        const right = new Date(b.createdAtIso || 0).getTime();
+        return right - left;
+      });
+      return history;
+    }
+
+    function renderFlagHistory(flag) {
+      const history = buildFlagHistory(flag);
+      if (!history.length) return '<div class="meta">No moderation history yet.</div>';
+      return `
+        <div class="meta" style="margin-top:12px;">
+          <strong style="display:block;color:var(--ink);margin-bottom:6px;">Moderation trail</strong>
+          ${history.map((entry) => `
+            <div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed var(--line);">
+              <div><strong>${escapeHtml(formatHistoryEventType(entry.eventType))}</strong> · ${escapeHtml(entry.actorEmail || entry.actorUid || 'System')}</div>
+              <div>${escapeHtml(entry.createdAtIso ? formatLastActive(entry.createdAtIso) : 'Time unknown')}</div>
+              ${entry.note ? `<div style="margin-top:4px;">${escapeHtml(entry.note)}</div>` : ''}
+              ${entry.replacementUrl ? `<div style="margin-top:4px;"><a href="${escapeHtml(entry.replacementUrl)}" target="_blank" rel="noopener noreferrer">Open replacement asset</a></div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
     }
 
     function userMatchesStatusFilter(user) {
@@ -713,7 +778,11 @@
                 <td>${flag.note || '—'}</td>
                 <td>${flag.flaggedByEmail || flag.flaggedByUid || '—'}</td>
                 <td>${formatLastActive(flag.createdAt)}</td>
-                <td>${flag.status || 'pending'}${flag.resolution ? ` · ${flag.resolution}` : ''}</td>
+                <td>
+                  <div>${flag.status || 'pending'}${flag.resolution ? ` · ${flag.resolution}` : ''}</div>
+                  ${flag.reviewNote ? `<div class="meta">Latest note: ${escapeHtml(flag.reviewNote)}</div>` : ''}
+                  ${renderFlagHistory(flag)}
+                </td>
                 <td>
                   <div class="actions" style="margin-top:0;">
                     <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Re-approve</button>
