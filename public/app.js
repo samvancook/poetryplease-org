@@ -140,14 +140,18 @@ function updateUserStatusUI() {
       const label = user.email || user.uid;
       const normalizedEmail = (user.email || '').trim().toLowerCase();
       const isAdmin = !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
+      const isTeam = !!currentAccount?.roles?.includes('team');
       const canEditAuthorProfile = !!currentAccount?.roles?.some((role) => role === 'author' || role === 'admin') || isAdmin;
       const roleBadge = isAdmin
         ? ' <a id="admin-badge" href="/admin.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
         : '';
+      const teamBadge = isTeam
+        ? ' <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#efe3ff;color:#5f3b88;font-size:12px;font-weight:600;">Team</span>'
+        : '';
       const profileBadge = canEditAuthorProfile
         ? ' <a id="author-profile-badge" href="/author/edit" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;text-decoration:none;">Edit profile</a>'
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${profileBadge} <button id="logout-button" type="button">Log out</button>`;
+      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge} <button id="logout-button" type="button">Log out</button>`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -228,6 +232,7 @@ const submitVoteWrapped           = (imageId, voteType, userId) => api('vote', {
 const fetchReleaseCatalogsWrapped = () => api('releaseCatalogs', { method: 'GET' });
 const fetchImageTypesWrapped      = () => api('imageTypes',      { method: 'GET' });
 const getRatingsSummaryWrapped    = () => api('ratingsSummary',  { method: 'GET' });
+const submitContentFlagWrapped    = (imageId, note) => api('contentFlags', { method: 'POST', body: { imageId, note } });
 
 // ===== Anonymous ID helper (local only, no API) =====
 async function getOrCreateAnonId() {
@@ -403,6 +408,11 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   inc('count-skip', skip);
 }
 
+function userCanFlagContent() {
+  const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
+  return roles.some((role) => role === 'author' || role === 'team' || role === 'admin');
+}
+
 function normalizeFilterValue(value) {
   return String(value || '').trim().toLowerCase();
 }
@@ -528,6 +538,8 @@ initializeRouteState();
     }),
     setFilterAuthor: (active) => setAuthorFilter(active, currentItem?.author || selectedAuthor),
     setFilterBook: (active) => setBookFilter(active, currentItem?.book || selectedBook),
+    canFlagCurrentContent: () => userCanFlagContent(),
+    flagCurrentContent: () => flagCurrentContent(),
     getCurrentItem: () => currentItem,
     getCounters: () => ({ likes: state.likes, dislikes: state.dislikes, skips: state.skips })
   };
@@ -544,6 +556,7 @@ initializeRouteState();
   const cntEl    = $('info-counters');
   const cbAuthor = $('info-filter-author');
   const cbBook   = $('info-filter-book');
+  const flagBtn  = $('info-flag-content');
 
   function getCurrentItem() {
   if (window.PP?.getCurrentItem) return window.PP.getCurrentItem();
@@ -588,6 +601,7 @@ initializeRouteState();
     const cntEl    = document.getElementById('info-counters');
     const cbAuthor = document.getElementById('info-filter-author');
     const cbBook   = document.getElementById('info-filter-book');
+    const flagBtn  = document.getElementById('info-flag-content');
 
     // ✅ Desktop: no info sheet → do nothing
     if (!sheet) return;
@@ -612,6 +626,12 @@ initializeRouteState();
         cntEl.textContent = badge ? badge.textContent : '—';
       }
     }
+
+    if (flagBtn) {
+      const canFlag = !!item && userCanFlagContent();
+      flagBtn.hidden = !canFlag;
+      flagBtn.disabled = !canFlag;
+    }
   }
 
 
@@ -628,6 +648,7 @@ initializeRouteState();
   // Sync checkbox changes
   if (cbAuthor) cbAuthor.addEventListener('change', (e) => setAuthorOnly(!!e.target.checked));
   if (cbBook)   cbBook.addEventListener('change',   (e) => setBookOnly(!!e.target.checked));
+  if (flagBtn)  flagBtn.addEventListener('click',   () => flagCurrentContent());
   
 
   // Keep content fresh when item changes (if you already dispatch something like this)
@@ -825,6 +846,67 @@ function rebuildQueueAfterFilter() {
   renderWhenReady(idx);
 }
 
+async function refreshAfterFlaggedContent(flaggedItemId) {
+  const data = await fetchLatestBatch().catch(() => null);
+  if (data) {
+    initQueueFromData(data);
+    return;
+  }
+
+  const normalizedId = normalizeFilterValue(flaggedItemId);
+  queue = queue.filter((entry) => normalizeFilterValue(entry?.id) !== normalizedId);
+  if (lastData) {
+    const strip = (items) => (Array.isArray(items) ? items.filter((entry) => {
+      const rawId = entry?.imageId ?? entry?.id ?? entry?.contentId ?? entry?.uid ?? '';
+      return normalizeFilterValue(rawId) !== normalizedId;
+    }) : items);
+    lastData = {
+      ...lastData,
+      newGraphics: strip(lastData.newGraphics),
+      allGraphics: strip(lastData.allGraphics),
+    };
+  }
+
+  if (!queue.length) {
+    idx = -1;
+    currentItem = null;
+    window.currentItem = null;
+    $('#gallery').innerHTML = '<p>No items match the current filters.</p>';
+    renderMetaRows(null);
+    renderCounter();
+    return;
+  }
+
+  if (idx >= queue.length) idx = queue.length - 1;
+  renderWhenReady(idx);
+}
+
+async function flagCurrentContent() {
+  if (!currentItem?.id) return;
+  if (!userCanFlagContent()) {
+    alert('Only author, team, and admin accounts can flag content.');
+    return;
+  }
+
+  const note = window.prompt('What is wrong with this content? Please add a short note for review.');
+  if (note === null) return;
+  const trimmed = String(note || '').trim();
+  if (!trimmed) {
+    alert('Please include a short note so the team knows what needs attention.');
+    return;
+  }
+
+  try {
+    await submitContentFlagWrapped(currentItem.id, trimmed);
+    flashMessage('Flagged for review. We removed it from the regular feed for now.');
+    if (window.PP?.toggleInfo) window.PP.toggleInfo(false);
+    await refreshAfterFlaggedContent(currentItem.id);
+  } catch (err) {
+    console.error('Flag content failed', err);
+    alert(err?.message || 'Could not flag this content right now.');
+  }
+}
+
 // ===== Rendering =====
 function ensureMediaWrap() {
   let mediaWrap = $('#media-wrap');
@@ -858,6 +940,25 @@ function renderMetaRows(item) {
       const lb=document.createElement('label'); lb.htmlFor=checkboxId; lb.textContent=label; wrap.append(cb,lb); r.appendChild(wrap); }
     return r;
   };
+  const actionRow = (buttonLabel, onClick) => {
+    const r = document.createElement('div');
+    r.className = 'meta-row';
+    const wrap = document.createElement('div');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = buttonLabel;
+    button.style.padding = '8px 12px';
+    button.style.borderRadius = '12px';
+    button.style.border = '1px solid #e9d2d2';
+    button.style.background = '#fff6f5';
+    button.style.color = '#8b3d37';
+    button.style.fontWeight = '600';
+    button.style.cursor = 'pointer';
+    button.onclick = onClick;
+    wrap.appendChild(button);
+    r.appendChild(wrap);
+    return r;
+  };
 
   // On mobile we still show the metadata, but the checkboxes still work
   mediaWrap.prepend(row(`Title: ${item.title || ''}`));
@@ -875,6 +976,9 @@ function renderMetaRows(item) {
     'More from this book',
     () => setBookFilter(!(filterByBook && valuesMatch(selectedBook, item.book)), item.book)
   ));
+  if (userCanFlagContent()) {
+    mediaWrap.prepend(actionRow('Flag issue with this content', () => flagCurrentContent()));
+  }
 }
 function renderCounter() {
   const all = Array.isArray(lastData?.allGraphics) ? lastData.allGraphics.map(mapGraphic) : [];
@@ -1189,6 +1293,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
   await refreshCurrentAccount();
   updateUserStatusUI();
+  if (currentItem) renderMetaRows(currentItem);
   dispatchEvent(new CustomEvent('pp:state'));
   if (user) await redeemAuthorInviteIfPresent();
 

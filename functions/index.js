@@ -20,6 +20,7 @@ const COLLECTIONS = {
   authorInvites: "authorInvites",
   authorAssets: "authorAssets",
   contentClaims: "contentClaims",
+  contentFlags: "contentFlags",
   contentSubmissions: "contentSubmissions",
 };
 
@@ -205,7 +206,7 @@ function resolveRoles(existingRoles = [], email = "") {
 }
 
 function sanitizeManagedRoles(inputRoles = [], email = "") {
-  const allowed = new Set(["user", "author", "admin"]);
+  const allowed = new Set(["user", "author", "team", "admin"]);
   const roles = (Array.isArray(inputRoles) ? inputRoles : [])
     .map(normalizeText)
     .filter((role) => allowed.has(role));
@@ -349,6 +350,26 @@ async function getVoteCountsByUserId() {
   return counts;
 }
 
+
+async function getFlaggedContentIds() {
+  const ids = new Set();
+  let page = await db.collection(COLLECTIONS.contentFlags).where("status", "==", "pending").limit(1000).get();
+  while (!page.empty) {
+    page.forEach((doc) => {
+      const data = doc.data() || {};
+      const imageId = normalizeKey(data.imageId || "");
+      if (imageId) ids.add(imageId);
+    });
+    const last = page.docs[page.docs.length - 1];
+    page = await db.collection(COLLECTIONS.contentFlags).where("status", "==", "pending").startAfter(last).limit(1000).get();
+  }
+  return ids;
+}
+
+function excludeFlaggedContent(items, flaggedIds) {
+  return (items || []).filter((item) => !flaggedIds.has(normalizeKey(item.imageId || item.id || "")));
+}
+
 async function requireDecodedUser(req, res) {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.uid || !decoded?.email) {
@@ -381,24 +402,26 @@ const getBoth = (p) => [p, `/api${p}`];
 
 // imageTypes
 app.get(getBoth("/imageTypes"), async (_req, res) => {
-  const [g, e, v] = await Promise.all([
+  const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.videos),
+    getFlaggedContentIds(),
   ]);
-  const all = [...g, ...e, ...v];
+  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
   const imageTypes = [...new Set(all.map((i) => i.imageType).filter(Boolean))].sort();
   res.json(imageTypes);
 });
 
 // releaseCatalogs
 app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
-  const [g, e, v] = await Promise.all([
+  const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.videos),
+    getFlaggedContentIds(),
   ]);
-  const all = [...g, ...e, ...v];
+  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
   const cats = [...new Set(all.map((i) => i.releaseCatalog).filter(Boolean))].sort();
   res.json(cats);
 });
@@ -415,12 +438,13 @@ app.post(getBoth("/fetchData"), async (req, res) => {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.email) return res.status(401).json({ error: "auth" });
 
-  const [g, e, v] = await Promise.all([
+  const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.videos),
+    getFlaggedContentIds(),
   ]);
-  const all = [...g, ...e, ...v];
+  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
 
   const voted = await getVotesByUser(decoded.email);
   const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
@@ -445,12 +469,13 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const anonId = (req.body?.anonId || "").trim();
   if (!anonId) return res.status(400).json({ error: "missing anonId" });
 
-  const [g, e, v] = await Promise.all([
+  const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.videos),
+    getFlaggedContentIds(),
   ]);
-  const all = [...g, ...e, ...v];
+  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
   const voted = await getVotesByUser(anonId);
   const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
@@ -810,6 +835,86 @@ app.post(getBoth("/contentClaims"), async (req, res) => {
   });
 
   res.json({ ok: true, claimId: claimRef.id });
+});
+
+
+app.post(getBoth("/contentFlags"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "team", "admin"]);
+  if (!ctx) return;
+
+  const imageId = normalizeText(req.body?.imageId);
+  const note = normalizeText(req.body?.note || "");
+  if (!imageId) return res.status(400).json({ error: "missing_image_id" });
+  if (!note) return res.status(400).json({ error: "missing_note" });
+
+  const allContent = await getAllContent();
+  const item = allContent.find((entry) => normalizeKey(entry.imageId) === normalizeKey(imageId));
+  if (!item) return res.status(404).json({ error: "content_not_found" });
+
+  const existingSnap = await db.collection(COLLECTIONS.contentFlags)
+    .where("imageId", "==", item.imageId)
+    .limit(25)
+    .get();
+  const existingPending = existingSnap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .find((flag) => flag.status === "pending");
+  if (existingPending) {
+    return res.status(409).json({ error: "content_already_flagged", flag: existingPending });
+  }
+
+  const flagRef = db.collection(COLLECTIONS.contentFlags).doc();
+  await flagRef.set({
+    imageId: item.imageId,
+    title: item.title || "",
+    author: item.author || "",
+    imageType: item.imageType || "",
+    releaseCatalog: item.releaseCatalog || "",
+    flaggedByUid: ctx.decoded.uid,
+    flaggedByEmail: ctx.decoded.email,
+    flaggedByRoles: Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [],
+    note,
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  res.json({ ok: true, flagId: flagRef.id });
+});
+
+app.get(getBoth("/admin/contentFlags"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const snap = await db.collection(COLLECTIONS.contentFlags).limit(250).get();
+  const flags = snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
+  res.json({ flags });
+});
+
+app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const flagId = normalizeText(req.params.flagId);
+  const decision = normalizeText(req.body?.decision);
+  const note = normalizeText(req.body?.note || "");
+  if (!flagId) return res.status(400).json({ error: "missing_flag_id" });
+  if (!["approved", "updated"].includes(decision)) return res.status(400).json({ error: "invalid_decision" });
+
+  const flagRef = db.collection(COLLECTIONS.contentFlags).doc(flagId);
+  const snap = await flagRef.get();
+  if (!snap.exists) return res.status(404).json({ error: "flag_not_found" });
+
+  await flagRef.set({
+    status: "resolved",
+    resolution: decision,
+    reviewNote: note,
+    reviewedBy: ctx.decoded.uid,
+    reviewedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  const saved = await flagRef.get();
+  res.json({ ok: true, flag: { id: saved.id, ...(saved.data() || {}) } });
 });
 
 app.get(getBoth("/admin/contentClaims"), async (req, res) => {

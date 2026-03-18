@@ -208,6 +208,7 @@
         <select id="role-filter">
           <option value="all">All roles</option>
           <option value="admin">Admins</option>
+          <option value="team">Team</option>
           <option value="author">Authors</option>
           <option value="user">Users</option>
         </select>
@@ -246,6 +247,13 @@
       <p class="lede" style="margin-bottom:16px;max-width:none;">Review author requests to claim existing content in the system.</p>
       <div id="claim-review-status" class="status">Loading claims…</div>
       <div id="claim-review-list"></div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h2 style="margin-top:0;">Flagged Content</h2>
+      <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
+      <div id="flag-review-status" class="status">Loading flagged content…</div>
+      <div id="flag-review-list"></div>
     </section>
   </main>
 
@@ -292,6 +300,7 @@
       syncedCount: 0,
       invites: [],
       claims: [],
+      flags: [],
     };
 
     function setStatus(message, isError = false) {
@@ -399,6 +408,7 @@
                   <div>${user.email || user.uid}</div>
                   ${user.email === "sam@buttonpoetry.com" ? '<span class="pill">Bootstrap admin</span>' : ""}
                   ${(user.roles || []).includes("admin") ? '<span class="pill">Admin</span>' : ""}
+                  ${(user.roles || []).includes("team") ? '<span class="pill">Team</span>' : ""}
                   ${(user.roles || []).includes("author") ? '<span class="pill">Author</span>' : ""}
                   <div class="meta">Last active: ${formatLastActive(user.lastLoginAt)}</div>
                 </td>
@@ -406,6 +416,7 @@
                   <div class="role-set">
                     ${roleCheckbox(user.uid, "user", (user.roles || []).includes("user"))}
                     ${roleCheckbox(user.uid, "author", (user.roles || []).includes("author"))}
+                    ${roleCheckbox(user.uid, "team", (user.roles || []).includes("team"))}
                     ${roleCheckbox(user.uid, "admin", (user.roles || []).includes("admin"))}
                   </div>
                 </td>
@@ -618,6 +629,73 @@
       }
     }
 
+    function renderFlags() {
+      const container = document.getElementById('flag-review-list');
+      const statusEl = document.getElementById('flag-review-status');
+      if (!state.flags.length) {
+        container.innerHTML = '<div class="empty">No flagged content yet.</div>';
+        statusEl.textContent = 'No flagged content to review.';
+        return;
+      }
+
+      const pending = state.flags.filter((flag) => flag.status === 'pending');
+      statusEl.textContent = `${pending.length} pending flag${pending.length === 1 ? '' : 's'}.`;
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Content</th>
+              <th>Reason</th>
+              <th>Flagged by</th>
+              <th>When</th>
+              <th>Status</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.flags.map((flag) => `
+              <tr>
+                <td>
+                  <div class="user-name">${flag.title || flag.imageId || 'Untitled content'}</div>
+                  <div>${flag.imageType || '—'}${flag.releaseCatalog ? ' · ' + flag.releaseCatalog : ''}</div>
+                  ${flag.imageId ? `<div class="meta"><a href="/app?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener noreferrer">Open item</a></div>` : ''}
+                </td>
+                <td>${flag.note || '—'}</td>
+                <td>${flag.flaggedByEmail || flag.flaggedByUid || '—'}</td>
+                <td>${formatLastActive(flag.createdAt)}</td>
+                <td>${flag.status || 'pending'}${flag.resolution ? ` · ${flag.resolution}` : ''}</td>
+                <td>
+                  <div class="actions" style="margin-top:0;">
+                    <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Re-approve</button>
+                    <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="updated" ${flag.status !== 'pending' ? 'disabled' : ''}>Mark updated</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      container.querySelectorAll('[data-review-flag]').forEach((button) => {
+        button.addEventListener('click', () => reviewFlag(button.getAttribute('data-review-flag'), button.getAttribute('data-decision')));
+      });
+    }
+
+    async function loadFlags() {
+      const statusEl = document.getElementById('flag-review-status');
+      statusEl.textContent = 'Loading flagged content…';
+      try {
+        const payload = await api('admin/contentFlags', { method: 'GET' });
+        state.flags = payload.flags || [];
+        renderFlags();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('flag-review-list').innerHTML = '<div class="empty">Could not load flagged content.</div>';
+        statusEl.textContent = err.message || 'Could not load flagged content.';
+        statusEl.className = 'status error';
+      }
+    }
+
     async function reviewClaim(claimId, decision) {
       const statusEl = document.getElementById('claim-review-status');
       statusEl.textContent = `${decision === 'approved' ? 'Approving' : 'Rejecting'} claim…`;
@@ -628,6 +706,23 @@
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not review claim.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function reviewFlag(flagId, decision) {
+      const statusEl = document.getElementById('flag-review-status');
+      const actionLabel = decision === 'approved' ? 're-approve' : 'mark as updated';
+      const note = window.prompt(`Optional note for this ${actionLabel} action:`, '');
+      if (note === null) return;
+      statusEl.textContent = `${decision === 'approved' ? 'Re-approving' : 'Marking updated'}…`;
+      statusEl.className = 'status';
+      try {
+        await api(`admin/contentFlags/${flagId}/review`, { method: 'POST', body: { decision, note } });
+        await loadFlags();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not review flagged content.';
         statusEl.className = 'status error';
       }
     }
@@ -652,7 +747,7 @@
           return;
         }
 
-        await Promise.all([loadUsers(), loadInvites(), loadClaims()]);
+        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {

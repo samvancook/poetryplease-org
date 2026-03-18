@@ -156,6 +156,8 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
     .pp-info__label{opacity:.7}
     .pp-info__check{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
     .pp-info__counters{margin-top:8px;font-size:14px;opacity:.9}
+    .pp-info__actions{margin-top:14px;display:flex;gap:10px}
+    .pp-info__actions button{width:100%;padding:12px 14px;border-radius:12px;border:1px solid #e9d2d2;background:#fff6f5;color:#8b3d37;font-weight:600}
 
     body[data-ui="mobile"] #mobile-counts { display: none !important; }
 
@@ -296,6 +298,9 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
         </div>
 
         <div class="pp-info__counters" id="info-counters">—</div>
+        <div class="pp-info__actions">
+          <button id="info-flag-content" type="button" hidden>Flag issue with this content</button>
+        </div>
       </div>
     </section>
   </div>
