@@ -172,6 +172,46 @@
       font-size: 13px;
       line-height: 1.4;
     }
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .preview-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 10px;
+      background: rgba(255,255,255,0.7);
+    }
+    .preview-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .preview-card img {
+      width: 100%;
+      max-height: 180px;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #fff;
+      border: 1px solid var(--line);
+    }
+    .preview-card .empty-preview {
+      min-height: 120px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.6);
+      padding: 10px;
+    }
     .empty {
       padding: 16px;
       border: 1px dashed var(--line);
@@ -659,6 +699,16 @@
                   <div class="user-name">${flag.title || flag.imageId || 'Untitled content'}</div>
                   <div>${flag.imageType || '—'}${flag.releaseCatalog ? ' · ' + flag.releaseCatalog : ''}</div>
                   ${flag.imageId ? `<div class="meta"><a href="/app?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener noreferrer">Open item</a></div>` : ''}
+                  <div class="preview-grid">
+                    <div class="preview-card">
+                      <strong>Current live asset</strong>
+                      ${flag.currentImageUrl ? `<img src="${flag.currentImageUrl}" alt="Current asset for ${flag.title || flag.imageId || 'content'}" />` : '<div class="empty-preview">No current preview available.</div>'}
+                    </div>
+                    <div class="preview-card">
+                      <strong>Replacement preview</strong>
+                      <div class="empty-preview" data-replacement-preview="${flag.id}">Choose a file to preview it here.</div>
+                    </div>
+                  </div>
                 </td>
                 <td>${flag.note || '—'}</td>
                 <td>${flag.flaggedByEmail || flag.flaggedByUid || '—'}</td>
@@ -683,6 +733,9 @@
 
       container.querySelectorAll('[data-review-flag]').forEach((button) => {
         button.addEventListener('click', () => reviewFlag(button.getAttribute('data-review-flag'), button.getAttribute('data-decision')));
+      });
+      container.querySelectorAll('[data-replacement-file]').forEach((input) => {
+        input.addEventListener('change', () => renderReplacementPreview(input.getAttribute('data-replacement-file')));
       });
       container.querySelectorAll('[data-upload-replacement]').forEach((button) => {
         button.addEventListener('click', () => uploadReplacement(button.getAttribute('data-upload-replacement')));
@@ -742,6 +795,29 @@
         reader.onerror = () => reject(new Error('Could not read file.'));
         reader.readAsDataURL(file);
       });
+    }
+
+    async function renderReplacementPreview(flagId) {
+      const input = document.querySelector(`[data-replacement-file="${flagId}"]`);
+      const target = document.querySelector(`[data-replacement-preview="${flagId}"]`);
+      const file = input?.files?.[0];
+      if (!target) return;
+      if (!file) {
+        target.outerHTML = `<div class="empty-preview" data-replacement-preview="${flagId}">Choose a file to preview it here.</div>`;
+        return;
+      }
+      if (!/^image\\//i.test(file.type || '')) {
+        target.outerHTML = `<div class="empty-preview" data-replacement-preview="${flagId}">Selected file is not an image.</div>`;
+        return;
+      }
+
+      try {
+        const dataUrl = await readFileAsDataURL(file);
+        target.outerHTML = `<img src="${dataUrl}" alt="Replacement preview" data-replacement-preview="${flagId}" />`;
+      } catch (err) {
+        console.error(err);
+        target.outerHTML = `<div class="empty-preview" data-replacement-preview="${flagId}">Could not preview this file.</div>`;
+      }
     }
 
     function loadImageDimensions(file) {

@@ -900,6 +900,7 @@ app.post(getBoth("/contentFlags"), async (req, res) => {
     author: item.author || "",
     imageType: item.imageType || "",
     releaseCatalog: item.releaseCatalog || "",
+    currentImageUrl: item.imageUrl || "",
     flaggedByUid: ctx.decoded.uid,
     flaggedByEmail: ctx.decoded.email,
     flaggedByRoles: Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [],
@@ -915,9 +916,20 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
 
+  const allContent = await getAllContent();
+  const contentById = new Map(allContent.map((item) => [normalizeKey(item.imageId || ""), item]));
   const snap = await db.collection(COLLECTIONS.contentFlags).limit(250).get();
   const flags = snap.docs
-    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .map((doc) => {
+      const data = doc.data() || {};
+      const current = contentById.get(normalizeKey(data.imageId || ""));
+      return {
+        id: doc.id,
+        ...(data || {}),
+        currentImageUrl: current?.imageUrl || data.currentImageUrl || "",
+        currentTitle: current?.title || data.title || "",
+      };
+    })
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
   res.json({ flags });
 });
