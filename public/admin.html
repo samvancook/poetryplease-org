@@ -358,12 +358,21 @@
       flagQuery: "",
       flagStatusFilter: "all",
       flagTypeFilter: "all",
+      usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') === 'true',
     };
 
     function setStatus(message, isError = false) {
       const el = document.getElementById("status");
       el.textContent = message;
       el.className = `status${isError ? " error" : ""}`;
+    }
+
+    function applyUsersCollapseState() {
+      const button = document.getElementById('users-toggle');
+      const body = document.getElementById('users-section-body');
+      if (!button || !body) return;
+      button.setAttribute('aria-expanded', state.usersCollapsed ? 'false' : 'true');
+      body.hidden = !!state.usersCollapsed;
     }
 
     function normalizeTimestamp(value) {
@@ -996,6 +1005,8 @@
     }
 
     async function init() {
+      applyUsersCollapseState();
+
       firebase.auth().onAuthStateChanged(async (user) => {
         if (!user) {
           setStatus("Please sign in with your admin account first.", true);
@@ -1032,6 +1043,11 @@
       });
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
+      document.getElementById("users-toggle").addEventListener("click", () => {
+        state.usersCollapsed = !state.usersCollapsed;
+        localStorage.setItem('pp_admin_users_collapsed', state.usersCollapsed ? 'true' : 'false');
+        applyUsersCollapseState();
+      });
       document.getElementById("create-invite").addEventListener("click", () => createInvite());
       document.getElementById("flag-search").addEventListener("input", (event) => {
         state.flagQuery = event.target.value || "";
