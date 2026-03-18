@@ -171,6 +171,18 @@
       <div id="featured-list" class="featured-list"></div>
       <div id="content-picker" class="picker-grid"></div>
     </section>
+
+    <section class="card">
+      <h2 style="margin-top:0;">Claim Existing Content</h2>
+      <p class="hint">Search for pieces that belong to you but are not yet associated with your profile. Claims will go to admin for review.</p>
+      <div class="actions">
+        <input id="claim-search" type="text" placeholder="Search title, author, catalog, or content ID" style="min-width:320px;" />
+        <button id="search-claims" type="button" class="secondary">Search content</button>
+      </div>
+      <div id="claim-status" class="status">No claim search yet.</div>
+      <div id="claim-results" class="picker-grid"></div>
+      <div id="my-claims" style="margin-top:18px;"></div>
+    </section>
   </main>
 
   <script>
@@ -193,6 +205,8 @@
       featuredIds: [],
       slugTouched: false,
       photoUrl: "",
+      myClaims: [],
+      claimResults: [],
     };
 
     function slugify(value) {
@@ -286,6 +300,72 @@
       renderContentPicker();
     }
 
+    function latestClaimStatusFor(imageId) {
+      const claim = state.myClaims.find((entry) => entry.imageId === imageId);
+      return claim ? claim.status : "";
+    }
+
+    function renderMyClaims() {
+      const container = document.getElementById("my-claims");
+      if (!state.myClaims.length) {
+        container.innerHTML = '<div class="empty">You have not submitted any content claims yet.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <h3 style="margin:0 0 10px;">Your recent claims</h3>
+        <div class="picker-grid">
+          ${state.myClaims.map((claim) => `
+            <article class="content-card">
+              <span class="chip">${claim.status || 'pending'}</span>
+              <h3>${claim.title || claim.imageId}</h3>
+              <p>${claim.author || ''}</p>
+              <p>${claim.releaseCatalog || ''}</p>
+            </article>
+          `).join('')}
+        </div>
+      `;
+    }
+
+    function renderClaimResults() {
+      const container = document.getElementById("claim-results");
+      if (!state.claimResults.length) {
+        container.innerHTML = '<div class="empty">No matching content found yet.</div>';
+        return;
+      }
+      const associatedIds = new Set(state.authoredContent.map((item) => item.imageId));
+      container.innerHTML = state.claimResults.map((item) => {
+        const claimStatus = latestClaimStatusFor(item.imageId);
+        const alreadyAssociated = associatedIds.has(item.imageId);
+        let buttonLabel = 'Request claim';
+        let disabled = '';
+        if (alreadyAssociated) {
+          buttonLabel = 'Already associated';
+          disabled = 'disabled';
+        } else if (claimStatus === 'pending') {
+          buttonLabel = 'Claim pending';
+          disabled = 'disabled';
+        } else if (claimStatus === 'approved') {
+          buttonLabel = 'Claim approved';
+          disabled = 'disabled';
+        }
+        return `
+          <article class="content-card">
+            <span class="chip">${item.imageType || 'Content'}</span>
+            <h3>${item.title || item.imageId}</h3>
+            <p>${item.author || ''}</p>
+            <p>${item.releaseCatalog || ''}</p>
+            <div class="actions" style="margin-top:12px;">
+              <button type="button" class="secondary" data-claim-image-id="${item.imageId}" ${disabled}>${buttonLabel}</button>
+              <a class="preview" href="/app?item=${encodeURIComponent(item.imageId)}" target="_blank" rel="noopener">Open</a>
+            </div>
+          </article>
+        `;
+      }).join('');
+      container.querySelectorAll('[data-claim-image-id]').forEach((button) => {
+        button.addEventListener('click', () => submitClaim(button.getAttribute('data-claim-image-id')));
+      });
+    }
+
     function renderContentPicker() {
       const container = document.getElementById("content-picker");
       if (!state.authoredContent.length) {
@@ -375,6 +455,51 @@
     }
 
 
+    async function loadMyClaims() {
+      const payload = await api("my/contentClaims", { method: "GET" });
+      state.myClaims = payload.claims || [];
+      renderMyClaims();
+    }
+
+    async function searchClaimCandidates() {
+      const q = document.getElementById("claim-search").value.trim();
+      const statusEl = document.getElementById("claim-status");
+      if (!q) {
+        statusEl.textContent = "Enter a search term first.";
+        statusEl.className = "status error";
+        return;
+      }
+      statusEl.textContent = "Searching content…";
+      statusEl.className = "status";
+      try {
+        const payload = await api(`contentClaims/candidates?q=${encodeURIComponent(q)}`, { method: "GET" });
+        state.claimResults = payload.items || [];
+        renderClaimResults();
+        statusEl.textContent = `Found ${state.claimResults.length} possible matches.`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || "Could not search content.";
+        statusEl.className = "status error";
+      }
+    }
+
+    async function submitClaim(imageId) {
+      const statusEl = document.getElementById("claim-status");
+      statusEl.textContent = "Submitting claim…";
+      statusEl.className = "status";
+      try {
+        await api("contentClaims", { method: "POST", body: { imageId } });
+        await loadMyClaims();
+        renderClaimResults();
+        statusEl.textContent = "Claim submitted for review.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || "Could not submit claim.";
+        statusEl.className = "status error";
+      }
+    }
+
+
     function validatePhotoFile(file) {
       const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
       if (!file) throw new Error("Choose an image file first.");
@@ -431,7 +556,7 @@
       setStatus("Saving profile…");
       try {
         const payload = await api("authorProfiles", { method: "POST", body: collectPayload() });
-        await loadEditorData();
+        await Promise.all([loadEditorData(), loadMyClaims()]);
         fillProfile(payload.profile || {}, payload.profile || {});
         setStatus("Profile saved.", "ok");
       } catch (err) {
@@ -457,7 +582,7 @@
           setStatus("You need author or admin access to edit author profiles.", "error");
           return;
         }
-        await loadEditorData();
+        await Promise.all([loadEditorData(), loadMyClaims()]);
       });
 
       document.getElementById("save").addEventListener("click", () => saveProfile());
@@ -467,6 +592,7 @@
         state.slugTouched = true;
         updateSlugUI();
       });
+      document.getElementById("search-claims").addEventListener("click", () => searchClaimCandidates());
       document.getElementById("logout").addEventListener("click", async () => {
         await firebase.auth().signOut();
         location.href = "/app";

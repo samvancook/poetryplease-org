@@ -240,6 +240,13 @@
       <div id="invite-list-status" class="status" style="margin-top:16px;">Loading invites…</div>
       <div id="invite-list"></div>
     </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h2 style="margin-top:0;">Content Claims</h2>
+      <p class="lede" style="margin-bottom:16px;max-width:none;">Review author requests to claim existing content in the system.</p>
+      <div id="claim-review-status" class="status">Loading claims…</div>
+      <div id="claim-review-list"></div>
+    </section>
   </main>
 
   <script>
@@ -284,6 +291,7 @@
       statusFilter: "all",
       syncedCount: 0,
       invites: [],
+      claims: [],
     };
 
     function setStatus(message, isError = false) {
@@ -549,6 +557,81 @@
       }
     }
 
+
+    function renderClaims() {
+      const container = document.getElementById("claim-review-list");
+      const statusEl = document.getElementById("claim-review-status");
+      if (!state.claims.length) {
+        container.innerHTML = '<div class="empty">No content claims yet.</div>';
+        statusEl.textContent = 'No claims to review.';
+        return;
+      }
+      const pending = state.claims.filter((claim) => claim.status === 'pending');
+      statusEl.textContent = `${pending.length} pending claim${pending.length === 1 ? '' : 's'}.`;
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Content</th>
+              <th>Requester</th>
+              <th>Status</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.claims.map((claim) => `
+              <tr>
+                <td>
+                  <div class="user-name">${claim.title || claim.imageId}</div>
+                  <div>${claim.imageType || ''} ${claim.releaseCatalog ? '· ' + claim.releaseCatalog : ''}</div>
+                </td>
+                <td>${claim.requesterEmail || claim.requesterUid || '—'}</td>
+                <td>${claim.status || 'pending'}</td>
+                <td>
+                  <div class="actions" style="margin-top:0;">
+                    <button type="button" data-review-claim="${claim.id}" data-decision="approved" ${claim.status !== 'pending' ? 'disabled' : ''}>Approve</button>
+                    <button type="button" class="secondary" data-review-claim="${claim.id}" data-decision="rejected" ${claim.status !== 'pending' ? 'disabled' : ''}>Reject</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      container.querySelectorAll('[data-review-claim]').forEach((button) => {
+        button.addEventListener('click', () => reviewClaim(button.getAttribute('data-review-claim'), button.getAttribute('data-decision')));
+      });
+    }
+
+    async function loadClaims() {
+      const statusEl = document.getElementById('claim-review-status');
+      statusEl.textContent = 'Loading claims…';
+      try {
+        const payload = await api('admin/contentClaims', { method: 'GET' });
+        state.claims = payload.claims || [];
+        renderClaims();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('claim-review-list').innerHTML = '<div class="empty">Could not load claims.</div>';
+        statusEl.textContent = err.message || 'Could not load claims.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function reviewClaim(claimId, decision) {
+      const statusEl = document.getElementById('claim-review-status');
+      statusEl.textContent = `${decision === 'approved' ? 'Approving' : 'Rejecting'} claim…`;
+      statusEl.className = 'status';
+      try {
+        await api(`admin/contentClaims/${claimId}/review`, { method: 'POST', body: { decision } });
+        await loadClaims();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not review claim.';
+        statusEl.className = 'status error';
+      }
+    }
+
     async function init() {
       firebase.auth().onAuthStateChanged(async (user) => {
         if (!user) {
@@ -569,7 +652,7 @@
           return;
         }
 
-        await Promise.all([loadUsers(), loadInvites()]);
+        await Promise.all([loadUsers(), loadInvites(), loadClaims()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {

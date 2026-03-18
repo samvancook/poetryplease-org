@@ -86,6 +86,16 @@ async function getAllFrom(collection) {
   return out;
 }
 
+
+async function getAllContent() {
+  const [g, e, v] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+  ]);
+  return [...g, ...e, ...v];
+}
+
 async function getVotesByUser(userId) {
   const list = [];
   let q = db.collection(COLLECTIONS.votes).where("userId", "==", userId).limit(1000);
@@ -221,6 +231,7 @@ function mapProfileDoc(id, data = {}) {
     customLinks: Array.isArray(data.customLinks) ? data.customLinks : [],
     authorNameVariants: uniq(data.authorNameVariants),
     featuredContentIds: uniq(data.featuredContentIds),
+    claimedContentIds: uniq(data.claimedContentIds),
     published: data.published !== false,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
@@ -231,7 +242,8 @@ function pickProfileContent(profile, allContent, ratings) {
   const authorKeys = new Set(
     uniq([profile.displayName, ...(profile.authorNameVariants || [])]).map(normalizeKey)
   );
-  const authored = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)));
+  const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
+  const authored = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)) || claimedKeys.has(normalizeKey(item.imageId)));
   const byId = new Map(authored.map((item) => [normalizeKey(item.imageId), item]));
   const featured = (profile.featuredContentIds || [])
     .map((id) => byId.get(normalizeKey(id)))
@@ -727,6 +739,137 @@ app.post(getBoth("/authorAssets/uploadPhoto"), async (req, res) => {
   });
 
   res.json({ ok: true, assetId: assetRef.id, storagePath, publicUrl });
+});
+
+
+app.get(getBoth("/my/contentClaims"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+
+  const snap = await db.collection(COLLECTIONS.contentClaims)
+    .where("requesterUid", "==", ctx.decoded.uid)
+    .limit(250)
+    .get();
+  const claims = snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
+  res.json({ claims });
+});
+
+app.get(getBoth("/contentClaims/candidates"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+
+  const queryText = normalizeKey(req.query?.q || "");
+  if (!queryText) return res.json({ items: [] });
+  const allContent = await getAllContent();
+  const items = allContent
+    .filter((item) => mapToArr(item).some((value) => normalizeKey(value).includes(queryText)))
+    .slice(0, 40);
+  res.json({ items });
+});
+
+app.post(getBoth("/contentClaims"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "admin"]);
+  if (!ctx) return;
+
+  const imageId = normalizeText(req.body?.imageId);
+  const note = normalizeText(req.body?.note || "");
+  if (!imageId) return res.status(400).json({ error: "missing_image_id" });
+
+  const existing = await db.collection(COLLECTIONS.contentClaims)
+    .where("requesterUid", "==", ctx.decoded.uid)
+    .where("imageId", "==", imageId)
+    .limit(20)
+    .get();
+  const duplicate = existing.docs.find((doc) => {
+    const status = normalizeText(doc.data()?.status || "pending");
+    return status === "pending" || status === "approved";
+  });
+  if (duplicate) return res.status(409).json({ error: "claim_exists", status: duplicate.data()?.status || "pending" });
+
+  const allContent = await getAllContent();
+  const item = allContent.find((entry) => normalizeKey(entry.imageId) === normalizeKey(imageId));
+  if (!item) return res.status(404).json({ error: "content_not_found" });
+
+  const userRecord = (await getUserRecord(ctx.decoded.uid)) || ctx.userRecord || {};
+  const profileId = userRecord.authorProfileId || ctx.decoded.uid;
+  const claimRef = db.collection(COLLECTIONS.contentClaims).doc();
+  await claimRef.set({
+    imageId: item.imageId,
+    title: item.title || "",
+    author: item.author || "",
+    imageType: item.imageType || "",
+    releaseCatalog: item.releaseCatalog || "",
+    requesterUid: ctx.decoded.uid,
+    requesterEmail: ctx.decoded.email,
+    profileId,
+    note,
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  res.json({ ok: true, claimId: claimRef.id });
+});
+
+app.get(getBoth("/admin/contentClaims"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const snap = await db.collection(COLLECTIONS.contentClaims).limit(250).get();
+  const claims = snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
+  res.json({ claims });
+});
+
+app.post(getBoth("/admin/contentClaims/:claimId/review"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const claimId = normalizeText(req.params.claimId);
+  const decision = normalizeText(req.body?.decision);
+  const note = normalizeText(req.body?.note || "");
+  if (!claimId) return res.status(400).json({ error: "missing_claim_id" });
+  if (!["approved", "rejected"].includes(decision)) return res.status(400).json({ error: "invalid_decision" });
+
+  const claimRef = db.collection(COLLECTIONS.contentClaims).doc(claimId);
+  const claimSnap = await claimRef.get();
+  if (!claimSnap.exists) return res.status(404).json({ error: "claim_not_found" });
+  const claim = claimSnap.data() || {};
+
+  await claimRef.set({
+    status: decision,
+    reviewNote: note,
+    reviewedAt: FieldValue.serverTimestamp(),
+    reviewedBy: ctx.decoded.uid,
+  }, { merge: true });
+
+  if (decision === "approved") {
+    const profileId = claim.profileId || claim.requesterUid;
+    const profileRef = db.collection(COLLECTIONS.authorProfiles).doc(profileId);
+    const profileSnap = await profileRef.get();
+    const existingProfile = profileSnap.exists ? (profileSnap.data() || {}) : {};
+    await profileRef.set({
+      userId: existingProfile.userId || claim.requesterUid,
+      email: existingProfile.email || claim.requesterEmail,
+      displayName: existingProfile.displayName || claim.requesterEmail,
+      slug: existingProfile.slug || slugify(existingProfile.displayName || claim.requesterEmail),
+      authorNameVariants: uniq(existingProfile.authorNameVariants || []),
+      claimedContentIds: uniq([...(existingProfile.claimedContentIds || []), claim.imageId]),
+      createdAt: existingProfile.createdAt || FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      published: existingProfile.published ?? false,
+    }, { merge: true });
+
+    await db.collection(COLLECTIONS.users).doc(claim.requesterUid).set({
+      authorProfileId: profileId,
+      roles: resolveRoles([...(Array.isArray(claim.roles) ? claim.roles : ["user", "author"]), "author"], claim.requesterEmail || ""),
+    }, { merge: true });
+  }
+
+  const saved = await claimRef.get();
+  res.json({ ok: true, claim: { id: saved.id, ...(saved.data() || {}) } });
 });
 
 app.post(getBoth("/authorInvites/create"), async (req, res) => {
