@@ -19,6 +19,7 @@ const COLLECTIONS = {
   authorProfiles: "authorProfiles",
   authorInvites: "authorInvites",
   authorAssets: "authorAssets",
+  contentAssets: "contentAssets",
   contentClaims: "contentClaims",
   contentFlags: "contentFlags",
   contentSubmissions: "contentSubmissions",
@@ -95,6 +96,36 @@ async function getAllContent() {
     getAllFrom(COLLECTIONS.videos),
   ]);
   return [...g, ...e, ...v];
+}
+
+async function findContentRecordByImageId(imageId) {
+  const normalized = normalizeKey(imageId);
+  if (!normalized) return null;
+  for (const collection of [COLLECTIONS.graphics, COLLECTIONS.excerpts, COLLECTIONS.videos]) {
+    const snap = await db.collection(collection).limit(1000).get();
+    const match = snap.docs.find((doc) => {
+      const data = doc.data() || {};
+      const candidate = data.imageId || data.imageID || data.videoId || "";
+      return normalizeKey(candidate) === normalized;
+    });
+    if (match) {
+      return { collection, docId: match.id, data: match.data() || {} };
+    }
+  }
+  return null;
+}
+
+function extensionForUpload(fileName = "", mimeType = "") {
+  const fileExt = (String(fileName || "").split(".").pop() || "").trim().toLowerCase();
+  if (fileExt) return fileExt;
+  const map = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  return map[String(mimeType || "").toLowerCase()] || "jpg";
 }
 
 async function getVotesByUser(userId) {
@@ -904,17 +935,115 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
   const flagRef = db.collection(COLLECTIONS.contentFlags).doc(flagId);
   const snap = await flagRef.get();
   if (!snap.exists) return res.status(404).json({ error: "flag_not_found" });
+  const flagData = snap.data() || {};
 
-  await flagRef.set({
+  const matchingFlags = await db.collection(COLLECTIONS.contentFlags)
+    .where("imageId", "==", flagData.imageId || "")
+    .limit(25)
+    .get();
+  const targets = matchingFlags.empty ? [flagRef] : matchingFlags.docs.map((doc) => doc.ref);
+  await Promise.all(targets.map((ref) => ref.set({
     status: "resolved",
     resolution: decision,
     reviewNote: note,
     reviewedBy: ctx.decoded.uid,
     reviewedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  }, { merge: true })));
 
   const saved = await flagRef.get();
   res.json({ ok: true, flag: { id: saved.id, ...(saved.data() || {}) } });
+});
+
+app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const flagId = normalizeText(req.params.flagId);
+  const mimeType = normalizeText(req.body?.mimeType);
+  const base64Data = normalizeText(req.body?.base64Data);
+  const fileName = normalizeText(req.body?.fileName || "replacement-image");
+  const width = Number(req.body?.width || 0) || null;
+  const height = Number(req.body?.height || 0) || null;
+  const fileSize = Number(req.body?.fileSize || 0) || null;
+  const reviewNote = normalizeText(req.body?.note || "");
+  if (!flagId) return res.status(400).json({ error: "missing_flag_id" });
+  if (!mimeType || !base64Data) return res.status(400).json({ error: "missing_upload_payload" });
+  if (!/^image\//i.test(mimeType)) return res.status(400).json({ error: "invalid_mime_type" });
+
+  const flagRef = db.collection(COLLECTIONS.contentFlags).doc(flagId);
+  const flagSnap = await flagRef.get();
+  if (!flagSnap.exists) return res.status(404).json({ error: "flag_not_found" });
+  const flag = flagSnap.data() || {};
+  if ((flag.status || "") !== "pending") return res.status(409).json({ error: "flag_not_pending" });
+
+  const contentRecord = await findContentRecordByImageId(flag.imageId || "");
+  if (!contentRecord) return res.status(404).json({ error: "content_not_found" });
+  if (contentRecord.collection !== COLLECTIONS.graphics) {
+    return res.status(400).json({ error: "replacement_supported_for_graphics_only" });
+  }
+
+  const ext = extensionForUpload(fileName, mimeType);
+  const storagePath = `content-replacements/${normalizeKey(flag.imageId || contentRecord.docId)}/${Date.now()}.${ext}`;
+  const bucket = storage.bucket();
+  const file = bucket.file(storagePath);
+  const buffer = Buffer.from(base64Data, "base64");
+  await file.save(buffer, {
+    metadata: {
+      contentType: mimeType,
+      cacheControl: "public,max-age=3600",
+    },
+    resumable: false,
+  });
+
+  const publicUrl = await getDownloadURL(file);
+  const assetRef = db.collection(COLLECTIONS.contentAssets).doc();
+  await assetRef.set({
+    assetType: "replacement_graphic",
+    sourceFlagId: flagId,
+    imageId: flag.imageId || "",
+    contentCollection: contentRecord.collection,
+    contentDocId: contentRecord.docId,
+    storagePath,
+    publicUrl,
+    width,
+    height,
+    fileSize,
+    mimeType,
+    uploadedByUid: ctx.decoded.uid,
+    uploadedByEmail: ctx.decoded.email,
+    status: "active",
+    createdAt: FieldValue.serverTimestamp(),
+  });
+
+  await db.collection(contentRecord.collection).doc(contentRecord.docId).set({
+    imageUrl: publicUrl,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: ctx.decoded.uid,
+    replacementAssetId: assetRef.id,
+  }, { merge: true });
+
+  const matchingFlags = await db.collection(COLLECTIONS.contentFlags)
+    .where("imageId", "==", flag.imageId || "")
+    .limit(25)
+    .get();
+  const targets = matchingFlags.empty ? [flagRef] : matchingFlags.docs.map((doc) => doc.ref);
+  await Promise.all(targets.map((ref) => ref.set({
+    status: "resolved",
+    resolution: "updated",
+    reviewNote,
+    replacementAssetId: assetRef.id,
+    replacementUrl: publicUrl,
+    reviewedBy: ctx.decoded.uid,
+    reviewedAt: FieldValue.serverTimestamp(),
+  }, { merge: true })));
+
+  const saved = await flagRef.get();
+  res.json({
+    ok: true,
+    assetId: assetRef.id,
+    publicUrl,
+    flag: { id: saved.id, ...(saved.data() || {}) },
+  });
 });
 
 app.get(getBoth("/admin/contentClaims"), async (req, res) => {

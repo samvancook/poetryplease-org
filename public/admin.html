@@ -669,6 +669,11 @@
                     <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Re-approve</button>
                     <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="updated" ${flag.status !== 'pending' ? 'disabled' : ''}>Mark updated</button>
                   </div>
+                  <div class="actions" style="margin-top:10px;flex-wrap:wrap;">
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${flag.id}" ${flag.status !== 'pending' || flag.imageType === 'EXC' || flag.imageType === 'VV' ? 'disabled' : ''} />
+                    <button type="button" class="secondary" data-upload-replacement="${flag.id}" ${flag.status !== 'pending' || flag.imageType === 'EXC' || flag.imageType === 'VV' ? 'disabled' : ''}>Replace asset</button>
+                  </div>
+                  ${flag.imageType === 'EXC' || flag.imageType === 'VV' ? '<div class="meta">Replacement upload is currently available for graphics only.</div>' : ''}
                 </td>
               </tr>
             `).join('')}
@@ -678,6 +683,9 @@
 
       container.querySelectorAll('[data-review-flag]').forEach((button) => {
         button.addEventListener('click', () => reviewFlag(button.getAttribute('data-review-flag'), button.getAttribute('data-decision')));
+      });
+      container.querySelectorAll('[data-upload-replacement]').forEach((button) => {
+        button.addEventListener('click', () => uploadReplacement(button.getAttribute('data-upload-replacement')));
       });
     }
 
@@ -723,6 +731,82 @@
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not review flagged content.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    function readFileAsDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Could not read file.'));
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function loadImageDimensions(file) {
+      return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve({ width: img.naturalWidth || 0, height: img.naturalHeight || 0 });
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Could not inspect image dimensions.'));
+        };
+        img.src = url;
+      });
+    }
+
+    async function uploadReplacement(flagId) {
+      const statusEl = document.getElementById('flag-review-status');
+      const input = document.querySelector(`[data-replacement-file="${flagId}"]`);
+      const file = input?.files?.[0];
+      if (!file) {
+        statusEl.textContent = 'Choose a replacement image first.';
+        statusEl.className = 'status error';
+        return;
+      }
+      if (!/^image\\//i.test(file.type || '')) {
+        statusEl.textContent = 'Replacement files must be images.';
+        statusEl.className = 'status error';
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        statusEl.textContent = 'Replacement image must be 10 MB or smaller.';
+        statusEl.className = 'status error';
+        return;
+      }
+
+      const note = window.prompt('Optional note about this replacement:', '');
+      if (note === null) return;
+
+      statusEl.textContent = 'Uploading replacement asset…';
+      statusEl.className = 'status';
+      try {
+        const [dataUrl, dims] = await Promise.all([
+          readFileAsDataURL(file),
+          loadImageDimensions(file),
+        ]);
+        const base64Data = dataUrl.split(',')[1] || '';
+        await api(`admin/contentFlags/${flagId}/uploadReplacement`, {
+          method: 'POST',
+          body: {
+            fileName: file.name,
+            mimeType: file.type,
+            fileSize: file.size,
+            width: dims.width,
+            height: dims.height,
+            base64Data,
+            note,
+          }
+        });
+        await loadFlags();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not upload replacement asset.';
         statusEl.className = 'status error';
       }
     }
