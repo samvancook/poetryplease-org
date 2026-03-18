@@ -305,6 +305,12 @@
           <option value="EXC">Excerpts</option>
           <option value="VV">Video</option>
         </select>
+        <select id="flag-sort">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="author-az">Author A–Z</option>
+          <option value="title-az">Title A–Z</option>
+        </select>
       </div>
       <div id="flag-review-status" class="status">Loading flagged content…</div>
       <div id="flag-review-list"></div>
@@ -358,6 +364,7 @@
       flagQuery: "",
       flagStatusFilter: "all",
       flagTypeFilter: "all",
+      flagSort: "newest",
       usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') === 'true',
     };
 
@@ -840,7 +847,7 @@
 
     function filteredFlags() {
       const query = String(state.flagQuery || '').trim().toLowerCase();
-      return state.flags.filter((flag) => {
+      const filtered = state.flags.filter((flag) => {
         const haystack = [
           flag.title,
           flag.imageId,
@@ -857,6 +864,22 @@
           || (state.flagTypeFilter === 'graphics' ? !['EXC', 'VV'].includes(flag.imageType || '') : (flag.imageType || '') === state.flagTypeFilter);
         return matchesQuery && matchesStatus && matchesType;
       });
+      const byTime = (flag) => normalizeTimestamp(flag.createdAt)?.getTime?.() || 0;
+      const alpha = (value) => String(value || '').toLowerCase();
+      filtered.sort((a, b) => {
+        switch (state.flagSort) {
+          case 'oldest':
+            return byTime(a) - byTime(b);
+          case 'author-az':
+            return alpha(a.author).localeCompare(alpha(b.author)) || (byTime(b) - byTime(a));
+          case 'title-az':
+            return alpha(a.title || a.imageId).localeCompare(alpha(b.title || b.imageId)) || (byTime(b) - byTime(a));
+          case 'newest':
+          default:
+            return byTime(b) - byTime(a);
+        }
+      });
+      return filtered;
     }
 
     async function loadFlags() {
@@ -1059,6 +1082,10 @@
       });
       document.getElementById("flag-type-filter").addEventListener("change", (event) => {
         state.flagTypeFilter = event.target.value || "all";
+        renderFlags();
+      });
+      document.getElementById("flag-sort").addEventListener("change", (event) => {
+        state.flagSort = event.target.value || "newest";
         renderFlags();
       });
       document.getElementById("logout").addEventListener("click", async () => {
