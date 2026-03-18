@@ -73,13 +73,22 @@
     input[type="search"],
     select,
     input[type="email"],
-    input[type="number"] {
+    input[type="number"],
+    input[type="text"],
+    input[type="url"],
+    textarea {
       min-width: min(220px, 100%);
       padding: 10px 12px;
       border-radius: 12px;
       border: 1px solid var(--line);
       background: #fff;
       color: var(--ink);
+    }
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      resize: vertical;
+      font: inherit;
     }
     input[type="search"] {
       min-width: min(360px, 100%);
@@ -219,6 +228,30 @@
       color: var(--muted);
       text-align: center;
     }
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .form-grid label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .form-grid label.wide {
+      grid-column: 1 / -1;
+    }
+    .field-group {
+      display: contents;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
     @media (max-width: 860px) {
       table, thead, tbody, tr, th, td { display: block; }
       thead { display: none; }
@@ -290,6 +323,132 @@
     </section>
 
     <section class="card" style="margin-top:20px;">
+      <h2 style="margin-top:0;">Content Library</h2>
+      <p class="lede" style="margin-bottom:16px;max-width:none;">Create and update graphics, excerpts, and videos directly in the app instead of routing changes through Sheets and Apps Script.</p>
+      <div class="controls">
+        <select id="content-type">
+          <option value="graphics">Graphics</option>
+          <option value="excerpts">Excerpts</option>
+          <option value="videos">Videos</option>
+        </select>
+        <input id="content-search" type="search" placeholder="Search recent content by ID, title, author, or catalog" />
+        <button id="refresh-content" type="button" class="secondary">Refresh content</button>
+      </div>
+      <div class="hint">For graphics, you can upload the image file here and the app will store it in Firebase Storage before saving the Firestore record.</div>
+      <div id="content-status" class="status">Loading content library…</div>
+      <div class="form-grid" id="content-form">
+        <label>
+          Document ID
+          <input id="content-doc-id" type="text" placeholder="Required. Used as the Firestore document ID." />
+        </label>
+        <label>
+          Image Type
+          <input id="content-image-type" type="text" placeholder="Examples: GP, EXC, VV" />
+        </label>
+        <label>
+          Author
+          <input id="content-author" type="text" placeholder="Author name" />
+        </label>
+        <label data-content-field="graphics excerpts videos">
+          Book
+          <input id="content-book" type="text" placeholder="Book title" />
+        </label>
+        <label data-content-field="graphics videos">
+          Title
+          <input id="content-title" type="text" placeholder="Graphic or video title" />
+        </label>
+        <label data-content-field="excerpts">
+          Poem
+          <input id="content-poem" type="text" placeholder="Poem title" />
+        </label>
+        <label data-content-field="graphics videos">
+          Public URL
+          <input id="content-image-url" type="url" placeholder="Public image or file URL" />
+        </label>
+        <label data-content-field="graphics">
+          Upload graphic
+          <input id="content-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
+        </label>
+        <label data-content-field="graphics excerpts videos">
+          Drive Link
+          <input id="content-drive-link" type="url" placeholder="Optional Drive link" />
+        </label>
+        <label data-content-field="graphics excerpts videos">
+          Book Link
+          <input id="content-book-link" type="url" placeholder="Optional book link" />
+        </label>
+        <label data-content-field="graphics excerpts videos">
+          Release Catalog
+          <input id="content-release-catalog" type="text" placeholder="Catalog code" />
+        </label>
+        <label data-content-field="excerpts videos">
+          Page Number
+          <input id="content-page-number" type="text" placeholder="Page #" />
+        </label>
+        <label data-content-field="excerpts videos">
+          Book Shortener
+          <input id="content-book-shortener" type="text" placeholder="Used in legacy IDs" />
+        </label>
+        <label data-content-field="videos">
+          Release Year
+          <input id="content-release-year" type="text" placeholder="YYYY" />
+        </label>
+        <label data-content-field="videos">
+          Updated File Name
+          <input id="content-updated-file-name" type="text" placeholder="Optional file name" />
+        </label>
+        <label data-content-field="videos">
+          YouTube Link
+          <input id="content-url" type="url" placeholder="YouTube or video URL" />
+        </label>
+        <label data-content-field="videos">
+          Misc
+          <input id="content-misc" type="text" placeholder="Optional notes" />
+        </label>
+        <label class="wide" data-content-field="excerpts">
+          Excerpt
+          <textarea id="content-excerpt" placeholder="Excerpt text"></textarea>
+        </label>
+      </div>
+      <div class="actions" style="margin-top:14px;">
+        <button id="save-content" type="button">Save content</button>
+        <button id="clear-content" type="button" class="secondary">Clear form</button>
+      </div>
+      <div id="content-library-list" style="margin-top:18px;"></div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h2 style="margin-top:0;">Legacy Import Tool</h2>
+      <p class="lede" style="margin-bottom:16px;max-width:none;">Paste rows copied from your existing sheets to bulk import them here. This is the migration bridge away from Apps Script.</p>
+      <div class="controls">
+        <select id="legacy-import-type">
+          <option value="graphics">Graphics sheet</option>
+          <option value="excerpts">Excerpts sheet</option>
+          <option value="videos">Videos sheet</option>
+        </select>
+        <button id="run-legacy-import" type="button">Import pasted rows</button>
+      </div>
+      <div class="hint">Graphics and excerpts expect the old column order. Videos expects the header row from the spreadsheet, matching the Apps Script mapping.</div>
+      <textarea id="legacy-import-text" placeholder="Paste tab-separated rows from Google Sheets here"></textarea>
+      <div id="legacy-import-status" class="status">No import run yet.</div>
+      <div id="legacy-import-results"></div>
+      <div class="form-grid" style="margin-top:18px;">
+        <label>
+          Delete IDs
+          <textarea id="legacy-delete-ids" placeholder="One document ID per line"></textarea>
+        </label>
+        <label>
+          Delete by created date
+          <input id="legacy-delete-date" type="text" placeholder="YYYY-MM-DD" />
+        </label>
+      </div>
+      <div class="actions" style="margin-top:14px;">
+        <button id="delete-legacy-ids" type="button" class="secondary">Delete listed IDs</button>
+        <button id="delete-legacy-date" type="button" class="secondary">Delete by date</button>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
       <h2 style="margin-top:0;">Flagged Content</h2>
       <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
       <div class="controls">
@@ -354,6 +513,9 @@
       syncedCount: 0,
       invites: [],
       claims: [],
+      contentItems: [],
+      contentType: "graphics",
+      contentQuery: "",
       flags: [],
       flagQuery: "",
       flagStatusFilter: "all",
@@ -751,6 +913,395 @@
       }
     }
 
+    function slugify(value) {
+      return String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^\w-]/g, '');
+    }
+
+    function updateContentFormVisibility() {
+      const type = state.contentType || 'graphics';
+      document.querySelectorAll('[data-content-field]').forEach((el) => {
+        const allowed = String(el.getAttribute('data-content-field') || '').split(/\s+/).filter(Boolean);
+        el.style.display = allowed.includes(type) ? '' : 'none';
+      });
+      const docIdInput = document.getElementById('content-doc-id');
+      if (type === 'graphics') docIdInput.placeholder = 'Required. Usually the image ID.';
+      if (type === 'excerpts') docIdInput.placeholder = 'Required or leave blank to derive from book shortener + poem.';
+      if (type === 'videos') docIdInput.placeholder = 'Required. Usually the raw file name or video ID.';
+    }
+
+    function clearContentForm() {
+      [
+        'content-doc-id',
+        'content-image-type',
+        'content-author',
+        'content-book',
+        'content-title',
+        'content-poem',
+        'content-image-url',
+        'content-drive-link',
+        'content-book-link',
+        'content-release-catalog',
+        'content-page-number',
+        'content-book-shortener',
+        'content-release-year',
+        'content-updated-file-name',
+        'content-url',
+        'content-misc',
+        'content-excerpt',
+      ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      const fileInput = document.getElementById('content-file');
+      if (fileInput) fileInput.value = '';
+    }
+
+    function populateContentForm(item) {
+      if (!item) return;
+      const nextType = item.collection || 'graphics';
+      state.contentType = nextType;
+      document.getElementById('content-type').value = nextType;
+      updateContentFormVisibility();
+      document.getElementById('content-doc-id').value = item.contentId || item.id || '';
+      document.getElementById('content-image-type').value = item.imageType || '';
+      document.getElementById('content-author').value = item.author || '';
+      document.getElementById('content-book').value = item.book || '';
+      document.getElementById('content-title').value = item.title || '';
+      document.getElementById('content-poem').value = item.poem || '';
+      document.getElementById('content-image-url').value = item.imageUrl || '';
+      document.getElementById('content-drive-link').value = item.driveLink || '';
+      document.getElementById('content-book-link').value = item.bookLink || '';
+      document.getElementById('content-release-catalog').value = item.releaseCatalog || '';
+      document.getElementById('content-page-number').value = item.pageNumber || '';
+      document.getElementById('content-book-shortener').value = item.bookShortener || '';
+      document.getElementById('content-release-year').value = item.releaseYear || '';
+      document.getElementById('content-updated-file-name').value = item.updatedFileName || '';
+      document.getElementById('content-url').value = item.url || '';
+      document.getElementById('content-misc').value = item.misc || '';
+      document.getElementById('content-excerpt').value = item.excerpt || '';
+      document.getElementById('content-file').value = '';
+      document.getElementById('content-status').textContent = `Loaded ${item.contentId || item.id} into the form.`;
+    }
+
+    function maybeAutofillContentId() {
+      const idInput = document.getElementById('content-doc-id');
+      if (idInput.value.trim()) return;
+      if (state.contentType === 'excerpts') {
+        const shortener = document.getElementById('content-book-shortener').value.trim();
+        const poem = document.getElementById('content-poem').value.trim();
+        if (shortener && poem) idInput.value = `${shortener}-EXC-${slugify(poem)}`;
+      }
+    }
+
+    function renderContentLibrary() {
+      const container = document.getElementById('content-library-list');
+      const statusEl = document.getElementById('content-status');
+      if (!state.contentItems.length) {
+        container.innerHTML = '<div class="empty">No recent content matches this filter yet.</div>';
+        statusEl.textContent = 'No matching content found.';
+        return;
+      }
+
+      statusEl.textContent = `Showing ${state.contentItems.length} recent ${state.contentType === 'all' ? 'content items' : state.contentType}.`;
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Content</th>
+              <th>Author</th>
+              <th>Book / Catalog</th>
+              <th>Updated</th>
+              <th>Edit</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.contentItems.map((item) => `
+              <tr>
+                <td>${escapeHtml(item.collection || '—')}<div class="meta">${escapeHtml(item.imageType || '—')}</div></td>
+                <td>
+                  <div class="user-name">${escapeHtml(item.title || item.poem || item.contentId || 'Untitled')}</div>
+                  <div>${escapeHtml(item.contentId || item.id || '—')}</div>
+                  ${item.imageUrl ? `<div class="meta"><a href="${escapeHtml(item.imageUrl)}" target="_blank" rel="noopener noreferrer">Open asset</a></div>` : ''}
+                </td>
+                <td>${escapeHtml(item.author || '—')}</td>
+                <td>${escapeHtml(item.book || '—')}${item.releaseCatalog ? `<div class="meta">${escapeHtml(item.releaseCatalog)}</div>` : ''}</td>
+                <td>${formatLastActive(item.updatedAt || item.createdAt)}</td>
+                <td><button type="button" class="secondary" data-edit-content="${escapeHtml(item.id)}">Edit</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      container.querySelectorAll('[data-edit-content]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const item = state.contentItems.find((entry) => entry.id === button.getAttribute('data-edit-content'));
+          populateContentForm(item);
+        });
+      });
+    }
+
+    async function loadContentLibrary() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Loading content library…';
+      statusEl.className = 'status';
+      try {
+        const type = state.contentType || 'graphics';
+        const q = encodeURIComponent(state.contentQuery || '');
+        const payload = await api(`admin/contentLibrary?type=${encodeURIComponent(type)}&q=${q}`, { method: 'GET' });
+        state.contentItems = payload.items || [];
+        renderContentLibrary();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('content-library-list').innerHTML = '<div class="empty">Could not load content library.</div>';
+        statusEl.textContent = err.message || 'Could not load content library.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function buildContentUploadPayload() {
+      const file = document.getElementById('content-file').files?.[0];
+      if (!file || state.contentType !== 'graphics') return {};
+      if (!/^image\//i.test(file.type || '')) throw new Error('Graphics uploads must be image files.');
+      if (file.size > 10 * 1024 * 1024) throw new Error('Graphic upload must be 10 MB or smaller.');
+      const [dataUrl, dims] = await Promise.all([readFileAsDataURL(file), loadImageDimensions(file)]);
+      return {
+        fileName: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        width: dims.width,
+        height: dims.height,
+        base64Data: dataUrl.split(',')[1] || '',
+      };
+    }
+
+    async function saveContent() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Saving content…';
+      statusEl.className = 'status';
+      try {
+        maybeAutofillContentId();
+        const uploadPayload = await buildContentUploadPayload();
+        const body = {
+          type: state.contentType,
+          docId: document.getElementById('content-doc-id').value.trim(),
+          imageType: document.getElementById('content-image-type').value.trim(),
+          author: document.getElementById('content-author').value.trim(),
+          book: document.getElementById('content-book').value.trim(),
+          title: document.getElementById('content-title').value.trim(),
+          poem: document.getElementById('content-poem').value.trim(),
+          excerpt: document.getElementById('content-excerpt').value.trim(),
+          imageUrl: document.getElementById('content-image-url').value.trim(),
+          driveLink: document.getElementById('content-drive-link').value.trim(),
+          bookLink: document.getElementById('content-book-link').value.trim(),
+          releaseCatalog: document.getElementById('content-release-catalog').value.trim(),
+          pageNumber: document.getElementById('content-page-number').value.trim(),
+          bookShortener: document.getElementById('content-book-shortener').value.trim(),
+          releaseYear: document.getElementById('content-release-year').value.trim(),
+          updatedFileName: document.getElementById('content-updated-file-name').value.trim(),
+          url: document.getElementById('content-url').value.trim(),
+          misc: document.getElementById('content-misc').value.trim(),
+          ...uploadPayload,
+        };
+        const payload = await api('admin/contentLibrary/upsert', { method: 'POST', body });
+        statusEl.textContent = payload.created ? 'Content created.' : 'Content updated.';
+        clearContentForm();
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = describeUploadError(err, err.message || 'Could not save content.');
+        statusEl.className = 'status error';
+      }
+    }
+
+    function parsePastedRows(text) {
+      return String(text || '')
+        .split(/\r?\n/)
+        .map((line) => line.trimEnd())
+        .filter(Boolean)
+        .map((line) => line.split('\t'));
+    }
+
+    function normalizeHeader(value) {
+      return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    }
+
+    function buildLegacyImportItems(type, rows) {
+      if (!rows.length) return [];
+      if (type === 'graphics') {
+        const bodyRows = rows[0]?.[8]?.toLowerCase?.() === 'image id' ? rows.slice(1) : rows;
+        return bodyRows.map((row) => ({
+          docId: String(row[8] || '').trim(),
+          imageType: String(row[0] || '').trim(),
+          author: String(row[1] || '').trim(),
+          title: String(row[2] || '').trim(),
+          book: String(row[4] || '').trim(),
+          driveLink: String(row[6] || '').trim(),
+          imageUrl: String(row[9] || '').trim(),
+          bookLink: String(row[10] || '').trim(),
+          releaseCatalog: String(row[14] || '').trim(),
+        })).filter((item) => item.docId);
+      }
+      if (type === 'excerpts') {
+        const looksLikeHeader = normalizeHeader(rows[0]?.[0]) === 'imagetype';
+        const bodyRows = looksLikeHeader ? rows.slice(1) : rows;
+        return bodyRows.map((row) => ({
+          docId: '',
+          imageType: String(row[0] || '').trim(),
+          author: String(row[1] || '').trim(),
+          poem: String(row[2] || '').trim(),
+          excerpt: String(row[3] || '').trim(),
+          book: String(row[4] || '').trim(),
+          pageNumber: String(row[5] || '').trim(),
+          bookLink: String(row[6] || '').trim(),
+          bookShortener: String(row[7] || '').trim(),
+          releaseCatalog: String(row[8] || '').trim(),
+        })).filter((item) => item.poem && item.bookShortener);
+      }
+      if (type === 'videos') {
+        const headers = rows[0] || [];
+        const normIdx = {};
+        headers.forEach((header, index) => {
+          normIdx[normalizeHeader(header)] = index;
+        });
+        const fieldMap = {
+          imagetype: 'imageType',
+          rawfilename: 'docId',
+          videotitle: 'title',
+          youtubelink: 'url',
+          linktofileondrive: 'driveLink',
+          linktofileincloudstorage: 'imageUrl',
+          author: 'author',
+          booktitle: 'book',
+          booklink: 'bookLink',
+          releaseyear: 'releaseYear',
+          releasecatalog: 'releaseCatalog',
+          bookshortener: 'bookShortener',
+          updatedfilename: 'updatedFileName',
+          page: 'pageNumber',
+          misc: 'misc',
+        };
+        return rows.slice(1).map((row) => {
+          const item = {};
+          Object.entries(fieldMap).forEach(([header, field]) => {
+            const index = normIdx[header];
+            if (index == null) return;
+            item[field] = String(row[index] || '').trim();
+          });
+          return item;
+        }).filter((item) => item.docId);
+      }
+      return [];
+    }
+
+    function renderLegacyImportResults(message, rows = []) {
+      const container = document.getElementById('legacy-import-results');
+      if (!rows.length) {
+        container.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+        return;
+      }
+      container.innerHTML = `
+        <div class="meta" style="margin-bottom:10px;">${escapeHtml(message)}</div>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Status</th>
+              <th>Error</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>${escapeHtml(row.id || '—')}</td>
+                <td>${row.ok ? (row.created ? 'Created' : 'Updated') : 'Failed'}</td>
+                <td>${escapeHtml(row.error || '—')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function runLegacyImport() {
+      const statusEl = document.getElementById('legacy-import-status');
+      const type = document.getElementById('legacy-import-type').value || 'graphics';
+      const rows = parsePastedRows(document.getElementById('legacy-import-text').value);
+      if (!rows.length) {
+        statusEl.textContent = 'Paste some sheet rows first.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = 'Importing pasted rows…';
+      statusEl.className = 'status';
+      try {
+        const items = buildLegacyImportItems(type, rows);
+        if (!items.length) throw new Error('No valid rows were parsed from that pasted sheet data.');
+        const payload = await api('admin/contentLibrary/bulkUpsert', { method: 'POST', body: { type, items } });
+        statusEl.textContent = `Import finished: ${payload.createdCount} created, ${payload.updatedCount} updated, ${payload.errorCount} failed.`;
+        renderLegacyImportResults(statusEl.textContent, payload.results || []);
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Legacy import failed.';
+        statusEl.className = 'status error';
+        renderLegacyImportResults(statusEl.textContent);
+      }
+    }
+
+    async function deleteLegacyIds() {
+      const statusEl = document.getElementById('legacy-import-status');
+      const type = document.getElementById('legacy-import-type').value || 'graphics';
+      const ids = String(document.getElementById('legacy-delete-ids').value || '')
+        .split(/\r?\n/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+      if (!ids.length) {
+        statusEl.textContent = 'Enter at least one document ID to delete.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = 'Deleting listed IDs…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/contentLibrary/deleteByIds', { method: 'POST', body: { type, ids } });
+        statusEl.textContent = `Deleted ${payload.deletedCount} item(s). ${payload.missingCount ? `${payload.missingCount} not found.` : ''}`.trim();
+        renderLegacyImportResults(statusEl.textContent, []);
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Delete by IDs failed.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function deleteLegacyDate() {
+      const statusEl = document.getElementById('legacy-import-status');
+      const type = document.getElementById('legacy-import-type').value || 'graphics';
+      const targetDate = document.getElementById('legacy-delete-date').value.trim();
+      if (!targetDate) {
+        statusEl.textContent = 'Enter a target date in YYYY-MM-DD format.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = 'Deleting matching records by date…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/contentLibrary/deleteByDate', { method: 'POST', body: { type, targetDate } });
+        statusEl.textContent = `Deleted ${payload.deletedCount} item(s) dated ${payload.targetDate}.`;
+        renderLegacyImportResults(statusEl.textContent, []);
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Delete by date failed.';
+        statusEl.className = 'status error';
+      }
+    }
+
     function renderFlags() {
       const container = document.getElementById('flag-review-list');
       const statusEl = document.getElementById('flag-review-status');
@@ -905,6 +1456,19 @@
       });
     }
 
+    function describeUploadError(err, fallback) {
+      const message = String(err?.message || '');
+      if (message.includes('file_too_large')) return 'Replacement image must be 10 MB or smaller.';
+      if (message.includes('invalid_mime_type')) return 'Use JPG, PNG, WEBP, or GIF for replacement uploads.';
+      if (message.includes('file_type_mismatch')) return 'That file\'s contents do not match its image type.';
+      if (message.includes('invalid_base64_payload')) return 'The selected file could not be encoded for upload.';
+      if (message.includes('file_size_mismatch')) return 'The uploaded file changed while it was being prepared.';
+      if (message.includes('missing_upload_payload')) return 'Choose a replacement image first.';
+      if (message.includes('missing_content_id')) return 'Enter a document ID before saving content.';
+      if (message.includes('invalid_content_type')) return 'Choose a valid content type before saving.';
+      return fallback;
+    }
+
     async function renderReplacementPreview(flagId) {
       const input = document.querySelector(`[data-replacement-file="${flagId}"]`);
       const target = document.querySelector(`[data-replacement-preview="${flagId}"]`);
@@ -987,10 +1551,11 @@
             note,
           }
         });
+        input.value = '';
         await loadFlags();
       } catch (err) {
         console.error(err);
-        statusEl.textContent = err.message || 'Could not upload replacement asset.';
+        statusEl.textContent = describeUploadError(err, 'Could not upload replacement asset.');
         statusEl.className = 'status error';
       }
     }
@@ -1015,7 +1580,7 @@
           return;
         }
 
-        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadFlags()]);
+        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadContentLibrary(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -1033,6 +1598,24 @@
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
       document.getElementById("create-invite").addEventListener("click", () => createInvite());
+      document.getElementById("content-type").addEventListener("change", (event) => {
+        state.contentType = event.target.value || "graphics";
+        updateContentFormVisibility();
+        clearContentForm();
+        loadContentLibrary();
+      });
+      document.getElementById("content-search").addEventListener("input", (event) => {
+        state.contentQuery = event.target.value || "";
+        loadContentLibrary();
+      });
+      document.getElementById("refresh-content").addEventListener("click", () => loadContentLibrary());
+      document.getElementById("save-content").addEventListener("click", () => saveContent());
+      document.getElementById("clear-content").addEventListener("click", () => clearContentForm());
+      document.getElementById("content-poem").addEventListener("blur", () => maybeAutofillContentId());
+      document.getElementById("content-book-shortener").addEventListener("blur", () => maybeAutofillContentId());
+      document.getElementById("run-legacy-import").addEventListener("click", () => runLegacyImport());
+      document.getElementById("delete-legacy-ids").addEventListener("click", () => deleteLegacyIds());
+      document.getElementById("delete-legacy-date").addEventListener("click", () => deleteLegacyDate());
       document.getElementById("flag-search").addEventListener("input", (event) => {
         state.flagQuery = event.target.value || "";
         renderFlags();
@@ -1049,6 +1632,7 @@
         await firebase.auth().signOut();
         location.href = "/app";
       });
+      updateContentFormVisibility();
     }
 
     init();
