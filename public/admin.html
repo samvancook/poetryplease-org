@@ -70,6 +70,34 @@
       flex-wrap: wrap;
       margin-bottom: 18px;
     }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .section-head h2 {
+      margin: 0;
+    }
+    .toggle-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--line);
+      padding: 8px 12px;
+    }
+    .toggle-button .chevron {
+      display: inline-block;
+      transition: transform 160ms ease;
+      font-size: 14px;
+      line-height: 1;
+    }
+    .toggle-button[aria-expanded="false"] .chevron {
+      transform: rotate(-90deg);
+    }
     input[type="search"],
     select,
     input[type="email"],
@@ -243,26 +271,35 @@
     <p class="lede">Manage user roles for the new Poetry Please app. This is the first admin surface, focused on account visibility and role assignment.</p>
 
     <section class="card">
-      <div class="controls">
-        <input id="search" type="search" placeholder="Search by email, name, or role" />
-        <select id="role-filter">
-          <option value="all">All roles</option>
-          <option value="admin">Admins</option>
-          <option value="team">Team</option>
-          <option value="author">Authors</option>
-          <option value="user">Users</option>
-        </select>
-        <select id="status-filter">
-          <option value="all">All statuses</option>
-          <option value="active">Active</option>
-          <option value="disabled">Disabled</option>
-          <option value="recent">Active in last 30 days</option>
-          <option value="stale">No recent activity</option>
-        </select>
-        <button id="refresh" type="button">Refresh users</button>
+      <div class="section-head">
+        <h2>Users</h2>
+        <button id="users-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="users-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
       </div>
-      <div id="status" class="status">Loading account…</div>
-      <div id="results"></div>
+      <div id="users-section-body">
+        <div class="controls">
+          <input id="search" type="search" placeholder="Search by email, name, or role" />
+          <select id="role-filter">
+            <option value="all">All roles</option>
+            <option value="admin">Admins</option>
+            <option value="team">Team</option>
+            <option value="author">Authors</option>
+            <option value="user">Users</option>
+          </select>
+          <select id="status-filter">
+            <option value="all">All statuses</option>
+            <option value="active">Active</option>
+            <option value="disabled">Disabled</option>
+            <option value="recent">Active in last 30 days</option>
+            <option value="stale">No recent activity</option>
+          </select>
+          <button id="refresh" type="button">Refresh users</button>
+        </div>
+        <div id="status" class="status">Loading account…</div>
+        <div id="results"></div>
+      </div>
     </section>
 
     <section class="card" style="margin-top:20px;">
@@ -380,6 +417,8 @@
       if (!button || !body) return;
       button.setAttribute('aria-expanded', state.usersCollapsed ? 'false' : 'true');
       body.hidden = !!state.usersCollapsed;
+      const label = button.querySelector('span:last-child');
+      if (label) label.textContent = state.usersCollapsed ? 'Expand' : 'Collapse';
     }
 
     function normalizeTimestamp(value) {
