@@ -741,12 +741,12 @@
         <table>
           <thead>
             <tr>
-              <th class="sortable"><button type="button" data-user-sort="name">${userSortLabel(state.userSort).startsWith('Name') ? `User ${sortIndicatorFor(['name-asc','name-desc'])}` : `User`}</button></th>
+              <th class="sortable"><button type="button" data-user-sort="name" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('name')">${userSortLabel(state.userSort).startsWith('Name') ? `User ${sortIndicatorFor(['name-asc','name-desc'])}` : `User`}</button></th>
               <th>Roles</th>
               <th>Profile</th>
-              <th class="sortable"><button type="button" data-user-sort="last-active">Last active ${sortIndicatorFor(['last-active-desc','last-active-asc'])}</button></th>
-              <th class="sortable"><button type="button" data-user-sort="status">Status ${sortIndicatorFor(['status-asc'])}</button></th>
-              <th class="sortable"><button type="button" data-user-sort="votes">Votes ${sortIndicatorFor(['votes-desc','votes-asc'])}</button></th>
+              <th class="sortable"><button type="button" data-user-sort="last-active" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('last-active')">Last active ${sortIndicatorFor(['last-active-desc','last-active-asc'])}</button></th>
+              <th class="sortable"><button type="button" data-user-sort="status" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('status')">Status ${sortIndicatorFor(['status-asc'])}</button></th>
+              <th class="sortable"><button type="button" data-user-sort="votes" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('votes')">Votes ${sortIndicatorFor(['votes-desc','votes-asc'])}</button></th>
               <th>Save</th>
             </tr>
           </thead>
@@ -809,6 +809,11 @@
       }
       renderUsers();
     }
+
+    window.__ppAdminToggleUserSort = (field) => {
+      toggleUserSort(field);
+      return false;
+    };
 
     function selectedRolesFor(uid) {
       return [...document.querySelectorAll(`input[data-uid="${uid}"]:checked`)].map((el) => el.getAttribute("data-role"));
