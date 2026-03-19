@@ -29,6 +29,18 @@ const ADMIN_EMAILS = new Set([
   "sam@buttonpoetry.com",
 ]);
 
+const FILE_SIZE_MB = 1024 * 1024;
+const UPLOAD_RULES = {
+  authorPhoto: {
+    allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp"]),
+    maxBytes: 5 * FILE_SIZE_MB,
+  },
+  replacementImage: {
+    allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]),
+    maxBytes: 10 * FILE_SIZE_MB,
+  },
+};
+
 /** ====== ADMIN INIT ====== */
 const appAdmin = initializeApp({ storageBucket: "poetry-please.firebasestorage.app" });
 
@@ -55,7 +67,7 @@ app.use(
     credentials: false,
   })
 );
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "16mb" }));
 
 /** ====== HELPERS ====== */
 function parseDoc(snap) {
@@ -116,8 +128,6 @@ async function findContentRecordByImageId(imageId) {
 }
 
 function extensionForUpload(fileName = "", mimeType = "") {
-  const fileExt = (String(fileName || "").split(".").pop() || "").trim().toLowerCase();
-  if (fileExt) return fileExt;
   const map = {
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
@@ -125,7 +135,135 @@ function extensionForUpload(fileName = "", mimeType = "") {
     "image/webp": "webp",
     "image/gif": "gif",
   };
-  return map[String(mimeType || "").toLowerCase()] || "jpg";
+  const mapped = map[String(mimeType || "").toLowerCase()];
+  if (mapped) return mapped;
+  const fileExt = (String(fileName || "").split(".").pop() || "").trim().toLowerCase();
+  return fileExt || "jpg";
+}
+
+function detectImageMimeType(buffer) {
+  if (!buffer || !buffer.length) return "";
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x4e &&
+    buffer[3] === 0x47 &&
+    buffer[4] === 0x0d &&
+    buffer[5] === 0x0a &&
+    buffer[6] === 0x1a &&
+    buffer[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer[0] === 0x52 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x46 &&
+    buffer[8] === 0x57 &&
+    buffer[9] === 0x45 &&
+    buffer[10] === 0x42 &&
+    buffer[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  if (
+    buffer.length >= 6 &&
+    buffer[0] === 0x47 &&
+    buffer[1] === 0x49 &&
+    buffer[2] === 0x46 &&
+    buffer[3] === 0x38 &&
+    (buffer[4] === 0x37 || buffer[4] === 0x39) &&
+    buffer[5] === 0x61
+  ) {
+    return "image/gif";
+  }
+  return "";
+}
+
+function parseBase64Upload(body, rules) {
+  const mimeType = normalizeText(body?.mimeType).toLowerCase();
+  const base64Data = normalizeText(body?.base64Data);
+  const fileName = normalizeText(body?.fileName);
+  const width = Number(body?.width || 0) || null;
+  const height = Number(body?.height || 0) || null;
+  const claimedFileSize = Number(body?.fileSize || 0) || null;
+
+  if (!mimeType || !base64Data) {
+    const err = new Error("missing_upload_payload");
+    err.status = 400;
+    throw err;
+  }
+  if (!rules.allowedMimeTypes.has(mimeType)) {
+    const err = new Error("invalid_mime_type");
+    err.status = 400;
+    throw err;
+  }
+  if (!/^[a-z0-9+/]+=*$/i.test(base64Data)) {
+    const err = new Error("invalid_base64_payload");
+    err.status = 400;
+    throw err;
+  }
+
+  let buffer;
+  try {
+    buffer = Buffer.from(base64Data, "base64");
+  } catch {
+    const err = new Error("invalid_base64_payload");
+    err.status = 400;
+    throw err;
+  }
+  if (!buffer.length) {
+    const err = new Error("empty_upload");
+    err.status = 400;
+    throw err;
+  }
+  if (buffer.length > rules.maxBytes) {
+    const err = new Error("file_too_large");
+    err.status = 413;
+    throw err;
+  }
+  if (claimedFileSize && Math.abs(claimedFileSize - buffer.length) > 16) {
+    const err = new Error("file_size_mismatch");
+    err.status = 400;
+    throw err;
+  }
+
+  const detectedMimeType = detectImageMimeType(buffer);
+  if (!detectedMimeType || detectedMimeType !== mimeType) {
+    const err = new Error("file_type_mismatch");
+    err.status = 400;
+    throw err;
+  }
+
+  return {
+    mimeType,
+    fileName,
+    width,
+    height,
+    fileSize: buffer.length,
+    buffer,
+    extension: extensionForUpload(fileName, mimeType),
+  };
+}
+
+async function saveImageUpload({ storagePath, mimeType, buffer, cacheControl = "public,max-age=3600" }) {
+  const bucket = storage.bucket();
+  const file = bucket.file(storagePath);
+  await file.save(buffer, {
+    metadata: {
+      contentType: mimeType,
+      cacheControl,
+    },
+    resumable: false,
+  });
+  const publicUrl = await getDownloadURL(file);
+  return { file, publicUrl };
 }
 
 function buildFlagHistoryEntry(eventType, actor, note = "", extra = {}) {
@@ -278,6 +416,200 @@ function mapProfileDoc(id, data = {}) {
     published: data.published !== false,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
+  };
+}
+
+function mapAdminContentDoc(collection, doc) {
+  const data = doc.data() || {};
+  const contentId = data.imageId || data.imageID || data.videoId || doc.id;
+  return {
+    id: doc.id,
+    collection,
+    contentId,
+    imageType: data.imageType || "",
+    author: data.author || "",
+    title: data.title || data.poem || "",
+    poem: data.poem || "",
+    excerpt: data.excerpt || "",
+    book: data.book || "",
+    pageNumber: data.pageNumber || "",
+    url: data.url || "",
+    imageUrl: data.imageUrl || data.url || "",
+    driveLink: data.driveLink || "",
+    bookLink: data.bookLink || "",
+    releaseCatalog: data.releaseCatalog || "",
+    releaseYear: data.releaseYear || "",
+    bookShortener: data.bookShortener || "",
+    updatedFileName: data.updatedFileName || "",
+    misc: data.misc || "",
+    createdAt: data.createdAt || null,
+    updatedAt: data.updatedAt || null,
+    updatedBy: data.updatedBy || "",
+  };
+}
+
+function deriveContentDocId(type, body = {}) {
+  if (type === "graphics") {
+    return normalizeText(body.docId || body.imageId);
+  }
+  if (type === "excerpts") {
+    const explicit = normalizeText(body.docId || body.imageID || body.imageId);
+    if (explicit) return explicit;
+    const bookShortener = normalizeText(body.bookShortener);
+    const poem = normalizeText(body.poem || body.title);
+    if (!bookShortener || !poem) return "";
+    return `${bookShortener}-EXC-${slugify(poem)}`.toUpperCase();
+  }
+  if (type === "videos") {
+    return normalizeText(body.docId || body.videoId || body.imageId);
+  }
+  return "";
+}
+
+function buildContentDocPayload(type, body = {}, options = {}) {
+  const now = FieldValue.serverTimestamp();
+  const docId = deriveContentDocId(type, body);
+  if (!docId) {
+    const err = new Error("missing_content_id");
+    err.status = 400;
+    throw err;
+  }
+
+  const imageType = normalizeText(body.imageType || (type === "excerpts" ? "EXC" : type === "videos" ? "VV" : ""));
+  const payload = {
+    imageType,
+    author: normalizeText(body.author),
+    book: normalizeText(body.book),
+    driveLink: normalizeText(body.driveLink),
+    bookLink: normalizeText(body.bookLink),
+    releaseCatalog: normalizeText(body.releaseCatalog),
+    updatedAt: now,
+    updatedBy: normalizeText(options.updatedBy || ""),
+  };
+
+  if (type === "graphics") {
+    payload.title = normalizeText(body.title);
+    payload.imageId = docId;
+    payload.imageUrl = normalizeText(options.imageUrl || body.imageUrl);
+  } else if (type === "excerpts") {
+    payload.poem = normalizeText(body.poem || body.title);
+    payload.excerpt = normalizeText(body.excerpt);
+    payload.pageNumber = normalizeText(body.pageNumber);
+    payload.bookShortener = normalizeText(body.bookShortener);
+    payload.imageID = docId;
+    payload.imageId = docId;
+  } else if (type === "videos") {
+    payload.title = normalizeText(body.title);
+    payload.videoId = docId;
+    payload.url = normalizeText(body.url || body.imageUrl);
+    payload.imageUrl = normalizeText(options.imageUrl || body.imageUrl);
+    payload.releaseYear = normalizeText(body.releaseYear);
+    payload.bookShortener = normalizeText(body.bookShortener);
+    payload.updatedFileName = normalizeText(body.updatedFileName);
+    payload.pageNumber = normalizeText(body.pageNumber);
+    payload.misc = normalizeText(body.misc);
+  } else {
+    const err = new Error("invalid_content_type");
+    err.status = 400;
+    throw err;
+  }
+
+  return { docId, payload };
+}
+
+function collectionForContentType(type) {
+  const normalized = normalizeKey(type);
+  if (normalized === "graphics") return COLLECTIONS.graphics;
+  if (normalized === "excerpts") return COLLECTIONS.excerpts;
+  if (normalized === "videos") return COLLECTIONS.videos;
+  return "";
+}
+
+async function upsertContentLibraryItem(type, body = {}, actor = {}) {
+  const collection = collectionForContentType(type);
+  if (!collection) {
+    const err = new Error("invalid_content_type");
+    err.status = 400;
+    throw err;
+  }
+
+  const pendingDocId = deriveContentDocId(type, body);
+  if (!pendingDocId) {
+    const err = new Error("missing_content_id");
+    err.status = 400;
+    throw err;
+  }
+
+  let uploadImageUrl = "";
+  if (normalizeKey(type) === "graphics" && normalizeText(body?.base64Data)) {
+    const upload = parseBase64Upload(body, UPLOAD_RULES.replacementImage);
+    const storagePath = `content-library/graphics/${normalizeKey(pendingDocId)}/${Date.now()}.${upload.extension}`;
+    const { publicUrl } = await saveImageUpload({
+      storagePath,
+      mimeType: upload.mimeType,
+      buffer: upload.buffer,
+    });
+    uploadImageUrl = publicUrl;
+
+    const assetRef = db.collection(COLLECTIONS.contentAssets).doc();
+    await assetRef.set({
+      assetType: "library_graphic",
+      imageId: pendingDocId,
+      contentCollection: collection,
+      contentDocId: pendingDocId,
+      storagePath,
+      publicUrl,
+      width: upload.width,
+      height: upload.height,
+      fileSize: upload.fileSize,
+      mimeType: upload.mimeType,
+      uploadedByUid: actor.uid || "",
+      uploadedByEmail: actor.email || "",
+      status: "active",
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  const built = buildContentDocPayload(type, body, {
+    imageUrl: uploadImageUrl,
+    updatedBy: actor.uid || "",
+  });
+  const ref = db.collection(collection).doc(built.docId);
+  const snap = await ref.get();
+  const existing = snap.exists ? (snap.data() || {}) : {};
+  await ref.set({
+    ...existing,
+    ...built.payload,
+    createdAt: existing.createdAt || FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  const saved = await ref.get();
+  return {
+    ok: true,
+    item: mapAdminContentDoc(collection, saved),
+    created: !snap.exists,
+  };
+}
+
+async function previewContentLibraryItem(type, body = {}) {
+  const collection = collectionForContentType(type);
+  if (!collection) {
+    const err = new Error("invalid_content_type");
+    err.status = 400;
+    throw err;
+  }
+
+  const built = buildContentDocPayload(type, body, {});
+  const ref = db.collection(collection).doc(built.docId);
+  const snap = await ref.get();
+  return {
+    ok: true,
+    id: built.docId,
+    collection,
+    action: snap.exists ? "update" : "create",
+    title: normalizeText(body.title || body.poem || ""),
+    author: normalizeText(body.author),
+    imageType: normalizeText(body.imageType || built.payload.imageType || ""),
   };
 }
 
@@ -766,42 +1098,31 @@ app.post(getBoth("/authorAssets/uploadPhoto"), async (req, res) => {
   const ctx = await requireRole(req, res, ["author", "admin"]);
   if (!ctx) return;
 
-  const mimeType = normalizeText(req.body?.mimeType);
-  const base64Data = normalizeText(req.body?.base64Data);
-  const fileName = normalizeText(req.body?.fileName || "author-photo");
-  const width = Number(req.body?.width || 0) || null;
-  const height = Number(req.body?.height || 0) || null;
-  const fileSize = Number(req.body?.fileSize || 0) || null;
-  if (!mimeType || !base64Data) {
-    return res.status(400).json({ error: "missing_upload_payload" });
+  let upload;
+  try {
+    upload = parseBase64Upload(req.body, UPLOAD_RULES.authorPhoto);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message || "invalid_upload" });
   }
 
-  const ext = (fileName.split('.').pop() || 'jpg').toLowerCase();
-  const storagePath = `author-profile-images/${ctx.decoded.uid}/${Date.now()}.${ext}`;
-  const bucket = storage.bucket();
-  const file = bucket.file(storagePath);
-  const buffer = Buffer.from(base64Data, 'base64');
-  await file.save(buffer, {
-    metadata: {
-      contentType: mimeType,
-      cacheControl: 'public,max-age=3600',
-    },
-    resumable: false,
+  const storagePath = `author-profile-images/${ctx.decoded.uid}/${Date.now()}.${upload.extension}`;
+  const { publicUrl } = await saveImageUpload({
+    storagePath,
+    mimeType: upload.mimeType,
+    buffer: upload.buffer,
   });
-
-  const publicUrl = await getDownloadURL(file);
   const assetRef = db.collection(COLLECTIONS.authorAssets).doc();
   await assetRef.set({
     ownerUid: ctx.decoded.uid,
     ownerEmail: ctx.decoded.email,
-    assetType: 'profile_photo',
+    assetType: "profile_photo",
     storagePath,
     publicUrl,
-    width,
-    height,
-    fileSize,
-    mimeType,
-    status: 'active',
+    width: upload.width,
+    height: upload.height,
+    fileSize: upload.fileSize,
+    mimeType: upload.mimeType,
+    status: "active",
     createdAt: FieldValue.serverTimestamp(),
   });
 
@@ -950,6 +1271,168 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
   res.json({ flags });
 });
 
+app.get(getBoth("/admin/contentLibrary"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const type = normalizeKey(req.query?.type || "all");
+  const queryText = normalizeKey(req.query?.q || "");
+  const collections = [];
+  if (type === "all" || type === "graphics") collections.push(COLLECTIONS.graphics);
+  if (type === "all" || type === "excerpts") collections.push(COLLECTIONS.excerpts);
+  if (type === "all" || type === "videos") collections.push(COLLECTIONS.videos);
+  if (!collections.length) return res.status(400).json({ error: "invalid_content_type" });
+
+  const rows = (await Promise.all(
+    collections.map(async (collection) => {
+      const snap = await db.collection(collection).limit(250).get();
+      return snap.docs.map((doc) => mapAdminContentDoc(collection, doc));
+    })
+  ))
+    .flat()
+    .filter((row) => {
+      if (!queryText) return true;
+      return [
+        row.collection,
+        row.contentId,
+        row.imageType,
+        row.author,
+        row.title,
+        row.book,
+        row.releaseCatalog,
+      ].some((value) => normalizeKey(value).includes(queryText));
+    })
+    .sort((a, b) => {
+      const aTime = a.updatedAt?._seconds || a.createdAt?._seconds || 0;
+      const bTime = b.updatedAt?._seconds || b.createdAt?._seconds || 0;
+      return bTime - aTime;
+    })
+    .slice(0, 250);
+
+  res.json({ items: rows });
+});
+
+app.post(getBoth("/admin/contentLibrary/upsert"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  try {
+    const result = await upsertContentLibraryItem(req.body?.type, req.body, {
+      uid: ctx.decoded.uid,
+      email: ctx.decoded.email,
+    });
+    res.json(result);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message || "invalid_content_payload" });
+  }
+});
+
+app.post(getBoth("/admin/contentLibrary/bulkPreview"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const type = normalizeKey(req.body?.type);
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length) return res.status(400).json({ error: "missing_items" });
+
+  const results = [];
+  for (const item of items.slice(0, 500)) {
+    try {
+      const result = await previewContentLibraryItem(type, item);
+      results.push(result);
+    } catch (err) {
+      results.push({
+        ok: false,
+        id: deriveContentDocId(type, item) || "",
+        error: err.message || "preview_failed",
+      });
+    }
+  }
+
+  const createCount = results.filter((row) => row.ok && row.action === "create").length;
+  const updateCount = results.filter((row) => row.ok && row.action === "update").length;
+  const errorCount = results.filter((row) => !row.ok).length;
+  res.json({ ok: true, createCount, updateCount, errorCount, results });
+});
+
+app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const type = normalizeKey(req.body?.type);
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length) return res.status(400).json({ error: "missing_items" });
+
+  const results = [];
+  for (const item of items.slice(0, 500)) {
+    try {
+      const result = await upsertContentLibraryItem(type, item, {
+        uid: ctx.decoded.uid,
+        email: ctx.decoded.email,
+      });
+      results.push({ ok: true, id: result.item?.id || "", created: !!result.created });
+    } catch (err) {
+      results.push({
+        ok: false,
+        id: deriveContentDocId(type, item) || "",
+        error: err.message || "import_failed",
+      });
+    }
+  }
+
+  const createdCount = results.filter((row) => row.ok && row.created).length;
+  const updatedCount = results.filter((row) => row.ok && !row.created).length;
+  const errorCount = results.filter((row) => !row.ok).length;
+  res.json({ ok: true, createdCount, updatedCount, errorCount, results });
+});
+
+app.post(getBoth("/admin/contentLibrary/deleteByIds"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const type = normalizeKey(req.body?.type);
+  const collection = collectionForContentType(type);
+  const ids = uniq(req.body?.ids || []);
+  if (!collection) return res.status(400).json({ error: "invalid_content_type" });
+  if (!ids.length) return res.status(400).json({ error: "missing_ids" });
+
+  const deleted = [];
+  const missing = [];
+  for (const id of ids.slice(0, 500)) {
+    const ref = db.collection(collection).doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      missing.push(id);
+      continue;
+    }
+    await ref.delete();
+    deleted.push(id);
+  }
+  res.json({ ok: true, deletedCount: deleted.length, missingCount: missing.length, deleted, missing });
+});
+
+app.post(getBoth("/admin/contentLibrary/deleteByDate"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const type = normalizeKey(req.body?.type);
+  const collection = collectionForContentType(type);
+  const targetDate = normalizeText(req.body?.targetDate);
+  if (!collection) return res.status(400).json({ error: "invalid_content_type" });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) return res.status(400).json({ error: "invalid_target_date" });
+
+  const snap = await db.collection(collection).limit(1000).get();
+  const matches = snap.docs.filter((doc) => {
+    const createdAt = doc.data()?.createdAt;
+    const date = createdAt?.toDate ? createdAt.toDate() : (createdAt ? new Date(createdAt) : null);
+    if (!date || Number.isNaN(date.getTime())) return false;
+    return date.toISOString().slice(0, 10) === targetDate;
+  });
+
+  await Promise.all(matches.map((doc) => doc.ref.delete()));
+  res.json({ ok: true, deletedCount: matches.length, targetDate });
+});
+
 app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -993,16 +1476,15 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
   if (!ctx) return;
 
   const flagId = normalizeText(req.params.flagId);
-  const mimeType = normalizeText(req.body?.mimeType);
-  const base64Data = normalizeText(req.body?.base64Data);
-  const fileName = normalizeText(req.body?.fileName || "replacement-image");
-  const width = Number(req.body?.width || 0) || null;
-  const height = Number(req.body?.height || 0) || null;
-  const fileSize = Number(req.body?.fileSize || 0) || null;
   const reviewNote = normalizeText(req.body?.note || "");
   if (!flagId) return res.status(400).json({ error: "missing_flag_id" });
-  if (!mimeType || !base64Data) return res.status(400).json({ error: "missing_upload_payload" });
-  if (!/^image\//i.test(mimeType)) return res.status(400).json({ error: "invalid_mime_type" });
+
+  let upload;
+  try {
+    upload = parseBase64Upload(req.body, UPLOAD_RULES.replacementImage);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message || "invalid_upload" });
+  }
 
   const flagRef = db.collection(COLLECTIONS.contentFlags).doc(flagId);
   const flagSnap = await flagRef.get();
@@ -1016,20 +1498,12 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     return res.status(400).json({ error: "replacement_supported_for_graphics_only" });
   }
 
-  const ext = extensionForUpload(fileName, mimeType);
-  const storagePath = `content-replacements/${normalizeKey(flag.imageId || contentRecord.docId)}/${Date.now()}.${ext}`;
-  const bucket = storage.bucket();
-  const file = bucket.file(storagePath);
-  const buffer = Buffer.from(base64Data, "base64");
-  await file.save(buffer, {
-    metadata: {
-      contentType: mimeType,
-      cacheControl: "public,max-age=3600",
-    },
-    resumable: false,
+  const storagePath = `content-replacements/${normalizeKey(flag.imageId || contentRecord.docId)}/${Date.now()}.${upload.extension}`;
+  const { publicUrl } = await saveImageUpload({
+    storagePath,
+    mimeType: upload.mimeType,
+    buffer: upload.buffer,
   });
-
-  const publicUrl = await getDownloadURL(file);
   const assetRef = db.collection(COLLECTIONS.contentAssets).doc();
   await assetRef.set({
     assetType: "replacement_graphic",
@@ -1039,10 +1513,10 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     contentDocId: contentRecord.docId,
     storagePath,
     publicUrl,
-    width,
-    height,
-    fileSize,
-    mimeType,
+    width: upload.width,
+    height: upload.height,
+    fileSize: upload.fileSize,
+    mimeType: upload.mimeType,
     uploadedByUid: ctx.decoded.uid,
     uploadedByEmail: ctx.decoded.email,
     status: "active",

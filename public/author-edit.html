@@ -258,6 +258,17 @@
       return res.json();
     }
 
+    function describeUploadError(err, fallback) {
+      const message = String(err?.message || "");
+      if (message.includes("file_too_large")) return "That file is too large for this upload.";
+      if (message.includes("invalid_mime_type")) return "Use JPG, PNG, or WEBP for author photos.";
+      if (message.includes("file_type_mismatch")) return "That file's contents do not match its image type.";
+      if (message.includes("invalid_base64_payload")) return "The selected file could not be encoded for upload.";
+      if (message.includes("file_size_mismatch")) return "The uploaded file changed while it was being prepared.";
+      if (message.includes("missing_upload_payload")) return "Choose an image file first.";
+      return fallback;
+    }
+
     function updateSlugUI() {
       const displayName = document.getElementById("displayName").value.trim();
       const slugInput = document.getElementById("slug");
@@ -545,10 +556,11 @@
         const preview = document.getElementById("photo-preview");
         preview.src = checked.dataUrl;
         preview.style.display = "block";
+        document.getElementById("photoFile").value = "";
         setPhotoStatus("Photo uploaded. Save the profile to publish it.", "ok");
       } catch (err) {
         console.error(err);
-        setPhotoStatus(err.message || "Photo upload failed.", "error");
+        setPhotoStatus(describeUploadError(err, "Photo upload failed."), "error");
       }
     }
 
