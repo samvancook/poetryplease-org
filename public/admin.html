@@ -176,6 +176,28 @@
       letter-spacing: 0.08em;
       color: var(--muted);
     }
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    th.sortable button {
+      all: unset;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: inherit;
+      font: inherit;
+      text-transform: inherit;
+      letter-spacing: inherit;
+    }
+    th.sortable button:hover {
+      color: var(--accent);
+    }
+    .sort-indicator {
+      font-size: 11px;
+      color: var(--accent);
+    }
     .role-set {
       display: flex;
       gap: 10px;
@@ -462,6 +484,25 @@
       return value ? value.getTime() : 0;
     }
 
+    function userSortLabel(sortKey) {
+      switch (sortKey) {
+        case "name-desc": return "Name Z–A";
+        case "email-asc": return "Email A–Z";
+        case "last-active-desc": return "Most recently active";
+        case "last-active-asc": return "Least recently active";
+        case "votes-desc": return "Most votes";
+        case "votes-asc": return "Fewest votes";
+        case "status-asc": return "Status A–Z";
+        case "name-asc":
+        default:
+          return "Name A–Z";
+      }
+    }
+
+    function sortIndicatorFor(activeKeys) {
+      return activeKeys.includes(state.userSort) ? '<span class="sort-indicator">↑</span>' : '';
+    }
+
     function normalizeTimestamp(value) {
       if (!value) return null;
       if (value instanceof Date) return value;
@@ -670,6 +711,8 @@
     function renderUsers() {
       const users = filteredUsers();
       const container = document.getElementById("results");
+      const sortSelect = document.getElementById("user-sort");
+      if (sortSelect) sortSelect.value = state.userSort;
       if (!users.length) {
         container.innerHTML = '<div class="empty">No users match the current search.</div>';
         return;
@@ -679,12 +722,12 @@
         <table>
           <thead>
             <tr>
-              <th>User</th>
+              <th class="sortable"><button type="button" data-user-sort="name">${userSortLabel(state.userSort).startsWith('Name') ? `User ${sortIndicatorFor(['name-asc','name-desc'])}` : `User`}</button></th>
               <th>Roles</th>
               <th>Profile</th>
-              <th>Last active</th>
-              <th>Status</th>
-              <th>Votes</th>
+              <th class="sortable"><button type="button" data-user-sort="last-active">Last active ${sortIndicatorFor(['last-active-desc','last-active-asc'])}</button></th>
+              <th class="sortable"><button type="button" data-user-sort="status">Status ${sortIndicatorFor(['status-asc'])}</button></th>
+              <th class="sortable"><button type="button" data-user-sort="votes">Votes ${sortIndicatorFor(['votes-desc','votes-asc'])}</button></th>
               <th>Save</th>
             </tr>
           </thead>
@@ -722,6 +765,30 @@
       container.querySelectorAll("[data-save]").forEach((button) => {
         button.addEventListener("click", () => saveRoles(button.getAttribute("data-save")));
       });
+      container.querySelectorAll("[data-user-sort]").forEach((button) => {
+        button.addEventListener("click", () => toggleUserSort(button.getAttribute("data-user-sort")));
+      });
+    }
+
+    function toggleUserSort(field) {
+      switch (field) {
+        case "name":
+          state.userSort = state.userSort === "name-asc" ? "name-desc" : "name-asc";
+          break;
+        case "last-active":
+          state.userSort = state.userSort === "last-active-desc" ? "last-active-asc" : "last-active-desc";
+          break;
+        case "votes":
+          state.userSort = state.userSort === "votes-desc" ? "votes-asc" : "votes-desc";
+          break;
+        case "status":
+          state.userSort = "status-asc";
+          break;
+        default:
+          state.userSort = "name-asc";
+          break;
+      }
+      renderUsers();
     }
 
     function selectedRolesFor(uid) {
