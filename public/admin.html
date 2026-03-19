@@ -426,7 +426,8 @@
           <option value="excerpts">Excerpts sheet</option>
           <option value="videos">Videos sheet</option>
         </select>
-        <button id="run-legacy-import" type="button">Import pasted rows</button>
+        <button id="preview-legacy-import" type="button">Preview import</button>
+        <button id="run-legacy-import" type="button" class="secondary" disabled>Confirm import</button>
       </div>
       <div class="hint">Graphics and excerpts expect the old column order. Videos expects the header row from the spreadsheet, matching the Apps Script mapping.</div>
       <textarea id="legacy-import-text" placeholder="Paste tab-separated rows from Google Sheets here"></textarea>
@@ -516,6 +517,8 @@
       contentItems: [],
       contentType: "graphics",
       contentQuery: "",
+      legacyImportPreview: null,
+      legacyImportFingerprint: "",
       flags: [],
       flagQuery: "",
       flagStatusFilter: "all",
@@ -1130,6 +1133,18 @@
       return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
+    function buildLegacyImportFingerprint(type, text) {
+      return `${type}::${String(text || '').trim()}`;
+    }
+
+    function resetLegacyImportPreview(message = 'Preview the pasted rows before importing.') {
+      state.legacyImportPreview = null;
+      state.legacyImportFingerprint = '';
+      const importButton = document.getElementById('run-legacy-import');
+      if (importButton) importButton.disabled = true;
+      renderLegacyImportResults(message, []);
+    }
+
     function buildLegacyImportItems(type, rows) {
       if (!rows.length) return [];
       if (type === 'graphics') {
@@ -1210,6 +1225,9 @@
           <thead>
             <tr>
               <th>ID</th>
+              <th>Action</th>
+              <th>Type</th>
+              <th>Author</th>
               <th>Status</th>
               <th>Error</th>
             </tr>
@@ -1218,7 +1236,10 @@
             ${rows.map((row) => `
               <tr>
                 <td>${escapeHtml(row.id || '—')}</td>
-                <td>${row.ok ? (row.created ? 'Created' : 'Updated') : 'Failed'}</td>
+                <td>${escapeHtml(row.action || '—')}</td>
+                <td>${escapeHtml(row.imageType || '—')}</td>
+                <td>${escapeHtml(row.author || '—')}</td>
+                <td>${row.ok ? (row.created ? 'Created' : row.action === 'create' ? 'Pending create' : row.action === 'update' ? 'Pending update' : 'Failed') : 'Failed'}</td>
                 <td>${escapeHtml(row.error || '—')}</td>
               </tr>
             `).join('')}
@@ -1227,29 +1248,65 @@
       `;
     }
 
-    async function runLegacyImport() {
+    async function previewLegacyImport() {
       const statusEl = document.getElementById('legacy-import-status');
       const type = document.getElementById('legacy-import-type').value || 'graphics';
-      const rows = parsePastedRows(document.getElementById('legacy-import-text').value);
+      const rawText = document.getElementById('legacy-import-text').value;
+      const rows = parsePastedRows(rawText);
       if (!rows.length) {
         statusEl.textContent = 'Paste some sheet rows first.';
         statusEl.className = 'status error';
+        resetLegacyImportPreview('Paste some sheet rows first.');
         return;
       }
-      statusEl.textContent = 'Importing pasted rows…';
+      statusEl.textContent = 'Previewing pasted rows…';
       statusEl.className = 'status';
       try {
         const items = buildLegacyImportItems(type, rows);
         if (!items.length) throw new Error('No valid rows were parsed from that pasted sheet data.');
-        const payload = await api('admin/contentLibrary/bulkUpsert', { method: 'POST', body: { type, items } });
+        const payload = await api('admin/contentLibrary/bulkPreview', { method: 'POST', body: { type, items } });
+        state.legacyImportPreview = { type, items, results: payload.results || [] };
+        state.legacyImportFingerprint = buildLegacyImportFingerprint(type, rawText);
+        document.getElementById('run-legacy-import').disabled = false;
+        statusEl.textContent = `Preview ready: ${payload.createCount} creates, ${payload.updateCount} updates, ${payload.errorCount} errors.`;
+        renderLegacyImportResults(statusEl.textContent, payload.results || []);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Legacy import preview failed.';
+        statusEl.className = 'status error';
+        resetLegacyImportPreview(statusEl.textContent);
+      }
+    }
+
+    async function runLegacyImport() {
+      const statusEl = document.getElementById('legacy-import-status');
+      const type = document.getElementById('legacy-import-type').value || 'graphics';
+      const rawText = document.getElementById('legacy-import-text').value;
+      const fingerprint = buildLegacyImportFingerprint(type, rawText);
+      if (!state.legacyImportPreview || state.legacyImportFingerprint !== fingerprint) {
+        statusEl.textContent = 'Preview the current pasted rows before importing them.';
+        statusEl.className = 'status error';
+        document.getElementById('run-legacy-import').disabled = true;
+        return;
+      }
+
+      statusEl.textContent = 'Importing pasted rows…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/contentLibrary/bulkUpsert', {
+          method: 'POST',
+          body: { type, items: state.legacyImportPreview.items }
+        });
         statusEl.textContent = `Import finished: ${payload.createdCount} created, ${payload.updatedCount} updated, ${payload.errorCount} failed.`;
         renderLegacyImportResults(statusEl.textContent, payload.results || []);
+        state.legacyImportPreview = null;
+        state.legacyImportFingerprint = '';
+        document.getElementById('run-legacy-import').disabled = true;
         await loadContentLibrary();
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Legacy import failed.';
         statusEl.className = 'status error';
-        renderLegacyImportResults(statusEl.textContent);
       }
     }
 
@@ -1613,7 +1670,14 @@
       document.getElementById("clear-content").addEventListener("click", () => clearContentForm());
       document.getElementById("content-poem").addEventListener("blur", () => maybeAutofillContentId());
       document.getElementById("content-book-shortener").addEventListener("blur", () => maybeAutofillContentId());
+      document.getElementById("preview-legacy-import").addEventListener("click", () => previewLegacyImport());
       document.getElementById("run-legacy-import").addEventListener("click", () => runLegacyImport());
+      document.getElementById("legacy-import-type").addEventListener("change", () => {
+        resetLegacyImportPreview();
+      });
+      document.getElementById("legacy-import-text").addEventListener("input", () => {
+        resetLegacyImportPreview();
+      });
       document.getElementById("delete-legacy-ids").addEventListener("click", () => deleteLegacyIds());
       document.getElementById("delete-legacy-date").addEventListener("click", () => deleteLegacyDate());
       document.getElementById("flag-search").addEventListener("input", (event) => {
@@ -1633,6 +1697,7 @@
         location.href = "/app";
       });
       updateContentFormVisibility();
+      resetLegacyImportPreview();
     }
 
     init();

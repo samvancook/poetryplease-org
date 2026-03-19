@@ -591,6 +591,28 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
   };
 }
 
+async function previewContentLibraryItem(type, body = {}) {
+  const collection = collectionForContentType(type);
+  if (!collection) {
+    const err = new Error("invalid_content_type");
+    err.status = 400;
+    throw err;
+  }
+
+  const built = buildContentDocPayload(type, body, {});
+  const ref = db.collection(collection).doc(built.docId);
+  const snap = await ref.get();
+  return {
+    ok: true,
+    id: built.docId,
+    collection,
+    action: snap.exists ? "update" : "create",
+    title: normalizeText(body.title || body.poem || ""),
+    author: normalizeText(body.author),
+    imageType: normalizeText(body.imageType || built.payload.imageType || ""),
+  };
+}
+
 function pickProfileContent(profile, allContent, ratings) {
   const authorKeys = new Set(
     uniq([profile.displayName, ...(profile.authorNameVariants || [])]).map(normalizeKey)
@@ -1303,6 +1325,34 @@ app.post(getBoth("/admin/contentLibrary/upsert"), async (req, res) => {
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message || "invalid_content_payload" });
   }
+});
+
+app.post(getBoth("/admin/contentLibrary/bulkPreview"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const type = normalizeKey(req.body?.type);
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length) return res.status(400).json({ error: "missing_items" });
+
+  const results = [];
+  for (const item of items.slice(0, 500)) {
+    try {
+      const result = await previewContentLibraryItem(type, item);
+      results.push(result);
+    } catch (err) {
+      results.push({
+        ok: false,
+        id: deriveContentDocId(type, item) || "",
+        error: err.message || "preview_failed",
+      });
+    }
+  }
+
+  const createCount = results.filter((row) => row.ok && row.action === "create").length;
+  const updateCount = results.filter((row) => row.ok && row.action === "update").length;
+  const errorCount = results.filter((row) => !row.ok).length;
+  res.json({ ok: true, createCount, updateCount, errorCount, results });
 });
 
 app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
