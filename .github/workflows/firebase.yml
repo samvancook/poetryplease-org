@@ -144,4 +144,4 @@ jobs:
             echo "Could not derive a valid preview channel from branch: $BRANCH"; exit 5
           fi
           echo "Deploying preview channel: $CHANNEL"
-          firebase hosting:channel:deploy "$CHANNEL" --project poetry-please --site poetryplease-org --expires 7d
+          firebase hosting:channel:deploy "$CHANNEL" --project poetry-please --expires 7d
