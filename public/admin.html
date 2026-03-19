@@ -38,6 +38,16 @@
       align-items: center;
       flex-wrap: wrap;
     }
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .auth-note {
+      color: var(--muted);
+      font-size: 14px;
+    }
     .topbar a {
       color: var(--accent);
       text-decoration: none;
@@ -264,7 +274,11 @@
   <main class="shell">
     <div class="topbar">
       <a href="/app">Back to app</a>
-      <button id="logout" class="secondary" type="button">Log out</button>
+      <div class="topbar-actions">
+        <div id="auth-note" class="auth-note">Checking sign-in…</div>
+        <button id="login-google" class="secondary" type="button" hidden>Log in with Google</button>
+        <button id="logout" class="secondary" type="button" hidden>Log out</button>
+      </div>
     </div>
 
     <h1>Admin</h1>
@@ -288,15 +302,25 @@
             <option value="author">Authors</option>
             <option value="user">Users</option>
           </select>
-          <select id="status-filter">
-            <option value="all">All statuses</option>
-            <option value="active">Active</option>
-            <option value="disabled">Disabled</option>
-            <option value="recent">Active in last 30 days</option>
-            <option value="stale">No recent activity</option>
-          </select>
-          <button id="refresh" type="button">Refresh users</button>
-        </div>
+        <select id="status-filter">
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="disabled">Disabled</option>
+          <option value="recent">Active in last 30 days</option>
+          <option value="stale">No recent activity</option>
+        </select>
+        <select id="user-sort">
+          <option value="name-asc">Name A–Z</option>
+          <option value="name-desc">Name Z–A</option>
+          <option value="email-asc">Email A–Z</option>
+          <option value="last-active-desc">Most recently active</option>
+          <option value="last-active-asc">Least recently active</option>
+          <option value="votes-desc">Most votes</option>
+          <option value="votes-asc">Fewest votes</option>
+          <option value="status-asc">Status A–Z</option>
+        </select>
+        <button id="refresh" type="button">Refresh users</button>
+      </div>
         <div id="status" class="status">Loading account…</div>
         <div id="results"></div>
       </div>
@@ -394,6 +418,7 @@
       query: "",
       roleFilter: "all",
       statusFilter: "all",
+      userSort: "name-asc",
       syncedCount: 0,
       invites: [],
       claims: [],
@@ -419,6 +444,22 @@
       body.hidden = !!state.usersCollapsed;
       const label = button.querySelector('span:last-child');
       if (label) label.textContent = state.usersCollapsed ? 'Expand' : 'Collapse';
+    }
+
+    function compareStrings(a, b) {
+      return String(a || "").localeCompare(String(b || ""), undefined, { sensitivity: "base" });
+    }
+
+    function normalizeUserSortValue(user, field) {
+      if (field === "name") return user.displayName || user.email || user.uid || "";
+      if (field === "email") return user.email || user.displayName || user.uid || "";
+      if (field === "status") return user.status || "active";
+      return "";
+    }
+
+    function normalizeUserTimestamp(user) {
+      const value = normalizeTimestamp(user.lastLoginAt);
+      return value ? value.getTime() : 0;
     }
 
     function normalizeTimestamp(value) {
@@ -534,7 +575,7 @@
 
     function filteredUsers() {
       const q = state.query.trim().toLowerCase();
-      return state.users.filter((user) => {
+      const filtered = state.users.filter((user) => {
         const haystack = [
           user.email,
           user.displayName,
@@ -545,6 +586,76 @@
         const matchesStatus = userMatchesStatusFilter(user);
         return matchesQuery && matchesRole && matchesStatus;
       });
+
+      const sorted = [...filtered];
+      switch (state.userSort) {
+        case "name-desc":
+          sorted.sort((a, b) => compareStrings(normalizeUserSortValue(b, "name"), normalizeUserSortValue(a, "name")));
+          break;
+        case "email-asc":
+          sorted.sort((a, b) => compareStrings(normalizeUserSortValue(a, "email"), normalizeUserSortValue(b, "email")));
+          break;
+        case "last-active-desc":
+          sorted.sort((a, b) => normalizeUserTimestamp(b) - normalizeUserTimestamp(a));
+          break;
+        case "last-active-asc":
+          sorted.sort((a, b) => normalizeUserTimestamp(a) - normalizeUserTimestamp(b));
+          break;
+        case "votes-desc":
+          sorted.sort((a, b) => Number(b.voteCount || 0) - Number(a.voteCount || 0));
+          break;
+        case "votes-asc":
+          sorted.sort((a, b) => Number(a.voteCount || 0) - Number(b.voteCount || 0));
+          break;
+        case "status-asc":
+          sorted.sort((a, b) => compareStrings(normalizeUserSortValue(a, "status"), normalizeUserSortValue(b, "status")));
+          break;
+        case "name-asc":
+        default:
+          sorted.sort((a, b) => compareStrings(normalizeUserSortValue(a, "name"), normalizeUserSortValue(b, "name")));
+          break;
+      }
+      return sorted;
+    }
+
+    function updateAuthUI(user) {
+      const note = document.getElementById("auth-note");
+      const login = document.getElementById("login-google");
+      const logout = document.getElementById("logout");
+      if (!note || !login || !logout) return;
+      if (user) {
+        note.textContent = `Signed in as ${user.email || user.uid}`;
+        login.hidden = true;
+        logout.hidden = false;
+      } else {
+        note.textContent = "Not signed in";
+        login.hidden = false;
+        logout.hidden = true;
+      }
+    }
+
+    async function signInWithGoogle() {
+      const auth = firebase.auth();
+      const provider = new firebase.auth.GoogleAuthProvider();
+      const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      try {
+        if (isMobileUA) {
+          await auth.signInWithRedirect(provider);
+          return;
+        }
+        await auth.signInWithPopup(provider);
+      } catch (err) {
+        if (
+          err?.code === 'auth/popup-blocked' ||
+          err?.code === 'auth/cancelled-popup-request' ||
+          /opener|blocked|closed|COOP/i.test(err?.message || '')
+        ) {
+          await auth.signInWithRedirect(provider);
+        } else {
+          console.error('Google sign-in failed:', err);
+          setStatus('Google sign-in failed. Please try again.', true);
+        }
+      }
     }
 
     function roleCheckbox(uid, role, checked) {
@@ -1070,6 +1181,7 @@
       applyUsersCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
+        updateAuthUI(user);
         if (!user) {
           setStatus("Please sign in with your admin account first.", true);
           document.getElementById("results").innerHTML = '<div class="empty">You need to sign in before accessing admin tools.</div>';
@@ -1103,12 +1215,19 @@
         state.statusFilter = event.target.value || "all";
         renderUsers();
       });
+      document.getElementById("user-sort").addEventListener("change", (event) => {
+        state.userSort = event.target.value || "name-asc";
+        renderUsers();
+      });
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
       document.getElementById("users-toggle").addEventListener("click", () => {
         state.usersCollapsed = !state.usersCollapsed;
         localStorage.setItem('pp_admin_users_collapsed', state.usersCollapsed ? 'true' : 'false');
         applyUsersCollapseState();
+      });
+      document.getElementById("login-google").addEventListener("click", async () => {
+        await signInWithGoogle();
       });
       document.getElementById("create-invite").addEventListener("click", () => createInvite());
       document.getElementById("flag-search").addEventListener("input", (event) => {
@@ -1129,7 +1248,8 @@
       });
       document.getElementById("logout").addEventListener("click", async () => {
         await firebase.auth().signOut();
-        location.href = "/app";
+        updateAuthUI(null);
+        location.href = "/admin";
       });
     }
 
