@@ -139,4 +139,9 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           BRANCH="${{ github.ref_name }}"
-          firebase hosting:channel:deploy "$BRANCH" --project poetry-please --site poetryplease-org --expires 7d
+          CHANNEL=$(echo "$BRANCH" | tr '/_' '-' | tr -cd '[:alnum:]-' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-40)
+          if [ -z "$CHANNEL" ]; then
+            echo "Could not derive a valid preview channel from branch: $BRANCH"; exit 5
+          fi
+          echo "Deploying preview channel: $CHANNEL"
+          firebase hosting:channel:deploy "$CHANNEL" --project poetry-please --site poetryplease-org --expires 7d
