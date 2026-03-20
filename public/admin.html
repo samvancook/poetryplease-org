@@ -421,20 +421,27 @@
     </section>
 
     <section class="card" style="margin-top:20px;">
-      <h2 style="margin-top:0;">Content Library</h2>
-      <p class="lede" style="margin-bottom:16px;max-width:none;">Create and update graphics, excerpts, and videos directly in the app instead of routing changes through Sheets and Apps Script.</p>
-      <div class="controls">
-        <select id="content-type">
-          <option value="graphics">Graphics</option>
-          <option value="excerpts">Excerpts</option>
-          <option value="videos">Videos</option>
-        </select>
-        <input id="content-search" type="search" placeholder="Search recent content by ID, title, author, or catalog" />
-        <button id="refresh-content" type="button" class="secondary">Refresh content</button>
+      <div class="section-head">
+        <h2>Content Library</h2>
+        <button id="content-library-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="content-library-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
       </div>
-      <div class="hint">For graphics, you can upload the image file here and the app will store it in Firebase Storage before saving the Firestore record.</div>
-      <div id="content-status" class="status">Loading content library…</div>
-      <div class="form-grid" id="content-form">
+      <div id="content-library-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Create and update graphics, excerpts, and videos directly in the app instead of routing changes through Sheets and Apps Script.</p>
+        <div class="controls">
+          <select id="content-type">
+            <option value="graphics">Graphics</option>
+            <option value="excerpts">Excerpts</option>
+            <option value="videos">Videos</option>
+          </select>
+          <input id="content-search" type="search" placeholder="Search recent content by ID, title, author, or catalog" />
+          <button id="refresh-content" type="button" class="secondary">Refresh content</button>
+        </div>
+        <div class="hint">For graphics, you can upload the image file here and the app will store it in Firebase Storage before saving the Firestore record.</div>
+        <div id="content-status" class="status">Loading content library…</div>
+        <div class="form-grid" id="content-form">
         <label>
           Document ID
           <input id="content-doc-id" type="text" placeholder="Required. Used as the Firestore document ID." />
@@ -507,12 +514,13 @@
           Excerpt
           <textarea id="content-excerpt" placeholder="Excerpt text"></textarea>
         </label>
+        </div>
+        <div class="actions" style="margin-top:14px;">
+          <button id="save-content" type="button">Save content</button>
+          <button id="clear-content" type="button" class="secondary">Clear form</button>
+        </div>
+        <div id="content-library-list" style="margin-top:18px;"></div>
       </div>
-      <div class="actions" style="margin-top:14px;">
-        <button id="save-content" type="button">Save content</button>
-        <button id="clear-content" type="button" class="secondary">Clear form</button>
-      </div>
-      <div id="content-library-list" style="margin-top:18px;"></div>
     </section>
 
     <section class="card" style="margin-top:20px;">
@@ -629,7 +637,8 @@
       flagStatusFilter: "all",
       flagTypeFilter: "all",
       flagSort: "newest",
-      usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') === 'true',
+      usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') !== 'false',
+      contentLibraryCollapsed: localStorage.getItem('pp_admin_content_library_collapsed') !== 'false',
     };
 
     function setStatus(message, isError = false) {
@@ -646,6 +655,16 @@
       body.hidden = !!state.usersCollapsed;
       const label = button.querySelector('span:last-child');
       if (label) label.textContent = state.usersCollapsed ? 'Expand' : 'Collapse';
+    }
+
+    function applyContentLibraryCollapseState() {
+      const button = document.getElementById('content-library-toggle');
+      const body = document.getElementById('content-library-section-body');
+      if (!button || !body) return;
+      button.setAttribute('aria-expanded', state.contentLibraryCollapsed ? 'false' : 'true');
+      body.hidden = !!state.contentLibraryCollapsed;
+      const label = button.querySelector('span:last-child');
+      if (label) label.textContent = state.contentLibraryCollapsed ? 'Expand' : 'Collapse';
     }
 
     function compareStrings(a, b) {
@@ -1892,6 +1911,7 @@
 
     async function init() {
       applyUsersCollapseState();
+      applyContentLibraryCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
         updateAuthUI(user);
@@ -1938,6 +1958,11 @@
         state.usersCollapsed = !state.usersCollapsed;
         localStorage.setItem('pp_admin_users_collapsed', state.usersCollapsed ? 'true' : 'false');
         applyUsersCollapseState();
+      });
+      document.getElementById("content-library-toggle").addEventListener("click", () => {
+        state.contentLibraryCollapsed = !state.contentLibraryCollapsed;
+        localStorage.setItem('pp_admin_content_library_collapsed', state.contentLibraryCollapsed ? 'true' : 'false');
+        applyContentLibraryCollapseState();
       });
       document.getElementById("login-google").addEventListener("click", async () => {
         await signInWithGoogle();
