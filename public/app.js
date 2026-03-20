@@ -98,6 +98,20 @@ function markScreenReady() {
   maybeHideAppLoader();
 }
 
+function showInlineLoadingState() {
+  const messageEl = document.getElementById('message');
+  if (!messageEl || currentItem) return;
+  messageEl.textContent = 'Loading content...';
+}
+
+function clearInlineLoadingState() {
+  const messageEl = document.getElementById('message');
+  if (!messageEl) return;
+  if (messageEl.textContent === 'Loading content...') {
+    messageEl.textContent = '';
+  }
+}
+
 function queueDeferredBootWork() {
   if (BOOT_STATE.deferredBootQueued) return;
   BOOT_STATE.deferredBootQueued = true;
@@ -1208,6 +1222,7 @@ function renderCurrent(item) {
 
   // ✅ Notify mobile shell *with* the item payload
   window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: currentItem } }));
+  clearInlineLoadingState();
   markScreenReady();
 }
 
@@ -1417,11 +1432,8 @@ firebase.auth().onAuthStateChanged(async (user) => {
   if (user) await redeemAuthorInviteIfPresent();
 
   BOOT_STATE.authResolved = true;
-  if (!user && !IS_MOBILE_UI) {
-    markScreenReady();
-  } else {
-    maybeHideAppLoader();
-  }
+  if (user && !currentItem) showInlineLoadingState();
+  markScreenReady();
 
   ppAutoloadFirstItem();   // <-- added
 });
