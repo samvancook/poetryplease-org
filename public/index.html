@@ -4,7 +4,43 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Poetry, Please</title>
-  <link rel="stylesheet" href="/style.css"/>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
+  <link rel="stylesheet" href="/style.css?v=20260320a"/>
+  <style>
+    .pp-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at top, rgba(47, 93, 98, 0.22), transparent 40%),
+        linear-gradient(180deg, #faf7f0 0%, #f4ecdd 100%);
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 420ms ease, visibility 420ms ease;
+    }
+    .pp-loader.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .pp-loader__mark {
+      width: min(46vw, 220px);
+      opacity: 0;
+      transform: translateY(10px) scale(0.94);
+      animation: ppLoaderFadeIn 900ms ease forwards;
+      filter: drop-shadow(0 18px 32px rgba(30, 26, 21, 0.14));
+    }
+    @keyframes ppLoaderFadeIn {
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+  </style>
 
   <!-- Firebase (compat) SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
@@ -21,17 +57,33 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
+    window.addEventListener('load', () => {
+      const loadAnalytics = () => {
+        const script = document.createElement('script');
+        script.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics-compat.js';
+        script.async = true;
+        script.onload = () => {
+          try {
+            firebase.analytics().logEvent('page_view');
+          } catch (err) {
+            console.warn('Analytics init skipped', err);
+          }
+        };
+        document.head.appendChild(script);
+      };
 
-    
-  // 🔹 Analytics init (v8)
-  const analytics = firebase.analytics();
-
-  // 🔹 Explicit page view
-  analytics.logEvent('page_view');
-    
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(loadAnalytics, { timeout: 2000 });
+      } else {
+        setTimeout(loadAnalytics, 800);
+      }
+    }, { once: true });
   </script>
 </head>
 <body>
+  <div id="pp-loader" class="pp-loader" aria-hidden="true">
+    <img class="pp-loader__mark" src="/pp-loader-logo.png?v=20260320a" alt="" fetchpriority="high" decoding="async" />
+  </div>
   <div id="user-status"></div>
 
   <div id="type-filter-container">
@@ -79,6 +131,6 @@
     <div id="gallery" class="gallery"></div>
   </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=20260320a"></script>
 </body>
 </html>

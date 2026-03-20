@@ -4,8 +4,57 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
   <title>Poetry, Please — Mobile</title>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
+  <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
 
   <style>
+    .pp-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 20000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background:
+        radial-gradient(circle at top, rgba(47, 93, 98, 0.2), transparent 36%),
+        linear-gradient(180deg, #faf7f0 0%, #f4ecdd 100%);
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 420ms ease, visibility 420ms ease;
+    }
+    .pp-loader.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .pp-loader__mark {
+      width: min(44vw, 180px);
+      opacity: 0;
+      transform: translateY(10px) scale(0.94);
+      animation: ppLoaderFadeIn 900ms ease forwards;
+      filter: drop-shadow(0 18px 32px rgba(30, 26, 21, 0.14));
+    }
+    @keyframes ppLoaderFadeIn {
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .admin-preview-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      padding: 6px 10px;
+      border: 1px solid #e6e6e6;
+      border-radius: 999px;
+      background: #f7f7f7;
+      white-space: nowrap;
+    }
+    .admin-preview-toggle input {
+      margin: 0;
+      accent-color: #2f5d62;
+    }
 
     #mobile-side-votes {
   position: absolute;
@@ -191,8 +240,6 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
   <!-- Firebase (compat) SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics-compat.js"></script>
-
   <script>
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
@@ -204,20 +251,40 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
       measurementId: "G-FBLJHKQ70B"
     };
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-  </script>
+    window.addEventListener('load', () => {
+      const loadAnalytics = () => {
+        const script = document.createElement('script');
+        script.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics-compat.js';
+        script.async = true;
+        script.onload = () => {
+          try {
+            firebase.analytics().logEvent('page_view');
+          } catch (err) {
+            console.warn('Analytics init skipped', err);
+          }
+        };
+        document.head.appendChild(script);
+      };
 
-  <script>
-  const analytics = firebase.analytics();
-  analytics.logEvent('page_view');
-</script>
+      if ('requestIdleCallback' in window) {
+        requestIdleCallback(loadAnalytics, { timeout: 2000 });
+      } else {
+        setTimeout(loadAnalytics, 800);
+      }
+    }, { once: true });
+  </script>
 
   
 </head>
 <body data-ui="mobile">
+  <div id="pp-loader" class="pp-loader" aria-hidden="true">
+    <img class="pp-loader__mark" src="/pp-loader-logo.png?v=20260320a" alt="" fetchpriority="high" decoding="async" />
+  </div>
   <div class="wrap">
     <header>
       <h1>Poetry, Please</h1>
       <div class="status" id="mobile-login-status">Loading…</div>
+      <div id="mobile-admin-tools"></div>
       <button id="mobile-google" style="font-size:12px;padding:6px 10px;border:1px solid #e6e6e6;border-radius:10px;background:#f7f7f7;">
         Sign in with Google
       </button>
@@ -307,7 +374,7 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
   <!-- Force mobile mode for app.js and load it -->
   <script>window.__PP_FORCE_MOBILE = true;</script>
-  <script src="/app.js?v=2025-10-31-5" defer></script>
+  <script src="/app.js?v=20260320a" defer></script>
 
   <!-- One tiny script to wire everything -->
   <script>

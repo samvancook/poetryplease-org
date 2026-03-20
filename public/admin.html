@@ -53,6 +53,22 @@
       text-decoration: none;
       font-weight: 600;
     }
+    .view-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      color: var(--accent);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .view-toggle input {
+      margin: 0;
+      accent-color: var(--accent);
+    }
     h1 {
       margin: 18px 0 8px;
       font-size: clamp(36px, 5vw, 58px);
@@ -345,6 +361,7 @@
     <div class="topbar">
       <a href="/app">Back to app</a>
       <div class="topbar-actions">
+        <div id="admin-view-toggle-slot"></div>
         <div id="auth-note" class="auth-note">Checking sign-in…</div>
         <button id="login-google" class="secondary" type="button" hidden>Log in with Google</button>
         <button id="logout" class="secondary" type="button" hidden>Log out</button>
@@ -876,6 +893,36 @@
         login.hidden = false;
         logout.hidden = true;
       }
+    }
+
+    function currentPreviewView() {
+      const pinned = localStorage.getItem('pp_view');
+      if (pinned === 'mobile' || pinned === 'desktop') return pinned;
+      return 'desktop';
+    }
+
+    function renderAdminPreviewToggle() {
+      const slot = document.getElementById('admin-view-toggle-slot');
+      if (!slot) return;
+
+      if (!state.me?.roles?.includes('admin')) {
+        slot.innerHTML = '';
+        return;
+      }
+
+      const isMobile = currentPreviewView() === 'mobile';
+      slot.innerHTML = `
+        <label class="view-toggle" title="Switch between the desktop and mobile app views">
+          <input id="admin-view-toggle" type="checkbox" ${isMobile ? 'checked' : ''} />
+          <span>Mobile preview</span>
+        </label>
+      `;
+
+      document.getElementById('admin-view-toggle')?.addEventListener('change', (event) => {
+        const nextView = event.target.checked ? 'mobile' : 'desktop';
+        localStorage.setItem('pp_view', nextView);
+        location.assign(nextView === 'mobile' ? '/m' : '/app');
+      });
     }
 
     async function signInWithGoogle() {
@@ -1930,9 +1977,11 @@
         if (!state.me?.roles?.includes("admin")) {
           setStatus("This account does not have admin access.", true);
           document.getElementById("results").innerHTML = '<div class="empty">Admin access is required for this page.</div>';
+          renderAdminPreviewToggle();
           return;
         }
 
+        renderAdminPreviewToggle();
         await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadContentLibrary(), loadFlags()]);
       });
 

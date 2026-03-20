@@ -57,6 +57,74 @@ var computed =
 })();
 const IS_MOBILE_UI = window.IS_MOBILE_UI;
 
+const BOOT_STATE = {
+  domReady: document.readyState !== 'loading',
+  authResolved: false,
+  screenReady: false,
+  loaderHidden: false,
+};
+
+function hideAppLoader() {
+  if (BOOT_STATE.loaderHidden) return;
+  const loader = document.getElementById('pp-loader');
+  if (!loader) {
+    BOOT_STATE.loaderHidden = true;
+    return;
+  }
+  BOOT_STATE.loaderHidden = true;
+  loader.classList.add('is-hidden');
+  window.setTimeout(() => {
+    if (loader.parentNode) loader.parentNode.removeChild(loader);
+  }, 520);
+}
+
+function maybeHideAppLoader() {
+  if (!BOOT_STATE.domReady || !BOOT_STATE.authResolved || !BOOT_STATE.screenReady) return;
+  hideAppLoader();
+}
+
+function markScreenReady() {
+  BOOT_STATE.screenReady = true;
+  maybeHideAppLoader();
+}
+
+function setPinnedViewPreference(view) {
+  if (view !== 'mobile' && view !== 'desktop') return;
+  localStorage.setItem('pp_view', view);
+}
+
+function navigateToPreferredView(view) {
+  const nextView = view === 'mobile' ? 'mobile' : 'desktop';
+  setPinnedViewPreference(nextView);
+
+  const params = new URLSearchParams(location.search);
+  ['view', 'mobile', 'desktop'].forEach((key) => params.delete(key));
+  const targetPath = nextView === 'mobile' ? '/m' : '/app';
+  const targetQuery = params.toString();
+  const targetUrl = `${targetPath}${targetQuery ? `?${targetQuery}` : ''}${location.hash || ''}`;
+  location.assign(targetUrl);
+}
+
+function syncAdminViewToggle(isAdmin) {
+  const mobileTools = document.getElementById('mobile-admin-tools');
+  if (!isAdmin) {
+    if (mobileTools) mobileTools.innerHTML = '';
+    return;
+  }
+
+  if (mobileTools) {
+    mobileTools.innerHTML = `
+      <label class="admin-preview-toggle" title="Switch between the desktop and mobile app views">
+        <input id="mobile-admin-view-toggle" type="checkbox" ${IS_MOBILE_UI ? 'checked' : ''} />
+        <span>Mobile preview</span>
+      </label>
+    `;
+    document.getElementById('mobile-admin-view-toggle')?.addEventListener('change', (event) => {
+      navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
+    });
+  }
+}
+
 // ===== Small API client with Firebase ID token =====
 async function getIdTokenOrNull() {
   const user = firebase.auth().currentUser;
@@ -136,10 +204,10 @@ function updateUserStatusUI() {
   const div = $('#user-status');
   const loadBtn = $('#load-button');
   if (user) {
+    const normalizedEmail = (user.email || '').trim().toLowerCase();
+    const isAdmin = !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
     if (div) {
       const label = user.email || user.uid;
-      const normalizedEmail = (user.email || '').trim().toLowerCase();
-      const isAdmin = !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
       const isTeam = !!currentAccount?.roles?.includes('team');
       const canEditAuthorProfile = !!currentAccount?.roles?.some((role) => role === 'author' || role === 'admin') || isAdmin;
       const roleBadge = isAdmin
@@ -151,7 +219,13 @@ function updateUserStatusUI() {
       const profileBadge = canEditAuthorProfile
         ? ' <a id="author-profile-badge" href="/author/edit" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;text-decoration:none;">Edit profile</a>'
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge} <button id="logout-button" type="button">Log out</button>`;
+      const viewToggle = isAdmin
+        ? ` <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:4px 10px;border-radius:999px;background:#ffffffcc;border:1px solid #dad0c1;font-size:12px;font-weight:600;color:#2f5d62;">
+              <input id="admin-view-toggle" type="checkbox" ${IS_MOBILE_UI ? 'checked' : ''} style="margin:0;accent-color:#2f5d62;" />
+              <span>Mobile preview</span>
+            </label>`
+        : '';
+      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -159,14 +233,19 @@ function updateUserStatusUI() {
           console.warn('Logout failed', err);
         }
       });
+      on($('#admin-view-toggle'), 'change', (event) => {
+        navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
+      });
     }
     if (loadBtn) loadBtn.disabled = false;
+    syncAdminViewToggle(isAdmin);
   } else {
     if (div) {
       div.innerHTML = "<button id='login-google'>Log in with Google</button> or continue anonymously";
       on($('#login-google'), 'click', signInWithGoogle);
     }
     if (loadBtn) loadBtn.disabled = false;
+    syncAdminViewToggle(false);
   }
 }
 
@@ -1091,6 +1170,7 @@ function renderCurrent(item) {
 
   // ✅ Notify mobile shell *with* the item payload
   window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: currentItem } }));
+  markScreenReady();
 }
 
 // ===== Heuristic next index chooser =====
@@ -1274,6 +1354,7 @@ async function ppAutoloadFirstItem() {
   } finally {
     // ✅ If we *still* don’t have an item, allow future attempts (e.g., user logs in later)
     if (!currentItem) __pp_initialLoad = false;
+    if (!currentItem) markScreenReady();
   }
 }
 
@@ -1297,12 +1378,21 @@ firebase.auth().onAuthStateChanged(async (user) => {
   dispatchEvent(new CustomEvent('pp:state'));
   if (user) await redeemAuthorInviteIfPresent();
 
+  BOOT_STATE.authResolved = true;
+  if (!user && !IS_MOBILE_UI) {
+    markScreenReady();
+  } else {
+    maybeHideAppLoader();
+  }
+
   ppAutoloadFirstItem();   // <-- added
 });
 
 
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
+  BOOT_STATE.domReady = true;
+
   // Wire login UI if present (works for both desktop & mobile)
   on(document.getElementById('login-google'), 'click', signInWithGoogle);
   on(document.getElementById('email-login-form'), 'submit', handleEmailLogin);
@@ -1342,6 +1432,7 @@ window.addEventListener('DOMContentLoaded', () => {
   getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
 
   updateUserStatusUI();
+  maybeHideAppLoader();
 
   // Viewport listeners
   setViewportVars();
