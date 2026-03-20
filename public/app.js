@@ -394,11 +394,11 @@ async function getOrCreateAnonId() {
   h1#page-title{ text-align:center; }
 
   #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
-    padding:10px 12px; border-top:1px solid #e6e6e6; background:#fff; z-index:5; }
+    padding:10px 12px; border-top:1px solid #e6e6e6; background:#faf7f0; z-index:5; }
   #counters-bar span{ white-space:nowrap; }
 
   /* Viewport-fit scaffolding */
-  html, body { height: 100%; }
+  html, body { height: 100%; background:#faf7f0; color:#111; }
   body { min-height: 100dvh; }
   .media-box {
     max-height: var(--media-max-h, 70dvh);
