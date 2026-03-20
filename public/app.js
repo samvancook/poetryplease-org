@@ -62,7 +62,11 @@ const BOOT_STATE = {
   authResolved: false,
   screenReady: false,
   loaderHidden: false,
+  loaderShownAt: Date.now(),
+  deferredBootQueued: false,
 };
+
+const MIN_LOADER_MS = 700;
 
 function hideAppLoader() {
   if (BOOT_STATE.loaderHidden) return;
@@ -80,12 +84,46 @@ function hideAppLoader() {
 
 function maybeHideAppLoader() {
   if (!BOOT_STATE.domReady || !BOOT_STATE.authResolved || !BOOT_STATE.screenReady) return;
-  hideAppLoader();
+  const elapsed = Date.now() - BOOT_STATE.loaderShownAt;
+  if (elapsed >= MIN_LOADER_MS) {
+    hideAppLoader();
+    return;
+  }
+  window.setTimeout(hideAppLoader, MIN_LOADER_MS - elapsed);
 }
 
 function markScreenReady() {
   BOOT_STATE.screenReady = true;
+  queueDeferredBootWork();
   maybeHideAppLoader();
+}
+
+function queueDeferredBootWork() {
+  if (BOOT_STATE.deferredBootQueued) return;
+  BOOT_STATE.deferredBootQueued = true;
+  const run = () => {
+    const selType = document.getElementById('type-filter');
+    const selCat  = document.getElementById('catalog-filter');
+    if (!IS_MOBILE_UI) {
+      fetchAndPopulateTypes().then(() => {
+        const sel = document.getElementById('type-filter');
+        if (sel) sel.onchange = () => setTypeFilter(sel.value);
+      });
+      fetchAndPopulateCatalogs().then(() => {
+        const sel = document.getElementById('catalog-filter');
+        if (sel) sel.onchange = () => setCatalogFilter(sel.value);
+      });
+    } else {
+      if (selType) fetchAndPopulateTypes().then(() => { selType.onchange = () => setTypeFilter(selType.value); });
+      if (selCat)  fetchAndPopulateCatalogs().then(() => { selCat.onchange  = () => setCatalogFilter(selCat.value); });
+    }
+    getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
+  };
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(run, { timeout: 1500 });
+  } else {
+    setTimeout(run, 250);
+  }
 }
 
 function setPinnedViewPreference(view) {
@@ -1392,6 +1430,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   BOOT_STATE.domReady = true;
+  BOOT_STATE.loaderShownAt = Date.now();
 
   // Wire login UI if present (works for both desktop & mobile)
   on(document.getElementById('login-google'), 'click', signInWithGoogle);
@@ -1408,28 +1447,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Desktop-only extras
   if (!IS_MOBILE_UI) {
     on(document.getElementById('load-button'), 'click', onSkip);
-
-    fetchAndPopulateTypes().then(() => {
-      const sel = document.getElementById('type-filter');
-      if (sel) sel.onchange = () => setTypeFilter(sel.value);
-    });
-
-    fetchAndPopulateCatalogs().then(() => {
-      const sel = document.getElementById('catalog-filter');
-      if (sel) sel.onchange = () => setCatalogFilter(sel.value);
-    });
-  } else {
-    // Mobile: still populate filters if present
-    const selType = document.getElementById('type-filter');
-    const selCat  = document.getElementById('catalog-filter');
-    if (selType) fetchAndPopulateTypes().then(() => { selType.onchange = () => setTypeFilter(selType.value); });
-    if (selCat)  fetchAndPopulateCatalogs().then(() => { selCat.onchange  = () => setCatalogFilter(selCat.value); });
   }
-
-
-
-  // Load ratings once (for heuristics)
-  getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
 
   updateUserStatusUI();
   maybeHideAppLoader();
