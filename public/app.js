@@ -1425,17 +1425,29 @@ firebase.auth().onAuthStateChanged(async (user) => {
     show(poetryEl, !!user);
   }
 
-  await refreshCurrentAccount();
-  updateUserStatusUI();
-  if (currentItem) renderMetaRows(currentItem);
-  dispatchEvent(new CustomEvent('pp:state'));
-  if (user) await redeemAuthorInviteIfPresent();
-
   BOOT_STATE.authResolved = true;
   if (user && !currentItem) showInlineLoadingState();
   markScreenReady();
 
   ppAutoloadFirstItem();   // <-- added
+
+  refreshCurrentAccount()
+    .then(() => {
+      updateUserStatusUI();
+      if (currentItem) renderMetaRows(currentItem);
+      dispatchEvent(new CustomEvent('pp:state'));
+    })
+    .catch((err) => {
+      console.warn('refreshCurrentAccount failed during auth bootstrap', err);
+      updateUserStatusUI();
+      dispatchEvent(new CustomEvent('pp:state'));
+    });
+
+  if (user) {
+    redeemAuthorInviteIfPresent().catch((err) => {
+      console.warn('author invite redemption deferred failure', err);
+    });
+  }
 });
 
 
