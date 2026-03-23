@@ -316,6 +316,20 @@ function mapToArr(o) {
   ];
 }
 
+function mapToCounterArr(o) {
+  return [
+    o.author || "",
+    "",
+    o.book || "",
+    o.imageId || "",
+    "",
+    "",
+    o.releaseCatalog || "",
+    o.imageType || "",
+    "",
+  ];
+}
+
 function aggregateRatings(voteDocs) {
   const agg = {};
   for (const v of voteDocs) {
@@ -828,7 +842,7 @@ app.post(getBoth("/fetchData"), async (req, res) => {
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
   res.json({
-    allGraphics: all.map(mapToArr),
+    allGraphics: all.map(mapToCounterArr),
     newGraphics: newObjs.map(mapToArr),
     totalImages: all.length,
     votedImagesCount: voted.length,
@@ -858,7 +872,7 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
   res.json({
-    allGraphics: all.map(mapToArr),
+    allGraphics: all.map(mapToCounterArr),
     newGraphics: newObjs.map(mapToArr),
     totalImages: all.length,
     votedImagesCount: voted.length,
