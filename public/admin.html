@@ -575,6 +575,32 @@
     <section class="card" style="margin-top:20px;">
       <h2 style="margin-top:0;">Flagged Content</h2>
       <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
+      <div style="margin-bottom:18px;padding:16px;border:1px solid #e3d8c7;border-radius:18px;background:#fffaf2;">
+        <h3 style="margin:0 0 10px;font-size:18px;">Batch flag content</h3>
+        <p class="meta" style="margin-bottom:12px;">Paste one content ID per line, or upload a plain text / CSV file. This currently matches exact content IDs.</p>
+        <div class="two-col">
+          <label>
+            Content IDs
+            <textarea id="batch-flag-identifiers" placeholder="AEO-EXC-APOCRYPHA-1&#10;Andrea Gibson - After the Breakup.mp4"></textarea>
+          </label>
+          <div>
+            <label>
+              Shared reason
+              <textarea id="batch-flag-note" placeholder="What issue should be reviewed for all of these items?"></textarea>
+            </label>
+            <label style="margin-top:12px;">
+              Upload text/CSV
+              <input id="batch-flag-file" type="file" accept=".txt,.csv,text/plain,text/csv" />
+            </label>
+          </div>
+        </div>
+        <div class="actions" style="margin-top:12px;">
+          <button id="preview-batch-flags" type="button" class="secondary">Preview batch</button>
+          <button id="submit-batch-flags" type="button">Flag listed content</button>
+        </div>
+        <div id="batch-flag-status" class="status">Paste or upload IDs to preview a batch flag job.</div>
+        <div id="batch-flag-preview" class="empty" style="margin-top:12px;">No batch loaded yet.</div>
+      </div>
       <div class="controls">
         <input id="flag-search" type="search" placeholder="Search by title, image ID, author, reason, or flagger" />
         <select id="flag-status-filter">
@@ -654,6 +680,7 @@
       flagStatusFilter: "all",
       flagTypeFilter: "all",
       flagSort: "newest",
+      batchFlagIdentifiers: [],
       usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') !== 'false',
       contentLibraryCollapsed: localStorage.getItem('pp_admin_content_library_collapsed') !== 'false',
     };
@@ -1797,6 +1824,114 @@
       return filtered;
     }
 
+    function parseBatchIdentifiers(rawText) {
+      return Array.from(new Set(
+        String(rawText || '')
+          .split(/[\n,\t]+/)
+          .map((value) => value.trim())
+          .filter(Boolean)
+      ));
+    }
+
+    async function readBatchFlagFile() {
+      const input = document.getElementById('batch-flag-file');
+      const file = input?.files?.[0];
+      if (!file) return '';
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(new Error('Could not read the uploaded file.'));
+        reader.readAsText(file);
+      });
+    }
+
+    function renderBatchFlagPreview() {
+      const previewEl = document.getElementById('batch-flag-preview');
+      const statusEl = document.getElementById('batch-flag-status');
+      const identifiers = state.batchFlagIdentifiers || [];
+      if (!identifiers.length) {
+        previewEl.className = 'empty';
+        previewEl.textContent = 'No batch loaded yet.';
+        statusEl.textContent = 'Paste or upload IDs to preview a batch flag job.';
+        statusEl.className = 'status';
+        return;
+      }
+      previewEl.className = '';
+      previewEl.innerHTML = `
+        <div class="meta" style="margin-bottom:8px;">Ready to flag ${identifiers.length} item${identifiers.length === 1 ? '' : 's'}.</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${identifiers.slice(0, 30).map((identifier) => `<span style="display:inline-flex;padding:6px 10px;border-radius:999px;background:#f4ecdd;border:1px solid #e3d8c7;font-size:12px;">${escapeHtml(identifier)}</span>`).join('')}
+          ${identifiers.length > 30 ? `<span class="meta">+ ${identifiers.length - 30} more</span>` : ''}
+        </div>
+      `;
+      statusEl.textContent = `Prepared ${identifiers.length} content ID${identifiers.length === 1 ? '' : 's'} for batch flagging.`;
+      statusEl.className = 'status';
+    }
+
+    async function previewBatchFlags() {
+      const statusEl = document.getElementById('batch-flag-status');
+      try {
+        const fileText = await readBatchFlagFile();
+        const pastedText = document.getElementById('batch-flag-identifiers').value || '';
+        state.batchFlagIdentifiers = parseBatchIdentifiers(`${pastedText}\n${fileText}`);
+        renderBatchFlagPreview();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not preview batch IDs.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function submitBatchFlags() {
+      const statusEl = document.getElementById('batch-flag-status');
+      const note = (document.getElementById('batch-flag-note').value || '').trim();
+      if (!state.batchFlagIdentifiers?.length) {
+        statusEl.textContent = 'Preview a set of content IDs first.';
+        statusEl.className = 'status error';
+        return;
+      }
+      if (!note) {
+        statusEl.textContent = 'Add a shared reason for the batch flag.';
+        statusEl.className = 'status error';
+        return;
+      }
+
+      statusEl.textContent = 'Flagging content in batch…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/contentFlags/batch', {
+          method: 'POST',
+          body: {
+            identifiers: state.batchFlagIdentifiers,
+            note,
+          }
+        });
+        document.getElementById('batch-flag-preview').className = '';
+        document.getElementById('batch-flag-preview').innerHTML = `
+          <div class="meta" style="margin-bottom:8px;">
+            Created ${payload.flaggedCount} flag${payload.flaggedCount === 1 ? '' : 's'} ·
+            ${payload.alreadyFlaggedCount} already pending ·
+            ${payload.notFoundCount} not found
+          </div>
+          <div style="display:grid;gap:6px;">
+            ${(payload.results || []).slice(0, 60).map((entry) => `
+              <div class="meta">
+                <strong>${escapeHtml(entry.identifier || entry.imageId || 'Unknown')}</strong>
+                — ${entry.status.replaceAll('_', ' ')}${entry.imageId && entry.imageId !== entry.identifier ? ` (${escapeHtml(entry.imageId)})` : ''}
+              </div>
+            `).join('')}
+          </div>
+        `;
+        statusEl.textContent = `Batch flagging complete. ${payload.flaggedCount} flagged, ${payload.alreadyFlaggedCount} already pending, ${payload.notFoundCount} not found.`;
+        statusEl.className = 'status';
+        await loadFlags();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not batch flag content.';
+        statusEl.className = 'status error';
+      }
+    }
+
     async function loadFlags() {
       const statusEl = document.getElementById('flag-review-status');
       statusEl.textContent = 'Loading flagged content…';
@@ -2058,6 +2193,8 @@
         state.flagSort = event.target.value || "newest";
         renderFlags();
       });
+      document.getElementById("preview-batch-flags").addEventListener("click", () => previewBatchFlags());
+      document.getElementById("submit-batch-flags").addEventListener("click", () => submitBatchFlags());
       document.getElementById("logout").addEventListener("click", async () => {
         await firebase.auth().signOut();
         updateAuthUI(null);

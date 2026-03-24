@@ -277,6 +277,43 @@ function buildFlagHistoryEntry(eventType, actor, note = "", extra = {}) {
   };
 }
 
+async function createContentFlagForItem(item, ctx, note, extra = {}) {
+  const existingSnap = await db.collection(COLLECTIONS.contentFlags)
+    .where("imageId", "==", item.imageId)
+    .limit(25)
+    .get();
+  const existingPending = existingSnap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .find((flag) => flag.status === "pending");
+  if (existingPending) {
+    return { ok: false, reason: "already_flagged", flag: existingPending };
+  }
+
+  const flagRef = db.collection(COLLECTIONS.contentFlags).doc();
+  await flagRef.set({
+    imageId: item.imageId,
+    title: item.title || "",
+    author: item.author || "",
+    imageType: item.imageType || "",
+    releaseCatalog: item.releaseCatalog || "",
+    currentImageUrl: item.imageUrl || "",
+    flaggedByUid: ctx.decoded.uid,
+    flaggedByEmail: ctx.decoded.email,
+    flaggedByRoles: Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [],
+    note,
+    status: "pending",
+    createdAt: FieldValue.serverTimestamp(),
+    moderationHistory: [
+      buildFlagHistoryEntry("flagged", { uid: ctx.decoded.uid, email: ctx.decoded.email }, note, {
+        roles: Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [],
+        ...extra,
+      }),
+    ],
+  });
+
+  return { ok: true, flagId: flagRef.id };
+}
+
 async function getVotesByUser(userId) {
   const list = [];
   let q = db.collection(COLLECTIONS.votes).where("userId", "==", userId).limit(1000);
@@ -1231,40 +1268,58 @@ app.post(getBoth("/contentFlags"), async (req, res) => {
   const allContent = await getAllContent();
   const item = allContent.find((entry) => normalizeKey(entry.imageId) === normalizeKey(imageId));
   if (!item) return res.status(404).json({ error: "content_not_found" });
+  const result = await createContentFlagForItem(item, ctx, note);
+  if (!result.ok && result.reason === "already_flagged") {
+    return res.status(409).json({ error: "content_already_flagged", flag: result.flag });
+  }
+  res.json({ ok: true, flagId: result.flagId });
+});
 
-  const existingSnap = await db.collection(COLLECTIONS.contentFlags)
-    .where("imageId", "==", item.imageId)
-    .limit(25)
-    .get();
-  const existingPending = existingSnap.docs
-    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
-    .find((flag) => flag.status === "pending");
-  if (existingPending) {
-    return res.status(409).json({ error: "content_already_flagged", flag: existingPending });
+app.post(getBoth("/admin/contentFlags/batch"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const rawIdentifiers = Array.isArray(req.body?.identifiers) ? req.body.identifiers : [];
+  const note = normalizeText(req.body?.note || "");
+  if (!note) return res.status(400).json({ error: "missing_note" });
+
+  const identifiers = rawIdentifiers
+    .map((value) => normalizeText(value))
+    .filter(Boolean);
+  if (!identifiers.length) return res.status(400).json({ error: "missing_identifiers" });
+
+  const allContent = await getAllContent();
+  const contentById = new Map(allContent.map((entry) => [normalizeKey(entry.imageId), entry]));
+  const seen = new Set();
+  const results = [];
+
+  for (const rawIdentifier of identifiers) {
+    const normalizedIdentifier = normalizeKey(rawIdentifier);
+    if (!normalizedIdentifier || seen.has(normalizedIdentifier)) continue;
+    seen.add(normalizedIdentifier);
+
+    const item = contentById.get(normalizedIdentifier);
+    if (!item) {
+      results.push({ identifier: rawIdentifier, status: "not_found" });
+      continue;
+    }
+
+    const result = await createContentFlagForItem(item, ctx, note, { source: "batch_admin_flag" });
+    if (!result.ok && result.reason === "already_flagged") {
+      results.push({ identifier: rawIdentifier, imageId: item.imageId, status: "already_flagged", flagId: result.flag?.id || "" });
+      continue;
+    }
+    results.push({ identifier: rawIdentifier, imageId: item.imageId, status: "flagged", flagId: result.flagId });
   }
 
-  const flagRef = db.collection(COLLECTIONS.contentFlags).doc();
-  await flagRef.set({
-    imageId: item.imageId,
-    title: item.title || "",
-    author: item.author || "",
-    imageType: item.imageType || "",
-    releaseCatalog: item.releaseCatalog || "",
-    currentImageUrl: item.imageUrl || "",
-    flaggedByUid: ctx.decoded.uid,
-    flaggedByEmail: ctx.decoded.email,
-    flaggedByRoles: Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [],
-    note,
-    status: "pending",
-    createdAt: FieldValue.serverTimestamp(),
-    moderationHistory: [
-      buildFlagHistoryEntry("flagged", { uid: ctx.decoded.uid, email: ctx.decoded.email }, note, {
-        roles: Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [],
-      }),
-    ],
+  res.json({
+    ok: true,
+    processed: results.length,
+    flaggedCount: results.filter((entry) => entry.status === "flagged").length,
+    alreadyFlaggedCount: results.filter((entry) => entry.status === "already_flagged").length,
+    notFoundCount: results.filter((entry) => entry.status === "not_found").length,
+    results,
   });
-
-  res.json({ ok: true, flagId: flagRef.id });
 });
 
 app.get(getBoth("/admin/contentFlags"), async (req, res) => {
