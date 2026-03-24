@@ -168,6 +168,7 @@
     let currentSortKey = 'bookTitle';
     let currentSortDir = 1;
     let currentAccount = null;
+    let scoreboardLoaded = false;
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
     const progressBarsBtn = document.getElementById('progressBarsBtn');
@@ -202,6 +203,13 @@
       statusEl.className = isError ? 'status error' : 'status';
     }
 
+    function setControlsDisabled(disabled) {
+      document.querySelectorAll('#controls input, #controls select, #controls button').forEach((el) => {
+        el.disabled = disabled;
+      });
+      scoreboardLoaded = !disabled;
+    }
+
     function escapeHtml(value) {
       return String(value || '')
         .replaceAll('&', '&amp;')
@@ -212,6 +220,7 @@
     }
 
     function switchView(view) {
+      if (!scoreboardLoaded) return;
       const isScoreboard = view === 'scoreboard';
       scoreboardBtn.classList.toggle('active', isScoreboard);
       progressBarsBtn.classList.toggle('active', !isScoreboard);
@@ -275,6 +284,7 @@
     }
 
     function filterData() {
+      if (!scoreboardLoaded) return;
       const userVal = document.getElementById('userDropdown').value;
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
@@ -385,6 +395,7 @@
     }
 
     function exportVisibleCsv() {
+      if (!scoreboardLoaded) return;
       const isUserView = !!document.getElementById('userDropdown').value;
       const rows = filteredData || [];
       if (!rows.length) {
@@ -410,6 +421,7 @@
     function wireSortHeaders() {
       document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
         th.addEventListener('click', () => {
+          if (!scoreboardLoaded) return;
           const col = th.dataset.column;
           if (currentSortKey === col) currentSortDir *= -1;
           else {
@@ -424,6 +436,7 @@
       });
       document.querySelectorAll('#progressBars th[data-column]').forEach((th) => {
         th.addEventListener('click', () => {
+          if (!scoreboardLoaded) return;
           const col = th.dataset.column;
           if (currentProgressSortKey === col) currentProgressSortDir *= -1;
           else {
@@ -438,6 +451,7 @@
     }
 
     async function loadScoreboard() {
+      setControlsDisabled(true);
       setStatus('Loading scoreboard…');
       try {
         const payload = await api('scoreboard', { method: 'GET' });
@@ -448,11 +462,13 @@
         buildBookDropdown();
         filteredData = aggregatedData.slice();
         sortData();
+        setControlsDisabled(false);
         switchView('scoreboard');
         updateTable(filteredData);
         setStatus(`Loaded ${aggregatedData.length} scored item${aggregatedData.length === 1 ? '' : 's'} and ${rawVotes.length} latest votes.`);
       } catch (err) {
         console.error(err);
+        setControlsDisabled(false);
         setStatus(err.message || 'Could not load scoreboard.', true);
       }
     }
@@ -471,10 +487,12 @@
         await firebase.auth().signOut();
         location.reload();
       });
+      setControlsDisabled(true);
 
       firebase.auth().onAuthStateChanged(async (user) => {
         updateAuthUI(user);
         if (!user) {
+          setControlsDisabled(true);
           setStatus('Sign in with a team or admin account to view the scoreboard.', true);
           return;
         }
@@ -485,6 +503,7 @@
         }
         const roles = currentAccount?.roles || [];
         if (!roles.includes('team') && !roles.includes('admin')) {
+          setControlsDisabled(true);
           setStatus('This account does not have scoreboard access.', true);
           return;
         }

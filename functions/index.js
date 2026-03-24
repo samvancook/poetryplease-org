@@ -49,6 +49,12 @@ const appAdmin = initializeApp({ storageBucket: "poetry-please.firebasestorage.a
 const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
+const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+let scoreboardCache = {
+  builtAt: 0,
+  payload: null,
+  inFlight: null,
+};
 
 /** ====== EXPRESS / CORS ====== */
 const app = express();
@@ -516,6 +522,28 @@ async function buildScoreboardPayload() {
     rawVotes: enrichedVotes,
     allGraphics,
   };
+}
+
+async function getCachedScoreboardPayload() {
+  const now = Date.now();
+  if (scoreboardCache.payload && (now - scoreboardCache.builtAt) < SCOREBOARD_CACHE_TTL_MS) {
+    return scoreboardCache.payload;
+  }
+  if (scoreboardCache.inFlight) {
+    return scoreboardCache.inFlight;
+  }
+  scoreboardCache.inFlight = buildScoreboardPayload()
+    .then((payload) => {
+      scoreboardCache.payload = payload;
+      scoreboardCache.builtAt = Date.now();
+      scoreboardCache.inFlight = null;
+      return payload;
+    })
+    .catch((err) => {
+      scoreboardCache.inFlight = null;
+      throw err;
+    });
+  return scoreboardCache.inFlight;
 }
 
 async function verifyIdTokenFromHeader(req) {
@@ -990,7 +1018,7 @@ app.get(getBoth("/ratingsSummary"), async (_req, res) => {
 app.get(getBoth("/scoreboard"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
-  const payload = await buildScoreboardPayload();
+  const payload = await getCachedScoreboardPayload();
   res.json(payload);
 });
 
