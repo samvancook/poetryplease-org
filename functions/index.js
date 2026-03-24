@@ -425,11 +425,12 @@ function aggregateRatings(voteDocs) {
 }
 
 async function buildScoreboardPayload() {
-  const [voteDocs, metaObjs, excerptObjs, videoObjs] = await Promise.all([
+  const [voteDocs, metaObjs, excerptObjs, videoObjs, flaggedIds] = await Promise.all([
     getAllVotes(),
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.videos),
+    getFlaggedContentIds(),
   ]);
 
   const latestByUserImage = new Map();
@@ -437,6 +438,7 @@ async function buildScoreboardPayload() {
     const user = normalizeText(vote.userId);
     const imageId = normalizeText(vote.imageId);
     if (!user || !imageId) return;
+    if (flaggedIds.has(normalizeKey(imageId))) return;
     const key = `${normalizeKey(user)}|${normalizeKey(imageId)}`;
     const time = timestampToMs(vote.timestamp);
     const current = latestByUserImage.get(key);
@@ -455,6 +457,7 @@ async function buildScoreboardPayload() {
   const upsertMeta = (item) => {
     const imageId = normalizeText(item?.imageId);
     if (!imageId) return;
+    if (flaggedIds.has(normalizeKey(imageId))) return;
     metaMap.set(imageId, {
       author: item.author || "",
       poemTitle: item.title || "",
@@ -511,11 +514,13 @@ async function buildScoreboardPayload() {
     score: entry.likes + (entry.movedMe * 2) - entry.dislikes,
   }));
 
-  const allGraphics = [...metaObjs, ...excerptObjs, ...videoObjs].map((item) => ({
-    imageId: item.imageId || "",
-    bookTitle: item.book || "‹no book›",
-    type: item.imageType || "",
-  }));
+  const allGraphics = [...metaObjs, ...excerptObjs, ...videoObjs]
+    .filter((item) => !flaggedIds.has(normalizeKey(item.imageId || "")))
+    .map((item) => ({
+      imageId: item.imageId || "",
+      bookTitle: item.book || "‹no book›",
+      type: item.imageType || "",
+    }));
 
   return {
     aggregated,
@@ -525,13 +530,11 @@ async function buildScoreboardPayload() {
 }
 
 async function getScoreboardBootstrapPayload() {
-  const [graphicSnap, excerptSnap, videoSnap] = await Promise.all([
-    db.collection(COLLECTIONS.graphics).limit(1).get(),
-    db.collection(COLLECTIONS.excerpts).limit(1).get(),
-    db.collection(COLLECTIONS.videos).limit(1).get(),
+  const [allContent, flaggedIds] = await Promise.all([
+    getAllContent(),
+    getFlaggedContentIds(),
   ]);
-  const sampleDoc = graphicSnap.docs[0] || excerptSnap.docs[0] || videoSnap.docs[0] || null;
-  const sample = sampleDoc ? parseDoc(sampleDoc) : null;
+  const sample = allContent.find((item) => !flaggedIds.has(normalizeKey(item.imageId || ""))) || null;
   return {
     ok: true,
     sample: sample ? {
