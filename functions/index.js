@@ -23,6 +23,7 @@ const COLLECTIONS = {
   contentClaims: "contentClaims",
   contentFlags: "contentFlags",
   contentSubmissions: "contentSubmissions",
+  systemState: "systemState",
 };
 
 const ADMIN_EMAILS = new Set([
@@ -50,6 +51,9 @@ const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
+const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
+const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
 let scoreboardCache = {
   builtAt: 0,
   payload: null,
@@ -569,6 +573,88 @@ async function getCachedScoreboardPayload() {
   return scoreboardCache.inFlight;
 }
 
+async function readScoreboardSnapshot() {
+  const metaRef = db.collection(COLLECTIONS.systemState).doc(SCOREBOARD_SNAPSHOT_DOC_ID);
+  const metaSnap = await metaRef.get();
+  if (!metaSnap.exists) return null;
+  const meta = metaSnap.data() || {};
+  const builtAtMs = timestampToMs(meta.builtAt);
+  const storagePath = normalizeText(meta.storagePath || SCOREBOARD_SNAPSHOT_PATH);
+  if (!builtAtMs || !storagePath) return null;
+
+  const [buffer] = await storage.bucket().file(storagePath).download();
+  const payload = JSON.parse(buffer.toString("utf8"));
+  return { payload, meta, builtAtMs };
+}
+
+async function writeScoreboardSnapshot(payload) {
+  const file = storage.bucket().file(SCOREBOARD_SNAPSHOT_PATH);
+  const json = JSON.stringify(payload);
+  await file.save(json, {
+    contentType: "application/json; charset=utf-8",
+    resumable: false,
+    metadata: {
+      cacheControl: "no-store, max-age=0",
+    },
+  });
+
+  const snapshotMeta = {
+    storagePath: SCOREBOARD_SNAPSHOT_PATH,
+    builtAt: FieldValue.serverTimestamp(),
+    aggregatedCount: Array.isArray(payload?.aggregated) ? payload.aggregated.length : 0,
+    rawVotesCount: Array.isArray(payload?.rawVotes) ? payload.rawVotes.length : 0,
+    allGraphicsCount: Array.isArray(payload?.allGraphics) ? payload.allGraphics.length : 0,
+    updatedBy: "server",
+  };
+  await db.collection(COLLECTIONS.systemState).doc(SCOREBOARD_SNAPSHOT_DOC_ID).set(snapshotMeta, { merge: true });
+}
+
+async function invalidateScoreboardSnapshot(reason = "") {
+  scoreboardCache = {
+    builtAt: 0,
+    payload: null,
+    inFlight: null,
+  };
+  const metaRef = db.collection(COLLECTIONS.systemState).doc(SCOREBOARD_SNAPSHOT_DOC_ID);
+  await metaRef.set({
+    invalidatedAt: FieldValue.serverTimestamp(),
+    invalidationReason: normalizeText(reason),
+    builtAt: null,
+  }, { merge: true });
+}
+
+async function getScoreboardPayloadFromSnapshot({ forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh) {
+    try {
+      const snapshot = await readScoreboardSnapshot();
+      if (snapshot && (now - snapshot.builtAtMs) < SCOREBOARD_SNAPSHOT_TTL_MS) {
+        scoreboardCache.payload = snapshot.payload;
+        scoreboardCache.builtAt = snapshot.builtAtMs;
+        return {
+          payload: snapshot.payload,
+          source: "snapshot",
+          builtAtMs: snapshot.builtAtMs,
+        };
+      }
+    } catch (err) {
+      console.warn("Scoreboard snapshot read failed", err);
+    }
+  }
+
+  const payload = await getCachedScoreboardPayload();
+  try {
+    await writeScoreboardSnapshot(payload);
+  } catch (err) {
+    console.warn("Scoreboard snapshot write failed", err);
+  }
+  return {
+    payload,
+    source: "live",
+    builtAtMs: Date.now(),
+  };
+}
+
 async function verifyIdTokenFromHeader(req) {
   const h = req.headers.authorization || "";
   const m = h.match(/^Bearer (.+)$/i);
@@ -1041,8 +1127,15 @@ app.get(getBoth("/ratingsSummary"), async (_req, res) => {
 app.get(getBoth("/scoreboard"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
-  const payload = await getCachedScoreboardPayload();
-  res.json(payload);
+  const result = await getScoreboardPayloadFromSnapshot();
+  res.json({
+    ...result.payload,
+    snapshotMeta: {
+      source: result.source,
+      builtAtMs: result.builtAtMs,
+      ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+    },
+  });
 });
 
 app.get(getBoth("/scoreboard/bootstrap"), async (req, res) => {
@@ -1050,6 +1143,19 @@ app.get(getBoth("/scoreboard/bootstrap"), async (req, res) => {
   if (!ctx) return;
   const payload = await getScoreboardBootstrapPayload();
   res.json(payload);
+});
+
+app.post(getBoth("/admin/scoreboard/refresh"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const result = await getScoreboardPayloadFromSnapshot({ forceRefresh: true });
+  res.json({
+    ok: true,
+    source: result.source,
+    builtAtMs: result.builtAtMs,
+    aggregatedCount: Array.isArray(result.payload?.aggregated) ? result.payload.aggregated.length : 0,
+    rawVotesCount: Array.isArray(result.payload?.rawVotes) ? result.payload.rawVotes.length : 0,
+  });
 });
 
 // fetchData (auth)
@@ -1466,6 +1572,7 @@ app.post(getBoth("/contentFlags"), async (req, res) => {
   if (!result.ok && result.reason === "already_flagged") {
     return res.status(409).json({ error: "content_already_flagged", flag: result.flag });
   }
+  await invalidateScoreboardSnapshot(`flag_created:${item.imageId || ""}`);
   res.json({ ok: true, flagId: result.flagId });
 });
 
@@ -1506,6 +1613,9 @@ app.post(getBoth("/admin/contentFlags/batch"), async (req, res) => {
     results.push({ identifier: rawIdentifier, imageId: item.imageId, status: "flagged", flagId: result.flagId });
   }
 
+  if (results.some((entry) => entry.status === "flagged")) {
+    await invalidateScoreboardSnapshot("batch_flag_created");
+  }
   res.json({
     ok: true,
     processed: results.length,
@@ -1733,6 +1843,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
     reviewedAt: FieldValue.serverTimestamp(),
     moderationHistory: FieldValue.arrayUnion(historyEntry),
   }, { merge: true })));
+  await invalidateScoreboardSnapshot(`flag_reviewed:${flagData.imageId || flagId}`);
 
   const saved = await flagRef.get();
   res.json({ ok: true, flag: { id: saved.id, ...(saved.data() || {}) } });
@@ -1821,6 +1932,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     reviewedAt: FieldValue.serverTimestamp(),
     moderationHistory: FieldValue.arrayUnion(historyEntry),
   }, { merge: true })));
+  await invalidateScoreboardSnapshot(`flag_replaced:${flag.imageId || flagId}`);
 
   const saved = await flagRef.get();
   res.json({
