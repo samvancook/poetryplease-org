@@ -339,6 +339,34 @@ async function getVotesByUser(userId) {
   return list;
 }
 
+async function getAllVotes() {
+  const list = [];
+  let page = await db.collection(COLLECTIONS.votes).limit(1000).get();
+  while (!page.empty) {
+    page.forEach((doc) => {
+      const data = doc.data() || {};
+      list.push({
+        id: doc.id,
+        imageId: data.imageId || "",
+        voteType: (data.voteType || "").toLowerCase(),
+        userId: data.userId || "",
+        timestamp: data.timestamp || null,
+      });
+    });
+    const last = page.docs[page.docs.length - 1];
+    page = await db.collection(COLLECTIONS.votes).startAfter(last).limit(1000).get();
+  }
+  return list;
+}
+
+function timestampToMs(value) {
+  if (!value) return 0;
+  if (typeof value?.toMillis === "function") return value.toMillis();
+  if (typeof value?._seconds === "number") return (value._seconds * 1000) + Math.floor((value._nanoseconds || 0) / 1e6);
+  const parsed = Date.parse(String(value));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 function mapToArr(o) {
   return [
     o.author || "",
@@ -388,6 +416,106 @@ function aggregateRatings(voteDocs) {
     out[id] = { score, total, rating: total ? score / total : 0 };
   });
   return out;
+}
+
+async function buildScoreboardPayload() {
+  const [voteDocs, metaObjs, excerptObjs, videoObjs] = await Promise.all([
+    getAllVotes(),
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.videos),
+  ]);
+
+  const latestByUserImage = new Map();
+  voteDocs.forEach((vote) => {
+    const user = normalizeText(vote.userId);
+    const imageId = normalizeText(vote.imageId);
+    if (!user || !imageId) return;
+    const key = `${normalizeKey(user)}|${normalizeKey(imageId)}`;
+    const time = timestampToMs(vote.timestamp);
+    const current = latestByUserImage.get(key);
+    if (!current || time > current.time) {
+      latestByUserImage.set(key, {
+        imageId,
+        vote: vote.voteType || "",
+        user,
+        time,
+      });
+    }
+  });
+
+  const rawVotes = Array.from(latestByUserImage.values());
+  const metaMap = new Map();
+  const upsertMeta = (item) => {
+    const imageId = normalizeText(item?.imageId);
+    if (!imageId) return;
+    metaMap.set(imageId, {
+      author: item.author || "",
+      poemTitle: item.title || "",
+      bookTitle: item.book || "",
+      fileLink: item.imageUrl || item.bookLink || "",
+      type: item.imageType || "",
+    });
+  };
+  metaObjs.forEach(upsertMeta);
+  excerptObjs.forEach(upsertMeta);
+  videoObjs.forEach(upsertMeta);
+
+  const enrichedVotes = rawVotes.map((vote) => {
+    const meta = metaMap.get(vote.imageId) || {};
+    return {
+      imageId: vote.imageId,
+      vote: vote.vote,
+      user: vote.user,
+      author: meta.author || "‹no author›",
+      poemTitle: meta.poemTitle || "‹no title›",
+      bookTitle: meta.bookTitle || "‹no book›",
+      fileLink: meta.fileLink || "",
+      type: meta.type || "",
+    };
+  });
+
+  const board = new Map();
+  enrichedVotes.forEach((vote) => {
+    if (!board.has(vote.imageId)) {
+      board.set(vote.imageId, {
+        imageId: vote.imageId,
+        author: vote.author,
+        poemTitle: vote.poemTitle,
+        bookTitle: vote.bookTitle,
+        fileLink: vote.fileLink,
+        likes: 0,
+        dislikes: 0,
+        meh: 0,
+        movedMe: 0,
+        totalVotes: 0,
+        type: vote.type || "",
+      });
+    }
+    const entry = board.get(vote.imageId);
+    if (vote.vote === "like") entry.likes += 1;
+    else if (vote.vote === "dislike") entry.dislikes += 1;
+    else if (vote.vote === "meh") entry.meh += 1;
+    else if (vote.vote === "moved me") entry.movedMe += 1;
+    entry.totalVotes += 1;
+  });
+
+  const aggregated = Array.from(board.values()).map((entry) => ({
+    ...entry,
+    score: entry.likes + (entry.movedMe * 2) - entry.dislikes,
+  }));
+
+  const allGraphics = [...metaObjs, ...excerptObjs, ...videoObjs].map((item) => ({
+    imageId: item.imageId || "",
+    bookTitle: item.book || "‹no book›",
+    type: item.imageType || "",
+  }));
+
+  return {
+    aggregated,
+    rawVotes: enrichedVotes,
+    allGraphics,
+  };
 }
 
 async function verifyIdTokenFromHeader(req) {
@@ -853,9 +981,17 @@ app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
 
 // ratingsSummary
 app.get(getBoth("/ratingsSummary"), async (_req, res) => {
-  const votesSnap = await getAllFrom(COLLECTIONS.votes);
+  const votesSnap = await getAllVotes();
   const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
   res.json(aggregateRatings(compact));
+});
+
+// scoreboard
+app.get(getBoth("/scoreboard"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  const payload = await buildScoreboardPayload();
+  res.json(payload);
 });
 
 // fetchData (auth)

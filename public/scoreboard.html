@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scoreboard | Poetry, Please</title>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <style>
+    :root {
+      --paper: #f7f3ea;
+      --ink: #1e1a15;
+      --muted: #6c6558;
+      --line: #dad0c1;
+      --card: rgba(255, 253, 248, 0.9);
+      --accent: #2f5d62;
+      --accent-soft: #d7e7e9;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top right, rgba(47, 93, 98, 0.14), transparent 35%),
+        linear-gradient(180deg, #faf7f0 0%, var(--paper) 100%);
+    }
+    .shell { max-width: 1280px; margin: 0 auto; padding: 28px 20px 56px; }
+    .topbar, .topbar-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .topbar { justify-content: space-between; }
+    .topbar a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .auth-note { color: var(--muted); font-size: 14px; }
+    h1 { margin: 18px 0 8px; font-size: clamp(36px, 5vw, 58px); line-height: 0.95; letter-spacing: -0.04em; }
+    .lede { margin: 0 0 24px; color: var(--muted); max-width: 70ch; line-height: 1.6; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 22px 60px rgba(24, 19, 12, 0.08);
+      backdrop-filter: blur(8px);
+    }
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+    .controls label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+    input[type="search"], select, button {
+      border-radius: 16px; border: 1px solid var(--line); background: rgba(255,255,255,0.76);
+      color: var(--ink); font: inherit; padding: 11px 14px;
+    }
+    input[type="search"], select { min-width: 190px; }
+    button { cursor: pointer; font-weight: 600; }
+    button.primary { background: var(--accent); color: white; border-color: transparent; }
+    button.active { background: var(--accent-soft); color: var(--accent); }
+    .status { color: var(--muted); margin-bottom: 12px; }
+    .status.error { color: #8a3b2f; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #e9e0d2; padding: 10px 8px; text-align: left; vertical-align: top; }
+    th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+    }
+    th.asc::after { content: "▲"; position: absolute; right: 8px; color: var(--accent); }
+    th.desc::after { content: "▼"; position: absolute; right: 8px; color: var(--accent); }
+    tr:hover td { background: rgba(47, 93, 98, 0.05); }
+    .progress { width: 100%; background-color: #eee4d3; border-radius: 999px; overflow: hidden; height: 1rem; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #2f5d62, #6aa6ab); width: 0; transition: width 0.4s ease; }
+    .empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 18px; }
+    .table-wrap { overflow-x: auto; }
+    .meta { color: var(--muted); font-size: 13px; }
+    @media (max-width: 960px) {
+      .controls { flex-direction: column; align-items: stretch; }
+      input[type="search"], select, button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <a href="/app">Back to app</a>
+      <div class="topbar-actions">
+        <a href="/admin">Admin</a>
+        <span id="auth-note" class="auth-note">Checking access…</span>
+        <button id="login-google" type="button" class="primary" style="display:none;">Log in with Google</button>
+        <button id="logout" type="button" style="display:none;">Log out</button>
+      </div>
+    </div>
+
+    <h1>Scoreboard</h1>
+    <p class="lede">Live ranking and progress view for Poetry Please content. This surface is available to team and admin accounts.</p>
+
+    <section class="card">
+      <div class="controls">
+        <label><input type="checkbox" id="filterZeroVotes" checked /> Hide images with no votes</label>
+        <label>Show preferences for
+          <select id="userDropdown"></select>
+        </label>
+        <label>Filter by book
+          <select id="bookDropdown"></select>
+        </label>
+        <label><input type="checkbox" id="filterCompletedBooks" /> Show only completed books</label>
+        <button id="exportBtn" type="button">Export visible CSV</button>
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+          <button id="scoreboardBtn" type="button" class="active">Scoreboard</button>
+          <button id="progressBarsBtn" type="button">Progress Bars</button>
+        </div>
+      </div>
+
+      <div id="status" class="status">Loading scoreboard…</div>
+
+      <div id="scoreboardContainer" class="table-wrap">
+        <table id="scoreboard">
+          <thead>
+            <tr>
+              <th data-column="imageId">Image ID</th>
+              <th data-column="author">Author</th>
+              <th data-column="poemTitle">Poem Title</th>
+              <th data-column="bookTitle">Book Title</th>
+              <th data-column="type">Type</th>
+              <th data-column="fileLink">File Link</th>
+              <th data-column="likes">Likes</th>
+              <th data-column="dislikes">Dislikes</th>
+              <th data-column="meh">Meh</th>
+              <th data-column="movedMe">Moved Me</th>
+              <th data-column="totalVotes">Total Votes</th>
+              <th data-column="score">Score</th>
+              <th data-column="vote" style="display:none;">Vote</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div id="progressBarsContainer" class="table-wrap" style="display:none;">
+        <table id="progressBars">
+          <thead>
+            <tr>
+              <th data-column="book">Book Title</th>
+              <th data-column="votes">Votes</th>
+              <th data-column="total">Total</th>
+              <th data-column="percent">Progress</th>
+            </tr>
+          </thead>
+          <tbody id="progressBarsBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.firebasestorage.app",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    firebase.initializeApp(FIREBASE_CONFIG);
+
+    let aggregatedData = [], rawVotes = [], allGraphics = [], filteredData = [];
+    let currentProgressSortKey = 'book';
+    let currentProgressSortDir = 1;
+    let currentSortKey = 'bookTitle';
+    let currentSortDir = 1;
+    let currentAccount = null;
+
+    const scoreboardBtn = document.getElementById('scoreboardBtn');
+    const progressBarsBtn = document.getElementById('progressBarsBtn');
+    const scoreboardContainer = document.getElementById('scoreboardContainer');
+    const progressBarsContainer = document.getElementById('progressBarsContainer');
+    const statusEl = document.getElementById('status');
+
+    async function getIdTokenOrNull() {
+      const user = firebase.auth().currentUser;
+      return user ? await user.getIdToken(false) : null;
+    }
+
+    async function api(path, { method = "GET", body } = {}) {
+      const token = await getIdTokenOrNull();
+      const res = await fetch(`/api/${path.replace(/^\\//, "")}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`API ${method} /api/${path} failed: ${res.status} ${text}`);
+      }
+      return res.json();
+    }
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.className = isError ? 'status error' : 'status';
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function switchView(view) {
+      const isScoreboard = view === 'scoreboard';
+      scoreboardBtn.classList.toggle('active', isScoreboard);
+      progressBarsBtn.classList.toggle('active', !isScoreboard);
+      scoreboardContainer.style.display = isScoreboard ? '' : 'none';
+      progressBarsContainer.style.display = isScoreboard ? 'none' : '';
+      if (isScoreboard) updateTable(filteredData);
+      else renderProgressBars();
+    }
+
+    function updateAuthUI(user) {
+      const authNote = document.getElementById('auth-note');
+      const loginBtn = document.getElementById('login-google');
+      const logoutBtn = document.getElementById('logout');
+      if (!user) {
+        authNote.textContent = 'Sign in with a team or admin account.';
+        loginBtn.style.display = '';
+        logoutBtn.style.display = 'none';
+      } else {
+        authNote.textContent = `Signed in as ${user.email || user.uid}`;
+        loginBtn.style.display = 'none';
+        logoutBtn.style.display = '';
+      }
+    }
+
+    async function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        await firebase.auth().signInWithPopup(provider);
+      } catch (err) {
+        console.error(err);
+        alert('Google sign-in failed. Please try again.');
+      }
+    }
+
+    function buildUserDropdown() {
+      const sel = document.getElementById('userDropdown');
+      const users = Array.from(new Set(rawVotes.map((row) => row.user).filter(Boolean)))
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      sel.innerHTML = '<option value="">All Users</option>' + users.map((user) => `<option>${escapeHtml(user)}</option>`).join('');
+    }
+
+    function buildBookDropdown(books = null) {
+      const sel = document.getElementById('bookDropdown');
+      const rawList = books || aggregatedData.map((row) => row.bookTitle || '');
+      const normalized = Array.from(new Map(rawList.map((title) => [String(title).trim().toLowerCase(), String(title).trim()])).values())
+        .filter(Boolean)
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      sel.innerHTML = '<option value="">All Books</option>' + normalized.map((book) => `<option>${escapeHtml(book)}</option>`).join('');
+    }
+
+    function sortData() {
+      filteredData.sort((a, b) => {
+        let va = a[currentSortKey];
+        let vb = b[currentSortKey];
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        if (va > vb) return currentSortDir;
+        if (va < vb) return -currentSortDir;
+        return 0;
+      });
+    }
+
+    function filterData() {
+      const userVal = document.getElementById('userDropdown').value;
+      const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
+      const hideZero = document.getElementById('filterZeroVotes').checked;
+
+      let data = userVal
+        ? rawVotes.filter((row) => row.user === userVal)
+        : aggregatedData.slice();
+
+      if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
+      if (bookVal) data = data.filter((row) => String(row.bookTitle || '').trim().toLowerCase() === bookVal);
+
+      filteredData = data;
+      sortData();
+      if (scoreboardContainer.style.display === '') updateTable(filteredData);
+      else renderProgressBars();
+    }
+
+    function updateTable(data) {
+      const isUserView = !!document.getElementById('userDropdown').value;
+      document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
+        const col = th.dataset.column;
+        th.style.display = isUserView
+          ? (['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'vote'].includes(col) ? '' : 'none')
+          : (col === 'vote' ? 'none' : '');
+      });
+
+      const tbody = document.querySelector('#scoreboard tbody');
+      tbody.innerHTML = '';
+      if (!data.length) {
+        tbody.innerHTML = '<tr><td colspan="13"><div class="empty">No scoreboard rows match the current filters.</div></td></tr>';
+        return;
+      }
+
+      data.forEach((row) => {
+        const link = row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" target="_blank" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
+        const html = isUserView
+          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(row.type || '')}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
+          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(row.type || '')}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td></tr>`;
+        tbody.insertAdjacentHTML('beforeend', html);
+      });
+    }
+
+    function renderProgressBars() {
+      const userVal = document.getElementById('userDropdown').value;
+      const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
+      const hideZero = document.getElementById('filterZeroVotes').checked;
+      const showCompleted = document.getElementById('filterCompletedBooks').checked;
+
+      const bookMap = {};
+      allGraphics.forEach((graphic) => {
+        const title = String(graphic.bookTitle || '').trim();
+        if (!title) return;
+        const key = title.toLowerCase();
+        if (bookVal && key !== bookVal) return;
+        if (!bookMap[key]) bookMap[key] = { title, total: 0, voted: 0 };
+        bookMap[key].total += 1;
+      });
+
+      const source = userVal
+        ? rawVotes.filter((row) => row.user === userVal)
+        : aggregatedData.filter((row) => row.totalVotes > 0);
+
+      source.forEach((row) => {
+        const key = String(row.bookTitle || '').trim().toLowerCase();
+        if (bookVal && key !== bookVal) return;
+        if (bookMap[key]) bookMap[key].voted += 1;
+      });
+
+      let rows = Object.values(bookMap);
+      if (hideZero) rows = rows.filter((row) => row.voted > 0);
+      if (showCompleted) rows = rows.filter((row) => row.voted >= row.total);
+
+      rows.sort((a, b) => {
+        let va, vb;
+        switch (currentProgressSortKey) {
+          case 'votes': va = a.voted; vb = b.voted; break;
+          case 'total': va = a.total; vb = b.total; break;
+          case 'percent': va = a.total ? a.voted / a.total : 0; vb = b.total ? b.voted / b.total : 0; break;
+          case 'book':
+          default: va = a.title.toLowerCase(); vb = b.title.toLowerCase(); break;
+        }
+        if (va > vb) return currentProgressSortDir;
+        if (va < vb) return -currentProgressSortDir;
+        return 0;
+      });
+
+      const tbody = document.getElementById('progressBarsBody');
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="4"><div class="empty">No progress rows match the current filters.</div></td></tr>';
+        return;
+      }
+
+      rows.forEach((row) => {
+        const pct = row.total ? Math.round((row.voted / row.total) * 100) : 0;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(row.title)}</td>
+          <td>${row.voted}</td>
+          <td>${row.total}</td>
+          <td>
+            <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="meta" style="margin-top:6px;">${pct}%</div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function exportVisibleCsv() {
+      const isUserView = !!document.getElementById('userDropdown').value;
+      const rows = filteredData || [];
+      if (!rows.length) {
+        alert('Nothing to export.');
+        return;
+      }
+      const headers = isUserView
+        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'vote']
+        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score'];
+      const csv = [
+        headers.join(','),
+        ...rows.map((row) => headers.map((key) => `"${String(row[key] ?? '').replaceAll('"', '""')}"`).join(','))
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `poetry-please-scoreboard-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function wireSortHeaders() {
+      document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
+        th.addEventListener('click', () => {
+          const col = th.dataset.column;
+          if (currentSortKey === col) currentSortDir *= -1;
+          else {
+            currentSortKey = col;
+            currentSortDir = 1;
+          }
+          document.querySelectorAll('#scoreboard th').forEach((node) => node.classList.remove('asc', 'desc'));
+          th.classList.add(currentSortDir > 0 ? 'asc' : 'desc');
+          sortData();
+          updateTable(filteredData);
+        });
+      });
+      document.querySelectorAll('#progressBars th[data-column]').forEach((th) => {
+        th.addEventListener('click', () => {
+          const col = th.dataset.column;
+          if (currentProgressSortKey === col) currentProgressSortDir *= -1;
+          else {
+            currentProgressSortKey = col;
+            currentProgressSortDir = 1;
+          }
+          document.querySelectorAll('#progressBars th').forEach((node) => node.classList.remove('asc', 'desc'));
+          th.classList.add(currentProgressSortDir > 0 ? 'asc' : 'desc');
+          renderProgressBars();
+        });
+      });
+    }
+
+    async function loadScoreboard() {
+      setStatus('Loading scoreboard…');
+      try {
+        const payload = await api('scoreboard', { method: 'GET' });
+        aggregatedData = payload.aggregated || [];
+        rawVotes = payload.rawVotes || [];
+        allGraphics = payload.allGraphics || [];
+        buildUserDropdown();
+        buildBookDropdown();
+        filteredData = aggregatedData.slice();
+        sortData();
+        switchView('scoreboard');
+        updateTable(filteredData);
+        setStatus(`Loaded ${aggregatedData.length} scored item${aggregatedData.length === 1 ? '' : 's'} and ${rawVotes.length} latest votes.`);
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || 'Could not load scoreboard.', true);
+      }
+    }
+
+    async function init() {
+      wireSortHeaders();
+      document.getElementById('userDropdown').addEventListener('change', filterData);
+      document.getElementById('bookDropdown').addEventListener('change', filterData);
+      document.getElementById('filterZeroVotes').addEventListener('change', filterData);
+      document.getElementById('filterCompletedBooks').addEventListener('change', filterData);
+      document.getElementById('exportBtn').addEventListener('click', exportVisibleCsv);
+      scoreboardBtn.addEventListener('click', () => switchView('scoreboard'));
+      progressBarsBtn.addEventListener('click', () => switchView('progressBars'));
+      document.getElementById('login-google').addEventListener('click', signInWithGoogle);
+      document.getElementById('logout').addEventListener('click', async () => {
+        await firebase.auth().signOut();
+        location.reload();
+      });
+
+      firebase.auth().onAuthStateChanged(async (user) => {
+        updateAuthUI(user);
+        if (!user) {
+          setStatus('Sign in with a team or admin account to view the scoreboard.', true);
+          return;
+        }
+        try {
+          currentAccount = await api('me', { method: 'GET' });
+        } catch (err) {
+          console.error(err);
+        }
+        const roles = currentAccount?.roles || [];
+        if (!roles.includes('team') && !roles.includes('admin')) {
+          setStatus('This account does not have scoreboard access.', true);
+          return;
+        }
+        await loadScoreboard();
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

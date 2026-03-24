@@ -36,6 +36,8 @@
   { "source": "/api/**", "function": { "functionId": "api" } },
   { "source": "/admin", "destination": "/admin.html" },
   { "source": "/admin/**", "destination": "/admin.html" },
+  { "source": "/scoreboard", "destination": "/scoreboard.html" },
+  { "source": "/scoreboard/**", "destination": "/scoreboard.html" },
   { "source": "/author/edit", "destination": "/author-edit.html" },
   { "source": "/author", "destination": "/author.html" },
   { "source": "/author/**", "destination": "/author.html" },
