@@ -524,6 +524,26 @@ async function buildScoreboardPayload() {
   };
 }
 
+async function getScoreboardBootstrapPayload() {
+  const [graphicSnap, excerptSnap, videoSnap] = await Promise.all([
+    db.collection(COLLECTIONS.graphics).limit(1).get(),
+    db.collection(COLLECTIONS.excerpts).limit(1).get(),
+    db.collection(COLLECTIONS.videos).limit(1).get(),
+  ]);
+  const sampleDoc = graphicSnap.docs[0] || excerptSnap.docs[0] || videoSnap.docs[0] || null;
+  const sample = sampleDoc ? parseDoc(sampleDoc) : null;
+  return {
+    ok: true,
+    sample: sample ? {
+      imageId: sample.imageId || "",
+      title: sample.title || "",
+      author: sample.author || "",
+      book: sample.book || "",
+      type: sample.imageType || "",
+    } : null,
+  };
+}
+
 async function getCachedScoreboardPayload() {
   const now = Date.now();
   if (scoreboardCache.payload && (now - scoreboardCache.builtAt) < SCOREBOARD_CACHE_TTL_MS) {
@@ -1019,6 +1039,13 @@ app.get(getBoth("/scoreboard"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
   const payload = await getCachedScoreboardPayload();
+  res.json(payload);
+});
+
+app.get(getBoth("/scoreboard/bootstrap"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  const payload = await getScoreboardBootstrapPayload();
   res.json(payload);
 });
 
