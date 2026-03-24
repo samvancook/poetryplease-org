@@ -825,6 +825,7 @@ app.get(getBoth("/ratingsSummary"), async (_req, res) => {
 app.post(getBoth("/fetchData"), async (req, res) => {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.email) return res.status(401).json({ error: "auth" });
+  const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, 120));
 
   const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
@@ -837,13 +838,14 @@ app.post(getBoth("/fetchData"), async (req, res) => {
   const voted = await getVotesByUser(decoded.email);
   const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+  const batch = newObjs.slice(0, limit);
 
   const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
   res.json({
     allGraphics: all.map(mapToCounterArr),
-    newGraphics: newObjs.map(mapToArr),
+    newGraphics: batch.map(mapToArr),
     totalImages: all.length,
     votedImagesCount: voted.length,
     remainingImagesCount: newObjs.length,
@@ -856,6 +858,7 @@ app.post(getBoth("/fetchData"), async (req, res) => {
 app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const anonId = (req.body?.anonId || "").trim();
   if (!anonId) return res.status(400).json({ error: "missing anonId" });
+  const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, 120));
 
   const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
@@ -867,13 +870,14 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const voted = await getVotesByUser(anonId);
   const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+  const batch = newObjs.slice(0, limit);
 
   const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
   res.json({
     allGraphics: all.map(mapToCounterArr),
-    newGraphics: newObjs.map(mapToArr),
+    newGraphics: batch.map(mapToArr),
     totalImages: all.length,
     votedImagesCount: voted.length,
     remainingImagesCount: newObjs.length,

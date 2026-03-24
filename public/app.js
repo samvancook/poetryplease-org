@@ -357,8 +357,9 @@ async function handleRegistration(e) {
 }
 
 // ===== API Mappings (to your Cloud Functions) =====
-const fetchDataWrapped            = () => api('fetchData',        { body: { limit: 20 } });
-const fetchDataAnonWrapped        = (anonId) => api('fetchDataAnon', { body: { anonId } });
+const STARTUP_BATCH_SIZE = 40;
+const fetchDataWrapped            = () => api('fetchData',        { body: { limit: STARTUP_BATCH_SIZE } });
+const fetchDataAnonWrapped        = (anonId) => api('fetchDataAnon', { body: { anonId, limit: STARTUP_BATCH_SIZE } });
 const submitVoteWrapped           = (imageId, voteType, userId) => api('vote', { body: { imageId, voteType, userId } });
 const fetchReleaseCatalogsWrapped = () => api('releaseCatalogs', { method: 'GET' });
 const fetchImageTypesWrapped      = () => api('imageTypes',      { method: 'GET' });
