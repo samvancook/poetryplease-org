@@ -467,6 +467,9 @@
         setControlsDisabled(false);
         switchView('scoreboard');
         updateTable(filteredData);
+        if (bootstrapPreviewEl.textContent === 'Connecting to scoreboard…' || bootstrapPreviewEl.textContent === 'Could not load scoreboard bootstrap data.') {
+          bootstrapPreviewEl.textContent = 'Scoreboard connected.';
+        }
         setStatus(`Loaded ${aggregatedData.length} scored item${aggregatedData.length === 1 ? '' : 's'} and ${rawVotes.length} latest votes.`);
       } catch (err) {
         console.error(err);
@@ -487,7 +490,7 @@
         }
       } catch (err) {
         console.error(err);
-        bootstrapPreviewEl.textContent = 'Could not load scoreboard bootstrap data.';
+        bootstrapPreviewEl.textContent = 'Connecting to scoreboard…';
       }
     }
 
