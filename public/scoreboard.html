@@ -183,7 +183,7 @@
 
     async function api(path, { method = "GET", body } = {}) {
       const token = await getIdTokenOrNull();
-      const res = await fetch(`/api/${path.replace(/^\\//, "")}`, {
+      const res = await fetch(`/api/${path.replace(/^\//, "")}`, {
         method,
         headers: {
           "Content-Type": "application/json",
