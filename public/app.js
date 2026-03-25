@@ -99,17 +99,21 @@ function markScreenReady() {
 }
 
 function showInlineLoadingState() {
-  const messageEl = document.getElementById('message');
-  if (!messageEl || currentItem) return;
-  messageEl.textContent = 'Loading content...';
+  if (currentItem) return;
+  const galleryEl = document.getElementById('gallery');
+  if (!galleryEl) return;
+  galleryEl.innerHTML = `
+    <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;min-height:42vh;text-align:center;color:rgba(30,26,21,0.72);font:600 15px/1.4 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.04em;">
+      Loading content...
+    </div>
+  `;
 }
 
 function clearInlineLoadingState() {
-  const messageEl = document.getElementById('message');
-  if (!messageEl) return;
-  if (messageEl.textContent === 'Loading content...') {
-    messageEl.textContent = '';
-  }
+  const galleryEl = document.getElementById('gallery');
+  if (!galleryEl) return;
+  const loadingEl = galleryEl.querySelector('.pp-inline-loading');
+  if (loadingEl) galleryEl.innerHTML = '';
 }
 
 function queueDeferredBootWork() {
