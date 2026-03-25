@@ -42,8 +42,25 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 18px;
+      gap: 16px;
     }
+    .pp-loader__title {
+      position: relative;
+      min-height: 1.3em;
+      font: 700 clamp(30px, 4.8vw, 52px)/1.05 Georgia, "Times New Roman", serif;
+      letter-spacing: 0.01em;
+      color: rgba(30, 26, 21, 0.92);
+    }
+    .pp-loader__word {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      animation-duration: 1.8s;
+      animation-fill-mode: forwards;
+      animation-timing-function: ease;
+    }
+    .pp-loader__word--one { animation-name: ppLoaderWordOne; }
+    .pp-loader__word--two { animation-name: ppLoaderWordTwo; }
     .pp-loader__text {
       font: 600 14px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0.18em;
@@ -71,6 +88,16 @@
       50% { content: ".."; }
       75%,
       100% { content: "..."; }
+    }
+    @keyframes ppLoaderWordOne {
+      0%, 8% { opacity: 0; transform: translateY(6px); }
+      16%, 40% { opacity: 1; transform: translateY(0); }
+      52%, 100% { opacity: 0; transform: translateY(-4px); }
+    }
+    @keyframes ppLoaderWordTwo {
+      0%, 42% { opacity: 0; transform: translateY(6px); }
+      54%, 82% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-4px); }
     }
   </style>
 
@@ -116,6 +143,7 @@
   <div id="pp-loader" class="pp-loader" aria-hidden="true">
     <div class="pp-loader__content">
       <img class="pp-loader__mark" src="/pp-loader-logo.png?v=20260323b" alt="" decoding="async" />
+      <div class="pp-loader__title" aria-hidden="true"><span class="pp-loader__word pp-loader__word--one">Poetry,</span><span class="pp-loader__word pp-loader__word--two">Please.</span></div>
       <div class="pp-loader__text">Loading<span class="pp-loader__dots" aria-hidden="true"></span></div>
     </div>
   </div>
@@ -166,6 +194,6 @@
     <div id="gallery" class="gallery"></div>
   </div>
 
-  <script src="/app.js?v=20260325d"></script>
+  <script src="/app.js?v=20260325e"></script>
 </body>
 </html>

@@ -104,7 +104,7 @@ function showInlineLoadingState() {
   if (!overlayEl) {
     overlayEl = document.createElement('div');
     overlayEl.className = 'pp-inline-loading-overlay';
-    overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;background:rgba(250,247,240,0.92);backdrop-filter:blur(2px);';
+    overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 260ms ease;background:#faf7f0;';
     overlayEl.innerHTML = `
       <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;padding:24px;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;">
@@ -543,24 +543,24 @@ async function getOrCreateAnonId() {
 // --- Minimal CSS injection (works even if styles.css missing) ---
 (function injectUIPatchStyles(){
   const css = `
-  .top-bar{ display:flex; align-items:flex-start; gap:14px; justify-content:space-between; max-width:min(1320px,98vw); margin:0 auto; padding:12px 18px 4px; }
+  .top-bar{ display:flex; align-items:flex-start; gap:12px; justify-content:space-between; width:100%; margin:0; padding:10px 12px 2px; }
   .top-bar .spacer{display:none;}
-  #filters{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #filters{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-start; }
   #type-filter-container,
   #catalog-filter-container{ display:flex; align-items:center; gap:8px; margin:0; padding:8px 12px; border:1px solid #e3d9ca; border-radius:999px; background:rgba(255,253,248,0.88); box-shadow:0 8px 18px rgba(30,26,21,0.04); }
   #type-filter-container label,
   #catalog-filter-container label{ font-size:13px; font-weight:600; color:#5e5649; }
   #type-filter,
   #catalog-filter{ border:1px solid #d7cebf; border-radius:999px; background:#fff; padding:6px 28px 6px 12px; color:#2d2a25; }
-  #user-status{ display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; text-align:right; font-size:.92rem; opacity:.96; max-width:min(42vw,760px); }
-  #poetry-screen{ max-width:min(1240px,96vw); margin:0 auto; padding:8px 18px 88px; }
-  #desktop-stage-header{ display:grid; justify-items:center; gap:10px; margin:6px auto 10px; text-align:center; }
-  h1#page-title{ text-align:center; margin:8px 0 0; }
+  #user-status{ display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; text-align:right; font-size:.92rem; opacity:.96; max-width:min(46vw,760px); }
+  #poetry-screen{ max-width:min(1240px,96vw); margin:0 auto; padding:0 18px 88px; }
+  #desktop-stage-header{ display:grid; justify-items:center; gap:6px; margin:0 auto 8px; text-align:center; }
+  h1#page-title{ display:none; text-align:center; margin:0; }
   .button-container{ display:flex; justify-content:center; }
   #error,
   #message{ text-align:center; }
 
-  #media-wrap{ max-width:min(1120px,95vw); margin:4px auto 0; text-align:center; }
+  #media-wrap{ max-width:min(1120px,95vw); margin:2px auto 0; text-align:center; }
   .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
   #vote-row{ margin-top:0; margin-bottom:10px; }
   #under-controls{ margin-top:12px; }
@@ -577,7 +577,7 @@ async function getOrCreateAnonId() {
     max-height: var(--media-max-h, 70dvh);
     min-height: min(28vh, 280px);
     display: flex; align-items: center; justify-content: center;
-    width: 100%; overflow: hidden;
+    width: 100%; overflow: visible;
   }
   .media-box img, .media-box video {
     max-width: 100%;
@@ -592,9 +592,12 @@ async function getOrCreateAnonId() {
 
   /* Mobile: zoom only the IMAGE pixels, not the UI/layout */
   .media-box img {
-    transform: scale(var(--pp-media-zoom, 1));
+    transform: none;
     transform-origin: center center;
     transition: transform 120ms ease;
+  }
+  body[data-ui="mobile"] .media-box img {
+    transform: scale(var(--pp-media-zoom, 1));
   }
 
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
@@ -652,6 +655,7 @@ function applyMediaZoom_(imgEl) {
   __ppMediaZoom = clamp(Number(__ppMediaZoom || 1), 1, 2.75);
   // Apply to the closest media-box so it only affects the media element
   const box = imgEl?.closest?.('.media-box');
+  if (!IS_MOBILE_UI) __ppMediaZoom = 1;
   if (box) box.style.setProperty('--pp-media-zoom', String(__ppMediaZoom));
   localStorage.setItem('pp_media_zoom', String(__ppMediaZoom));
 }
@@ -1245,15 +1249,17 @@ function adjustViewportFit() {
     return rect.height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
   };
 
+  const metaRows = Array.from(document.querySelectorAll('#media-wrap .meta-row'));
   const reserved = [
     document.querySelector('.top-bar'),
     document.getElementById('desktop-stage-header'),
     document.getElementById('vote-row'),
     document.getElementById('under-controls'),
-    document.getElementById('counters-bar')
+    document.getElementById('counters-bar'),
+    ...metaRows
   ].reduce((sum, el) => sum + measure(el), 0);
 
-  const viewportBuffer = window.innerWidth < 980 ? 24 : 36;
+  const viewportBuffer = window.innerWidth < 980 ? 20 : 28;
   const maxH = Math.max(180, vh - reserved - viewportBuffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
