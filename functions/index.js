@@ -397,6 +397,27 @@ async function getVotesByUser(userId) {
   return list;
 }
 
+async function getUniqueVotedImageIdsByUser(userId) {
+  const ids = new Set();
+  let page = await db.collection(COLLECTIONS.votes).where("userId", "==", userId).select("imageId").limit(1000).get();
+  while (!page.empty) {
+    page.forEach((d) => {
+      const f = d.data() || {};
+      const imageId = normalizeText(f.imageId || "").toLowerCase();
+      if (imageId) ids.add(imageId);
+    });
+    const last = page.docs[page.docs.length - 1];
+    page = await db
+      .collection(COLLECTIONS.votes)
+      .where("userId", "==", userId)
+      .select("imageId")
+      .startAfter(last)
+      .limit(1000)
+      .get();
+  }
+  return ids;
+}
+
 async function getVoteDocsByUser(userId) {
   const list = [];
   let page = await db.collection(COLLECTIONS.votes).where("userId", "==", userId).limit(1000).get();
@@ -1365,16 +1386,12 @@ app.post(getBoth("/fetchData"), async (req, res) => {
   const maxLimit = includeDomainMeta ? 5000 : 120;
   const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, maxLimit));
 
-  const [g, e, v, flaggedIds] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
+  const [allContent, flaggedIds, votedIds] = await Promise.all([
+    getAllContentCached(),
     getFlaggedContentIds(),
+    getUniqueVotedImageIdsByUser(decoded.email),
   ]);
-  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
-
-  const voted = await getVotesByUser(decoded.email);
-  const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
+  const all = excludeFlaggedContent(allContent, flaggedIds);
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const batch = sampleItems(newObjs, limit);
 
@@ -1385,7 +1402,7 @@ app.post(getBoth("/fetchData"), async (req, res) => {
     allGraphics: includeDomainMeta ? all.map(mapToCounterArr) : [],
     newGraphics: batch.map(mapToArr),
     totalImages: all.length,
-    votedImagesCount: voted.length,
+    votedImagesCount: votedIds.size,
     remainingImagesCount: newObjs.length,
     releaseCatalogs,
     imageTypes,
@@ -1400,15 +1417,12 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const maxLimit = includeDomainMeta ? 5000 : 120;
   const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, maxLimit));
 
-  const [g, e, v, flaggedIds] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
+  const [allContent, flaggedIds, votedIds] = await Promise.all([
+    getAllContentCached(),
     getFlaggedContentIds(),
+    getUniqueVotedImageIdsByUser(anonId),
   ]);
-  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
-  const voted = await getVotesByUser(anonId);
-  const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
+  const all = excludeFlaggedContent(allContent, flaggedIds);
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const batch = sampleItems(newObjs, limit);
 
@@ -1419,7 +1433,7 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
     allGraphics: includeDomainMeta ? all.map(mapToCounterArr) : [],
     newGraphics: batch.map(mapToArr),
     totalImages: all.length,
-    votedImagesCount: voted.length,
+    votedImagesCount: votedIds.size,
     remainingImagesCount: newObjs.length,
     releaseCatalogs,
     imageTypes,
