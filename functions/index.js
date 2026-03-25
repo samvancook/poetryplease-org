@@ -110,6 +110,17 @@ async function getAllFrom(collection) {
   return out;
 }
 
+function sampleItems(items, limit) {
+  if (!Array.isArray(items)) return [];
+  if (items.length <= limit) return items.slice();
+  const arr = items.slice();
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.slice(0, limit);
+}
+
 
 async function getAllContent() {
   const [g, e, v] = await Promise.all([
@@ -1177,7 +1188,7 @@ app.post(getBoth("/fetchData"), async (req, res) => {
   const voted = await getVotesByUser(decoded.email);
   const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
-  const batch = newObjs.slice(0, limit);
+  const batch = sampleItems(newObjs, limit);
 
   const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
@@ -1211,7 +1222,7 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const voted = await getVotesByUser(anonId);
   const votedIds = new Set(voted.map((x) => (x.imageId || "").trim().toLowerCase()));
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
-  const batch = newObjs.slice(0, limit);
+  const batch = sampleItems(newObjs, limit);
 
   const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();

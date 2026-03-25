@@ -1507,6 +1507,11 @@ window.addEventListener('DOMContentLoaded', () => {
   BOOT_STATE.domReady = true;
   BOOT_STATE.loaderShownAt = Date.now();
 
+  // Default to the app shell immediately; auth should never gate reading.
+  show(document.getElementById('login-screen'), false);
+  show(document.getElementById('registration-screen'), false);
+  show(document.getElementById('poetry-screen'), true);
+
   // Wire login UI if present (works for both desktop & mobile)
   on(document.getElementById('login-google'), 'click', signInWithGoogle);
   on(document.getElementById('email-login-form'), 'submit', handleEmailLogin);
