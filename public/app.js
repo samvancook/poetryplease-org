@@ -909,6 +909,61 @@ function ratingOf(g) {
 }
 function isLowRated(g)  { return ratingOf(g) < 1; }
 function isHighRated(g) { return ratingOf(g) >= 1; }
+function ratingMetaOf(g) {
+  return ratingsMap[g?.id] || { score: 0, total: 0, rating: 1, likes: 0, dislikes: 0, meh: 0, movedMe: 0 };
+}
+function isMutedCandidate(g) {
+  const meta = ratingMetaOf(g);
+  if ((meta.total || 0) < 3) return false;
+  return (meta.meh >= Math.max(2, meta.likes + meta.movedMe)) || meta.rating < 0.2;
+}
+function isBoostedCandidate(g) {
+  const meta = ratingMetaOf(g);
+  if ((meta.total || 0) < 2) return false;
+  return meta.movedMe >= 2 || meta.rating >= 1.15 || meta.score >= 4;
+}
+function communityAffinityOf(g) {
+  const meta = ratingMetaOf(g);
+  const movedWeight = (meta.movedMe || 0) * 1.8;
+  const likeWeight = (meta.likes || 0) * 0.9;
+  const mehPenalty = (meta.meh || 0) * 0.45;
+  const dislikePenalty = (meta.dislikes || 0) * 1.2;
+  const ratingLift = Math.max(-0.75, Math.min(1.25, (meta.rating || 0) - 0.9));
+  return movedWeight + likeWeight + ratingLift - mehPenalty - dislikePenalty;
+}
+function orderByCommunityPreference(list) {
+  const boosted = [];
+  const standard = [];
+  const muted = [];
+
+  list.forEach((item) => {
+    if (isMutedCandidate(item)) muted.push(item);
+    else if (isBoostedCandidate(item)) boosted.push(item);
+    else standard.push(item);
+  });
+
+  const sortWithin = (items) => items
+    .map((item) => ({ item, score: communityAffinityOf(item) + ((Math.random() - 0.5) * 1.6) }))
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.item);
+
+  const boostedQ = sortWithin(boosted);
+  const standardQ = sortWithin(standard);
+  const mutedQ = sortWithin(muted);
+  const ordered = [];
+  let cycle = 0;
+
+  while (boostedQ.length || standardQ.length || mutedQ.length) {
+    if (boostedQ.length) ordered.push(boostedQ.shift());
+    if (standardQ.length) ordered.push(standardQ.shift());
+    if (boostedQ.length && cycle % 2 === 0) ordered.push(boostedQ.shift());
+    if (standardQ.length) ordered.push(standardQ.shift());
+    if (mutedQ.length && cycle % 4 === 3) ordered.push(mutedQ.shift());
+    cycle += 1;
+  }
+
+  return ordered.concat(standardQ, boostedQ, mutedQ);
+}
 
 // ===== Data fetch wrappers =====
 async function fetchLatestBatch() {
@@ -992,11 +1047,8 @@ function buildFilteredList(data) {
     return true;
   });
 
-  // Rule #1: prefer rating >= 1 unless that empties list
-  const hi = list.filter(isHighRated);
-  list = hi.length ? hi : list;
-
-  return shuffle(list);
+  // Guide the feed toward community-loved work while keeping room for exploration.
+  return orderByCommunityPreference(list);
 }
 
 // ===== Preload =====
@@ -1338,20 +1390,18 @@ function renderCurrent(item) {
 function chooseNextIndex() {
   // After a dislike, pick highest-rated unseen next
   if ((lastVoteType || '').toLowerCase() === 'dislike') {
-    let bestIdx = -1, bestR = -Infinity, bestTotal = -1;
+    let bestIdx = -1, bestScore = -Infinity;
     for (let j = idx + 1; j < queue.length; j++) {
-      const id = queue[j].id;
-      const meta = ratingsMap[id] || { rating: 1, total: 0 };
-      const r = (typeof meta.rating === 'number') ? meta.rating : 1;
-      if (r > bestR || (r === bestR && (meta.total || 0) > bestTotal)) { bestR = r; bestTotal = (meta.total || 0); bestIdx = j; }
+      const score = communityAffinityOf(queue[j]);
+      if (score > bestScore) { bestScore = score; bestIdx = j; }
     }
     if (bestIdx !== -1) return bestIdx;
   }
 
-  // Rule #3: if session is positive (>10 votes, <10 negatives), every 3rd served → low-rated
-  const rule3Active = (sessionVotes > 10) && (sessionNegatives < 10);
-  if (rule3Active && (servedCounter % 3 === 0)) {
-    for (let j = idx + 1; j < queue.length; j++) if (isLowRated(queue[j])) return j;
+  // Keep muted / meh-heavy content in circulation, but only occasionally.
+  const explorationWindow = (sessionVotes > 6) && (servedCounter % 6 === 0);
+  if (explorationWindow) {
+    for (let j = idx + 1; j < queue.length; j++) if (isMutedCandidate(queue[j])) return j;
   }
 
   // Default: next in sequence

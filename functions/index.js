@@ -50,10 +50,16 @@ const appAdmin = initializeApp({ storageBucket: "poetry-please.firebasestorage.a
 const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
+const CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
+let contentCache = {
+  builtAt: 0,
+  payload: null,
+  inFlight: null,
+};
 let scoreboardCache = {
   builtAt: 0,
   payload: null,
@@ -129,6 +135,34 @@ async function getAllContent() {
     getAllFrom(COLLECTIONS.videos),
   ]);
   return [...g, ...e, ...v];
+}
+
+function invalidateContentCache() {
+  contentCache.builtAt = 0;
+  contentCache.payload = null;
+  contentCache.inFlight = null;
+}
+
+async function getAllContentCached({ forceRefresh = false } = {}) {
+  const now = Date.now();
+  if (!forceRefresh && contentCache.payload && (now - contentCache.builtAt) < CONTENT_CACHE_TTL_MS) {
+    return contentCache.payload;
+  }
+  if (!forceRefresh && contentCache.inFlight) {
+    return contentCache.inFlight;
+  }
+  contentCache.inFlight = getAllContent()
+    .then((payload) => {
+      contentCache.payload = payload;
+      contentCache.builtAt = Date.now();
+      contentCache.inFlight = null;
+      return payload;
+    })
+    .catch((err) => {
+      contentCache.inFlight = null;
+      throw err;
+    });
+  return contentCache.inFlight;
 }
 
 async function findContentRecordByImageId(imageId) {
@@ -453,14 +487,18 @@ function aggregateRatings(voteDocs) {
     else if (t === "meh") w = 0;
     else if (t === "like") w = 1;
     else if (t === "moved me" || t === "movedme" || t === "moved_me") w = 2;
-    if (!agg[id]) agg[id] = { score: 0, total: 0 };
+    if (!agg[id]) agg[id] = { score: 0, total: 0, likes: 0, dislikes: 0, meh: 0, movedMe: 0 };
     agg[id].score += w;
     agg[id].total += 1;
+    if (t === "like") agg[id].likes += 1;
+    else if (t === "dislike") agg[id].dislikes += 1;
+    else if (t === "meh") agg[id].meh += 1;
+    else if (t === "moved me" || t === "movedme" || t === "moved_me") agg[id].movedMe += 1;
   }
   const out = {};
   Object.keys(agg).forEach((id) => {
-    const { score, total } = agg[id];
-    out[id] = { score, total, rating: total ? score / total : 0 };
+    const { score, total, likes, dislikes, meh, movedMe } = agg[id];
+    out[id] = { score, total, rating: total ? score / total : 0, likes, dislikes, meh, movedMe };
   });
   return out;
 }
@@ -1129,26 +1167,22 @@ const getBoth = (p) => [p, `/api${p}`];
 
 // imageTypes
 app.get(getBoth("/imageTypes"), async (_req, res) => {
-  const [g, e, v, flaggedIds] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
+  const [allContent, flaggedIds] = await Promise.all([
+    getAllContentCached(),
     getFlaggedContentIds(),
   ]);
-  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
+  const all = excludeFlaggedContent(allContent, flaggedIds);
   const imageTypes = [...new Set(all.map((i) => i.imageType).filter(Boolean))].sort();
   res.json(imageTypes);
 });
 
 // releaseCatalogs
 app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
-  const [g, e, v, flaggedIds] = await Promise.all([
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.videos),
+  const [allContent, flaggedIds] = await Promise.all([
+    getAllContentCached(),
     getFlaggedContentIds(),
   ]);
-  const all = excludeFlaggedContent([...g, ...e, ...v], flaggedIds);
+  const all = excludeFlaggedContent(allContent, flaggedIds);
   const cats = [...new Set(all.map((i) => i.releaseCatalog).filter(Boolean))].sort();
   res.json(cats);
 });
