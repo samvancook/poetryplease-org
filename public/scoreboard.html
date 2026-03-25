@@ -6,6 +6,7 @@
   <title>Scoreboard | Poetry, Please</title>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     :root {
       --paper: #f7f3ea;
@@ -162,6 +163,8 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
+    const GOOGLE_OAUTH_CLIENT_ID = '609992589187-vg49bdfs1ro21muk96cknreh31cav5ru.apps.googleusercontent.com';
+    const GOOGLE_SHEETS_SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
 
     let aggregatedData = [], rawVotes = [], allGraphics = [], filteredData = [];
     let currentProgressSortKey = 'book';
@@ -178,6 +181,8 @@
     const progressBarsContainer = document.getElementById('progressBarsContainer');
     const statusEl = document.getElementById('status');
     const refreshSnapshotBtn = document.getElementById('refreshSnapshotBtn');
+    let googleTokenClient = null;
+    let googleAccessToken = '';
 
     async function getIdTokenOrNull() {
       const user = firebase.auth().currentUser;
@@ -219,6 +224,84 @@
         el.disabled = disabled;
       });
       scoreboardLoaded = !disabled;
+    }
+
+    function ensureGoogleTokenClient() {
+      if (googleTokenClient) return googleTokenClient;
+      if (!window.google?.accounts?.oauth2) {
+        throw new Error('Google export is still loading. Please try again in a moment.');
+      }
+      googleTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_OAUTH_CLIENT_ID,
+        scope: GOOGLE_SHEETS_SCOPES,
+        callback: () => {},
+      });
+      return googleTokenClient;
+    }
+
+    async function getGoogleSheetsAccessToken() {
+      const client = ensureGoogleTokenClient();
+      return new Promise((resolve, reject) => {
+        client.callback = (resp) => {
+          if (resp?.error) {
+            reject(new Error(resp.error));
+            return;
+          }
+          googleAccessToken = resp.access_token || '';
+          if (!googleAccessToken) {
+            reject(new Error('missing_google_access_token'));
+            return;
+          }
+          resolve(googleAccessToken);
+        };
+        client.requestAccessToken({ prompt: googleAccessToken ? '' : 'consent' });
+      });
+    }
+
+    async function createGoogleSheetFromRows(rows, isUserView) {
+      const token = await getGoogleSheetsAccessToken();
+      const headers = isUserView
+        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'vote']
+        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score'];
+      const values = [
+        headers,
+        ...rows.map((row) => headers.map((key) => row[key] ?? '')),
+      ];
+
+      const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          properties: { title: `Poetry Please Scoreboard ${new Date().toISOString().slice(0, 10)}` },
+          sheets: [{ properties: { title: 'Scoreboard Export' } }],
+        }),
+      });
+      if (!createRes.ok) {
+        throw new Error(`sheet_create_failed:${createRes.status}:${await createRes.text().catch(() => '')}`);
+      }
+      const created = await createRes.json();
+      const spreadsheetId = created.spreadsheetId;
+      if (!spreadsheetId) throw new Error('missing_spreadsheet_id');
+
+      const writeRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:append?valueInputOption=RAW`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          majorDimension: 'ROWS',
+          values,
+        }),
+      });
+      if (!writeRes.ok) {
+        throw new Error(`sheet_write_failed:${writeRes.status}:${await writeRes.text().catch(() => '')}`);
+      }
+
+      return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
     }
 
     function escapeHtml(value) {
@@ -421,11 +504,8 @@
       btn.disabled = true;
       btn.textContent = 'Creating sheet...';
       try {
-        const result = await api('scoreboard/exportSheet', {
-          method: 'POST',
-          body: { rows, isUserView },
-        });
-        window.open(result.url, '_blank', 'noopener,noreferrer');
+        const url = await createGoogleSheetFromRows(rows, isUserView);
+        window.open(url, '_blank', 'noopener,noreferrer');
       } catch (err) {
         alert(err?.message || 'Could not export the visible rows to Google Sheets right now.');
       } finally {
