@@ -558,7 +558,10 @@ async function getOrCreateAnonId() {
   #desktop-stage-header{ display:grid; justify-items:center; gap:2px; margin:0 auto 4px; text-align:center; }
   h1#page-title{ display:none; text-align:center; margin:0; }
   .button-container{ display:flex; justify-content:center; }
-  #load-button{ font-family: Garamond, Baskerville, 'Times New Roman', serif; font-size: clamp(30px, 4.4vw, 58px); line-height: 1; padding: 14px 28px; border-radius: 999px; border: 1px solid #d6c6ae; background: linear-gradient(180deg, #fffdf8 0%, #f1e6d5 100%); color: #241c12; box-shadow: 0 10px 24px rgba(36, 28, 18, 0.12); letter-spacing: 0.01em; }
+  #load-button{ font-family: Garamond, Baskerville, 'Times New Roman', serif; font-size: clamp(30px, 4.4vw, 58px); line-height: 1; padding: 14px 28px; border-radius: 16px; border: 1px solid #d6c6ae; background: linear-gradient(180deg, #fffdf8 0%, #f1e6d5 100%); color: #241c12; box-shadow: 0 10px 24px rgba(36, 28, 18, 0.12); letter-spacing: 0.01em; transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease; }
+  #load-button:hover:not(:disabled){ transform: translateY(-1px); box-shadow: 0 14px 28px rgba(36, 28, 18, 0.16); background: linear-gradient(180deg, #fffefb 0%, #f4eadb 100%); }
+  #load-button:active:not(:disabled){ transform: translateY(0); box-shadow: 0 8px 18px rgba(36, 28, 18, 0.12); }
+  #load-button:focus-visible{ outline: 2px solid rgba(47,93,98,0.45); outline-offset: 3px; }
   #load-button:disabled{ opacity: .72; }
   #error,
   #message{ text-align:center; }
