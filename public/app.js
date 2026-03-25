@@ -295,6 +295,93 @@ function getVisibleUser() {
   if (!user || user.isAnonymous) return null;
   return user;
 }
+function currentUserIsAdmin() {
+  const user = getVisibleUser();
+  const normalizedEmail = (user?.email || '').trim().toLowerCase();
+  return !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
+}
+function ensureFeedSignalsModal() {
+  let modal = document.getElementById('pp-feed-signals-modal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'pp-feed-signals-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:11000;background:rgba(30,26,21,0.38);display:none;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = `
+    <div style="width:min(640px,100%);max-height:min(84vh,760px);overflow:auto;background:rgba(255,253,248,0.98);border:1px solid #dad0c1;border-radius:22px;padding:20px;box-shadow:0 24px 60px rgba(24,19,12,0.22);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#6c6558;">Admin Feed Signals</div>
+          <h2 style="margin:4px 0 0;font-size:28px;line-height:1;">Current Item</h2>
+        </div>
+        <button id="pp-feed-signals-close" type="button" style="border:1px solid #dad0c1;background:#fff;border-radius:999px;padding:8px 14px;cursor:pointer;">Close</button>
+      </div>
+      <div id="pp-feed-signals-body" style="display:grid;gap:14px;"></div>
+    </div>
+  `;
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) modal.style.display = 'none';
+  });
+  document.body.appendChild(modal);
+  document.getElementById('pp-feed-signals-close')?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  return modal;
+}
+function renderFeedSignalsModal() {
+  if (!currentUserIsAdmin()) return;
+  const item = currentItem;
+  const modal = ensureFeedSignalsModal();
+  const body = document.getElementById('pp-feed-signals-body');
+  if (!body) return;
+  if (!item) {
+    body.innerHTML = '<div style="color:#6c6558;">No current item is loaded yet.</div>';
+    return;
+  }
+  const signals = item.__feedSignals || getFeedSignals(item);
+  const bucketTone = signals.bucket === 'boosted' ? '#d7e7e9' : signals.bucket === 'muted' ? '#f2dfd8' : '#ece7db';
+  const bucketInk = signals.bucket === 'boosted' ? '#2f5d62' : signals.bucket === 'muted' ? '#8b3d37' : '#6c6558';
+  body.innerHTML = `
+    <div style="display:grid;gap:10px;">
+      <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
+        <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6c6558;">Item</div>
+        <div style="margin-top:6px;font-weight:700;font-size:20px;">${item.title || 'Untitled'}</div>
+        <div style="margin-top:4px;color:#6c6558;">${item.author || 'Unknown author'} • ${item.book || 'No book'}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Feed score</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${signals.feedScore.toFixed(3)}</div></div>
+        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:${bucketTone};color:${bucketInk};"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;">Bucket</div><div style="margin-top:6px;font-size:24px;font-weight:700;text-transform:capitalize;">${signals.bucket}</div></div>
+        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Confidence</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${signals.confidence.toFixed(2)}</div></div>
+        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Votes</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${signals.totalVotes}</div></div>
+      </div>
+      <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
+        <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6c6558;">Signals</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin-top:10px;">
+          <div style="color:#6c6558;">Raw score</div><div>${signals.rawScore}</div>
+          <div style="color:#6c6558;">Score per vote</div><div>${signals.scorePerVote.toFixed(3)}</div>
+          <div style="color:#6c6558;">Moved Me rate</div><div>${formatRate(signals.movedMeRate)}</div>
+          <div style="color:#6c6558;">Meh rate</div><div>${formatRate(signals.mehRate)}</div>
+          <div style="color:#6c6558;">Dislike rate</div><div>${formatRate(signals.dislikeRate)}</div>
+          <div style="color:#6c6558;">Likes / Dislikes / Meh / Moved Me</div><div>${signals.likes} / ${signals.dislikes} / ${signals.meh} / ${signals.movedMe}</div>
+        </div>
+      </div>
+      <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
+        <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6c6558;">Interleaving</div>
+        <div style="margin-top:10px;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;">
+          <div style="color:#6c6558;">Placement</div><div>${signals.position ?? 0}</div>
+          <div style="color:#6c6558;">Cycle</div><div>${signals.interleaveCycle ?? '—'}</div>
+          <div style="color:#6c6558;">Slot</div><div>${signals.interleaveSlot || '—'}</div>
+          <div style="color:#6c6558;">Note</div><div>${signals.interleaveNote || 'No special placement note.'}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+function openFeedSignalsModal() {
+  if (!currentUserIsAdmin()) return;
+  renderFeedSignalsModal();
+  const modal = ensureFeedSignalsModal();
+  modal.style.display = 'flex';
+}
 
 function updateUserStatusUI() {
   const user = getVisibleUser();
@@ -302,7 +389,7 @@ function updateUserStatusUI() {
   const loadBtn = $('#load-button');
   if (user) {
     const normalizedEmail = (user.email || '').trim().toLowerCase();
-    const isAdmin = !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
+    const isAdmin = currentUserIsAdmin();
     if (div) {
       const label = user.email || user.uid;
       const isTeam = !!currentAccount?.roles?.includes('team');
@@ -320,13 +407,16 @@ function updateUserStatusUI() {
       const scoreboardBadge = canAccessScoreboard
         ? ' <a id="scoreboard-badge" href="/scoreboard" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e6efe1;color:#3f5f36;font-size:12px;font-weight:600;text-decoration:none;">Scoreboard</a>'
         : '';
+      const feedSignalsBadge = isAdmin
+        ? ' <button id="feed-signals-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f5efe4;color:#6a5134;font-size:12px;font-weight:600;cursor:pointer;">Feed signals</button>'
+        : '';
       const viewToggle = isAdmin
         ? ` <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:4px 10px;border-radius:999px;background:#ffffffcc;border:1px solid #dad0c1;font-size:12px;font-weight:600;color:#2f5d62;">
               <input id="admin-view-toggle" type="checkbox" ${IS_MOBILE_UI ? 'checked' : ''} style="margin:0;accent-color:#2f5d62;" />
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -334,6 +424,7 @@ function updateUserStatusUI() {
           console.warn('Logout failed', err);
         }
       });
+      on($('#feed-signals-badge'), 'click', openFeedSignalsModal);
       on($('#admin-view-toggle'), 'change', (event) => {
         navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
       });
@@ -912,38 +1003,57 @@ function isHighRated(g) { return ratingOf(g) >= 1; }
 function ratingMetaOf(g) {
   return ratingsMap[g?.id] || { score: 0, total: 0, rating: 1, likes: 0, dislikes: 0, meh: 0, movedMe: 0 };
 }
-function isMutedCandidate(g) {
+function getFeedSignals(g) {
   const meta = ratingMetaOf(g);
-  if ((meta.total || 0) < 3) return false;
-  return (meta.meh >= Math.max(2, meta.likes + meta.movedMe)) || meta.rating < 0.2;
+  const totalVotes = Number(meta.total || 0);
+  const rawScore = Number(meta.score || 0);
+  const scorePerVote = totalVotes ? rawScore / totalVotes : 0;
+  const movedMeRate = totalVotes ? (meta.movedMe || 0) / totalVotes : 0;
+  const mehRate = totalVotes ? (meta.meh || 0) / totalVotes : 0;
+  const dislikeRate = totalVotes ? (meta.dislikes || 0) / totalVotes : 0;
+  const confidence = Math.min(1, totalVotes / 10);
+  const feedScore =
+    (scorePerVote * 0.9 + movedMeRate * 1.2 - mehRate * 0.3 - dislikeRate * 0.85) *
+    (0.35 + 0.65 * confidence);
+
+  let bucket = 'standard';
+  if (feedScore >= 0.55) bucket = 'boosted';
+  else if (feedScore <= 0.05) bucket = 'muted';
+
+  return {
+    likes: Number(meta.likes || 0),
+    dislikes: Number(meta.dislikes || 0),
+    meh: Number(meta.meh || 0),
+    movedMe: Number(meta.movedMe || 0),
+    totalVotes,
+    rawScore,
+    scorePerVote,
+    movedMeRate,
+    mehRate,
+    dislikeRate,
+    confidence,
+    feedScore,
+    bucket,
+  };
 }
-function isBoostedCandidate(g) {
-  const meta = ratingMetaOf(g);
-  if ((meta.total || 0) < 2) return false;
-  return meta.movedMe >= 2 || meta.rating >= 1.15 || meta.score >= 4;
-}
-function communityAffinityOf(g) {
-  const meta = ratingMetaOf(g);
-  const movedWeight = (meta.movedMe || 0) * 1.8;
-  const likeWeight = (meta.likes || 0) * 0.9;
-  const mehPenalty = (meta.meh || 0) * 0.45;
-  const dislikePenalty = (meta.dislikes || 0) * 1.2;
-  const ratingLift = Math.max(-0.75, Math.min(1.25, (meta.rating || 0) - 0.9));
-  return movedWeight + likeWeight + ratingLift - mehPenalty - dislikePenalty;
-}
+function isMutedCandidate(g) { return getFeedSignals(g).bucket === 'muted'; }
+function isBoostedCandidate(g) { return getFeedSignals(g).bucket === 'boosted'; }
+function communityAffinityOf(g) { return getFeedSignals(g).feedScore; }
+function formatRate(v) { return `${Math.round((Number(v || 0) * 1000)) / 10}%`; }
 function orderByCommunityPreference(list) {
   const boosted = [];
   const standard = [];
   const muted = [];
 
   list.forEach((item) => {
-    if (isMutedCandidate(item)) muted.push(item);
-    else if (isBoostedCandidate(item)) boosted.push(item);
+    item.__feedSignals = getFeedSignals(item);
+    if (item.__feedSignals.bucket === 'muted') muted.push(item);
+    else if (item.__feedSignals.bucket === 'boosted') boosted.push(item);
     else standard.push(item);
   });
 
   const sortWithin = (items) => items
-    .map((item) => ({ item, score: communityAffinityOf(item) + ((Math.random() - 0.5) * 1.6) }))
+    .map((item) => ({ item, score: communityAffinityOf(item) + ((Math.random() - 0.5) * 0.22) }))
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.item);
 
@@ -952,13 +1062,31 @@ function orderByCommunityPreference(list) {
   const mutedQ = sortWithin(muted);
   const ordered = [];
   let cycle = 0;
+  let position = 0;
+  const pushWithPlacement = (item, slotType) => {
+    if (!item) return;
+    item.__feedSignals = item.__feedSignals || getFeedSignals(item);
+    item.__feedSignals.position = position;
+    item.__feedSignals.interleaveSlot = slotType;
+    item.__feedSignals.interleaveCycle = cycle;
+    item.__feedSignals.interleaveNote =
+      slotType === 'muted-exploration'
+        ? 'Exploration slot: muted-content re-entry'
+        : slotType === 'boosted-priority'
+          ? 'Priority slot: boosted content'
+          : slotType === 'boosted-bonus'
+            ? 'Bonus boosted slot'
+            : 'Core standard slot';
+    ordered.push(item);
+    position += 1;
+  };
 
   while (boostedQ.length || standardQ.length || mutedQ.length) {
-    if (boostedQ.length) ordered.push(boostedQ.shift());
-    if (standardQ.length) ordered.push(standardQ.shift());
-    if (boostedQ.length && cycle % 2 === 0) ordered.push(boostedQ.shift());
-    if (standardQ.length) ordered.push(standardQ.shift());
-    if (mutedQ.length && cycle % 4 === 3) ordered.push(mutedQ.shift());
+    if (boostedQ.length) pushWithPlacement(boostedQ.shift(), 'boosted-priority');
+    if (standardQ.length) pushWithPlacement(standardQ.shift(), 'standard-core');
+    if (boostedQ.length && cycle % 2 === 0) pushWithPlacement(boostedQ.shift(), 'boosted-bonus');
+    if (standardQ.length) pushWithPlacement(standardQ.shift(), 'standard-core');
+    if (mutedQ.length && cycle % 4 === 3) pushWithPlacement(mutedQ.shift(), 'muted-exploration');
     cycle += 1;
   }
 
@@ -1382,6 +1510,10 @@ function renderCurrent(item) {
 
   // ✅ Notify mobile shell *with* the item payload
   window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: currentItem } }));
+  if (currentUserIsAdmin()) {
+    const modal = document.getElementById('pp-feed-signals-modal');
+    if (modal && modal.style.display !== 'none') renderFeedSignalsModal();
+  }
   clearInlineLoadingState();
   markScreenReady();
 }

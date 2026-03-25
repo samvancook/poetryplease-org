@@ -326,12 +326,39 @@
 
     async function createGoogleSheetFromRows(rows, isUserView) {
       const token = await getGoogleSheetsAccessToken();
+      const computeExportMetrics = (row) => {
+        const likes = Number(row.likes || 0);
+        const dislikes = Number(row.dislikes || 0);
+        const meh = Number(row.meh || 0);
+        const movedMe = Number(row.movedMe || 0);
+        const totalVotes = Number(row.totalVotes || 0);
+        const rawScore = Number(row.score || (likes + (movedMe * 2) - dislikes) || 0);
+        const scorePerVote = totalVotes ? rawScore / totalVotes : 0;
+        const likeRate = totalVotes ? likes / totalVotes : 0;
+        const movedMeRate = totalVotes ? movedMe / totalVotes : 0;
+        const mehRate = totalVotes ? meh / totalVotes : 0;
+        const dislikeRate = totalVotes ? dislikes / totalVotes : 0;
+        return {
+          rawScore,
+          scorePerVote,
+          likeRate,
+          movedMeRate,
+          mehRate,
+          dislikeRate,
+        };
+      };
       const headers = isUserView
         ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'vote']
-        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score'];
+        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score', 'scorePerVote', 'likeRate', 'movedMeRate', 'mehRate', 'dislikeRate'];
       const values = [
         headers,
-        ...rows.map((row) => headers.map((key) => row[key] ?? '')),
+        ...rows.map((row) => {
+          const derived = isUserView ? {} : computeExportMetrics(row);
+          return headers.map((key) => {
+            const value = key in derived ? derived[key] : row[key];
+            return typeof value === 'number' ? value : (value ?? '');
+          });
+        }),
       ];
 
       const createRes = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
