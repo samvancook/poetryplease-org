@@ -89,12 +89,14 @@ app.use(express.json({ limit: "16mb" }));
 function parseDoc(snap) {
   const d = snap.data() || {};
   const imageId = d.imageId || d.imageID || d.videoId || "";
+  const contentId = d.contentId || snap.id || "";
   const imageUrl = d.imageUrl || d.url || d.driveLink || d.videoUrl || "";
   return {
     author: d.author || "",
     title: d.title || d.poem || "",
     book: d.book || "",
     imageId,
+    contentId,
     imageUrl,
     videoUrl: d.videoUrl || "",
     bookLink: d.bookLink || "",
@@ -535,16 +537,19 @@ async function buildScoreboardPayload() {
   const metaMap = new Map();
   const upsertMeta = (item) => {
     const imageId = normalizeText(item?.imageId);
-    if (!imageId) return;
-    if (flaggedIds.has(normalizeKey(imageId))) return;
-    metaMap.set(imageId, {
+    const contentId = normalizeText(item?.contentId);
+    const keys = uniq([imageId, contentId].filter(Boolean));
+    if (!keys.length) return;
+    if (keys.some((key) => flaggedIds.has(normalizeKey(key)))) return;
+    const payload = {
       author: item.author || "",
       poemTitle: item.title || "",
       bookTitle: item.book || "",
       fileLink: item.imageUrl || item.bookLink || "",
       type: item.imageType || "",
       excerpt: item.excerpt || "",
-    });
+    };
+    keys.forEach((key) => metaMap.set(key, payload));
   };
   metaObjs.forEach(upsertMeta);
   excerptObjs.forEach(upsertMeta);
