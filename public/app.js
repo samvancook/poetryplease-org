@@ -1467,14 +1467,17 @@ async function ppAutoloadFirstItem() {
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
   const loginEl  = document.getElementById('login-screen');
+  const registrationEl = document.getElementById('registration-screen');
   const poetryEl = document.getElementById('poetry-screen');
   if (loginEl && poetryEl) {
-    show(loginEl, !user);
-    show(poetryEl, !!user);
+    // Keep the app available even when signed out; auth is optional.
+    show(loginEl, false);
+    if (registrationEl) show(registrationEl, false);
+    show(poetryEl, true);
   }
 
   BOOT_STATE.authResolved = true;
-  if (user && !currentItem) showInlineLoadingState();
+  if (!currentItem) showInlineLoadingState();
   markScreenReady();
 
   ppAutoloadFirstItem();   // <-- added
