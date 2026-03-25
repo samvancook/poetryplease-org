@@ -360,6 +360,32 @@ async function getVotesByUser(userId) {
   return list;
 }
 
+async function getVoteDocsByUser(userId) {
+  const list = [];
+  let page = await db.collection(COLLECTIONS.votes).where("userId", "==", userId).limit(1000).get();
+  while (!page.empty) {
+    page.forEach((d) => {
+      const f = d.data() || {};
+      list.push({
+        ref: d.ref,
+        id: d.id,
+        imageId: f.imageId || "",
+        voteType: (f.voteType || "").toLowerCase(),
+        userId: f.userId || "",
+        timestamp: f.timestamp || null,
+      });
+    });
+    const last = page.docs[page.docs.length - 1];
+    page = await db
+      .collection(COLLECTIONS.votes)
+      .where("userId", "==", userId)
+      .startAfter(last)
+      .limit(1000)
+      .get();
+  }
+  return list;
+}
+
 async function getAllVotes() {
   const list = [];
   let page = await db.collection(COLLECTIONS.votes).limit(1000).get();
@@ -1298,6 +1324,70 @@ app.get(getBoth("/me"), async (req, res) => {
     roles: Array.isArray(fresh.roles) ? fresh.roles : ["user"],
     authorProfileId: fresh.authorProfileId || null,
   });
+});
+
+app.post(getBoth("/mergeAnonVotes"), async (req, res) => {
+  const ctx = await requireDecodedUser(req, res);
+  if (!ctx) return;
+
+  const anonId = normalizeText(req.body?.anonId);
+  if (!anonId) return res.status(400).json({ error: "missing_anon_id" });
+
+  const targetUserId = normalizeText(ctx.decoded.email).toLowerCase();
+  if (!targetUserId) return res.status(400).json({ error: "missing_target_user" });
+  if (normalizeText(anonId).toLowerCase() === targetUserId) {
+    return res.json({ ok: true, mergedVotes: 0, deletedVotes: 0 });
+  }
+
+  const [anonVotes, existingVotes] = await Promise.all([
+    getVoteDocsByUser(anonId),
+    getVoteDocsByUser(targetUserId),
+  ]);
+
+  const latestFor = (votes) => {
+    const map = new Map();
+    votes.forEach((vote) => {
+      const key = normalizeKey(vote.imageId || "");
+      if (!key) return;
+      const prev = map.get(key);
+      const prevMs = prev?.timestamp?.toMillis ? prev.timestamp.toMillis() : 0;
+      const curMs = vote?.timestamp?.toMillis ? vote.timestamp.toMillis() : 0;
+      if (!prev || curMs >= prevMs) map.set(key, vote);
+    });
+    return map;
+  };
+
+  const latestAnon = latestFor(anonVotes);
+  const latestExisting = latestFor(existingVotes);
+
+  let mergedVotes = 0;
+  let deletedVotes = 0;
+  const writes = [];
+
+  latestAnon.forEach((anonVote, key) => {
+    const existingVote = latestExisting.get(key);
+    const anonMs = anonVote?.timestamp?.toMillis ? anonVote.timestamp.toMillis() : 0;
+    const existingMs = existingVote?.timestamp?.toMillis ? existingVote.timestamp.toMillis() : 0;
+    if (!existingVote || anonMs >= existingMs) {
+      writes.push(
+        db.collection(COLLECTIONS.votes).add({
+          imageId: anonVote.imageId,
+          voteType: anonVote.voteType,
+          userId: targetUserId,
+          timestamp: anonVote.timestamp || FieldValue.serverTimestamp(),
+        })
+      );
+      mergedVotes += 1;
+    }
+  });
+
+  anonVotes.forEach((voteDoc) => {
+    writes.push(voteDoc.ref.delete());
+    deletedVotes += 1;
+  });
+
+  await Promise.all(writes);
+  res.json({ ok: true, mergedVotes, deletedVotes });
 });
 
 app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {

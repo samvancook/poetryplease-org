@@ -255,8 +255,14 @@ window.on = window.on || ((el, evt, fn) => el && el.addEventListener(evt, fn));
 function show(el, yes) { if (el) el.style.display = yes ? 'block' : 'none'; }
 
 // ===== Auth UI =====
-function updateUserStatusUI() {
+function getVisibleUser() {
   const user = firebase.auth().currentUser;
+  if (!user || user.isAnonymous) return null;
+  return user;
+}
+
+function updateUserStatusUI() {
+  const user = getVisibleUser();
   const div = $('#user-status');
   const loadBtn = $('#load-button');
   if (user) {
@@ -310,7 +316,7 @@ function updateUserStatusUI() {
 }
 
 async function refreshCurrentAccount() {
-  const user = firebase.auth().currentUser;
+  const user = getVisibleUser();
   if (!user) {
     currentAccount = null;
     return null;
@@ -322,6 +328,22 @@ async function refreshCurrentAccount() {
     currentAccount = null;
   }
   return currentAccount;
+}
+
+async function mergeAnonymousVotesIntoAccount() {
+  const user = getVisibleUser();
+  if (!user?.email) return;
+  const anonId = localStorage.getItem('pp_anon');
+  if (!anonId) return;
+  const markerKey = `pp_anon_merged_${user.email.toLowerCase()}`;
+  if (localStorage.getItem(markerKey) === anonId) return;
+  try {
+    await api('mergeAnonVotes', { body: { anonId } });
+    localStorage.setItem(markerKey, anonId);
+    localStorage.removeItem('pp_anon');
+  } catch (err) {
+    console.warn('Failed to merge anonymous votes into account', err);
+  }
 }
 function showLoginScreen() { show($('#registration-screen'), false); show($('#login-screen'), true); }
 function showRegistrationForm() { show($('#login-screen'), false); show($('#registration-screen'), true); }
@@ -1470,6 +1492,7 @@ async function ppAutoloadFirstItem() {
 
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
+  const visibleUser = user && !user.isAnonymous ? user : null;
   const loginEl  = document.getElementById('login-screen');
   const registrationEl = document.getElementById('registration-screen');
   const poetryEl = document.getElementById('poetry-screen');
@@ -1486,6 +1509,10 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
   ppAutoloadFirstItem();   // <-- added
 
+  if (visibleUser) {
+    await mergeAnonymousVotesIntoAccount();
+  }
+
   refreshCurrentAccount()
     .then(() => {
       updateUserStatusUI();
@@ -1498,7 +1525,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
       dispatchEvent(new CustomEvent('pp:state'));
     });
 
-  if (user) {
+  if (visibleUser) {
     redeemAuthorInviteIfPresent().catch((err) => {
       console.warn('author invite redemption deferred failure', err);
     });
