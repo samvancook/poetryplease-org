@@ -1162,7 +1162,9 @@ app.post(getBoth("/admin/scoreboard/refresh"), async (req, res) => {
 app.post(getBoth("/fetchData"), async (req, res) => {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.email) return res.status(401).json({ error: "auth" });
-  const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, 120));
+  const includeDomainMeta = req.body?.includeDomainMeta !== false;
+  const maxLimit = includeDomainMeta ? 5000 : 120;
+  const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, maxLimit));
 
   const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
@@ -1181,7 +1183,7 @@ app.post(getBoth("/fetchData"), async (req, res) => {
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
   res.json({
-    allGraphics: all.map(mapToCounterArr),
+    allGraphics: includeDomainMeta ? all.map(mapToCounterArr) : [],
     newGraphics: batch.map(mapToArr),
     totalImages: all.length,
     votedImagesCount: voted.length,
@@ -1195,7 +1197,9 @@ app.post(getBoth("/fetchData"), async (req, res) => {
 app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const anonId = (req.body?.anonId || "").trim();
   if (!anonId) return res.status(400).json({ error: "missing anonId" });
-  const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, 120));
+  const includeDomainMeta = req.body?.includeDomainMeta !== false;
+  const maxLimit = includeDomainMeta ? 5000 : 120;
+  const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, maxLimit));
 
   const [g, e, v, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
@@ -1213,7 +1217,7 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
   res.json({
-    allGraphics: all.map(mapToCounterArr),
+    allGraphics: includeDomainMeta ? all.map(mapToCounterArr) : [],
     newGraphics: batch.map(mapToArr),
     totalImages: all.length,
     votedImagesCount: voted.length,

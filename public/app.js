@@ -362,8 +362,11 @@ async function handleRegistration(e) {
 
 // ===== API Mappings (to your Cloud Functions) =====
 const STARTUP_BATCH_SIZE = 40;
-const fetchDataWrapped            = () => api('fetchData',        { body: { limit: STARTUP_BATCH_SIZE } });
-const fetchDataAnonWrapped        = (anonId) => api('fetchDataAnon', { body: { anonId, limit: STARTUP_BATCH_SIZE } });
+const FULL_HYDRATION_BATCH_SIZE = 5000;
+const fetchDataWrapped            = () => api('fetchData',        { body: { limit: STARTUP_BATCH_SIZE, includeDomainMeta: false } });
+const fetchDataAnonWrapped        = (anonId) => api('fetchDataAnon', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeDomainMeta: false } });
+const fetchFullDataWrapped        = () => api('fetchData',        { body: { limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
+const fetchFullDataAnonWrapped    = (anonId) => api('fetchDataAnon', { body: { anonId, limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const submitVoteWrapped           = (imageId, voteType, userId) => api('vote', { body: { imageId, voteType, userId } });
 const fetchReleaseCatalogsWrapped = () => api('releaseCatalogs', { method: 'GET' });
 const fetchImageTypesWrapped      = () => api('imageTypes',      { method: 'GET' });
@@ -453,6 +456,8 @@ let currentItem = null;
 window.currentItem = null; // <-- expose for mobile.html
 
 let lastData = null;     // server payload (fetchData / fetchDataAnon)
+let fullFeedHydrationStarted = false;
+let fullFeedHydrationDone = false;
 let queue = [];          // filtered & shuffled list
 let idx = -1;            // position in queue
 let isTransitioning = false;
@@ -851,6 +856,43 @@ async function fetchLatestBatch() {
 
   const anonId = await getOrCreateAnonId();
   return fetchDataAnonWrapped(anonId);
+}
+
+async function fetchFullFeedData() {
+  const user = firebase.auth().currentUser;
+  if (user) return fetchFullDataWrapped();
+
+  const anonId = await getOrCreateAnonId();
+  return fetchFullDataAnonWrapped(anonId);
+}
+
+async function hydrateFullFeedInBackground() {
+  if (fullFeedHydrationStarted || fullFeedHydrationDone) return;
+  fullFeedHydrationStarted = true;
+
+  const run = async () => {
+    try {
+      const data = await fetchFullFeedData();
+      if (!data || !Array.isArray(data.newGraphics)) return;
+      const currentId = currentItem?.id || null;
+      lastData = data;
+      if (!currentId) {
+        initQueueFromData(data);
+      } else {
+        rebuildQueueAfterFilter();
+      }
+      fullFeedHydrationDone = true;
+    } catch (err) {
+      console.warn('Full feed hydration failed', err);
+      fullFeedHydrationStarted = false;
+    }
+  };
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => { run(); }, { timeout: 2500 });
+  } else {
+    setTimeout(run, 300);
+  }
 }
 
 // ===== Filters: population =====
@@ -1392,6 +1434,7 @@ async function ppAutoloadFirstItem() {
       if (data && Array.isArray(data.newGraphics) && data.newGraphics.length) {
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
+        hydrateFullFeedInBackground();
 
         // If something prevented render, allow future attempts
         if (!currentItem) {
