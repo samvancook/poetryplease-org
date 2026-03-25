@@ -55,6 +55,7 @@ const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
+const SCOREBOARD_SNAPSHOT_VERSION = 2;
 let contentCache = {
   builtAt: 0,
   payload: null,
@@ -664,6 +665,7 @@ async function readScoreboardSnapshot() {
   const builtAtMs = timestampToMs(meta.builtAt);
   const storagePath = normalizeText(meta.storagePath || SCOREBOARD_SNAPSHOT_PATH);
   if (!builtAtMs || !storagePath) return null;
+  if (Number(meta.version || 1) !== SCOREBOARD_SNAPSHOT_VERSION) return null;
 
   const [buffer] = await storage.bucket().file(storagePath).download();
   const payload = JSON.parse(buffer.toString("utf8"));
@@ -683,6 +685,7 @@ async function writeScoreboardSnapshot(payload) {
 
   const snapshotMeta = {
     storagePath: SCOREBOARD_SNAPSHOT_PATH,
+    version: SCOREBOARD_SNAPSHOT_VERSION,
     builtAt: FieldValue.serverTimestamp(),
     aggregatedCount: Array.isArray(payload?.aggregated) ? payload.aggregated.length : 0,
     rawVotesCount: Array.isArray(payload?.rawVotes) ? payload.rawVotes.length : 0,
