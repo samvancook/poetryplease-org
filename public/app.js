@@ -554,7 +554,8 @@ async function getOrCreateAnonId() {
   #catalog-filter{ border:1px solid #d7cebf; border-radius:999px; background:#fff; padding:6px 28px 6px 12px; color:#2d2a25; }
   #user-status{ display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; text-align:right; font-size:.92rem; opacity:.96; max-width:min(46vw,760px); }
   #poetry-screen{ max-width:min(1240px,96vw); margin:0 auto; padding:0 18px 88px; }
-  #desktop-stage-header{ display:grid; justify-items:center; gap:6px; margin:0 auto 8px; text-align:center; }
+  #desktop-stage-header .button-container{ margin-bottom:2px; }
+  #desktop-stage-header{ display:grid; justify-items:center; gap:2px; margin:0 auto 4px; text-align:center; }
   h1#page-title{ display:none; text-align:center; margin:0; }
   .button-container{ display:flex; justify-content:center; }
   #load-button{ font-family: Garamond, Baskerville, 'Times New Roman', serif; font-size: clamp(30px, 4.4vw, 58px); line-height: 1; padding: 14px 28px; border-radius: 999px; border: 1px solid #d6c6ae; background: linear-gradient(180deg, #fffdf8 0%, #f1e6d5 100%); color: #241c12; box-shadow: 0 10px 24px rgba(36, 28, 18, 0.12); letter-spacing: 0.01em; }
@@ -562,10 +563,10 @@ async function getOrCreateAnonId() {
   #error,
   #message{ text-align:center; }
 
-  #media-wrap{ position:relative; isolation:isolate; max-width:min(1120px,95vw); margin:2px auto 0; text-align:center; }
-  .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
-  #vote-row{ margin-top:0; margin-bottom:10px; }
-  #under-controls{ margin-top:12px; }
+  #media-wrap{ position:relative; isolation:isolate; max-width:min(1120px,95vw); margin:0 auto 0; text-align:center; }
+  .button-row{ display:flex; justify-content:center; gap:10px; margin:6px 0 0; flex-wrap:wrap; }
+  #vote-row{ margin-top:0; margin-bottom:6px; }
+  #under-controls{ margin-top:8px; }
   #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
 
   #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
