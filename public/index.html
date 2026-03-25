@@ -46,18 +46,26 @@
     }
     .pp-loader__title {
       position: relative;
+      display: grid;
+      place-items: center;
+      width: min(72vw, 420px);
       min-height: 1.3em;
       font: 700 clamp(30px, 4.8vw, 52px)/1.05 Georgia, "Times New Roman", serif;
       letter-spacing: 0.01em;
       color: rgba(30, 26, 21, 0.92);
+      overflow: hidden;
     }
     .pp-loader__word {
-      position: absolute;
-      inset: 0;
+      grid-area: 1 / 1;
+      display: block;
+      width: 100%;
+      text-align: center;
       opacity: 0;
+      transform: translateY(6px);
       animation-duration: 1.8s;
       animation-fill-mode: forwards;
       animation-timing-function: ease;
+      will-change: opacity, transform;
     }
     .pp-loader__word--one { animation-name: ppLoaderWordOne; }
     .pp-loader__word--two { animation-name: ppLoaderWordTwo; }
