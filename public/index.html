@@ -44,17 +44,6 @@
       align-items: center;
       gap: 16px;
     }
-    .pp-loader__title {
-      width: min(72vw, 420px);
-      min-height: 1.3em;
-      text-align: center;
-      font: 700 clamp(30px, 4.8vw, 52px)/1.05 Georgia, "Times New Roman", serif;
-      letter-spacing: 0.01em;
-      color: rgba(30, 26, 21, 0.92);
-      opacity: 0;
-      transform: translateY(6px);
-      animation: ppLoaderTitleIn 720ms ease 140ms forwards;
-    }
     .pp-loader__text {
       font: 600 14px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       letter-spacing: 0.18em;
@@ -82,12 +71,6 @@
       50% { content: ".."; }
       75%,
       100% { content: "..."; }
-    }
-    @keyframes ppLoaderTitleIn {
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
     }
   </style>
 
@@ -133,7 +116,6 @@
   <div id="pp-loader" class="pp-loader" aria-hidden="true">
     <div class="pp-loader__content">
       <img class="pp-loader__mark" src="/pp-loader-logo.png?v=20260323b" alt="" decoding="async" />
-      <div class="pp-loader__title" aria-hidden="true">Poetry, Please.</div>
       <div class="pp-loader__text">Loading<span class="pp-loader__dots" aria-hidden="true"></span></div>
     </div>
   </div>
