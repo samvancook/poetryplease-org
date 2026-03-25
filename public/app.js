@@ -107,9 +107,9 @@ function showInlineLoadingState() {
     overlayEl.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;';
     overlayEl.innerHTML = `
       <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;padding:24px;">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;">
-          <img src="/pp-loader-logo.png?v=20260323b" alt="" aria-hidden="true" style="width:min(24vw,120px);max-width:120px;filter:drop-shadow(0 12px 20px rgba(30,26,21,0.12));opacity:0.92;" />
-          <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;">
+          <img src="/pp-loader-logo.png?v=20260323b" alt="" aria-hidden="true" style="width:min(46vw,220px);max-width:220px;filter:drop-shadow(0 18px 32px rgba(30,26,21,0.14));opacity:0.92;" />
+          <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;letter-spacing:0.18em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
             Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
           </div>
         </div>
