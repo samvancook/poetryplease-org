@@ -111,7 +111,6 @@
       </div>
 
       <div id="status" class="status">Loading scoreboard…</div>
-      <div id="bootstrap-preview" class="meta" style="margin-bottom:14px;"></div>
 
       <div id="scoreboardContainer" class="table-wrap">
         <table id="scoreboard">
@@ -178,7 +177,6 @@
     const scoreboardContainer = document.getElementById('scoreboardContainer');
     const progressBarsContainer = document.getElementById('progressBarsContainer');
     const statusEl = document.getElementById('status');
-    const bootstrapPreviewEl = document.getElementById('bootstrap-preview');
     const refreshSnapshotBtn = document.getElementById('refreshSnapshotBtn');
 
     async function getIdTokenOrNull() {
@@ -482,31 +480,12 @@
         setControlsDisabled(false);
         switchView('scoreboard');
         updateTable(filteredData);
-        if (bootstrapPreviewEl.textContent === 'Connecting to scoreboard…' || bootstrapPreviewEl.textContent === 'Could not load scoreboard bootstrap data.') {
-          bootstrapPreviewEl.textContent = 'Scoreboard connected.';
-        }
         const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
         setStatus(`Loaded ${aggregatedData.length} scored item${aggregatedData.length === 1 ? '' : 's'} and ${rawVotes.length} latest votes.${metaText ? ` ${metaText}` : ''}`);
       } catch (err) {
         console.error(err);
         setControlsDisabled(false);
         setStatus(err.message || 'Could not load scoreboard.', true);
-      }
-    }
-
-    async function loadScoreboardBootstrap() {
-      bootstrapPreviewEl.textContent = 'Connecting to scoreboard…';
-      try {
-        const payload = await api('scoreboard/bootstrap', { method: 'GET' });
-        if (payload?.sample) {
-          const sample = payload.sample;
-          bootstrapPreviewEl.textContent = `Connected. Sample content: ${sample.title || sample.imageId || 'Untitled'}${sample.author ? ` — ${sample.author}` : ''}${sample.type ? ` · ${sample.type}` : ''}`;
-        } else {
-          bootstrapPreviewEl.textContent = 'Connected. No sample content returned.';
-        }
-      } catch (err) {
-        console.error(err);
-        bootstrapPreviewEl.textContent = 'Connecting to scoreboard…';
       }
     }
 
@@ -558,7 +537,6 @@
           setStatus('This account does not have scoreboard access.', true);
           return;
         }
-        await loadScoreboardBootstrap();
         await loadScoreboard();
       });
     }
