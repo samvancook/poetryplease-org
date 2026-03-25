@@ -576,10 +576,12 @@ async function getOrCreateAnonId() {
   html, body { height: 100%; background:#faf7f0; color:#111; }
   body { min-height: 100dvh; }
   .media-box {
-    max-height: var(--media-max-h, 70dvh);
-    min-height: min(28vh, 280px);
     display: flex; align-items: center; justify-content: center;
     width: 100%; overflow: hidden;
+  }
+  .media-box--visual {
+    height: var(--media-max-h, 70dvh);
+    min-height: min(28vh, 280px);
   }
   .media-box img, .media-box video {
     max-width: 100%;
@@ -1476,6 +1478,7 @@ function renderItemMedia(item) {
     const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
     const p = document.createElement('p'); p.textContent = item?.excerpt || ''; textDiv.appendChild(p); box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
+    box.classList.add('media-box--visual');
     const stage = document.createElement('div');
     stage.className = 'pp-video-stage';
     const a = document.createElement('a');
@@ -1503,6 +1506,7 @@ function renderItemMedia(item) {
     stage.appendChild(playButton);
     box.appendChild(stage);
  } else if (item?.mediaUrl) {
+  box.classList.add('media-box--visual');
   const a = document.createElement('a');
   if (item?.bookUrl) { a.href = item.bookUrl; a.target = '_blank'; }
 
