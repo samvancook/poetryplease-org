@@ -104,7 +104,7 @@ function showInlineLoadingState() {
   if (!overlayEl) {
     overlayEl = document.createElement('div');
     overlayEl.className = 'pp-inline-loading-overlay';
-    overlayEl.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;';
+    overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;background:rgba(250,247,240,0.92);backdrop-filter:blur(2px);';
     overlayEl.innerHTML = `
       <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;padding:24px;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;">
