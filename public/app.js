@@ -103,17 +103,47 @@ function showInlineLoadingState() {
   const galleryEl = document.getElementById('gallery');
   if (!galleryEl) return;
   galleryEl.innerHTML = `
-    <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;min-height:42vh;text-align:center;color:rgba(30,26,21,0.72);font:600 15px/1.4 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.04em;">
-      Loading content...
+    <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;min-height:42vh;padding:24px;opacity:1;transition:opacity 320ms ease;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center;">
+        <img src="/pp-loader-logo.png?v=20260323b" alt="" aria-hidden="true" style="width:min(24vw,120px);max-width:120px;filter:drop-shadow(0 12px 20px rgba(30,26,21,0.12));opacity:0.92;" />
+        <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.14em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
+          Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
+        </div>
+      </div>
     </div>
   `;
+  const dotsEl = galleryEl.querySelector('.pp-inline-loading-dots');
+  if (dotsEl) {
+    let frame = 0;
+    const frames = ['', '.', '..', '...'];
+    const intervalId = window.setInterval(() => {
+      frame = (frame + 1) % frames.length;
+      if (!dotsEl.isConnected) {
+        window.clearInterval(intervalId);
+        return;
+      }
+      dotsEl.textContent = frames[frame];
+    }, 320);
+    galleryEl.dataset.inlineLoadingInterval = String(intervalId);
+  }
 }
 
 function clearInlineLoadingState() {
   const galleryEl = document.getElementById('gallery');
   if (!galleryEl) return;
+  const intervalId = Number(galleryEl.dataset.inlineLoadingInterval || 0);
+  if (intervalId) {
+    window.clearInterval(intervalId);
+    delete galleryEl.dataset.inlineLoadingInterval;
+  }
   const loadingEl = galleryEl.querySelector('.pp-inline-loading');
-  if (loadingEl) galleryEl.innerHTML = '';
+  if (!loadingEl) return;
+  loadingEl.style.opacity = '0';
+  window.setTimeout(() => {
+    if (galleryEl.querySelector('.pp-inline-loading') === loadingEl) {
+      galleryEl.innerHTML = '';
+    }
+  }, 340);
 }
 
 function queueDeferredBootWork() {
