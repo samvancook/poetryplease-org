@@ -591,14 +591,19 @@ async function getOrCreateAnonId() {
     display:flex;
     align-items:center;
     justify-content:center;
+    width:100%;
+    height:100%;
     max-width:100%;
     max-height:100%;
   }
   .media-box img, .media-box video {
+    display:block;
+    width:auto;
     max-width: 100%;
     max-height: 100%;
     height: auto;
     object-fit: contain;
+    margin: 0 auto;
   }
   .pp-video-stage{ position:relative; display:inline-flex; align-items:center; justify-content:center; max-width:100%; max-height:100%; }
   .pp-video-play{ position:absolute; inset:auto auto 18px 18px; display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border:none; border-radius:999px; background:rgba(17,17,17,0.78); color:#faf7f0; font-weight:700; letter-spacing:0.01em; cursor:pointer; box-shadow:0 12px 26px rgba(17,17,17,0.22); }
