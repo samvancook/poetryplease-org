@@ -562,7 +562,7 @@ async function getOrCreateAnonId() {
   #error,
   #message{ text-align:center; }
 
-  #media-wrap{ max-width:min(1120px,95vw); margin:2px auto 0; text-align:center; }
+  #media-wrap{ position:relative; isolation:isolate; max-width:min(1120px,95vw); margin:2px auto 0; text-align:center; }
   .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
   #vote-row{ margin-top:0; margin-bottom:10px; }
   #under-controls{ margin-top:12px; }
@@ -579,7 +579,7 @@ async function getOrCreateAnonId() {
     max-height: var(--media-max-h, 70dvh);
     min-height: min(28vh, 280px);
     display: flex; align-items: center; justify-content: center;
-    width: 100%; overflow: visible;
+    width: 100%; overflow: hidden;
   }
   .media-box img, .media-box video {
     max-width: 100%;
