@@ -417,8 +417,8 @@
         return;
       }
       const headers = isUserView
-        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'vote']
-        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score'];
+        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'vote']
+        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score'];
       const csv = [
         headers.join(','),
         ...rows.map((row) => headers.map((key) => `"${String(row[key] ?? '').replaceAll('"', '""')}"`).join(','))

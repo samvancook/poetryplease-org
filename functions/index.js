@@ -543,6 +543,7 @@ async function buildScoreboardPayload() {
       bookTitle: item.book || "",
       fileLink: item.imageUrl || item.bookLink || "",
       type: item.imageType || "",
+      excerpt: item.excerpt || "",
     });
   };
   metaObjs.forEach(upsertMeta);
@@ -560,6 +561,7 @@ async function buildScoreboardPayload() {
       bookTitle: meta.bookTitle || "‹no book›",
       fileLink: meta.fileLink || "",
       type: meta.type || "",
+      excerpt: meta.excerpt || "",
     };
   });
 
@@ -572,6 +574,7 @@ async function buildScoreboardPayload() {
         poemTitle: vote.poemTitle,
         bookTitle: vote.bookTitle,
         fileLink: vote.fileLink,
+        excerpt: vote.excerpt || "",
         likes: 0,
         dislikes: 0,
         meh: 0,
