@@ -695,6 +695,88 @@ async function writeScoreboardSnapshot(payload) {
   await db.collection(COLLECTIONS.systemState).doc(SCOREBOARD_SNAPSHOT_DOC_ID).set(snapshotMeta, { merge: true });
 }
 
+async function getGoogleApiAccessToken() {
+  const tokenResult = await appAdmin.options.credential.getAccessToken();
+  return tokenResult?.access_token || tokenResult?.accessToken || "";
+}
+
+async function createGoogleSheet({ title, headers, rows, shareWithEmail }) {
+  const accessToken = await getGoogleApiAccessToken();
+  if (!accessToken) {
+    const err = new Error("missing_google_api_token");
+    err.status = 500;
+    throw err;
+  }
+
+  const createRes = await fetch("https://sheets.googleapis.com/v4/spreadsheets", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      properties: { title },
+      sheets: [{ properties: { title: "Scoreboard Export" } }],
+    }),
+  });
+  if (!createRes.ok) {
+    const errText = await createRes.text().catch(() => "");
+    const err = new Error(`sheet_create_failed:${createRes.status}:${errText}`);
+    err.status = 500;
+    throw err;
+  }
+
+  const created = await createRes.json();
+  const spreadsheetId = normalizeText(created.spreadsheetId);
+  if (!spreadsheetId) {
+    const err = new Error("missing_spreadsheet_id");
+    err.status = 500;
+    throw err;
+  }
+
+  const valuesRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/A1:append?valueInputOption=RAW`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      majorDimension: "ROWS",
+      values: [headers, ...rows],
+    }),
+  });
+  if (!valuesRes.ok) {
+    const errText = await valuesRes.text().catch(() => "");
+    const err = new Error(`sheet_write_failed:${valuesRes.status}:${errText}`);
+    err.status = 500;
+    throw err;
+  }
+
+  if (shareWithEmail) {
+    const shareRes = await fetch(`https://www.googleapis.com/drive/v3/files/${spreadsheetId}/permissions?supportsAllDrives=true&sendNotificationEmail=false`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        role: "writer",
+        type: "user",
+        emailAddress: shareWithEmail,
+      }),
+    });
+    if (!shareRes.ok) {
+      const errText = await shareRes.text().catch(() => "");
+      console.warn("Scoreboard sheet share failed", errText);
+    }
+  }
+
+  return {
+    spreadsheetId,
+    url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+  };
+}
+
 async function invalidateScoreboardSnapshot(reason = "") {
   scoreboardCache = {
     builtAt: 0,
@@ -1238,6 +1320,41 @@ app.post(getBoth("/admin/scoreboard/refresh"), async (req, res) => {
     aggregatedCount: Array.isArray(result.payload?.aggregated) ? result.payload.aggregated.length : 0,
     rawVotesCount: Array.isArray(result.payload?.rawVotes) ? result.payload.rawVotes.length : 0,
   });
+});
+
+app.post(getBoth("/scoreboard/exportSheet"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+
+  const isUserView = !!req.body?.isUserView;
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ error: "no_rows" });
+
+  const headers = isUserView
+    ? ["imageId", "author", "poemTitle", "bookTitle", "type", "fileLink", "excerpt", "vote"]
+    : ["imageId", "author", "poemTitle", "bookTitle", "type", "fileLink", "excerpt", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score"];
+
+  const normalizedRows = rows.map((row) =>
+    headers.map((key) => {
+      const value = row?.[key];
+      return typeof value === "string" ? value : value == null ? "" : String(value);
+    })
+  );
+
+  const titleDate = new Date().toISOString().slice(0, 10);
+  const title = `Poetry Please Scoreboard ${titleDate}`;
+  try {
+    const sheet = await createGoogleSheet({
+      title,
+      headers,
+      rows: normalizedRows,
+      shareWithEmail: normalizeText(ctx.decoded.email).toLowerCase(),
+    });
+    res.json({ ok: true, ...sheet });
+  } catch (err) {
+    console.error("Scoreboard exportSheet failed", err);
+    res.status(err.status || 500).json({ error: "sheet_export_failed", message: err.message });
+  }
 });
 
 // fetchData (auth)

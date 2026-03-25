@@ -102,7 +102,7 @@
           <select id="bookDropdown"></select>
         </label>
         <label><input type="checkbox" id="filterCompletedBooks" /> Show only completed books</label>
-        <button id="exportBtn" type="button">Export visible CSV</button>
+        <button id="exportBtn" type="button">Export visible to Google Sheet</button>
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
           <button id="scoreboardBtn" type="button" class="active">Scoreboard</button>
@@ -408,7 +408,7 @@
       });
     }
 
-    function exportVisibleCsv() {
+    async function exportVisibleSheet() {
       if (!scoreboardLoaded) return;
       const isUserView = !!document.getElementById('userDropdown').value;
       const rows = filteredData || [];
@@ -416,20 +416,22 @@
         alert('Nothing to export.');
         return;
       }
-      const headers = isUserView
-        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'vote']
-        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score'];
-      const csv = [
-        headers.join(','),
-        ...rows.map((row) => headers.map((key) => `"${String(row[key] ?? '').replaceAll('"', '""')}"`).join(','))
-      ].join('\n');
-      const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `poetry-please-scoreboard-${new Date().toISOString().slice(0, 10)}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const btn = document.getElementById('exportBtn');
+      const prev = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Creating sheet...';
+      try {
+        const result = await api('scoreboard/exportSheet', {
+          method: 'POST',
+          body: { rows, isUserView },
+        });
+        window.open(result.url, '_blank', 'noopener,noreferrer');
+      } catch (err) {
+        alert(err?.message || 'Could not export the visible rows to Google Sheets right now.');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
     }
 
     function wireSortHeaders() {
@@ -495,7 +497,7 @@
       document.getElementById('bookDropdown').addEventListener('change', filterData);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);
       document.getElementById('filterCompletedBooks').addEventListener('change', filterData);
-      document.getElementById('exportBtn').addEventListener('click', exportVisibleCsv);
+      document.getElementById('exportBtn').addEventListener('click', exportVisibleSheet);
       refreshSnapshotBtn.addEventListener('click', async () => {
         refreshSnapshotBtn.disabled = true;
         setStatus('Refreshing scoreboard snapshot…');
