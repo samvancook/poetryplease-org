@@ -543,18 +543,31 @@ async function getOrCreateAnonId() {
 // --- Minimal CSS injection (works even if styles.css missing) ---
 (function injectUIPatchStyles(){
   const css = `
-  .top-bar{ display:flex; align-items:center; gap:12px; flex-wrap:nowrap; padding:8px 12px; }
-  .top-bar .spacer{flex:1;}
-  #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
-
-  #media-wrap{ max-width:min(1000px,95vw); margin:12px auto; text-align:center; }
-  .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
-  #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
+  .top-bar{ display:flex; align-items:flex-start; gap:14px; justify-content:space-between; max-width:min(1320px,98vw); margin:0 auto; padding:12px 18px 4px; }
+  .top-bar .spacer{display:none;}
+  #filters{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  #type-filter-container,
+  #catalog-filter-container{ display:flex; align-items:center; gap:8px; margin:0; padding:8px 12px; border:1px solid #e3d9ca; border-radius:999px; background:rgba(255,253,248,0.88); box-shadow:0 8px 18px rgba(30,26,21,0.04); }
+  #type-filter-container label,
+  #catalog-filter-container label{ font-size:13px; font-weight:600; color:#5e5649; }
+  #type-filter,
+  #catalog-filter{ border:1px solid #d7cebf; border-radius:999px; background:#fff; padding:6px 28px 6px 12px; color:#2d2a25; }
+  #user-status{ display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; text-align:right; font-size:.92rem; opacity:.96; max-width:min(42vw,760px); }
+  #poetry-screen{ max-width:min(1240px,96vw); margin:0 auto; padding:8px 18px 88px; }
+  #desktop-stage-header{ display:grid; justify-items:center; gap:10px; margin:6px auto 10px; text-align:center; }
+  h1#page-title{ text-align:center; margin:8px 0 0; }
   .button-container{ display:flex; justify-content:center; }
-  h1#page-title{ text-align:center; }
+  #error,
+  #message{ text-align:center; }
+
+  #media-wrap{ max-width:min(1120px,95vw); margin:4px auto 0; text-align:center; }
+  .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
+  #vote-row{ margin-top:0; margin-bottom:10px; }
+  #under-controls{ margin-top:12px; }
+  #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
 
   #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
-    padding:10px 12px; border-top:1px solid #e6e6e6; background:#faf7f0; z-index:5; }
+    padding:10px 12px; border-top:1px solid #e6e0d6; background:#faf7f0f2; backdrop-filter:blur(10px); z-index:5; }
   #counters-bar span{ white-space:nowrap; }
 
   /* Viewport-fit scaffolding */
@@ -562,15 +575,20 @@ async function getOrCreateAnonId() {
   body { min-height: 100dvh; }
   .media-box {
     max-height: var(--media-max-h, 70dvh);
+    min-height: min(28vh, 280px);
     display: flex; align-items: center; justify-content: center;
     width: 100%; overflow: hidden;
   }
-    .media-box img, .media-box video {
+  .media-box img, .media-box video {
     max-width: 100%;
     max-height: 100%;
     height: auto;
     object-fit: contain;
   }
+  .pp-video-stage{ position:relative; display:inline-flex; align-items:center; justify-content:center; max-width:100%; }
+  .pp-video-play{ position:absolute; inset:auto auto 18px 18px; display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border:none; border-radius:999px; background:rgba(17,17,17,0.78); color:#faf7f0; font-weight:700; letter-spacing:0.01em; cursor:pointer; box-shadow:0 12px 26px rgba(17,17,17,0.22); }
+  .pp-video-play::before{ content:'▶'; font-size:12px; }
+  .pp-video-stage.is-playing .pp-video-play{ opacity:0; pointer-events:none; }
 
   /* Mobile: zoom only the IMAGE pixels, not the UI/layout */
   .media-box img {
@@ -586,7 +604,13 @@ async function getOrCreateAnonId() {
   .meta-row p { margin:0; }
   .vote-btn.voted { opacity:.85; }
   .toast { color:#0a7e22; margin-top:8px; min-height:1.4em; }
-  .vote-counter { padding:5px 10px; border:1px solid #e6e6e6; border-radius:6px; background:#fafafa; }
+  .vote-counter { padding:5px 10px; border:1px solid #e6e6e6; border-radius:999px; background:#fafafa; }
+
+  @media (max-width: 980px) {
+    .top-bar{ flex-direction:column; align-items:stretch; gap:10px; padding:10px 14px 2px; }
+    #user-status{ max-width:none; justify-content:flex-start; text-align:left; }
+    #poetry-screen{ padding:8px 14px 92px; }
+  }
   `;
   const tag = document.createElement('style'); tag.appendChild(document.createTextNode(css)); document.head.appendChild(tag);
 })();
@@ -600,6 +624,11 @@ async function getOrCreateAnonId() {
   const spacer = document.createElement('div'); spacer.className = 'spacer';
   let userStatus = document.querySelector('#user-status'); if (!userStatus){ userStatus = document.createElement('div'); userStatus.id='user-status'; }
   topBar.append(filters, spacer, userStatus); document.body.insertBefore(topBar, document.body.firstChild);
+
+  const typeFilter = document.getElementById('type-filter-container');
+  const catalogFilter = document.getElementById('catalog-filter-container');
+  if (typeFilter) filters.appendChild(typeFilter);
+  if (catalogFilter) filters.appendChild(catalogFilter);
 })();
 
 // ===== State =====
@@ -1040,7 +1069,8 @@ function isMutedCandidate(g) { return getFeedSignals(g).bucket === 'muted'; }
 function isBoostedCandidate(g) { return getFeedSignals(g).bucket === 'boosted'; }
 function communityAffinityOf(g) { return getFeedSignals(g).feedScore; }
 function formatRate(v) { return `${Math.round((Number(v || 0) * 1000)) / 10}%`; }
-function orderByCommunityPreference(list) {
+function orderByCommunityPreference(list, options = {}) {
+  const includeMuted = options.includeMuted !== false;
   const boosted = [];
   const standard = [];
   const muted = [];
@@ -1059,7 +1089,7 @@ function orderByCommunityPreference(list) {
 
   const boostedQ = sortWithin(boosted);
   const standardQ = sortWithin(standard);
-  const mutedQ = sortWithin(muted);
+  const mutedQ = includeMuted ? sortWithin(muted) : [];
   const ordered = [];
   let cycle = 0;
   let position = 0;
@@ -1164,6 +1194,7 @@ function baseArray(data) {
   return Array.isArray(data?.newGraphics) ? data.newGraphics.slice() : [];
 }
 function buildFilteredList(data) {
+  const suppressMutedInitially = sessionVotes === 0 && !fullFeedHydrationDone;
   let list = baseArray(data).map(mapGraphic);
 
   // Dropdown filters
@@ -1176,7 +1207,7 @@ function buildFilteredList(data) {
   });
 
   // Guide the feed toward community-loved work while keeping room for exploration.
-  return orderByCommunityPreference(list);
+  return orderByCommunityPreference(list, { includeMuted: !suppressMutedInitially });
 }
 
 // ===== Preload =====
@@ -1207,33 +1238,23 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
-  const nodes = [
-    ...ids.map(id => document.getElementById(id)).filter(Boolean),
-    document.querySelector('.button-container'),
-    document.getElementById('error'),
-    document.getElementById('message')
-  ].filter(Boolean);
-
-  let occupied = 0;
-  nodes.forEach(el => {
-    const r = el.getBoundingClientRect();
+  const measure = (el) => {
+    if (!el) return 0;
+    const rect = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
-    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-    occupied += (r.height + margins);
-  });
+    return rect.height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+  };
 
-  // include bottom controls if present
-  const bottomRow = document.querySelector('#media-wrap .button-row:last-child');
-  if (bottomRow) {
-    const r = bottomRow.getBoundingClientRect();
-    const cs = getComputedStyle(bottomRow);
-    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-    occupied += (r.height + margins);
-  }
+  const reserved = [
+    document.querySelector('.top-bar'),
+    document.getElementById('desktop-stage-header'),
+    document.getElementById('vote-row'),
+    document.getElementById('under-controls'),
+    document.getElementById('counters-bar')
+  ].reduce((sum, el) => sum + measure(el), 0);
 
-  const buffer = 24;
-  const maxH = Math.max(160, vh - occupied - buffer);
+  const viewportBuffer = window.innerWidth < 980 ? 24 : 36;
+  const maxH = Math.max(180, vh - reserved - viewportBuffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
@@ -1447,9 +1468,32 @@ function renderItemMedia(item) {
     const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
     const p = document.createElement('p'); p.textContent = item?.excerpt || ''; textDiv.appendChild(p); box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
-    const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
-    v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
-    a.appendChild(v); box.appendChild(a);
+    const stage = document.createElement('div');
+    stage.className = 'pp-video-stage';
+    const a = document.createElement('a');
+    if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
+    v = document.createElement('video');
+    v.src=item.mediaUrl;
+    v.controls=true;
+    v.playsInline = true;
+    v.style.maxWidth='100%';
+    v.style.height='auto';
+    a.appendChild(v);
+    stage.appendChild(a);
+    const playButton = document.createElement('button');
+    playButton.type = 'button';
+    playButton.className = 'pp-video-play';
+    playButton.textContent = 'Play video';
+    playButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      v?.play?.().catch(() => {});
+    });
+    v.addEventListener('play', () => stage.classList.add('is-playing'));
+    v.addEventListener('pause', () => stage.classList.remove('is-playing'));
+    v.addEventListener('ended', () => stage.classList.remove('is-playing'));
+    stage.appendChild(playButton);
+    box.appendChild(stage);
  } else if (item?.mediaUrl) {
   const a = document.createElement('a');
   if (item?.bookUrl) { a.href = item.bookUrl; a.target = '_blank'; }
@@ -1775,6 +1819,25 @@ window.addEventListener('DOMContentLoaded', () => {
   // Desktop-only extras
   if (!IS_MOBILE_UI) {
     on(document.getElementById('load-button'), 'click', onSkip);
+  }
+
+  if (!IS_MOBILE_UI) {
+    const poetry = document.getElementById('poetry-screen');
+    let header = document.getElementById('desktop-stage-header');
+    if (poetry && !header) {
+      header = document.createElement('div');
+      header.id = 'desktop-stage-header';
+      const nodes = [
+        document.getElementById('page-title'),
+        poetry.querySelector('.button-container'),
+        document.getElementById('error'),
+        document.getElementById('message')
+      ].filter(Boolean);
+      if (nodes.length) {
+        poetry.insertBefore(header, poetry.firstChild);
+        nodes.forEach((node) => header.appendChild(node));
+      }
+    }
   }
 
   updateUserStatusUI();
