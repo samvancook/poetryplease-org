@@ -566,8 +566,8 @@ async function getOrCreateAnonId() {
   }
   .media-box--visual {
     height: var(--media-max-h, 64dvh);
-    min-height: min(24vh, 240px);
-    padding: 8px 0;
+    min-height: min(18vh, 160px);
+    padding: 4px 0 10px;
   }
   .media-box > a,
   .media-box .pp-video-stage,
@@ -1248,8 +1248,8 @@ function adjustViewportFit() {
     ...metaRows
   ].reduce((sum, el) => sum + measure(el), 0);
 
-  const buffer = window.innerWidth < 980 ? 20 : 28;
-  const maxH = Math.max(180, vh - occupied - buffer);
+  const buffer = window.innerWidth < 980 ? 32 : 72;
+  const maxH = Math.max(140, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
