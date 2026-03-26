@@ -1302,8 +1302,8 @@ function initQueueFromData(data) {
   }
   idx = 0;
   historyStack.length = 0;
-  for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
-  renderWhenReady(idx);
+  renderCurrent(queue[idx]);
+  for (let k=1; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
 }
 function rebuildQueueAfterFilter() {
   if (!lastData) return;
@@ -1312,8 +1312,8 @@ function rebuildQueueAfterFilter() {
   if (!queue.length) { idx = -1; currentItem=null; $('#gallery').innerHTML = '<p>No items match the current filters.</p>'; renderMetaRows(null); renderCounter(); return; }
   const pos = keepId ? queue.findIndex(g => g.id === keepId) : -1;
   idx = pos >= 0 ? pos : 0;
-  for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
-  renderWhenReady(idx);
+  renderCurrent(queue[idx]);
+  for (let k=1; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
 }
 
 async function refreshAfterFlaggedContent(flaggedItemId) {
@@ -1575,9 +1575,7 @@ function renderCurrent(item) {
 
   const gal = $('#gallery');
   if (gal)
-    gal.innerHTML = item
-      ? `<p>Showing 1 item.</p>`
-      : `<p>No new items.</p>`;
+    gal.innerHTML = item ? '' : `<p>No new items.</p>`;
 
   renderCounter();
 
