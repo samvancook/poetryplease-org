@@ -475,7 +475,7 @@ async function getOrCreateAnonId() {
   #poetry-screen{ max-width:min(1240px,96vw); margin:0 auto; padding:0 18px 88px; }
   #desktop-stage-header{ display:grid; justify-items:center; gap:2px; margin:0 auto 4px; text-align:center; }
   #desktop-stage-header .button-container{ margin-bottom:2px; }
-  #media-wrap{ position:relative; isolation:isolate; max-width:min(1120px,95vw); margin:0 auto; text-align:center; }
+  #media-wrap{ max-width:min(1000px,95vw); margin:12px auto; text-align:center; }
   .button-row{ display:flex; justify-content:center; gap:10px; margin:6px 0 0; flex-wrap:wrap; }
   #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
   .button-container{ display:flex; justify-content:center; }
@@ -487,9 +487,6 @@ async function getOrCreateAnonId() {
   #load-button:disabled{ opacity:.72; }
   #error,
   #message{ text-align:center; }
-  #vote-row,
-  .media-box,
-  #under-controls{ border:1px solid #e3d9ca; border-radius:0; background:transparent; box-shadow:none; }
   #vote-row,
   #under-controls{ padding:10px 12px; }
   .media-box{ padding:12px; box-sizing:border-box; background:#fffdf8; }
@@ -1129,25 +1126,32 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const measure = (el) => {
-    if (!el) return 0;
+  const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
+  const nodes = [
+    ...ids.map(id => document.getElementById(id)).filter(Boolean),
+    document.querySelector('.button-container'),
+    document.getElementById('error'),
+    document.getElementById('message')
+  ].filter(Boolean);
+
+  let occupied = 0;
+  nodes.forEach(el => {
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
-    return r.height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
-  };
+    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    occupied += (r.height + margins);
+  });
 
-  const metaRows = Array.from(document.querySelectorAll('#media-wrap .meta-row'));
-  const occupied = [
-    document.querySelector('.top-bar'),
-    document.getElementById('desktop-stage-header'),
-    document.getElementById('vote-row'),
-    document.getElementById('under-controls'),
-    document.getElementById('counters-bar'),
-    ...metaRows
-  ].reduce((sum, el) => sum + measure(el), 0);
+  const bottomRow = document.querySelector('#media-wrap .button-row:last-child');
+  if (bottomRow) {
+    const r = bottomRow.getBoundingClientRect();
+    const cs = getComputedStyle(bottomRow);
+    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    occupied += (r.height + margins);
+  }
 
-  const buffer = window.innerWidth < 980 ? 20 : 28;
-  const maxH = Math.max(180, vh - occupied - buffer);
+  const buffer = 24;
+  const maxH = Math.max(160, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
