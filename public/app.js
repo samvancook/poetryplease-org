@@ -598,9 +598,30 @@ async function getOrCreateAnonId() {
   .button-container{ display:flex; justify-content:center; }
   h1#page-title{ display:none !important; }
   #load-button{
+    font-family:"Cormorant Garamond", Garamond, "Times New Roman", serif;
     font-size:clamp(26px, 3.2vw, 42px);
-    padding:16px 34px;
-    border-radius:12px;
+    line-height:1;
+    padding:16px 34px 18px;
+    border-radius:4px;
+    border:1px solid #b8aea0;
+    background:#f5ebdb;
+    color:#2f2417;
+    box-shadow:0 1px 0 rgba(255,255,255,0.6) inset;
+    transition:background-color 120ms ease, border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+  }
+  #load-button:hover:not(:disabled){
+    background:#eadbc4;
+    border-color:#9c8d7a;
+    box-shadow:0 2px 8px rgba(73,54,24,0.08);
+  }
+  #load-button:active:not(:disabled){
+    background:#dfceb5;
+    transform:translateY(1px);
+    box-shadow:0 1px 3px rgba(73,54,24,0.08) inset;
+  }
+  #load-button:focus-visible{
+    outline:2px solid #8a7352;
+    outline-offset:2px;
   }
 
   #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
@@ -1269,7 +1290,8 @@ function adjustViewportFit() {
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
     document.querySelector('.button-container'),
     document.getElementById('error'),
-    document.getElementById('message')
+    document.getElementById('message'),
+    document.getElementById('counters-bar')
   ].filter(Boolean);
 
   let occupied = 0;
@@ -1289,7 +1311,7 @@ function adjustViewportFit() {
     occupied += (r.height + margins);
   }
 
-  const buffer = 24;
+  const buffer = 72;
   const maxH = Math.max(160, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
