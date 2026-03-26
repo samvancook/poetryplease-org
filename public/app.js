@@ -551,7 +551,17 @@ async function getOrCreateAnonId() {
   .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
   #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
   .button-container{ display:flex; justify-content:center; }
-  h1#page-title{ text-align:center; }
+  h1#page-title{ display:none; text-align:center; }
+  #load-button{
+    font-family:Garamond, Baskerville, 'Times New Roman', serif;
+    font-size:clamp(34px, 4.9vw, 66px);
+    line-height:1;
+    padding:16px 34px;
+  }
+  #poetry-screen{ padding-top:0; }
+  .button-container{ margin-top:-4px; margin-bottom:2px; }
+  #media-wrap{ margin:4px auto 0; }
+  #vote-row{ margin-top:4px; }
 
   #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
     padding:10px 12px; border-top:1px solid #e6e6e6; background:#faf7f0; z-index:5; }
