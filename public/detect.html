@@ -82,9 +82,11 @@
       // Highest → Lowest:
       // 1) ?view=mobile|desktop (new)
       // 2) Legacy flags ?mobile=1 / ?desktop=1 (original)
-      // 3) Pinned choice (new)
-      // 4) Original auto logic (original)
-      // 5) Enhanced auto fallback (new)
+      // 3) Real mobile devices should still land on mobile, even if a stale
+      //    desktop preview preference was pinned earlier.
+      // 4) Pinned choice (new)
+      // 5) Original auto logic (original)
+      // 6) Enhanced auto fallback (new)
       let decided; // "mobile" | "desktop"
       if (view) {
         decided = view;
@@ -92,12 +94,12 @@
         decided = "mobile";
       } else if (forceDesktopLegacy) {
         decided = "desktop";
+      } else if (enhancedAutoIsMobile()) {
+        decided = "mobile";
       } else if (pinned === "mobile" || pinned === "desktop") {
         decided = pinned;
-      } else if (originalAutoMobile) {
-        decided = "mobile";   // preserve original outcome
       } else {
-        decided = enhancedAutoIsMobile() ? "mobile" : "desktop";
+        decided = "desktop";
       }
 
       const target = decided === "mobile" ? "/m" : "/app";
