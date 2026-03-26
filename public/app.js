@@ -300,12 +300,6 @@ function currentUserIsAdmin() {
   const normalizedEmail = (user?.email || '').trim().toLowerCase();
   return !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
 }
-function currentUserIsTeam() {
-  return !!currentAccount?.roles?.includes('team');
-}
-function currentUserCanSeeDomainCounter() {
-  return currentUserIsAdmin() || currentUserIsTeam();
-}
 function ensureFeedSignalsModal() {
   let modal = document.getElementById('pp-feed-signals-modal');
   if (modal) return modal;
@@ -573,12 +567,6 @@ async function getOrCreateAnonId() {
   #message{ text-align:center; }
 
   #media-wrap{ position:relative; isolation:isolate; max-width:min(1120px,95vw); margin:0 auto 0; text-align:center; }
-  #vote-row,
-  .media-box,
-  #under-controls{ border:1px solid #e3d9ca; border-radius:18px; background:rgba(255,253,248,0.76); box-shadow:0 6px 16px rgba(30,26,21,0.04); }
-  #vote-row,
-  #under-controls{ padding:10px 12px; }
-  .media-box{ padding:12px; box-sizing:border-box; background:#fffdf8; }
   .button-row{ display:flex; justify-content:center; gap:10px; margin:6px 0 0; flex-wrap:wrap; }
   #vote-row{ margin-top:0; margin-bottom:6px; }
   #under-controls{ margin-top:8px; }
@@ -1463,11 +1451,6 @@ function renderMetaRows(item) {
   }
 }
 function renderCounter() {
-  const existingCounter = $('#domain-counter');
-  if (!currentUserCanSeeDomainCounter()) {
-    if (existingCounter) existingCounter.remove();
-    return;
-  }
   const all = Array.isArray(lastData?.allGraphics) ? lastData.allGraphics.map(mapGraphic) : [];
   let domainAll = all.filter(g => {
     if (selectedType && g.imageType !== selectedType) return false;
@@ -1592,7 +1575,9 @@ function renderCurrent(item) {
 
   const gal = $('#gallery');
   if (gal)
-    gal.innerHTML = item ? '' : `<p>No new items.</p>`;
+    gal.innerHTML = item
+      ? `<p>Showing 1 item.</p>`
+      : `<p>No new items.</p>`;
 
   renderCounter();
 
