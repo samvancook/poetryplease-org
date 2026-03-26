@@ -1324,7 +1324,7 @@ function adjustViewportFit() {
     });
   }
 
-  const buffer = 84;
+  const buffer = 40;
   const maxH = Math.max(160, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
