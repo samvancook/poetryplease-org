@@ -57,103 +57,127 @@ var computed =
 })();
 const IS_MOBILE_UI = window.IS_MOBILE_UI;
 
-const BOOT_STATE = {
-  domReady: document.readyState !== 'loading',
-  authResolved: false,
-  screenReady: false,
-  loaderHidden: false,
-  loaderShownAt: Date.now(),
-  deferredBootQueued: false,
-};
+const LoaderController = (() => {
+  const state = {
+    domReady: document.readyState !== 'loading',
+    authResolved: false,
+    screenReady: false,
+    loaderHidden: false,
+    loaderShownAt: Date.now(),
+    minLoaderMs: 700,
+    inlineDotsIntervalId: 0,
+  };
 
-const MIN_LOADER_MS = 700;
-
-function hideAppLoader() {
-  if (BOOT_STATE.loaderHidden) return;
-  const loader = document.getElementById('pp-loader');
-  if (!loader) {
-    BOOT_STATE.loaderHidden = true;
-    return;
+  function getPrimaryLoader() {
+    return document.getElementById('pp-loader');
   }
-  BOOT_STATE.loaderHidden = true;
-  loader.classList.add('is-hidden');
-  window.setTimeout(() => {
-    if (loader.parentNode) loader.parentNode.removeChild(loader);
-  }, 520);
-}
 
-function maybeHideAppLoader() {
-  if (!BOOT_STATE.domReady || !BOOT_STATE.authResolved || !BOOT_STATE.screenReady) return;
-  const elapsed = Date.now() - BOOT_STATE.loaderShownAt;
-  if (elapsed >= MIN_LOADER_MS) {
-    hideAppLoader();
-    return;
+  function getInlineOverlay() {
+    return document.querySelector('.pp-inline-loading-overlay');
   }
-  window.setTimeout(hideAppLoader, MIN_LOADER_MS - elapsed);
-}
 
-function markScreenReady() {
-  BOOT_STATE.screenReady = true;
-  queueDeferredBootWork();
-  maybeHideAppLoader();
-}
+  function hidePrimary() {
+    if (state.loaderHidden) return;
+    const loader = getPrimaryLoader();
+    if (!loader) {
+      state.loaderHidden = true;
+      return;
+    }
+    state.loaderHidden = true;
+    loader.classList.add('is-hidden');
+    window.setTimeout(() => {
+      if (loader.parentNode) loader.parentNode.removeChild(loader);
+    }, 520);
+  }
 
-function showInlineLoadingState() {
-  if (currentItem) return;
-  let overlayEl = document.querySelector('.pp-inline-loading-overlay');
-  if (!overlayEl) {
-    overlayEl = document.createElement('div');
-    overlayEl.className = 'pp-inline-loading-overlay';
-    overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;background:#faf7f0;';
-    overlayEl.innerHTML = `
-      <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;padding:24px;">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;">
-          <img src="/pp-loader-logo.png?v=20260323b" alt="" aria-hidden="true" style="width:min(46vw,220px);max-width:220px;filter:drop-shadow(0 18px 32px rgba(30,26,21,0.14));opacity:0.92;" />
-          <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;letter-spacing:0.18em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
-            Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
+  function maybeHidePrimary() {
+    if (!state.domReady || !state.authResolved || !state.screenReady) return;
+    const elapsed = Date.now() - state.loaderShownAt;
+    if (elapsed >= state.minLoaderMs) {
+      hidePrimary();
+      return;
+    }
+    window.setTimeout(hidePrimary, state.minLoaderMs - elapsed);
+  }
+
+  function showInline() {
+    if (typeof currentItem !== 'undefined' && currentItem) return;
+    let overlayEl = getInlineOverlay();
+    if (!overlayEl) {
+      overlayEl = document.createElement('div');
+      overlayEl.className = 'pp-inline-loading-overlay';
+      overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;background:#faf7f0;';
+      overlayEl.innerHTML = `
+        <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;padding:24px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;">
+            <img src="/pp-loader-logo.png?v=20260323b" alt="" aria-hidden="true" style="width:min(46vw,220px);max-width:220px;filter:drop-shadow(0 18px 32px rgba(30,26,21,0.14));opacity:0.92;" />
+            <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.18em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
+              Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
+            </div>
           </div>
         </div>
-      </div>
-    `;
-    document.body.appendChild(overlayEl);
-  } else {
-    overlayEl.style.opacity = '1';
-  }
-  const dotsEl = overlayEl.querySelector('.pp-inline-loading-dots');
-  if (dotsEl) {
+      `;
+      document.body.appendChild(overlayEl);
+    } else {
+      overlayEl.style.opacity = '1';
+    }
+
+    const dotsEl = overlayEl.querySelector('.pp-inline-loading-dots');
+    if (!dotsEl) return;
+    if (state.inlineDotsIntervalId) {
+      window.clearInterval(state.inlineDotsIntervalId);
+      state.inlineDotsIntervalId = 0;
+    }
     let frame = 0;
     const frames = ['', '.', '..', '...'];
-    const intervalId = window.setInterval(() => {
+    state.inlineDotsIntervalId = window.setInterval(() => {
       frame = (frame + 1) % frames.length;
       if (!dotsEl.isConnected) {
-        window.clearInterval(intervalId);
+        window.clearInterval(state.inlineDotsIntervalId);
+        state.inlineDotsIntervalId = 0;
         return;
       }
       dotsEl.textContent = frames[frame];
     }, 320);
-    overlayEl.dataset.inlineLoadingInterval = String(intervalId);
   }
-}
 
-function clearInlineLoadingState() {
-  const overlayEl = document.querySelector('.pp-inline-loading-overlay');
-  if (!overlayEl) return;
-  const intervalId = Number(overlayEl.dataset.inlineLoadingInterval || 0);
-  if (intervalId) {
-    window.clearInterval(intervalId);
-    delete overlayEl.dataset.inlineLoadingInterval;
-  }
-  overlayEl.style.opacity = '0';
-  window.setTimeout(() => {
-    if (document.body.contains(overlayEl)) {
-      overlayEl.remove();
+  function clearInline() {
+    const overlayEl = getInlineOverlay();
+    if (!overlayEl) return;
+    if (state.inlineDotsIntervalId) {
+      window.clearInterval(state.inlineDotsIntervalId);
+      state.inlineDotsIntervalId = 0;
     }
-  }, 340);
-}
+    overlayEl.style.opacity = '0';
+    window.setTimeout(() => {
+      if (document.body.contains(overlayEl)) overlayEl.remove();
+    }, 340);
+  }
+
+  return {
+    markDomReady() {
+      state.domReady = true;
+      state.loaderShownAt = Date.now();
+    },
+    markAuthResolved() {
+      state.authResolved = true;
+    },
+    markScreenReady() {
+      state.screenReady = true;
+      queueDeferredBootWork();
+      maybeHidePrimary();
+    },
+    maybeHidePrimary,
+    showInline,
+    clearInline,
+  };
+})();
+
+let deferredBootQueued = false;
 
 function queueDeferredBootWork() {
-  if (BOOT_STATE.deferredBootQueued) return;
-  BOOT_STATE.deferredBootQueued = true;
+  if (deferredBootQueued) return;
+  deferredBootQueued = true;
   const run = () => {
     const selType = document.getElementById('type-filter');
     const selCat  = document.getElementById('catalog-filter');
@@ -1382,8 +1406,8 @@ function renderCurrent(item) {
 
   // ✅ Notify mobile shell *with* the item payload
   window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: currentItem } }));
-  clearInlineLoadingState();
-  markScreenReady();
+  LoaderController.clearInline();
+  LoaderController.markScreenReady();
 }
 
 // ===== Heuristic next index chooser =====
@@ -1566,7 +1590,7 @@ async function ppAutoloadFirstItem() {
   } finally {
     // ✅ If we *still* don’t have an item, allow future attempts (e.g., user logs in later)
     if (!currentItem) __pp_initialLoad = false;
-    if (!currentItem) markScreenReady();
+    if (!currentItem) LoaderController.markScreenReady();
   }
 }
 
@@ -1588,9 +1612,9 @@ firebase.auth().onAuthStateChanged(async (user) => {
     show(poetryEl, true);
   }
 
-  BOOT_STATE.authResolved = true;
-  if (!currentItem) showInlineLoadingState();
-  markScreenReady();
+  LoaderController.markAuthResolved();
+  if (!currentItem) LoaderController.showInline();
+  LoaderController.markScreenReady();
 
   ppAutoloadFirstItem();   // <-- added
 
@@ -1620,8 +1644,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
-  BOOT_STATE.domReady = true;
-  BOOT_STATE.loaderShownAt = Date.now();
+  LoaderController.markDomReady();
 
   // Default to the app shell immediately; auth should never gate reading.
   show(document.getElementById('login-screen'), false);
@@ -1646,7 +1669,7 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   updateUserStatusUI();
-  maybeHideAppLoader();
+  LoaderController.maybeHidePrimary();
 
   // Viewport listeners
   setViewportVars();
