@@ -326,6 +326,10 @@ function currentUserIsAdmin() {
   return !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
 }
 
+function currentUserIsTeamOrAdmin() {
+  return currentUserIsAdmin() || !!currentAccount?.roles?.includes('team');
+}
+
 function getCurrentBuildLabel() {
   const currentScript = Array.from(document.scripts).find((script) => /\/app\.js(\?|$)/.test(script.src || ''));
   if (!currentScript?.src) return 'local';
@@ -426,6 +430,75 @@ function openFeedSignalsModal() {
   modal.style.display = 'flex';
 }
 
+function ensureCountsModal() {
+  let modal = document.getElementById('pp-counts-modal');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.id = 'pp-counts-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:11000;background:rgba(30,26,21,0.38);display:none;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = `
+    <div style="width:min(560px,100%);max-height:min(84vh,720px);overflow:auto;background:rgba(255,253,248,0.98);border:1px solid #dad0c1;border-radius:22px;padding:20px;box-shadow:0 24px 60px rgba(24,19,12,0.22);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#6c6558;">Internal Counts</div>
+          <h2 style="margin:4px 0 0;font-size:28px;line-height:1;">Voting Snapshot</h2>
+        </div>
+        <button id="pp-counts-close" type="button" style="border:1px solid #dad0c1;background:#fff;border-radius:999px;padding:8px 14px;cursor:pointer;">Close</button>
+      </div>
+      <div id="pp-counts-body" style="display:grid;gap:14px;"></div>
+    </div>
+  `;
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) modal.style.display = 'none';
+  });
+  document.body.appendChild(modal);
+  document.getElementById('pp-counts-close')?.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  return modal;
+}
+
+function renderCountsModal() {
+  if (!currentUserIsTeamOrAdmin()) return;
+  ensureCountsModal();
+  const body = document.getElementById('pp-counts-body');
+  if (!body) return;
+  const counts = {
+    likes: document.getElementById('count-like')?.textContent || '0',
+    dislikes: document.getElementById('count-dislike')?.textContent || '0',
+    moved: document.getElementById('count-moved')?.textContent || '0',
+    meh: document.getElementById('count-meh')?.textContent || '0',
+    skips: document.getElementById('count-skip')?.textContent || '0',
+  };
+  const domainText = document.getElementById('domain-counter')?.textContent || 'No domain counter yet.';
+  body.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;">
+      <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Likes</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${counts.likes}</div></div>
+      <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Dislikes</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${counts.dislikes}</div></div>
+      <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Moved Me</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${counts.moved}</div></div>
+      <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Meh</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${counts.meh}</div></div>
+      <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Skips</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${counts.skips}</div></div>
+    </div>
+    <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
+      <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6c6558;">Domain</div>
+      <div style="margin-top:8px;">${domainText}</div>
+    </div>
+  `;
+}
+
+function openCountsModal() {
+  if (!currentUserIsTeamOrAdmin()) return;
+  renderCountsModal();
+  const modal = ensureCountsModal();
+  modal.style.display = 'flex';
+}
+
+function refreshCountsModalIfOpen() {
+  if (document.getElementById('pp-counts-modal')?.style.display === 'flex') {
+    renderCountsModal();
+  }
+}
+
 function updateUserStatusUI() {
   const user = getVisibleUser();
   const div = $('#user-status');
@@ -452,6 +525,9 @@ function updateUserStatusUI() {
       const feedSignalsBadge = isAdmin
         ? ' <button id="feed-signals-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f5efe4;color:#6a5134;font-size:12px;font-weight:600;cursor:pointer;">Feed signals</button>'
         : '';
+      const countsBadge = canAccessScoreboard
+        ? ' <button id="counts-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f2eee5;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;">Counts</button>'
+        : '';
       const buildBadge = isAdmin
         ? ` <span id="build-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#6c6558;font-size:12px;font-weight:600;">Build ${getCurrentBuildLabel()}</span>`
         : '';
@@ -461,7 +537,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -470,6 +546,7 @@ function updateUserStatusUI() {
         }
       });
       on($('#feed-signals-badge'), 'click', openFeedSignalsModal);
+      on($('#counts-badge'), 'click', openCountsModal);
       on($('#admin-view-toggle'), 'change', (event) => {
         navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
       });
@@ -624,7 +701,7 @@ async function getOrCreateAnonId() {
     outline-offset:2px;
   }
 
-  #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
+  #counters-bar{ display:none !important; position:sticky; bottom:0; justify-content:center; gap:18px;
     padding:10px 12px; border-top:1px solid #e6e6e6; background:#faf7f0; z-index:5; }
   #counters-bar span{ white-space:nowrap; }
 
@@ -781,6 +858,7 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
   inc('count-moved', moved);
   inc('count-meh', meh);
   inc('count-skip', skip);
+  refreshCountsModalIfOpen();
 }
 
 function userCanFlagContent() {
@@ -1302,8 +1380,7 @@ function adjustViewportFit() {
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
     document.querySelector('.button-container'),
     document.getElementById('error'),
-    document.getElementById('message'),
-    document.getElementById('counters-bar')
+    document.getElementById('message')
   ].filter(Boolean);
 
   let occupied = 0;
@@ -1522,6 +1599,7 @@ function renderCounter() {
       : domainRemaining;
     counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} — ${remainingText} remaining.`;
   }
+  refreshCountsModalIfOpen();
 }
 function resetVoteButtons(){
   [['btn-like','Like'],['btn-dislike','Dislike'],['btn-moved','Moved Me'],['btn-meh','Meh']].forEach(([id,txt])=>{
