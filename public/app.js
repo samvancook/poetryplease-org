@@ -67,7 +67,6 @@ const BOOT_STATE = {
 };
 
 const MIN_LOADER_MS = 700;
-const MAX_LOADER_MS = 2600;
 
 function hideAppLoader() {
   if (BOOT_STATE.loaderHidden) return;
@@ -91,16 +90,6 @@ function maybeHideAppLoader() {
     return;
   }
   window.setTimeout(hideAppLoader, MIN_LOADER_MS - elapsed);
-}
-
-function scheduleLoaderFailsafe() {
-  window.setTimeout(() => {
-    if (BOOT_STATE.loaderHidden) return;
-    console.warn('[PP] loader failsafe triggered');
-    BOOT_STATE.authResolved = true;
-    BOOT_STATE.screenReady = true;
-    hideAppLoader();
-  }, MAX_LOADER_MS);
 }
 
 function markScreenReady() {
@@ -1899,7 +1888,6 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   updateUserStatusUI();
-  scheduleLoaderFailsafe();
   maybeHideAppLoader();
 
   // Viewport listeners
