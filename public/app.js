@@ -532,6 +532,7 @@ function applyMediaZoom_(imgEl) {
   __ppMediaZoom = clamp(Number(__ppMediaZoom || 1), 1, 2.75);
   // Apply to the closest media-box so it only affects the media element
   const box = imgEl?.closest?.('.media-box');
+  if (!IS_MOBILE_UI) __ppMediaZoom = 1;
   if (box) box.style.setProperty('--pp-media-zoom', String(__ppMediaZoom));
   localStorage.setItem('pp_media_zoom', String(__ppMediaZoom));
 }
@@ -1371,9 +1372,7 @@ function renderCurrent(item) {
 
   const gal = $('#gallery');
   if (gal)
-    gal.innerHTML = item
-      ? `<p>Showing 1 item.</p>`
-      : `<p>No new items.</p>`;
+    gal.innerHTML = item ? '' : `<p>No new items.</p>`;
 
   renderCounter();
 
