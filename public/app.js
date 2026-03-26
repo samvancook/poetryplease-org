@@ -1072,7 +1072,8 @@ function isMutedCandidate(g) { return getFeedSignals(g).bucket === 'muted'; }
 function isBoostedCandidate(g) { return getFeedSignals(g).bucket === 'boosted'; }
 function communityAffinityOf(g) { return getFeedSignals(g).feedScore; }
 function formatRate(v) { return `${Math.round((Number(v || 0) * 1000)) / 10}%`; }
-function orderByCommunityPreference(list) {
+function orderByCommunityPreference(list, options = {}) {
+  const includeMuted = options.includeMuted !== false;
   const boosted = [];
   const standard = [];
   const muted = [];
@@ -1091,7 +1092,7 @@ function orderByCommunityPreference(list) {
 
   const boostedQ = sortWithin(boosted);
   const standardQ = sortWithin(standard);
-  const mutedQ = sortWithin(muted);
+  const mutedQ = includeMuted ? sortWithin(muted) : [];
   const ordered = [];
   let cycle = 0;
   let position = 0;
@@ -1196,6 +1197,7 @@ function baseArray(data) {
   return Array.isArray(data?.newGraphics) ? data.newGraphics.slice() : [];
 }
 function buildFilteredList(data) {
+  const suppressMutedInitially = sessionVotes < 5;
   let list = baseArray(data).map(mapGraphic);
 
   // Dropdown filters
@@ -1208,7 +1210,7 @@ function buildFilteredList(data) {
   });
 
   // Guide the feed toward community-loved work while keeping room for exploration.
-  return orderByCommunityPreference(list);
+  return orderByCommunityPreference(list, { includeMuted: !suppressMutedInitially });
 }
 
 // ===== Preload =====
