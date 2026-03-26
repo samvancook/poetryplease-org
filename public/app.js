@@ -561,22 +561,43 @@ async function getOrCreateAnonId() {
   html, body { height: 100%; background:#faf7f0; color:#111; }
   body { min-height: 100dvh; }
   .media-box {
-    max-height: var(--media-max-h, 70dvh);
     display: flex; align-items: center; justify-content: center;
     width: 100%; overflow: hidden;
   }
-    .media-box img, .media-box video {
+  .media-box--visual {
+    height: var(--media-max-h, 64dvh);
+    min-height: min(24vh, 240px);
+    padding: 8px 0;
+  }
+  .media-box > a,
+  .media-box .pp-video-stage,
+  .media-box .pp-video-stage > a {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    height:100%;
+    max-width:100%;
+    max-height:100%;
+  }
+  .media-box img, .media-box video {
+    display:block;
+    width:auto;
     max-width: 100%;
     max-height: 100%;
     height: auto;
     object-fit: contain;
+    margin:0 auto;
   }
 
   /* Mobile: zoom only the IMAGE pixels, not the UI/layout */
   .media-box img {
-    transform: scale(var(--pp-media-zoom, 1));
+    transform: none;
     transform-origin: center center;
     transition: transform 120ms ease;
+  }
+  body[data-ui="mobile"] .media-box img {
+    transform: scale(var(--pp-media-zoom, 1));
   }
 
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
@@ -623,6 +644,7 @@ function applyMediaZoom_(imgEl) {
   __ppMediaZoom = clamp(Number(__ppMediaZoom || 1), 1, 2.75);
   // Apply to the closest media-box so it only affects the media element
   const box = imgEl?.closest?.('.media-box');
+  if (!IS_MOBILE_UI) __ppMediaZoom = 1;
   if (box) box.style.setProperty('--pp-media-zoom', String(__ppMediaZoom));
   localStorage.setItem('pp_media_zoom', String(__ppMediaZoom));
 }
@@ -1207,33 +1229,27 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
-  const nodes = [
-    ...ids.map(id => document.getElementById(id)).filter(Boolean),
-    document.querySelector('.button-container'),
-    document.getElementById('error'),
-    document.getElementById('message')
-  ].filter(Boolean);
-
-  let occupied = 0;
-  nodes.forEach(el => {
+  const measure = (el) => {
+    if (!el) return 0;
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
-    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-    occupied += (r.height + margins);
-  });
+    return r.height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+  };
 
-  // include bottom controls if present
-  const bottomRow = document.querySelector('#media-wrap .button-row:last-child');
-  if (bottomRow) {
-    const r = bottomRow.getBoundingClientRect();
-    const cs = getComputedStyle(bottomRow);
-    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-    occupied += (r.height + margins);
-  }
+  const metaRows = Array.from(document.querySelectorAll('#media-wrap .meta-row'));
+  const occupied = [
+    document.querySelector('.top-bar'),
+    document.querySelector('.button-container'),
+    document.getElementById('error'),
+    document.getElementById('message'),
+    document.getElementById('vote-row'),
+    document.getElementById('under-controls'),
+    document.getElementById('counters-bar'),
+    ...metaRows
+  ].reduce((sum, el) => sum + measure(el), 0);
 
-  const buffer = 24;
-  const maxH = Math.max(160, vh - occupied - buffer);
+  const buffer = window.innerWidth < 980 ? 20 : 28;
+  const maxH = Math.max(180, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
@@ -1447,10 +1463,12 @@ function renderItemMedia(item) {
     const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
     const p = document.createElement('p'); p.textContent = item?.excerpt || ''; textDiv.appendChild(p); box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
+    box.classList.add('media-box--visual');
     const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
     v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
     a.appendChild(v); box.appendChild(a);
  } else if (item?.mediaUrl) {
+  box.classList.add('media-box--visual');
   const a = document.createElement('a');
   if (item?.bookUrl) { a.href = item.bookUrl; a.target = '_blank'; }
 
