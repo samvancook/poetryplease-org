@@ -104,7 +104,7 @@ function showInlineLoadingState() {
   if (!overlayEl) {
     overlayEl = document.createElement('div');
     overlayEl.className = 'pp-inline-loading-overlay';
-    overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 260ms ease;background:#faf7f0;';
+    overlayEl.style.cssText = 'position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;';
     overlayEl.innerHTML = `
       <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;padding:24px;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;">
@@ -295,93 +295,6 @@ function getVisibleUser() {
   if (!user || user.isAnonymous) return null;
   return user;
 }
-function currentUserIsAdmin() {
-  const user = getVisibleUser();
-  const normalizedEmail = (user?.email || '').trim().toLowerCase();
-  return !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
-}
-function ensureFeedSignalsModal() {
-  let modal = document.getElementById('pp-feed-signals-modal');
-  if (modal) return modal;
-  modal = document.createElement('div');
-  modal.id = 'pp-feed-signals-modal';
-  modal.style.cssText = 'position:fixed;inset:0;z-index:11000;background:rgba(30,26,21,0.38);display:none;align-items:center;justify-content:center;padding:20px;';
-  modal.innerHTML = `
-    <div style="width:min(640px,100%);max-height:min(84vh,760px);overflow:auto;background:rgba(255,253,248,0.98);border:1px solid #dad0c1;border-radius:22px;padding:20px;box-shadow:0 24px 60px rgba(24,19,12,0.22);">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;">
-        <div>
-          <div style="font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#6c6558;">Admin Feed Signals</div>
-          <h2 style="margin:4px 0 0;font-size:28px;line-height:1;">Current Item</h2>
-        </div>
-        <button id="pp-feed-signals-close" type="button" style="border:1px solid #dad0c1;background:#fff;border-radius:999px;padding:8px 14px;cursor:pointer;">Close</button>
-      </div>
-      <div id="pp-feed-signals-body" style="display:grid;gap:14px;"></div>
-    </div>
-  `;
-  modal.addEventListener('click', (event) => {
-    if (event.target === modal) modal.style.display = 'none';
-  });
-  document.body.appendChild(modal);
-  document.getElementById('pp-feed-signals-close')?.addEventListener('click', () => {
-    modal.style.display = 'none';
-  });
-  return modal;
-}
-function renderFeedSignalsModal() {
-  if (!currentUserIsAdmin()) return;
-  const item = currentItem;
-  const modal = ensureFeedSignalsModal();
-  const body = document.getElementById('pp-feed-signals-body');
-  if (!body) return;
-  if (!item) {
-    body.innerHTML = '<div style="color:#6c6558;">No current item is loaded yet.</div>';
-    return;
-  }
-  const signals = item.__feedSignals || getFeedSignals(item);
-  const bucketTone = signals.bucket === 'boosted' ? '#d7e7e9' : signals.bucket === 'muted' ? '#f2dfd8' : '#ece7db';
-  const bucketInk = signals.bucket === 'boosted' ? '#2f5d62' : signals.bucket === 'muted' ? '#8b3d37' : '#6c6558';
-  body.innerHTML = `
-    <div style="display:grid;gap:10px;">
-      <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
-        <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6c6558;">Item</div>
-        <div style="margin-top:6px;font-weight:700;font-size:20px;">${item.title || 'Untitled'}</div>
-        <div style="margin-top:4px;color:#6c6558;">${item.author || 'Unknown author'} • ${item.book || 'No book'}</div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
-        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Feed score</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${signals.feedScore.toFixed(3)}</div></div>
-        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:${bucketTone};color:${bucketInk};"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;opacity:0.8;">Bucket</div><div style="margin-top:6px;font-size:24px;font-weight:700;text-transform:capitalize;">${signals.bucket}</div></div>
-        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Confidence</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${signals.confidence.toFixed(2)}</div></div>
-        <div style="padding:12px 14px;border:1px solid #e8dece;border-radius:16px;background:#fff;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:#6c6558;">Votes</div><div style="margin-top:6px;font-size:24px;font-weight:700;">${signals.totalVotes}</div></div>
-      </div>
-      <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
-        <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6c6558;">Signals</div>
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin-top:10px;">
-          <div style="color:#6c6558;">Raw score</div><div>${signals.rawScore}</div>
-          <div style="color:#6c6558;">Score per vote</div><div>${signals.scorePerVote.toFixed(3)}</div>
-          <div style="color:#6c6558;">Moved Me rate</div><div>${formatRate(signals.movedMeRate)}</div>
-          <div style="color:#6c6558;">Meh rate</div><div>${formatRate(signals.mehRate)}</div>
-          <div style="color:#6c6558;">Dislike rate</div><div>${formatRate(signals.dislikeRate)}</div>
-          <div style="color:#6c6558;">Likes / Dislikes / Meh / Moved Me</div><div>${signals.likes} / ${signals.dislikes} / ${signals.meh} / ${signals.movedMe}</div>
-        </div>
-      </div>
-      <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
-        <div style="font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#6c6558;">Interleaving</div>
-        <div style="margin-top:10px;display:grid;grid-template-columns:auto 1fr;gap:8px 16px;">
-          <div style="color:#6c6558;">Placement</div><div>${signals.position ?? 0}</div>
-          <div style="color:#6c6558;">Cycle</div><div>${signals.interleaveCycle ?? '—'}</div>
-          <div style="color:#6c6558;">Slot</div><div>${signals.interleaveSlot || '—'}</div>
-          <div style="color:#6c6558;">Note</div><div>${signals.interleaveNote || 'No special placement note.'}</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-function openFeedSignalsModal() {
-  if (!currentUserIsAdmin()) return;
-  renderFeedSignalsModal();
-  const modal = ensureFeedSignalsModal();
-  modal.style.display = 'flex';
-}
 
 function updateUserStatusUI() {
   const user = getVisibleUser();
@@ -389,7 +302,7 @@ function updateUserStatusUI() {
   const loadBtn = $('#load-button');
   if (user) {
     const normalizedEmail = (user.email || '').trim().toLowerCase();
-    const isAdmin = currentUserIsAdmin();
+    const isAdmin = !!currentAccount?.roles?.includes('admin') || normalizedEmail === 'sam@buttonpoetry.com';
     if (div) {
       const label = user.email || user.uid;
       const isTeam = !!currentAccount?.roles?.includes('team');
@@ -407,16 +320,13 @@ function updateUserStatusUI() {
       const scoreboardBadge = canAccessScoreboard
         ? ' <a id="scoreboard-badge" href="/scoreboard" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e6efe1;color:#3f5f36;font-size:12px;font-weight:600;text-decoration:none;">Scoreboard</a>'
         : '';
-      const feedSignalsBadge = isAdmin
-        ? ' <button id="feed-signals-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f5efe4;color:#6a5134;font-size:12px;font-weight:600;cursor:pointer;">Feed signals</button>'
-        : '';
       const viewToggle = isAdmin
         ? ` <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:4px 10px;border-radius:999px;background:#ffffffcc;border:1px solid #dad0c1;font-size:12px;font-weight:600;color:#2f5d62;">
               <input id="admin-view-toggle" type="checkbox" ${IS_MOBILE_UI ? 'checked' : ''} style="margin:0;accent-color:#2f5d62;" />
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -424,7 +334,6 @@ function updateUserStatusUI() {
           console.warn('Logout failed', err);
         }
       });
-      on($('#feed-signals-badge'), 'click', openFeedSignalsModal);
       on($('#admin-view-toggle'), 'change', (event) => {
         navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
       });
@@ -543,85 +452,40 @@ async function getOrCreateAnonId() {
 // --- Minimal CSS injection (works even if styles.css missing) ---
 (function injectUIPatchStyles(){
   const css = `
-  .top-bar{ display:flex; align-items:flex-start; gap:12px; justify-content:space-between; width:100%; margin:0; padding:10px 12px 2px; }
-  .top-bar .spacer{display:none;}
-  #filters{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:flex-start; }
-  #type-filter-container,
-  #catalog-filter-container{ display:flex; align-items:center; gap:8px; margin:0; padding:8px 12px; border:1px solid #e3d9ca; border-radius:999px; background:rgba(255,253,248,0.88); box-shadow:0 8px 18px rgba(30,26,21,0.04); }
-  #type-filter-container label,
-  #catalog-filter-container label{ font-size:13px; font-weight:600; color:#5e5649; }
-  #type-filter,
-  #catalog-filter{ border:1px solid #d7cebf; border-radius:999px; background:#fff; padding:6px 28px 6px 12px; color:#2d2a25; }
-  #user-status{ display:flex; align-items:center; justify-content:flex-end; gap:6px; flex-wrap:wrap; text-align:right; font-size:.92rem; opacity:.96; max-width:min(46vw,760px); }
-  #poetry-screen{ max-width:min(1240px,96vw); margin:0 auto; padding:0 18px 88px; }
-  #desktop-stage-header .button-container{ margin-bottom:2px; }
-  #desktop-stage-header{ display:grid; justify-items:center; gap:2px; margin:0 auto 4px; text-align:center; }
-  h1#page-title{ display:none; text-align:center; margin:0; }
-  .button-container{ display:flex; justify-content:center; }
-  #load-button{ font-family: Garamond, Baskerville, 'Times New Roman', serif; font-size: clamp(30px, 4.4vw, 58px); line-height: 1; padding: 14px 28px; border-radius: 16px; border: 1px solid #d6c6ae; background: linear-gradient(180deg, #fffdf8 0%, #f1e6d5 100%); color: #241c12; box-shadow: 0 10px 24px rgba(36, 28, 18, 0.12); letter-spacing: 0.01em; transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease; }
-  #load-button:hover:not(:disabled){ transform: translateY(-1px); box-shadow: 0 14px 28px rgba(36, 28, 18, 0.16); background: linear-gradient(180deg, #fffefb 0%, #f4eadb 100%); }
-  #load-button:active:not(:disabled){ transform: translateY(0); box-shadow: 0 8px 18px rgba(36, 28, 18, 0.12); }
-  #load-button:focus-visible{ outline: 2px solid rgba(47,93,98,0.45); outline-offset: 3px; }
-  #load-button:disabled{ opacity: .72; }
-  #error,
-  #message{ text-align:center; }
+  .top-bar{ display:flex; align-items:center; gap:12px; flex-wrap:nowrap; padding:8px 12px; }
+  .top-bar .spacer{flex:1;}
+  #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
 
-  #media-wrap{ position:relative; isolation:isolate; max-width:min(1120px,95vw); margin:0 auto 0; text-align:center; }
-  .button-row{ display:flex; justify-content:center; gap:10px; margin:6px 0 0; flex-wrap:wrap; }
-  #vote-row{ margin-top:0; margin-bottom:6px; }
-  #under-controls{ margin-top:8px; }
+  #media-wrap{ max-width:min(1000px,95vw); margin:12px auto; text-align:center; }
+  .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
   #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
+  .button-container{ display:flex; justify-content:center; }
+  h1#page-title{ text-align:center; }
 
   #counters-bar{ position:sticky; bottom:0; display:flex; justify-content:center; gap:18px;
-    padding:10px 12px; border-top:1px solid #e6e0d6; background:#faf7f0f2; backdrop-filter:blur(10px); z-index:5; }
+    padding:10px 12px; border-top:1px solid #e6e6e6; background:#faf7f0; z-index:5; }
   #counters-bar span{ white-space:nowrap; }
 
   /* Viewport-fit scaffolding */
   html, body { height: 100%; background:#faf7f0; color:#111; }
   body { min-height: 100dvh; }
   .media-box {
+    max-height: var(--media-max-h, 70dvh);
     display: flex; align-items: center; justify-content: center;
     width: 100%; overflow: hidden;
   }
-  .media-box--visual {
-    height: var(--media-max-h, 64dvh);
-    min-height: min(24vh, 240px);
-    padding: 10px 0;
-  }
-  .media-box > a,
-  .media-box--visual > a,
-  .media-box .pp-video-stage,
-  .media-box .pp-video-stage > a {
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    width:100%;
-    height:100%;
-    max-width:100%;
-    max-height:100%;
-  }
-  .media-box img, .media-box video {
-    display:block;
-    width:auto;
+    .media-box img, .media-box video {
     max-width: 100%;
     max-height: 100%;
     height: auto;
     object-fit: contain;
-    margin: 0 auto;
   }
-  .pp-video-stage{ position:relative; display:inline-flex; align-items:center; justify-content:center; max-width:100%; max-height:100%; }
-  .pp-video-play{ position:absolute; inset:auto auto 18px 18px; display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border:none; border-radius:999px; background:rgba(17,17,17,0.78); color:#faf7f0; font-weight:700; letter-spacing:0.01em; cursor:pointer; box-shadow:0 12px 26px rgba(17,17,17,0.22); }
-  .pp-video-play::before{ content:'▶'; font-size:12px; }
-  .pp-video-stage.is-playing .pp-video-play{ opacity:0; pointer-events:none; }
 
   /* Mobile: zoom only the IMAGE pixels, not the UI/layout */
   .media-box img {
-    transform: none;
+    transform: scale(var(--pp-media-zoom, 1));
     transform-origin: center center;
     transition: transform 120ms ease;
-  }
-  body[data-ui="mobile"] .media-box img {
-    transform: scale(var(--pp-media-zoom, 1));
   }
 
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
@@ -631,13 +495,7 @@ async function getOrCreateAnonId() {
   .meta-row p { margin:0; }
   .vote-btn.voted { opacity:.85; }
   .toast { color:#0a7e22; margin-top:8px; min-height:1.4em; }
-  .vote-counter { padding:5px 10px; border:1px solid #e6e6e6; border-radius:999px; background:#fafafa; }
-
-  @media (max-width: 980px) {
-    .top-bar{ flex-direction:column; align-items:stretch; gap:10px; padding:10px 14px 2px; }
-    #user-status{ max-width:none; justify-content:flex-start; text-align:left; }
-    #poetry-screen{ padding:8px 14px 92px; }
-  }
+  .vote-counter { padding:5px 10px; border:1px solid #e6e6e6; border-radius:6px; background:#fafafa; }
   `;
   const tag = document.createElement('style'); tag.appendChild(document.createTextNode(css)); document.head.appendChild(tag);
 })();
@@ -651,11 +509,6 @@ async function getOrCreateAnonId() {
   const spacer = document.createElement('div'); spacer.className = 'spacer';
   let userStatus = document.querySelector('#user-status'); if (!userStatus){ userStatus = document.createElement('div'); userStatus.id='user-status'; }
   topBar.append(filters, spacer, userStatus); document.body.insertBefore(topBar, document.body.firstChild);
-
-  const typeFilter = document.getElementById('type-filter-container');
-  const catalogFilter = document.getElementById('catalog-filter-container');
-  if (typeFilter) filters.appendChild(typeFilter);
-  if (catalogFilter) filters.appendChild(catalogFilter);
 })();
 
 // ===== State =====
@@ -679,7 +532,6 @@ function applyMediaZoom_(imgEl) {
   __ppMediaZoom = clamp(Number(__ppMediaZoom || 1), 1, 2.75);
   // Apply to the closest media-box so it only affects the media element
   const box = imgEl?.closest?.('.media-box');
-  if (!IS_MOBILE_UI) __ppMediaZoom = 1;
   if (box) box.style.setProperty('--pp-media-zoom', String(__ppMediaZoom));
   localStorage.setItem('pp_media_zoom', String(__ppMediaZoom));
 }
@@ -1060,91 +912,53 @@ function isHighRated(g) { return ratingOf(g) >= 1; }
 function ratingMetaOf(g) {
   return ratingsMap[g?.id] || { score: 0, total: 0, rating: 1, likes: 0, dislikes: 0, meh: 0, movedMe: 0 };
 }
-function getFeedSignals(g) {
+function isMutedCandidate(g) {
   const meta = ratingMetaOf(g);
-  const totalVotes = Number(meta.total || 0);
-  const rawScore = Number(meta.score || 0);
-  const scorePerVote = totalVotes ? rawScore / totalVotes : 0;
-  const movedMeRate = totalVotes ? (meta.movedMe || 0) / totalVotes : 0;
-  const mehRate = totalVotes ? (meta.meh || 0) / totalVotes : 0;
-  const dislikeRate = totalVotes ? (meta.dislikes || 0) / totalVotes : 0;
-  const confidence = Math.min(1, totalVotes / 10);
-  const feedScore =
-    (scorePerVote * 0.9 + movedMeRate * 1.2 - mehRate * 0.3 - dislikeRate * 0.85) *
-    (0.35 + 0.65 * confidence);
-
-  let bucket = 'standard';
-  if (feedScore >= 0.55) bucket = 'boosted';
-  else if (feedScore <= 0.05) bucket = 'muted';
-
-  return {
-    likes: Number(meta.likes || 0),
-    dislikes: Number(meta.dislikes || 0),
-    meh: Number(meta.meh || 0),
-    movedMe: Number(meta.movedMe || 0),
-    totalVotes,
-    rawScore,
-    scorePerVote,
-    movedMeRate,
-    mehRate,
-    dislikeRate,
-    confidence,
-    feedScore,
-    bucket,
-  };
+  if ((meta.total || 0) < 3) return false;
+  return (meta.meh >= Math.max(2, meta.likes + meta.movedMe)) || meta.rating < 0.2;
 }
-function isMutedCandidate(g) { return getFeedSignals(g).bucket === 'muted'; }
-function isBoostedCandidate(g) { return getFeedSignals(g).bucket === 'boosted'; }
-function communityAffinityOf(g) { return getFeedSignals(g).feedScore; }
-function formatRate(v) { return `${Math.round((Number(v || 0) * 1000)) / 10}%`; }
-function orderByCommunityPreference(list, options = {}) {
-  const includeMuted = options.includeMuted !== false;
+function isBoostedCandidate(g) {
+  const meta = ratingMetaOf(g);
+  if ((meta.total || 0) < 2) return false;
+  return meta.movedMe >= 2 || meta.rating >= 1.15 || meta.score >= 4;
+}
+function communityAffinityOf(g) {
+  const meta = ratingMetaOf(g);
+  const movedWeight = (meta.movedMe || 0) * 1.8;
+  const likeWeight = (meta.likes || 0) * 0.9;
+  const mehPenalty = (meta.meh || 0) * 0.45;
+  const dislikePenalty = (meta.dislikes || 0) * 1.2;
+  const ratingLift = Math.max(-0.75, Math.min(1.25, (meta.rating || 0) - 0.9));
+  return movedWeight + likeWeight + ratingLift - mehPenalty - dislikePenalty;
+}
+function orderByCommunityPreference(list) {
   const boosted = [];
   const standard = [];
   const muted = [];
 
   list.forEach((item) => {
-    item.__feedSignals = getFeedSignals(item);
-    if (item.__feedSignals.bucket === 'muted') muted.push(item);
-    else if (item.__feedSignals.bucket === 'boosted') boosted.push(item);
+    if (isMutedCandidate(item)) muted.push(item);
+    else if (isBoostedCandidate(item)) boosted.push(item);
     else standard.push(item);
   });
 
   const sortWithin = (items) => items
-    .map((item) => ({ item, score: communityAffinityOf(item) + ((Math.random() - 0.5) * 0.22) }))
+    .map((item) => ({ item, score: communityAffinityOf(item) + ((Math.random() - 0.5) * 1.6) }))
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.item);
 
   const boostedQ = sortWithin(boosted);
   const standardQ = sortWithin(standard);
-  const mutedQ = includeMuted ? sortWithin(muted) : [];
+  const mutedQ = sortWithin(muted);
   const ordered = [];
   let cycle = 0;
-  let position = 0;
-  const pushWithPlacement = (item, slotType) => {
-    if (!item) return;
-    item.__feedSignals = item.__feedSignals || getFeedSignals(item);
-    item.__feedSignals.position = position;
-    item.__feedSignals.interleaveSlot = slotType;
-    item.__feedSignals.interleaveCycle = cycle;
-    item.__feedSignals.interleaveNote =
-      slotType === 'muted-exploration'
-        ? 'Exploration slot: muted-content re-entry'
-        : slotType === 'boosted-priority'
-          ? 'Priority slot: boosted content'
-          : slotType === 'boosted-bonus'
-            ? 'Bonus boosted slot'
-            : 'Core standard slot';
-    ordered.push(item);
-    position += 1;
-  };
 
   while (boostedQ.length || standardQ.length || mutedQ.length) {
-    if (boostedQ.length) pushWithPlacement(boostedQ.shift(), 'boosted-priority');
-    if (standardQ.length) pushWithPlacement(standardQ.shift(), 'standard-core');
-    if (boostedQ.length && cycle % 2 === 0) pushWithPlacement(boostedQ.shift(), 'boosted-bonus');
-    if (standardQ.length) pushWithPlacement(standardQ.shift(), 'standard-core');
-    if (mutedQ.length && cycle % 4 === 3) pushWithPlacement(mutedQ.shift(), 'muted-exploration');
+    if (boostedQ.length) ordered.push(boostedQ.shift());
+    if (standardQ.length) ordered.push(standardQ.shift());
+    if (boostedQ.length && cycle % 2 === 0) ordered.push(boostedQ.shift());
+    if (standardQ.length) ordered.push(standardQ.shift());
+    if (mutedQ.length && cycle % 4 === 3) ordered.push(mutedQ.shift());
     cycle += 1;
   }
 
@@ -1222,7 +1036,6 @@ function baseArray(data) {
   return Array.isArray(data?.newGraphics) ? data.newGraphics.slice() : [];
 }
 function buildFilteredList(data) {
-  const suppressMutedInitially = sessionVotes === 0 && !fullFeedHydrationDone;
   let list = baseArray(data).map(mapGraphic);
 
   // Dropdown filters
@@ -1235,7 +1048,7 @@ function buildFilteredList(data) {
   });
 
   // Guide the feed toward community-loved work while keeping room for exploration.
-  return orderByCommunityPreference(list, { includeMuted: !suppressMutedInitially });
+  return orderByCommunityPreference(list);
 }
 
 // ===== Preload =====
@@ -1266,25 +1079,33 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const measure = (el) => {
-    if (!el) return 0;
-    const rect = el.getBoundingClientRect();
+  const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
+  const nodes = [
+    ...ids.map(id => document.getElementById(id)).filter(Boolean),
+    document.querySelector('.button-container'),
+    document.getElementById('error'),
+    document.getElementById('message')
+  ].filter(Boolean);
+
+  let occupied = 0;
+  nodes.forEach(el => {
+    const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
-    return rect.height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
-  };
+    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    occupied += (r.height + margins);
+  });
 
-  const metaRows = Array.from(document.querySelectorAll('#media-wrap .meta-row'));
-  const reserved = [
-    document.querySelector('.top-bar'),
-    document.getElementById('desktop-stage-header'),
-    document.getElementById('vote-row'),
-    document.getElementById('under-controls'),
-    document.getElementById('counters-bar'),
-    ...metaRows
-  ].reduce((sum, el) => sum + measure(el), 0);
+  // include bottom controls if present
+  const bottomRow = document.querySelector('#media-wrap .button-row:last-child');
+  if (bottomRow) {
+    const r = bottomRow.getBoundingClientRect();
+    const cs = getComputedStyle(bottomRow);
+    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+    occupied += (r.height + margins);
+  }
 
-  const viewportBuffer = window.innerWidth < 980 ? 20 : 28;
-  const maxH = Math.max(180, vh - reserved - viewportBuffer);
+  const buffer = 24;
+  const maxH = Math.max(160, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
@@ -1302,8 +1123,8 @@ function initQueueFromData(data) {
   }
   idx = 0;
   historyStack.length = 0;
-  renderCurrent(queue[idx]);
-  for (let k=1; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
+  for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
+  renderWhenReady(idx);
 }
 function rebuildQueueAfterFilter() {
   if (!lastData) return;
@@ -1312,8 +1133,8 @@ function rebuildQueueAfterFilter() {
   if (!queue.length) { idx = -1; currentItem=null; $('#gallery').innerHTML = '<p>No items match the current filters.</p>'; renderMetaRows(null); renderCounter(); return; }
   const pos = keepId ? queue.findIndex(g => g.id === keepId) : -1;
   idx = pos >= 0 ? pos : 0;
-  renderCurrent(queue[idx]);
-  for (let k=1; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
+  for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
+  renderWhenReady(idx);
 }
 
 async function refreshAfterFlaggedContent(flaggedItemId) {
@@ -1498,35 +1319,10 @@ function renderItemMedia(item) {
     const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
     const p = document.createElement('p'); p.textContent = item?.excerpt || ''; textDiv.appendChild(p); box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
-    box.classList.add('media-box--visual');
-    const stage = document.createElement('div');
-    stage.className = 'pp-video-stage';
-    const a = document.createElement('a');
-    if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
-    v = document.createElement('video');
-    v.src=item.mediaUrl;
-    v.controls=true;
-    v.playsInline = true;
-    v.style.maxWidth='100%';
-    v.style.height='auto';
-    a.appendChild(v);
-    stage.appendChild(a);
-    const playButton = document.createElement('button');
-    playButton.type = 'button';
-    playButton.className = 'pp-video-play';
-    playButton.textContent = 'Play video';
-    playButton.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      v?.play?.().catch(() => {});
-    });
-    v.addEventListener('play', () => stage.classList.add('is-playing'));
-    v.addEventListener('pause', () => stage.classList.remove('is-playing'));
-    v.addEventListener('ended', () => stage.classList.remove('is-playing'));
-    stage.appendChild(playButton);
-    box.appendChild(stage);
+    const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
+    v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
+    a.appendChild(v); box.appendChild(a);
  } else if (item?.mediaUrl) {
-  box.classList.add('media-box--visual');
   const a = document.createElement('a');
   if (item?.bookUrl) { a.href = item.bookUrl; a.target = '_blank'; }
 
@@ -1575,7 +1371,9 @@ function renderCurrent(item) {
 
   const gal = $('#gallery');
   if (gal)
-    gal.innerHTML = item ? '' : `<p>No new items.</p>`;
+    gal.innerHTML = item
+      ? `<p>Showing 1 item.</p>`
+      : `<p>No new items.</p>`;
 
   renderCounter();
 
@@ -1584,10 +1382,6 @@ function renderCurrent(item) {
 
   // ✅ Notify mobile shell *with* the item payload
   window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: currentItem } }));
-  if (currentUserIsAdmin()) {
-    const modal = document.getElementById('pp-feed-signals-modal');
-    if (modal && modal.style.display !== 'none') renderFeedSignalsModal();
-  }
   clearInlineLoadingState();
   markScreenReady();
 }
@@ -1849,25 +1643,6 @@ window.addEventListener('DOMContentLoaded', () => {
   // Desktop-only extras
   if (!IS_MOBILE_UI) {
     on(document.getElementById('load-button'), 'click', onSkip);
-  }
-
-  if (!IS_MOBILE_UI) {
-    const poetry = document.getElementById('poetry-screen');
-    let header = document.getElementById('desktop-stage-header');
-    if (poetry && !header) {
-      header = document.createElement('div');
-      header.id = 'desktop-stage-header';
-      const nodes = [
-        document.getElementById('page-title'),
-        poetry.querySelector('.button-container'),
-        document.getElementById('error'),
-        document.getElementById('message')
-      ].filter(Boolean);
-      if (nodes.length) {
-        poetry.insertBefore(header, poetry.firstChild);
-        nodes.forEach((node) => header.appendChild(node));
-      }
-    }
   }
 
   updateUserStatusUI();
