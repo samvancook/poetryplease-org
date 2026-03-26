@@ -489,7 +489,7 @@ async function getOrCreateAnonId() {
   #message{ text-align:center; }
   #vote-row,
   .media-box,
-  #under-controls{ border:1px solid #e3d9ca; border-radius:18px; background:rgba(255,253,248,0.76); box-shadow:0 6px 16px rgba(30,26,21,0.04); }
+  #under-controls{ border:1px solid #e3d9ca; border-radius:0; background:transparent; box-shadow:none; }
   #vote-row,
   #under-controls{ padding:10px 12px; }
   .media-box{ padding:12px; box-sizing:border-box; background:#fffdf8; }
@@ -1129,33 +1129,25 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
-  const nodes = [
-    ...ids.map(id => document.getElementById(id)).filter(Boolean),
-    document.querySelector('.button-container'),
-    document.getElementById('error'),
-    document.getElementById('message')
-  ].filter(Boolean);
-
-  let occupied = 0;
-  nodes.forEach(el => {
+  const measure = (el) => {
+    if (!el) return 0;
     const r = el.getBoundingClientRect();
     const cs = getComputedStyle(el);
-    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-    occupied += (r.height + margins);
-  });
+    return r.height + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0);
+  };
 
-  // include bottom controls if present
-  const bottomRow = document.querySelector('#media-wrap .button-row:last-child');
-  if (bottomRow) {
-    const r = bottomRow.getBoundingClientRect();
-    const cs = getComputedStyle(bottomRow);
-    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-    occupied += (r.height + margins);
-  }
+  const metaRows = Array.from(document.querySelectorAll('#media-wrap .meta-row'));
+  const occupied = [
+    document.querySelector('.top-bar'),
+    document.getElementById('desktop-stage-header'),
+    document.getElementById('vote-row'),
+    document.getElementById('under-controls'),
+    document.getElementById('counters-bar'),
+    ...metaRows
+  ].reduce((sum, el) => sum + measure(el), 0);
 
-  const buffer = 24;
-  const maxH = Math.max(160, vh - occupied - buffer);
+  const buffer = window.innerWidth < 980 ? 20 : 28;
+  const maxH = Math.max(180, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
