@@ -632,11 +632,22 @@ async function getOrCreateAnonId() {
   html, body { height: 100%; background:#faf7f0; color:#111; }
   body { min-height: 100dvh; }
   .media-box {
+    height: var(--media-max-h, 70dvh);
     max-height: var(--media-max-h, 70dvh);
     display: flex; align-items: center; justify-content: center;
-    width: 100%; overflow: hidden;
+    width: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 6px 0;
   }
-    .media-box img, .media-box video {
+  .media-box > a{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    width:100%;
+    height:100%;
+  }
+  .media-box img, .media-box video {
     max-width: 100%;
     max-height: 100%;
     height: auto;
@@ -1286,6 +1297,7 @@ function setViewportVars() {
 function adjustViewportFit() {
   const vh = window.innerHeight;
   const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
+  const mediaWrap = document.getElementById('media-wrap');
   const nodes = [
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
     document.querySelector('.button-container'),
@@ -1302,16 +1314,17 @@ function adjustViewportFit() {
     occupied += (r.height + margins);
   });
 
-  // include bottom controls if present
-  const bottomRow = document.querySelector('#media-wrap .button-row:last-child');
-  if (bottomRow) {
-    const r = bottomRow.getBoundingClientRect();
-    const cs = getComputedStyle(bottomRow);
-    const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
-    occupied += (r.height + margins);
+  if (mediaWrap) {
+    Array.from(mediaWrap.children).forEach((child) => {
+      if (child.classList?.contains('media-box')) return;
+      const r = child.getBoundingClientRect();
+      const cs = getComputedStyle(child);
+      const margins = parseFloat(cs.marginTop) + parseFloat(cs.marginBottom);
+      occupied += (r.height + margins);
+    });
   }
 
-  const buffer = 72;
+  const buffer = 84;
   const maxH = Math.max(160, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
