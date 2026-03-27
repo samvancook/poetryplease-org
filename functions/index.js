@@ -627,7 +627,7 @@ async function buildScoreboardPayload() {
     score: entry.likes + (entry.movedMe * 2) - entry.dislikes,
   }));
 
-  const allGraphics = [...metaObjs, ...excerptObjs, ...videoObjs]
+  const allGraphics = [...metaObjs, ...excerptObjs, ...fullPoemObjs, ...videoObjs]
     .filter((item) => !flaggedIds.has(normalizeKey(item.imageId || "")))
     .map((item) => ({
       imageId: item.imageId || "",

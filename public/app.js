@@ -1204,6 +1204,18 @@ function mapGraphic(g){
   };
 }
 
+const CONTENT_TYPE_LABELS = {
+  GP: 'Graphics',
+  EXC: 'Excerpts',
+  FP: 'Full Poems',
+  VV: 'Video',
+};
+
+function formatContentTypeLabel(value) {
+  const code = String(value || '').trim();
+  return CONTENT_TYPE_LABELS[code] || code || 'Unknown';
+}
+
 // ===== Utilities =====
 function isVideoUrl(url='') {
   const ext = url.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
@@ -1373,7 +1385,13 @@ async function fetchAndPopulateTypes() {
     const types = await fetchImageTypesWrapped();
     const sel = $('#type-filter'); if (!sel) return;
     sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
-    (types || []).forEach(t => { if (!t) return; const opt = document.createElement('option'); opt.value=t; opt.textContent=t; sel.appendChild(opt); });
+    (types || []).forEach(t => {
+      if (!t) return;
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = formatContentTypeLabel(t);
+      sel.appendChild(opt);
+    });
     syncFilterControls();
   } catch(e) { console.warn('fetchAndPopulateTypes error', e); }
 }
