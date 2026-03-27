@@ -1536,6 +1536,36 @@ app.get(getBoth("/me"), async (req, res) => {
   });
 });
 
+app.post(getBoth("/me/scrubRecentMeh"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  const userId = normalizeText(ctx.decoded.email || "");
+  if (!userId) {
+    return res.status(400).json({ error: "missing_email" });
+  }
+  const hours = Math.max(1, Math.min(168, Number(req.body?.hours || 24) || 24));
+  const cutoffMs = Date.now() - (hours * 60 * 60 * 1000);
+  const voteDocs = await getVoteDocsByUser(userId);
+  const refsToDelete = voteDocs
+    .filter((vote) => vote.voteType === "meh" && timestampToMs(vote.timestamp) >= cutoffMs)
+    .map((vote) => vote.ref);
+
+  let deleted = 0;
+  for (let i = 0; i < refsToDelete.length; i += 400) {
+    const chunk = refsToDelete.slice(i, i + 400);
+    const batch = db.batch();
+    chunk.forEach((ref) => batch.delete(ref));
+    await batch.commit();
+    deleted += chunk.length;
+  }
+
+  if (deleted) {
+    await invalidateScoreboardSnapshot("scrub_recent_meh");
+  }
+
+  res.json({ ok: true, deleted, hours });
+});
+
 app.post(getBoth("/mergeAnonVotes"), async (req, res) => {
   const ctx = await requireDecodedUser(req, res);
   if (!ctx) return;

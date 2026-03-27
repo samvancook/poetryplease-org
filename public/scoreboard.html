@@ -63,6 +63,12 @@
       cursor: pointer;
       position: relative;
       user-select: none;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: rgba(255, 253, 248, 0.98);
+      backdrop-filter: blur(6px);
+      box-shadow: inset 0 -1px 0 #e9e0d2;
     }
     th.asc::after { content: "▲"; position: absolute; right: 8px; color: var(--accent); }
     th.desc::after { content: "▼"; position: absolute; right: 8px; color: var(--accent); }

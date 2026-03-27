@@ -493,6 +493,29 @@ function openCountsModal() {
   modal.style.display = 'flex';
 }
 
+async function scrubRecentMehVotes(hours = 24) {
+  if (!currentUserIsTeamOrAdmin()) return;
+  const confirmed = window.confirm(`Delete your meh votes from the last ${hours} hours?`);
+  if (!confirmed) return;
+  try {
+    const result = await api('me/scrubRecentMeh', { method: 'POST', body: { hours } });
+    const deleted = Number(result?.deleted || 0);
+    flashMessage(
+      deleted
+        ? `Removed ${deleted} recent meh vote${deleted === 1 ? '' : 's'}.`
+        : 'No recent meh votes needed cleanup.'
+    );
+    const mehEl = document.getElementById('count-meh');
+    if (mehEl && deleted) {
+      mehEl.textContent = String(Math.max(0, Number(mehEl.textContent || 0) - deleted));
+      refreshCountsModalIfOpen();
+    }
+  } catch (err) {
+    console.warn('recent meh scrub error', err);
+    flashMessage(err?.message || 'Could not scrub recent meh votes right now.');
+  }
+}
+
 function refreshCountsModalIfOpen() {
   if (document.getElementById('pp-counts-modal')?.style.display === 'flex') {
     renderCountsModal();
@@ -528,6 +551,9 @@ function updateUserStatusUI() {
       const countsBadge = canAccessScoreboard
         ? ' <button id="counts-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f2eee5;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;">Counts</button>'
         : '';
+      const scrubMehBadge = canAccessScoreboard
+        ? ' <button id="scrub-meh-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f8f2e8;color:#7a5c38;font-size:12px;font-weight:600;cursor:pointer;">Scrub recent meh</button>'
+        : '';
       const buildBadge = isAdmin
         ? ` <span id="build-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#6c6558;font-size:12px;font-weight:600;">Build ${getCurrentBuildLabel()}</span>`
         : '';
@@ -537,7 +563,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -547,6 +573,7 @@ function updateUserStatusUI() {
       });
       on($('#feed-signals-badge'), 'click', openFeedSignalsModal);
       on($('#counts-badge'), 'click', openCountsModal);
+      on($('#scrub-meh-badge'), 'click', () => scrubRecentMehVotes(24));
       on($('#admin-view-toggle'), 'change', (event) => {
         navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
       });
@@ -1882,8 +1909,13 @@ async function onSkip(){
   }
   isTransitioning = true;
   historyStack.push(currentItem);
-  setVoteButtonsDisabled(true); flashMessage('Skipped');
-  try { await submitVote(currentItem, 'meh'); updateCounters({ skip: 1 }); }
+  const teamSkip = currentUserIsTeamOrAdmin();
+  setVoteButtonsDisabled(true);
+  flashMessage(teamSkip ? 'Skipped without recording a vote.' : 'Skipped');
+  try {
+    if (!teamSkip) await submitVote(currentItem, 'meh');
+    updateCounters({ skip: 1 });
+  }
   catch(e) { console.warn('skip vote error', e); }
   finally {
     const nextIndex = chooseNextIndex();
