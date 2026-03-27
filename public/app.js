@@ -65,7 +65,9 @@ const LoaderController = (() => {
     loaderHidden: false,
     loaderShownAt: Date.now(),
     minLoaderMs: 700,
+    maxLoaderMs: 5000,
     inlineDotsIntervalId: 0,
+    hardCapTimerId: 0,
   };
 
   function getPrimaryLoader() {
@@ -158,6 +160,13 @@ const LoaderController = (() => {
     markDomReady() {
       state.domReady = true;
       state.loaderShownAt = Date.now();
+      if (!state.hardCapTimerId) {
+        state.hardCapTimerId = window.setTimeout(() => {
+          if (state.loaderHidden) return;
+          hidePrimary();
+          if (typeof currentItem === 'undefined' || !currentItem) showInline();
+        }, state.maxLoaderMs);
+      }
     },
     markAuthResolved() {
       state.authResolved = true;
@@ -2071,6 +2080,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   updateUserStatusUI();
   LoaderController.maybeHidePrimary();
+  if (!currentItem) LoaderController.showInline();
+  ppAutoloadFirstItem();
 
   // Viewport listeners
   setViewportVars();
