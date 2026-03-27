@@ -1028,14 +1028,14 @@ function setTypeFilter(value) {
   selectedType = String(value || '').trim();
   syncFilterControls();
   writeRouteState();
-  rebuildQueueAfterFilter();
+  ensureFilterReadyThenRebuild();
 }
 
 function setCatalogFilter(value) {
   selectedCatalog = String(value || '').trim();
   syncFilterControls();
   writeRouteState();
-  rebuildQueueAfterFilter();
+  ensureFilterReadyThenRebuild();
 }
 
 function setAuthorFilter(active, author = currentItem?.author || selectedAuthor) {
@@ -1043,7 +1043,7 @@ function setAuthorFilter(active, author = currentItem?.author || selectedAuthor)
   filterByAuthor = !!active && !!nextAuthor;
   selectedAuthor = filterByAuthor ? nextAuthor : '';
   writeRouteState();
-  rebuildQueueAfterFilter();
+  ensureFilterReadyThenRebuild();
 }
 
 function setBookFilter(active, book = currentItem?.book || selectedBook) {
@@ -1051,7 +1051,7 @@ function setBookFilter(active, book = currentItem?.book || selectedBook) {
   filterByBook = !!active && !!nextBook;
   selectedBook = filterByBook ? nextBook : '';
   writeRouteState();
-  rebuildQueueAfterFilter();
+  ensureFilterReadyThenRebuild();
 }
 
 initializeRouteState();
@@ -1396,6 +1396,22 @@ async function fetchBestBatchForCurrentView() {
   return hasActiveFeedFilters() ? fetchFullFeedData() : fetchLatestBatch();
 }
 
+async function ensureFilterReadyThenRebuild() {
+  if (hasActiveFeedFilters() && !fullFeedHydrationDone) {
+    try {
+      const data = await fetchFullFeedData();
+      if (data && Array.isArray(data.newGraphics)) {
+        lastData = data;
+        fullFeedHydrationDone = true;
+        fullFeedHydrationStarted = true;
+      }
+    } catch (err) {
+      console.warn('Full feed fetch for filters failed', err);
+    }
+  }
+  rebuildQueueAfterFilter();
+}
+
 async function hydrateFullFeedInBackground() {
   if (fullFeedHydrationStarted || fullFeedHydrationDone) return;
   fullFeedHydrationStarted = true;
@@ -1532,7 +1548,14 @@ function adjustViewportFit() {
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
-function renderEmptyFilterState(message = 'No items match the current filters.') {
+function getEmptyFilterMessage() {
+  if (hasActiveFeedFilters()) {
+    return 'No unvoted items remain for this filter. Try another type, catalog, author, or book.';
+  }
+  return 'No new items remain right now.';
+}
+
+function renderEmptyFilterState(message = getEmptyFilterMessage()) {
   idx = -1;
   currentItem = null;
   window.currentItem = null;
