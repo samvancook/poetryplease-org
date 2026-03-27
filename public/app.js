@@ -736,7 +736,7 @@ async function getOrCreateAnonId() {
     transform: translate(var(--pp-media-x, 0px), var(--pp-media-y, 0px)) scale(var(--pp-media-zoom, 1));
     transform-origin: center center;
     transition: transform 120ms ease;
-    touch-action: none;
+    touch-action: pan-y;
   }
 
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
