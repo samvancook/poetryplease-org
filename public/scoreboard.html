@@ -554,7 +554,7 @@
       }
 
       data.forEach((row) => {
-        const link = row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" target="_blank" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
+        const link = row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
         const typeLabel = formatContentTypeLabel(row.type);
         const html = isUserView
           ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
