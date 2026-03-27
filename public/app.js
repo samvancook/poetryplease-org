@@ -731,11 +731,12 @@ async function getOrCreateAnonId() {
     object-fit: contain;
   }
 
-  /* Mobile: zoom only the IMAGE pixels, not the UI/layout */
+  /* Mobile: transform only the IMAGE pixels, not the UI/layout */
   .media-box img {
-    transform: scale(var(--pp-media-zoom, 1));
+    transform: translate(var(--pp-media-x, 0px), var(--pp-media-y, 0px)) scale(var(--pp-media-zoom, 1));
     transform-origin: center center;
     transition: transform 120ms ease;
+    touch-action: none;
   }
 
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
@@ -773,17 +774,42 @@ let queue = [];          // filtered & shuffled list
 let idx = -1;            // position in queue
 let isTransitioning = false;
 
-// ===== Mobile pinch-to-zoom (image only) =====
-let __ppMediaZoom = Number(localStorage.getItem('pp_media_zoom') || 1);
+// ===== Mobile pinch-to-zoom and pan (image only) =====
+const __ppGestureState = new WeakMap();
 
 function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
-function applyMediaZoom_(imgEl) {
-  __ppMediaZoom = clamp(Number(__ppMediaZoom || 1), 1, 2.75);
-  // Apply to the closest media-box so it only affects the media element
+function getGestureState_(imgEl) {
+  if (!imgEl) return { scale: 1, x: 0, y: 0 };
+  if (!__ppGestureState.has(imgEl)) {
+    __ppGestureState.set(imgEl, { scale: 1, x: 0, y: 0, mode: '', startX: 0, startY: 0, baseX: 0, baseY: 0, pinchStartDist: 0, pinchStartScale: 1 });
+  }
+  return __ppGestureState.get(imgEl);
+}
+
+function clampGestureState_(imgEl, state) {
+  const baseW = imgEl?.offsetWidth || 0;
+  const baseH = imgEl?.offsetHeight || 0;
+  const overflowX = Math.max(0, ((baseW * state.scale) - baseW) / 2);
+  const overflowY = Math.max(0, ((baseH * state.scale) - baseH) / 2);
+  state.x = clamp(state.x, -overflowX, overflowX);
+  state.y = clamp(state.y, -overflowY, overflowY);
+  if (state.scale <= 1.001) {
+    state.scale = 1;
+    state.x = 0;
+    state.y = 0;
+  }
+  return state;
+}
+
+function applyMediaTransform_(imgEl) {
+  const state = clampGestureState_(imgEl, getGestureState_(imgEl));
   const box = imgEl?.closest?.('.media-box');
-  if (box) box.style.setProperty('--pp-media-zoom', String(__ppMediaZoom));
-  localStorage.setItem('pp_media_zoom', String(__ppMediaZoom));
+  if (box) {
+    box.style.setProperty('--pp-media-zoom', String(state.scale));
+    box.style.setProperty('--pp-media-x', `${state.x}px`);
+    box.style.setProperty('--pp-media-y', `${state.y}px`);
+  }
 }
 
 function attachPinchZoomToImage_(imgEl) {
@@ -791,42 +817,78 @@ function attachPinchZoomToImage_(imgEl) {
   if (!imgEl || imgEl.__ppPinchBound) return;
   imgEl.__ppPinchBound = true;
 
-  // Ensure we start from stored zoom
-  applyMediaZoom_(imgEl);
-
-  let pinching = false;
-  let startDist = 0;
-  let startZoom = 1;
-
   const dist = (t1, t2) => {
     const dx = t1.clientX - t2.clientX;
     const dy = t1.clientY - t2.clientY;
     return Math.hypot(dx, dy);
   };
 
+  const state = getGestureState_(imgEl);
+  applyMediaTransform_(imgEl);
+
   imgEl.addEventListener('touchstart', (e) => {
     if (e.touches && e.touches.length === 2) {
-      pinching = true;
-      startDist = dist(e.touches[0], e.touches[1]);
-      startZoom = Number(__ppMediaZoom || 1);
+      state.mode = 'pinch';
+      state.pinchStartDist = dist(e.touches[0], e.touches[1]);
+      state.pinchStartScale = state.scale;
+      imgEl.style.transition = 'none';
+      e.preventDefault();
+    } else if (e.touches && e.touches.length === 1 && state.scale > 1) {
+      state.mode = 'pan';
+      state.startX = e.touches[0].clientX;
+      state.startY = e.touches[0].clientY;
+      state.baseX = state.x;
+      state.baseY = state.y;
+      imgEl.style.transition = 'none';
       e.preventDefault();
     }
   }, { passive: false });
 
   imgEl.addEventListener('touchmove', (e) => {
-    if (!pinching || !e.touches || e.touches.length !== 2) return;
-    const d = dist(e.touches[0], e.touches[1]);
-    const ratio = d / (startDist || d);
-    __ppMediaZoom = clamp(startZoom * ratio, 1, 2.75);
-    applyMediaZoom_(imgEl);
-    e.preventDefault();
+    if (!e.touches) return;
+    if (state.mode === 'pinch' && e.touches.length === 2) {
+      const d = dist(e.touches[0], e.touches[1]);
+      const ratio = d / (state.pinchStartDist || d);
+      state.scale = clamp(state.pinchStartScale * ratio, 1, 3);
+      applyMediaTransform_(imgEl);
+      e.preventDefault();
+      return;
+    }
+    if (state.mode === 'pan' && e.touches.length === 1 && state.scale > 1) {
+      state.x = state.baseX + (e.touches[0].clientX - state.startX);
+      state.y = state.baseY + (e.touches[0].clientY - state.startY);
+      applyMediaTransform_(imgEl);
+      e.preventDefault();
+    }
   }, { passive: false });
 
   imgEl.addEventListener('touchend', (e) => {
-    if (!e.touches || e.touches.length < 2) pinching = false;
+    if (e.touches?.length === 1 && state.scale > 1) {
+      state.mode = 'pan';
+      state.startX = e.touches[0].clientX;
+      state.startY = e.touches[0].clientY;
+      state.baseX = state.x;
+      state.baseY = state.y;
+    } else if (!e.touches || e.touches.length === 0) {
+      state.mode = '';
+      imgEl.style.transition = 'transform 120ms ease';
+      applyMediaTransform_(imgEl);
+    }
   }, { passive: true });
 
-  imgEl.addEventListener('touchcancel', () => { pinching = false; }, { passive: true });
+  imgEl.addEventListener('touchcancel', () => {
+    state.mode = '';
+    imgEl.style.transition = 'transform 120ms ease';
+    applyMediaTransform_(imgEl);
+  }, { passive: true });
+
+  imgEl.addEventListener('dblclick', () => {
+    state.scale = 1;
+    state.x = 0;
+    state.y = 0;
+    imgEl.style.transition = 'transform 120ms ease';
+    applyMediaTransform_(imgEl);
+  });
 }
 
 
