@@ -2046,6 +2046,8 @@ app.post(getBoth("/admin/contentLibrary/upsert"), async (req, res) => {
       uid: ctx.decoded.uid,
       email: ctx.decoded.email,
     });
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot(`content_upsert:${normalizeKey(result?.item?.id || "")}`);
     res.json(result);
   } catch (err) {
     return res.status(err.status || 400).json({ error: err.message || "invalid_content_payload" });
@@ -2108,6 +2110,10 @@ app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
   const createdCount = results.filter((row) => row.ok && row.created).length;
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
+  if (createdCount || updatedCount) {
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot(`content_bulk_upsert:${type}`);
+  }
   res.json({ ok: true, createdCount, updatedCount, errorCount, results });
 });
 
@@ -2133,6 +2139,10 @@ app.post(getBoth("/admin/contentLibrary/deleteByIds"), async (req, res) => {
     await ref.delete();
     deleted.push(id);
   }
+  if (deleted.length) {
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot(`content_delete:${type}`);
+  }
   res.json({ ok: true, deletedCount: deleted.length, missingCount: missing.length, deleted, missing });
 });
 
@@ -2155,6 +2165,10 @@ app.post(getBoth("/admin/contentLibrary/deleteByDate"), async (req, res) => {
   });
 
   await Promise.all(matches.map((doc) => doc.ref.delete()));
+  if (matches.length) {
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot(`content_delete_by_date:${type}:${targetDate}`);
+  }
   res.json({ ok: true, deletedCount: matches.length, targetDate });
 });
 
