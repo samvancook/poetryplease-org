@@ -1405,7 +1405,7 @@
               <th>Author</th>
               <th>Book / Catalog</th>
               <th>Updated</th>
-              <th>Edit</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1420,7 +1420,12 @@
                 <td>${escapeHtml(item.author || '—')}</td>
                 <td>${escapeHtml(item.book || '—')}${item.releaseCatalog ? `<div class="meta">${escapeHtml(item.releaseCatalog)}</div>` : ''}</td>
                 <td>${formatLastActive(item.updatedAt || item.createdAt)}</td>
-                <td><button type="button" class="secondary" data-edit-content="${escapeHtml(item.id)}">Edit</button></td>
+                <td>
+                  <div class="actions" style="margin-top:0;">
+                    <button type="button" class="secondary" data-edit-content="${escapeHtml(item.id)}">Edit</button>
+                    <button type="button" class="secondary" data-delete-content="${escapeHtml(item.id)}">Delete</button>
+                  </div>
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -1432,6 +1437,37 @@
           populateContentForm(item);
         });
       });
+      container.querySelectorAll('[data-delete-content]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const item = state.contentItems.find((entry) => entry.id === button.getAttribute('data-delete-content'));
+          deleteContentItem(item);
+        });
+      });
+    }
+
+    async function deleteContentItem(item) {
+      if (!item) return;
+      const statusEl = document.getElementById('content-status');
+      const id = item.contentId || item.id || '';
+      const type = item.collection || state.contentType || 'graphics';
+      const label = item.title || item.poem || id || 'this item';
+      if (!id) {
+        statusEl.textContent = 'Could not determine which content item to delete.';
+        statusEl.className = 'status error';
+        return;
+      }
+      if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
+      statusEl.textContent = `Deleting ${id}…`;
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/contentLibrary/deleteByIds', { method: 'POST', body: { type, ids: [id] } });
+        statusEl.textContent = `Deleted ${payload.deletedCount || 0} item(s). ${payload.missingCount ? `${payload.missingCount} not found.` : ''}`.trim();
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not delete content item.';
+        statusEl.className = 'status error';
+      }
     }
 
     async function loadContentLibrary() {
