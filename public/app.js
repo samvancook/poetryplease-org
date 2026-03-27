@@ -1524,11 +1524,37 @@ function adjustViewportFit() {
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
 
+function renderEmptyFilterState(message = 'No items match the current filters.') {
+  idx = -1;
+  currentItem = null;
+  window.currentItem = null;
+  const gal = $('#gallery');
+  if (gal) gal.innerHTML = `<p>${message}</p>`;
+  const mediaWrap = ensureMediaWrap();
+  mediaWrap.querySelectorAll('.meta-row').forEach((n) => n.remove());
+  const mediaBox = mediaWrap.querySelector('.media-box');
+  if (mediaBox) mediaBox.remove();
+  const back = $('#btn-go-back');
+  if (back) back.disabled = historyStack.length === 0;
+  setVoteButtonsDisabled(true);
+  renderMetaRows(null);
+  renderCounter();
+  setViewportVars();
+  adjustViewportFit();
+  window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: null } }));
+  if (currentUserIsAdmin() && document.getElementById('pp-feed-signals-modal')?.style.display === 'flex') {
+    renderFeedSignalsModal();
+  }
+}
+
 // ===== Init / rebuild =====
 function initQueueFromData(data) {
   lastData = data;
   queue = buildFilteredList(data);
-  if (!queue.length) { $('#gallery').innerHTML = '<p>No items match the current filters.</p>'; return; }
+  if (!queue.length) {
+    renderEmptyFilterState();
+    return;
+  }
   if (selectedItemId) {
     const targetIdx = queue.findIndex(g => valuesMatch(g.id, selectedItemId));
     if (targetIdx > 0) {
@@ -1545,7 +1571,10 @@ function rebuildQueueAfterFilter() {
   if (!lastData) return;
   const keepId = currentItem?.id || null;
   queue = buildFilteredList(lastData);
-  if (!queue.length) { idx = -1; currentItem=null; $('#gallery').innerHTML = '<p>No items match the current filters.</p>'; renderMetaRows(null); renderCounter(); return; }
+  if (!queue.length) {
+    renderEmptyFilterState();
+    return;
+  }
   const pos = keepId ? queue.findIndex(g => g.id === keepId) : -1;
   idx = pos >= 0 ? pos : 0;
   for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
@@ -1574,12 +1603,7 @@ async function refreshAfterFlaggedContent(flaggedItemId) {
   }
 
   if (!queue.length) {
-    idx = -1;
-    currentItem = null;
-    window.currentItem = null;
-    $('#gallery').innerHTML = '<p>No items match the current filters.</p>';
-    renderMetaRows(null);
-    renderCounter();
+    renderEmptyFilterState();
     return;
   }
 
