@@ -1675,7 +1675,7 @@ function renderItemMedia(item) {
 
   let img = null, v = null;
 
-  if (item?.imageType === 'EXC') {
+  if (item?.imageType === 'EXC' || item?.imageType === 'FP') {
     const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
     const p = document.createElement('p'); p.textContent = item?.excerpt || ''; textDiv.appendChild(p); box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {

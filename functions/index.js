@@ -13,6 +13,7 @@ import { getStorage, getDownloadURL } from "firebase-admin/storage";
 const COLLECTIONS = {
   graphics: "graphics",
   excerpts: "excerpts",
+  fullPoems: "fullPoems",
   videos: "videos",
   votes: "votes",
   users: "users",
@@ -132,12 +133,13 @@ function sampleItems(items, limit) {
 
 
 async function getAllContent() {
-  const [g, e, v] = await Promise.all([
+  const [g, e, fp, v] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
   ]);
-  return [...g, ...e, ...v];
+  return [...g, ...e, ...fp, ...v];
 }
 
 function invalidateContentCache() {
@@ -171,7 +173,7 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
 async function findContentRecordByImageId(imageId) {
   const normalized = normalizeKey(imageId);
   if (!normalized) return null;
-  for (const collection of [COLLECTIONS.graphics, COLLECTIONS.excerpts, COLLECTIONS.videos]) {
+  for (const collection of [COLLECTIONS.graphics, COLLECTIONS.excerpts, COLLECTIONS.fullPoems, COLLECTIONS.videos]) {
     const snap = await db.collection(collection).limit(1000).get();
     const match = snap.docs.find((doc) => {
       const data = doc.data() || {};
@@ -528,10 +530,11 @@ function aggregateRatings(voteDocs) {
 }
 
 async function buildScoreboardPayload() {
-  const [voteDocs, metaObjs, excerptObjs, videoObjs, flaggedIds] = await Promise.all([
+  const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds] = await Promise.all([
     getAllVotes(),
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getFlaggedContentIds(),
   ]);
@@ -575,6 +578,7 @@ async function buildScoreboardPayload() {
   };
   metaObjs.forEach(upsertMeta);
   excerptObjs.forEach(upsertMeta);
+  fullPoemObjs.forEach(upsertMeta);
   videoObjs.forEach(upsertMeta);
 
   const enrichedVotes = rawVotes.map((vote) => {
@@ -965,6 +969,14 @@ function deriveContentDocId(type, body = {}) {
     if (!bookShortener || !poem) return "";
     return `${bookShortener}-EXC-${slugify(poem)}`.toUpperCase();
   }
+  if (type === "full-poems") {
+    const explicit = normalizeText(body.docId || body.contentId || body.imageId);
+    if (explicit) return explicit;
+    const bookShortener = normalizeText(body.bookShortener);
+    const title = normalizeText(body.title);
+    if (!bookShortener || !title) return "";
+    return `${bookShortener}-FP-${slugify(title)}`.toUpperCase();
+  }
   if (type === "videos") {
     return normalizeText(body.docId || body.videoId || body.imageId);
   }
@@ -980,9 +992,10 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     throw err;
   }
 
-  const imageType = normalizeText(body.imageType || (type === "excerpts" ? "EXC" : type === "videos" ? "VV" : ""));
+  const imageType = normalizeText(body.imageType || (type === "excerpts" ? "EXC" : type === "full-poems" ? "FP" : type === "videos" ? "VV" : ""));
   const payload = {
     imageType,
+    contentId: docId,
     author: normalizeText(body.author),
     book: normalizeText(body.book),
     driveLink: normalizeText(body.driveLink),
@@ -1003,6 +1016,17 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.bookShortener = normalizeText(body.bookShortener);
     payload.imageID = docId;
     payload.imageId = docId;
+  } else if (type === "full-poems") {
+    payload.title = normalizeText(body.title);
+    payload.excerpt = normalizeText(body.excerpt);
+    payload.pageNumber = normalizeText(body.pageNumber);
+    payload.bookShortener = normalizeText(body.bookShortener);
+    payload.releaseYear = normalizeText(body.releaseYear);
+    payload.imageId = docId;
+    payload.imageID = docId;
+    payload.imageUrl = normalizeText(body.imageUrl);
+    payload.videoUrl = normalizeText(body.videoUrl);
+    payload.url = normalizeText(body.url);
   } else if (type === "videos") {
     payload.title = normalizeText(body.title);
     payload.videoId = docId;
@@ -1026,6 +1050,7 @@ function collectionForContentType(type) {
   const normalized = normalizeKey(type);
   if (normalized === "graphics") return COLLECTIONS.graphics;
   if (normalized === "excerpts") return COLLECTIONS.excerpts;
+  if (normalized === "fullpoems") return COLLECTIONS.fullPoems;
   if (normalized === "videos") return COLLECTIONS.videos;
   return "";
 }
@@ -1580,14 +1605,15 @@ app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {
   const profile = mapProfileDoc(snap.docs[0].id, snap.docs[0].data());
   if (!profile.published) return res.status(404).json({ error: "not_found" });
 
-  const [g, e, v, votes] = await Promise.all([
+  const [g, e, fp, v, votes] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getAllFrom(COLLECTIONS.votes),
   ]);
   const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
-  const allContent = [...g, ...e, ...v];
+  const allContent = [...g, ...e, ...fp, ...v];
   const { authored, featured } = pickProfileContent(profile, allContent, ratings);
 
   res.json({
@@ -1629,14 +1655,15 @@ app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
     published: false,
   });
 
-  const [g, e, v, votes] = await Promise.all([
+  const [g, e, fp, v, votes] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getAllFrom(COLLECTIONS.votes),
   ]);
   const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
-  const allContent = [...g, ...e, ...v];
+  const allContent = [...g, ...e, ...fp, ...v];
   const { authored, featured } = pickProfileContent(workingProfile, allContent, ratings);
 
   res.json({
@@ -1938,6 +1965,7 @@ app.get(getBoth("/admin/contentLibrary"), async (req, res) => {
   const collections = [];
   if (type === "all" || type === "graphics") collections.push(COLLECTIONS.graphics);
   if (type === "all" || type === "excerpts") collections.push(COLLECTIONS.excerpts);
+  if (type === "all" || type === "fullpoems") collections.push(COLLECTIONS.fullPoems);
   if (type === "all" || type === "videos") collections.push(COLLECTIONS.videos);
   if (!collections.length) return res.status(400).json({ error: "invalid_content_type" });
 
