@@ -179,7 +179,7 @@ const LoaderController = (() => {
             <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.18em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
               Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
             </div>
-            <button type="button" class="pp-reset-state-button" style="pointer-events:auto;border:1px solid #dad0c1;background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:600;color:#6c6558;cursor:pointer;">Reset app state</button>
+            ${currentUserIsTeamOrAdmin() ? '<button type="button" class="pp-reset-state-button" style="pointer-events:auto;border:1px solid #dad0c1;background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:600;color:#6c6558;cursor:pointer;">Reset app state</button>' : ''}
           </div>
         </div>
       `;
@@ -406,6 +406,15 @@ function currentUserIsTeamOrAdmin() {
   return currentUserIsAdmin() || !!currentAccount?.roles?.includes('team');
 }
 
+function updateResetControlsVisibility() {
+  const canReset = currentUserIsTeamOrAdmin();
+  const loaderReset = document.getElementById('pp-loader-reset');
+  if (loaderReset) loaderReset.style.display = canReset ? '' : 'none';
+  document.querySelectorAll('.pp-reset-state-button').forEach((button) => {
+    button.style.display = canReset ? '' : 'none';
+  });
+}
+
 function getCurrentBuildLabel() {
   const currentScript = Array.from(document.scripts).find((script) => /\/app\.js(\?|$)/.test(script.src || ''));
   if (!currentScript?.src) return 'local';
@@ -630,8 +639,9 @@ function updateUserStatusUI() {
       const scrubMehBadge = canAccessScoreboard
         ? ' <button id="scrub-meh-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f8f2e8;color:#7a5c38;font-size:12px;font-weight:600;cursor:pointer;">Scrub recent meh</button>'
         : '';
-      const resetBadge =
-        ' <button id="reset-app-state-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#fff;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;">Reset app state</button>';
+      const resetBadge = canAccessScoreboard
+        ? ' <button id="reset-app-state-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#fff;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;">Reset app state</button>'
+        : '';
       const buildBadge = isAdmin
         ? ` <span id="build-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#6c6558;font-size:12px;font-weight:600;">Build ${getCurrentBuildLabel()}</span>`
         : '';
@@ -661,13 +671,13 @@ function updateUserStatusUI() {
     syncAdminViewToggle(isAdmin);
   } else {
     if (div) {
-      div.innerHTML = "<button id='login-google'>Log in with Google</button> or continue anonymously <button id='reset-app-state-badge' type='button' style='margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#fff;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;'>Reset app state</button>";
+      div.innerHTML = "<button id='login-google'>Log in with Google</button> or continue anonymously";
       on($('#login-google'), 'click', signInWithGoogle);
-      on($('#reset-app-state-badge'), 'click', () => resetLocalAppState());
     }
     if (loadBtn) loadBtn.disabled = false;
     syncAdminViewToggle(false);
   }
+  updateResetControlsVisibility();
 }
 
 async function refreshCurrentAccount() {
@@ -2182,6 +2192,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
   on(document.getElementById('pp-loader-reset'), 'click', () => resetLocalAppState());
+  updateResetControlsVisibility();
 
   // Default to the app shell immediately; auth should never gate reading.
   show(document.getElementById('login-screen'), false);
