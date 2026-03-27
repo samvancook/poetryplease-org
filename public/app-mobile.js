@@ -101,10 +101,10 @@
     bar.className = 'sticky-controls';
     bar.innerHTML = `
       <div class="controls">
-        <button id="btnBack">Go Back</button>
-        <button id="btnBook">Take me to the book</button>
-        <button id="btnMoreInfo">More Info</button>
-        <button id="btnSkip">Poetry, Please</button>
+        <button id="btnBack" class="mini">Back</button>
+        <button id="btnBook" class="mini">Book</button>
+        <button id="btnMoreInfo" class="mini">Info</button>
+        <button id="btnSkip" class="primary">Poetry, Please</button>
       </div>
     `;
     document.body.appendChild(bar);

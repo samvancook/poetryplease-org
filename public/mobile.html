@@ -138,15 +138,16 @@
   font-size: 1rem;
   white-space: pre-wrap;
 }
-    :root { --pad:14px; --radius:14px; --shadow:0 2px 10px rgba(0,0,0,.06); }
+    :root { --pad:12px; --radius:14px; --shadow:0 2px 10px rgba(0,0,0,.06); }
     *{box-sizing:border-box}
     html,body{margin:0;padding:0;background:#faf7f0;color:#111;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial}
-    body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 72px) env(safe-area-inset-left)}
+    body{padding:env(safe-area-inset-top) env(safe-area-inset-right) calc(env(safe-area-inset-bottom) + 58px) env(safe-area-inset-left)}
     .wrap{max-width:640px;margin:0 auto;padding:var(--pad)}
-    header{display:flex;align-items:center;justify-content:space-between;gap:10px}
-    header h1{font-size:18px;margin:0;font-weight:600}
-    header .status{font-size:12px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .media-outer{margin-top:10px;position:relative}
+    header{display:grid;grid-template-columns:1fr auto;align-items:center;gap:6px 10px}
+    header h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.78}
+    header .status{font-size:11px;opacity:.68;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw;justify-self:end}
+    #mobile-admin-tools{grid-column:1 / span 2;display:flex;gap:8px;flex-wrap:wrap}
+    .media-outer{margin-top:6px;position:relative}
     #media-wrap{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);background:#fafafa}
     /* Viewport + layout scaffolding */
 html, body { height: 100%; }
@@ -200,10 +201,12 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
     /* Sticky bottom controls */
     .sticky-controls{position:fixed;left:0;right:0;bottom:0;z-index:9999;
-      padding:10px env(safe-area-inset-right) calc(10px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
-      background:linear-gradient(180deg,rgba(255,255,255,0) 0%,#fff 30%);display:flex;justify-content:center}
-    .controls{display:flex;gap:10px;width:min(640px,100%);margin:0 auto}
-    .controls button{flex:1;padding:14px 12px;border-radius:var(--radius);border:1px solid #e6e6e6;background:#f7f7f7;font-size:16px;line-height:1.1;touch-action:manipulation;box-shadow:var(--shadow)}
+      padding:8px env(safe-area-inset-right) calc(8px + env(safe-area-inset-bottom)) env(safe-area-inset-left);
+      background:linear-gradient(180deg,rgba(250,247,240,0) 0%,rgba(250,247,240,.92) 30%,rgba(250,247,240,.98) 100%);display:flex;justify-content:center}
+    .controls{display:grid;grid-template-columns:auto auto auto 1fr;gap:8px;width:min(640px,100%);margin:0 auto;align-items:center}
+    .controls button{padding:11px 12px;border-radius:12px;border:1px solid #e6e6e6;background:#f7f7f7;font-size:14px;line-height:1;touch-action:manipulation;box-shadow:var(--shadow);min-height:44px}
+    .controls .primary{font-weight:700;background:#fff}
+    .controls .mini{padding:11px 10px;font-size:13px}
     .controls button:active{transform:translateY(1px)}
     .controls button:disabled{opacity:.45}
 
@@ -260,6 +263,25 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
       #media-wrap img,
       #media-wrap video {
         pointer-events: auto !important;
+      }
+
+      #mobile-google{
+        justify-self:end;
+        font-size:11px !important;
+        padding:6px 9px !important;
+        border-radius:999px !important;
+        line-height:1 !important;
+      }
+
+      @media (max-width: 420px) {
+        .controls{grid-template-columns:auto auto 1fr;grid-template-areas:"back info next" "book book next";}
+        #btnBack{grid-area:back}
+        #btnMoreInfo{grid-area:info}
+        #btnBook{grid-area:book}
+        #btnSkip{grid-area:next}
+        .controls button{font-size:13px}
+        .mobile-vote-btn{width:52px;height:52px;font-size:24px}
+        #mobile-side-votes{right:10px;gap:10px}
       }
 
 
@@ -406,6 +428,6 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
   <!-- Force mobile mode for app.js and load it -->
   <script>window.__PP_FORCE_MOBILE = true;</script>
   <script src="/app.js?v=20260327c" defer></script>
-  <script src="/app-mobile.js?v=20260326a" defer></script>
+  <script src="/app-mobile.js?v=20260327a" defer></script>
 
 </body>
