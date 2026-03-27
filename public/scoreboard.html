@@ -347,6 +347,16 @@
       return CONTENT_TYPE_LABELS[code] || code || '';
     }
 
+    function normalizeTypeForFilter(value) {
+      const raw = String(value || '').trim().toLowerCase();
+      if (!raw) return '';
+      if (raw === 'fp' || raw === 'full poems' || raw === 'fullpoems' || raw === 'full-poems') return 'fp';
+      if (raw === 'exc' || raw === 'excerpts' || raw === 'excerpt') return 'exc';
+      if (raw === 'gp' || raw === 'graphics' || raw === 'graphic') return 'gp';
+      if (raw === 'vv' || raw === 'video' || raw === 'videos') return 'vv';
+      return raw;
+    }
+
     async function createGoogleSheetFromRows(rows, isUserView) {
       const token = await getGoogleSheetsAccessToken();
       const computeExportMetrics = (row) => {
@@ -491,7 +501,7 @@
       const normalized = Array.from(new Map(rawList.map((type) => [String(type).trim().toLowerCase(), String(type).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-      sel.innerHTML = '<option value="">All Types</option>' + normalized.map((type) => `<option>${escapeHtml(type)}</option>`).join('');
+      sel.innerHTML = '<option value="">All Types</option>' + normalized.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(formatContentTypeLabel(type))}</option>`).join('');
     }
 
     function sortData() {
@@ -508,17 +518,17 @@
 
     function filterData() {
       if (!scoreboardLoaded) return;
-      const userVal = document.getElementById('userDropdown').value;
-      const typeVal = document.getElementById('typeDropdown').value.trim().toLowerCase();
+      const userVal = document.getElementById('userDropdown').value.trim().toLowerCase();
+      const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
 
       let data = userVal
-        ? rawVotes.filter((row) => row.user === userVal)
+        ? rawVotes.filter((row) => String(row.user || '').trim().toLowerCase() === userVal)
         : aggregatedData.slice();
 
       if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
-      if (typeVal) data = data.filter((row) => String(row.type || '').trim().toLowerCase() === typeVal);
+      if (typeVal) data = data.filter((row) => normalizeTypeForFilter(row.type) === typeVal);
       if (bookVal) data = data.filter((row) => String(row.bookTitle || '').trim().toLowerCase() === bookVal);
 
       filteredData = data;
