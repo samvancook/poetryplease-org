@@ -137,6 +137,9 @@
         <label>Show preferences for
           <select id="userDropdown"></select>
         </label>
+        <label>Filter by type
+          <select id="typeDropdown"></select>
+        </label>
         <label>Filter by book
           <select id="bookDropdown"></select>
         </label>
@@ -474,6 +477,15 @@
       sel.innerHTML = '<option value="">All Books</option>' + normalized.map((book) => `<option>${escapeHtml(book)}</option>`).join('');
     }
 
+    function buildTypeDropdown(types = null) {
+      const sel = document.getElementById('typeDropdown');
+      const rawList = types || aggregatedData.map((row) => row.type || '');
+      const normalized = Array.from(new Map(rawList.map((type) => [String(type).trim().toLowerCase(), String(type).trim()])).values())
+        .filter(Boolean)
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      sel.innerHTML = '<option value="">All Types</option>' + normalized.map((type) => `<option>${escapeHtml(type)}</option>`).join('');
+    }
+
     function sortData() {
       filteredData.sort((a, b) => {
         let va = a[currentSortKey];
@@ -489,6 +501,7 @@
     function filterData() {
       if (!scoreboardLoaded) return;
       const userVal = document.getElementById('userDropdown').value;
+      const typeVal = document.getElementById('typeDropdown').value.trim().toLowerCase();
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
 
@@ -497,6 +510,7 @@
         : aggregatedData.slice();
 
       if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
+      if (typeVal) data = data.filter((row) => String(row.type || '').trim().toLowerCase() === typeVal);
       if (bookVal) data = data.filter((row) => String(row.bookTitle || '').trim().toLowerCase() === bookVal);
 
       filteredData = data;
@@ -664,6 +678,7 @@
         allGraphics = payload.allGraphics || [];
         scoreboardSnapshotMeta = payload.snapshotMeta || null;
         buildUserDropdown();
+        buildTypeDropdown();
         buildBookDropdown();
         filteredData = aggregatedData.slice();
         sortData();
@@ -682,6 +697,7 @@
     async function init() {
       wireSortHeaders();
       document.getElementById('userDropdown').addEventListener('change', filterData);
+      document.getElementById('typeDropdown').addEventListener('change', filterData);
       document.getElementById('bookDropdown').addEventListener('change', filterData);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);
       document.getElementById('filterCompletedBooks').addEventListener('change', filterData);
