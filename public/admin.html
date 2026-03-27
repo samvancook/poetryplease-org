@@ -415,27 +415,43 @@
     </section>
 
     <section class="card" style="margin-top:20px;">
-      <h2 style="margin-top:0;">Author Invites</h2>
-      <p class="lede" style="margin-bottom:16px;max-width:none;">Create invite links for authors. The invited email must match the Google account they use to redeem the link.</p>
-      <div class="controls">
-        <input id="invite-email" type="email" placeholder="author@example.com" />
-        <label style="display:inline-flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);">
-          Expires in days
-          <input id="invite-days" type="number" min="1" max="90" value="14" style="width:180px;" aria-label="Invite expiration in days" title="Invite expiration in days" />
-        </label>
-        <button id="create-invite" type="button">Create invite</button>
+      <div class="section-head">
+        <h2 style="margin-top:0;">Author Invites</h2>
+        <button id="author-invites-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="author-invites-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
       </div>
-      <div id="invite-status" class="status">No invite created yet.</div>
-      <div id="invite-result" class="empty">New invite links will appear here.</div>
-      <div id="invite-list-status" class="status" style="margin-top:16px;">Loading invites…</div>
-      <div id="invite-list"></div>
+      <div id="author-invites-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Create invite links for authors. The invited email must match the Google account they use to redeem the link.</p>
+        <div class="controls">
+          <input id="invite-email" type="email" placeholder="author@example.com" />
+          <label style="display:inline-flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);">
+            Expires in days
+            <input id="invite-days" type="number" min="1" max="90" value="14" style="width:180px;" aria-label="Invite expiration in days" title="Invite expiration in days" />
+          </label>
+          <button id="create-invite" type="button">Create invite</button>
+        </div>
+        <div id="invite-status" class="status">No invite created yet.</div>
+        <div id="invite-result" class="empty">New invite links will appear here.</div>
+        <div id="invite-list-status" class="status" style="margin-top:16px;">Loading invites…</div>
+        <div id="invite-list"></div>
+      </div>
     </section>
 
     <section class="card" style="margin-top:20px;">
-      <h2 style="margin-top:0;">Content Claims</h2>
-      <p class="lede" style="margin-bottom:16px;max-width:none;">Review author requests to claim existing content in the system.</p>
-      <div id="claim-review-status" class="status">Loading claims…</div>
-      <div id="claim-review-list"></div>
+      <div class="section-head">
+        <h2 style="margin-top:0;">Content Claims</h2>
+        <button id="content-claims-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="content-claims-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
+      </div>
+      <div id="content-claims-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review author requests to claim existing content in the system.</p>
+        <div id="claim-review-status" class="status">Loading claims…</div>
+        <div id="claim-review-list"></div>
+      </div>
     </section>
 
     <section class="card" style="margin-top:20px;">
@@ -550,89 +566,105 @@
     </section>
 
     <section class="card" style="margin-top:20px;">
-      <h2 style="margin-top:0;">Legacy Import Tool</h2>
-      <p class="lede" style="margin-bottom:16px;max-width:none;">Paste rows copied from your existing sheets to bulk import them here. This is the migration bridge away from Apps Script.</p>
-      <div class="controls">
-        <select id="legacy-import-type">
-          <option value="graphics">Graphics sheet</option>
-          <option value="excerpts">Excerpts sheet</option>
-          <option value="videos">Videos sheet</option>
-        </select>
-        <button id="preview-legacy-import" type="button">Preview import</button>
-        <button id="run-legacy-import" type="button" class="secondary" disabled>Confirm import</button>
+      <div class="section-head">
+        <h2 style="margin-top:0;">Legacy Import Tool</h2>
+        <button id="legacy-import-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="legacy-import-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
       </div>
-      <div class="hint">Graphics and excerpts expect the old column order. Videos expects the header row from the spreadsheet, matching the Apps Script mapping.</div>
-      <textarea id="legacy-import-text" placeholder="Paste tab-separated rows from Google Sheets here"></textarea>
-      <div id="legacy-import-status" class="status">No import run yet.</div>
-      <div id="legacy-import-results"></div>
-      <div class="form-grid" style="margin-top:18px;">
-        <label>
-          Delete IDs
-          <textarea id="legacy-delete-ids" placeholder="One document ID per line"></textarea>
-        </label>
-        <label>
-          Delete by created date
-          <input id="legacy-delete-date" type="text" placeholder="YYYY-MM-DD" />
-        </label>
-      </div>
-      <div class="actions" style="margin-top:14px;">
-        <button id="delete-legacy-ids" type="button" class="secondary">Delete listed IDs</button>
-        <button id="delete-legacy-date" type="button" class="secondary">Delete by date</button>
+      <div id="legacy-import-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Paste rows copied from your existing sheets to bulk import them here. This is the migration bridge away from Apps Script.</p>
+        <div class="controls">
+          <select id="legacy-import-type">
+            <option value="graphics">Graphics sheet</option>
+            <option value="excerpts">Excerpts sheet</option>
+            <option value="videos">Videos sheet</option>
+          </select>
+          <button id="preview-legacy-import" type="button">Preview import</button>
+          <button id="run-legacy-import" type="button" class="secondary" disabled>Confirm import</button>
+        </div>
+        <div class="hint">Graphics and excerpts expect the old column order. Videos expects the header row from the spreadsheet, matching the Apps Script mapping.</div>
+        <textarea id="legacy-import-text" placeholder="Paste tab-separated rows from Google Sheets here"></textarea>
+        <div id="legacy-import-status" class="status">No import run yet.</div>
+        <div id="legacy-import-results"></div>
+        <div class="form-grid" style="margin-top:18px;">
+          <label>
+            Delete IDs
+            <textarea id="legacy-delete-ids" placeholder="One document ID per line"></textarea>
+          </label>
+          <label>
+            Delete by created date
+            <input id="legacy-delete-date" type="text" placeholder="YYYY-MM-DD" />
+          </label>
+        </div>
+        <div class="actions" style="margin-top:14px;">
+          <button id="delete-legacy-ids" type="button" class="secondary">Delete listed IDs</button>
+          <button id="delete-legacy-date" type="button" class="secondary">Delete by date</button>
+        </div>
       </div>
     </section>
 
     <section class="card" style="margin-top:20px;">
-      <h2 style="margin-top:0;">Flagged Content</h2>
-      <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
-      <div style="margin-bottom:18px;padding:16px;border:1px solid #e3d8c7;border-radius:18px;background:#fffaf2;">
-        <h3 style="margin:0 0 10px;font-size:18px;">Batch flag content</h3>
-        <p class="meta" style="margin-bottom:12px;">Paste one content ID per line, or upload a plain text / CSV file. This currently matches exact content IDs.</p>
-        <div class="two-col">
-          <label>
-            Content IDs
-            <textarea id="batch-flag-identifiers" placeholder="AEO-EXC-APOCRYPHA-1&#10;Andrea Gibson - After the Breakup.mp4"></textarea>
-          </label>
-          <div>
+      <div class="section-head">
+        <h2 style="margin-top:0;">Flagged Content</h2>
+        <button id="flagged-content-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="flagged-content-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
+      </div>
+      <div id="flagged-content-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
+        <div style="margin-bottom:18px;padding:16px;border:1px solid #e3d8c7;border-radius:18px;background:#fffaf2;">
+          <h3 style="margin:0 0 10px;font-size:18px;">Batch flag content</h3>
+          <p class="meta" style="margin-bottom:12px;">Paste one content ID per line, or upload a plain text / CSV file. This currently matches exact content IDs.</p>
+          <div class="two-col">
             <label>
-              Shared reason
-              <textarea id="batch-flag-note" placeholder="What issue should be reviewed for all of these items?"></textarea>
+              Content IDs
+              <textarea id="batch-flag-identifiers" placeholder="AEO-EXC-APOCRYPHA-1&#10;Andrea Gibson - After the Breakup.mp4"></textarea>
             </label>
-            <label style="margin-top:12px;">
-              Upload text/CSV
-              <input id="batch-flag-file" type="file" accept=".txt,.csv,text/plain,text/csv" />
-            </label>
+            <div>
+              <label>
+                Shared reason
+                <textarea id="batch-flag-note" placeholder="What issue should be reviewed for all of these items?"></textarea>
+              </label>
+              <label style="margin-top:12px;">
+                Upload text/CSV
+                <input id="batch-flag-file" type="file" accept=".txt,.csv,text/plain,text/csv" />
+              </label>
+            </div>
           </div>
+          <div class="actions" style="margin-top:12px;">
+            <button id="preview-batch-flags" type="button" class="secondary">Preview batch</button>
+            <button id="submit-batch-flags" type="button">Flag listed content</button>
+          </div>
+          <div id="batch-flag-status" class="status">Paste or upload IDs to preview a batch flag job.</div>
+          <div id="batch-flag-preview" class="empty" style="margin-top:12px;">No batch loaded yet.</div>
         </div>
-        <div class="actions" style="margin-top:12px;">
-          <button id="preview-batch-flags" type="button" class="secondary">Preview batch</button>
-          <button id="submit-batch-flags" type="button">Flag listed content</button>
+        <div class="controls">
+          <input id="flag-search" type="search" placeholder="Search by title, image ID, author, reason, or flagger" />
+          <select id="flag-status-filter">
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="resolved">Resolved</option>
+          </select>
+          <select id="flag-type-filter">
+            <option value="all">All types</option>
+            <option value="graphics">Graphics only</option>
+            <option value="EXC">Excerpts</option>
+            <option value="FP">Full Poems</option>
+            <option value="VV">Video</option>
+          </select>
+          <select id="flag-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="author-az">Author A–Z</option>
+            <option value="title-az">Title A–Z</option>
+          </select>
         </div>
-        <div id="batch-flag-status" class="status">Paste or upload IDs to preview a batch flag job.</div>
-        <div id="batch-flag-preview" class="empty" style="margin-top:12px;">No batch loaded yet.</div>
+        <div id="flag-review-status" class="status">Loading flagged content…</div>
+        <div id="flag-review-list"></div>
       </div>
-      <div class="controls">
-        <input id="flag-search" type="search" placeholder="Search by title, image ID, author, reason, or flagger" />
-        <select id="flag-status-filter">
-          <option value="all">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="resolved">Resolved</option>
-        </select>
-        <select id="flag-type-filter">
-          <option value="all">All types</option>
-          <option value="graphics">Graphics only</option>
-          <option value="EXC">Excerpts</option>
-          <option value="FP">Full Poems</option>
-          <option value="VV">Video</option>
-        </select>
-        <select id="flag-sort">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="author-az">Author A–Z</option>
-          <option value="title-az">Title A–Z</option>
-        </select>
-      </div>
-      <div id="flag-review-status" class="status">Loading flagged content…</div>
-      <div id="flag-review-list"></div>
     </section>
   </main>
 
@@ -693,6 +725,10 @@
       batchFlagIdentifiers: [],
       usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') !== 'false',
       contentLibraryCollapsed: localStorage.getItem('pp_admin_content_library_collapsed') !== 'false',
+      authorInvitesCollapsed: localStorage.getItem('pp_admin_author_invites_collapsed') !== 'false',
+      contentClaimsCollapsed: localStorage.getItem('pp_admin_content_claims_collapsed') !== 'false',
+      legacyImportCollapsed: localStorage.getItem('pp_admin_legacy_import_collapsed') !== 'false',
+      flaggedContentCollapsed: localStorage.getItem('pp_admin_flagged_content_collapsed') !== 'false',
     };
 
     function setStatus(message, isError = false) {
@@ -719,6 +755,32 @@
       body.hidden = !!state.contentLibraryCollapsed;
       const label = button.querySelector('span:last-child');
       if (label) label.textContent = state.contentLibraryCollapsed ? 'Expand' : 'Collapse';
+    }
+
+    function applySectionCollapseState(buttonId, bodyId, collapsed) {
+      const button = document.getElementById(buttonId);
+      const body = document.getElementById(bodyId);
+      if (!button || !body) return;
+      button.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      body.hidden = !!collapsed;
+      const label = button.querySelector('span:last-child');
+      if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+    }
+
+    function applyAuthorInvitesCollapseState() {
+      applySectionCollapseState('author-invites-toggle', 'author-invites-section-body', state.authorInvitesCollapsed);
+    }
+
+    function applyContentClaimsCollapseState() {
+      applySectionCollapseState('content-claims-toggle', 'content-claims-section-body', state.contentClaimsCollapsed);
+    }
+
+    function applyLegacyImportCollapseState() {
+      applySectionCollapseState('legacy-import-toggle', 'legacy-import-section-body', state.legacyImportCollapsed);
+    }
+
+    function applyFlaggedContentCollapseState() {
+      applySectionCollapseState('flagged-content-toggle', 'flagged-content-section-body', state.flaggedContentCollapsed);
     }
 
     function compareStrings(a, b) {
@@ -2271,6 +2333,10 @@
     async function init() {
       applyUsersCollapseState();
       applyContentLibraryCollapseState();
+      applyAuthorInvitesCollapseState();
+      applyContentClaimsCollapseState();
+      applyLegacyImportCollapseState();
+      applyFlaggedContentCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
         updateAuthUI(user);
@@ -2324,6 +2390,26 @@
         state.contentLibraryCollapsed = !state.contentLibraryCollapsed;
         localStorage.setItem('pp_admin_content_library_collapsed', state.contentLibraryCollapsed ? 'true' : 'false');
         applyContentLibraryCollapseState();
+      });
+      document.getElementById("author-invites-toggle").addEventListener("click", () => {
+        state.authorInvitesCollapsed = !state.authorInvitesCollapsed;
+        localStorage.setItem('pp_admin_author_invites_collapsed', state.authorInvitesCollapsed ? 'true' : 'false');
+        applyAuthorInvitesCollapseState();
+      });
+      document.getElementById("content-claims-toggle").addEventListener("click", () => {
+        state.contentClaimsCollapsed = !state.contentClaimsCollapsed;
+        localStorage.setItem('pp_admin_content_claims_collapsed', state.contentClaimsCollapsed ? 'true' : 'false');
+        applyContentClaimsCollapseState();
+      });
+      document.getElementById("legacy-import-toggle").addEventListener("click", () => {
+        state.legacyImportCollapsed = !state.legacyImportCollapsed;
+        localStorage.setItem('pp_admin_legacy_import_collapsed', state.legacyImportCollapsed ? 'true' : 'false');
+        applyLegacyImportCollapseState();
+      });
+      document.getElementById("flagged-content-toggle").addEventListener("click", () => {
+        state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
+        localStorage.setItem('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed ? 'true' : 'false');
+        applyFlaggedContentCollapseState();
       });
       document.getElementById("login-google").addEventListener("click", async () => {
         await signInWithGoogle();
