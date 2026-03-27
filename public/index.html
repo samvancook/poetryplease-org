@@ -52,6 +52,15 @@
       text-transform: uppercase;
       color: rgba(30, 26, 21, 0.68);
     }
+    .pp-loader__reset {
+      border: 1px solid rgba(30, 26, 21, 0.12);
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font: 600 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: rgba(30, 26, 21, 0.72);
+      cursor: pointer;
+    }
     .pp-loader__dots {
       display: inline-block;
       width: 3ch;
@@ -119,6 +128,7 @@
     <div class="pp-loader__content">
       <img class="pp-loader__mark" src="/pp-loader-logo.png?v=20260323b" alt="" decoding="async" />
       <div class="pp-loader__text">Loading<span class="pp-loader__dots" aria-hidden="true"></span></div>
+      <button id="pp-loader-reset" class="pp-loader__reset" type="button">Reset app state</button>
     </div>
   </div>
   <div id="user-status"></div>

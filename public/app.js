@@ -19,7 +19,10 @@ const CONSTANTS = { API_BASE: '/api' };
 
   const url = new URL(location.href);
   const q = (k) => url.searchParams.get(k);
-  const ls = (k) => (localStorage.getItem(k) || '').trim();
+  const ls = (k) => {
+    try { return (localStorage.getItem(k) || '').trim(); }
+    catch (_) { return ''; }
+  };
 
   const forced =
     (window.__PP_FORCE_MOBILE === true) ? true :
@@ -56,6 +59,66 @@ var computed =
   });
 })();
 const IS_MOBILE_UI = window.IS_MOBILE_UI;
+
+function safeLocalStorageGet(key) {
+  try {
+    return localStorage.getItem(key);
+  } catch (_) {
+    return null;
+  }
+}
+
+function safeLocalStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_) {}
+}
+
+function safeLocalStorageRemove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (_) {}
+}
+
+function sanitizeStoredAppState() {
+  const pinnedView = (safeLocalStorageGet('pp_view') || '').trim();
+  if (pinnedView && pinnedView !== 'mobile' && pinnedView !== 'desktop') {
+    safeLocalStorageRemove('pp_view');
+  }
+
+  const anonId = (safeLocalStorageGet('pp_anon') || '').trim();
+  if (anonId && !/^(local-[a-z0-9]{6,}|poetrylover\d+)$/i.test(anonId)) {
+    safeLocalStorageRemove('pp_anon');
+  }
+}
+
+async function resetLocalAppState({ reload = true } = {}) {
+  try {
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (
+        key === 'pp_view' ||
+        key === 'pp_anon' ||
+        key === 'pp_force_mobile' ||
+        key === 'pp_force_desktop' ||
+        key.startsWith('pp_anon_merged_')
+      ) {
+        keys.push(key);
+      }
+    }
+    keys.forEach((key) => safeLocalStorageRemove(key));
+  } catch (_) {}
+
+  try {
+    await firebase.auth().signOut();
+  } catch (_) {}
+
+  if (reload) window.location.replace(window.location.pathname + window.location.search + window.location.hash);
+}
+
+sanitizeStoredAppState();
 
 const LoaderController = (() => {
   const state = {
@@ -116,10 +179,14 @@ const LoaderController = (() => {
             <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.18em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
               Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
             </div>
+            <button type="button" class="pp-reset-state-button" style="pointer-events:auto;border:1px solid #dad0c1;background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:600;color:#6c6558;cursor:pointer;">Reset app state</button>
           </div>
         </div>
       `;
       document.body.appendChild(overlayEl);
+      overlayEl.querySelector('.pp-reset-state-button')?.addEventListener('click', () => {
+        resetLocalAppState();
+      });
     } else {
       overlayEl.style.opacity = '1';
     }
@@ -563,6 +630,8 @@ function updateUserStatusUI() {
       const scrubMehBadge = canAccessScoreboard
         ? ' <button id="scrub-meh-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f8f2e8;color:#7a5c38;font-size:12px;font-weight:600;cursor:pointer;">Scrub recent meh</button>'
         : '';
+      const resetBadge =
+        ' <button id="reset-app-state-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#fff;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;">Reset app state</button>';
       const buildBadge = isAdmin
         ? ` <span id="build-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#6c6558;font-size:12px;font-weight:600;">Build ${getCurrentBuildLabel()}</span>`
         : '';
@@ -572,7 +641,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -583,6 +652,7 @@ function updateUserStatusUI() {
       on($('#feed-signals-badge'), 'click', openFeedSignalsModal);
       on($('#counts-badge'), 'click', openCountsModal);
       on($('#scrub-meh-badge'), 'click', () => scrubRecentMehVotes(24));
+      on($('#reset-app-state-badge'), 'click', () => resetLocalAppState());
       on($('#admin-view-toggle'), 'change', (event) => {
         navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
       });
@@ -591,8 +661,9 @@ function updateUserStatusUI() {
     syncAdminViewToggle(isAdmin);
   } else {
     if (div) {
-      div.innerHTML = "<button id='login-google'>Log in with Google</button> or continue anonymously";
+      div.innerHTML = "<button id='login-google'>Log in with Google</button> or continue anonymously <button id='reset-app-state-badge' type='button' style='margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#fff;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;'>Reset app state</button>";
       on($('#login-google'), 'click', signInWithGoogle);
+      on($('#reset-app-state-badge'), 'click', () => resetLocalAppState());
     }
     if (loadBtn) loadBtn.disabled = false;
     syncAdminViewToggle(false);
@@ -2110,6 +2181,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
+  on(document.getElementById('pp-loader-reset'), 'click', () => resetLocalAppState());
 
   // Default to the app shell immediately; auth should never gate reading.
   show(document.getElementById('login-screen'), false);
