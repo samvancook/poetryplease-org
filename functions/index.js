@@ -876,6 +876,7 @@ function slugify(value) {
 }
 
 function sanitizeDocIdSegment(value) {
+  // Firestore document IDs cannot contain path separators like "/".
   return normalizeText(value)
     .replace(/[\/]+/g, "-")
     .replace(/\s+/g, "-")
