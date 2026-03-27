@@ -1380,12 +1380,20 @@ async function fetchLatestBatch() {
   return fetchDataAnonWrapped(anonId);
 }
 
+function hasActiveFeedFilters() {
+  return !!(selectedType || selectedCatalog || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook));
+}
+
 async function fetchFullFeedData() {
   const user = firebase.auth().currentUser;
   if (user) return fetchFullDataWrapped();
 
   const anonId = await getOrCreateAnonId();
   return fetchFullDataAnonWrapped(anonId);
+}
+
+async function fetchBestBatchForCurrentView() {
+  return hasActiveFeedFilters() ? fetchFullFeedData() : fetchLatestBatch();
 }
 
 async function hydrateFullFeedInBackground() {
@@ -1926,7 +1934,7 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
       safePreload(idx + PRELOAD_AHEAD);
       renderWhenReady(idx);
     } else {
-      const data = await fetchLatestBatch().catch(()=>null);
+      const data = await fetchBestBatchForCurrentView().catch(()=>null);
       if (data) initQueueFromData(data);
     }
     setVoteButtonsDisabled(false);
@@ -1936,7 +1944,7 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
 async function onSkip(){
   if (isTransitioning) return;
   if (!currentItem) {
-    const data = await fetchLatestBatch().catch(()=>null);
+    const data = await fetchBestBatchForCurrentView().catch(()=>null);
     if (data) initQueueFromData(data);
     return;
   }
@@ -1953,7 +1961,7 @@ async function onSkip(){
   finally {
     const nextIndex = chooseNextIndex();
     if (nextIndex !== -1) { idx = nextIndex; safePreload(idx + PRELOAD_AHEAD); renderWhenReady(idx); }
-    else { const data = await fetchLatestBatch().catch(()=>null); if (data) initQueueFromData(data); }
+    else { const data = await fetchBestBatchForCurrentView().catch(()=>null); if (data) initQueueFromData(data); }
     setVoteButtonsDisabled(false); isTransitioning = false;
   }
 }
@@ -1992,9 +2000,9 @@ async function ppAutoloadFirstItem() {
       console.debug(`[PP] autoload attempt ${attempt}/3`);
 
       const data = await withTimeout_(
-        fetchLatestBatch(),
+        fetchBestBatchForCurrentView(),
         12000,
-        '[PP] fetchLatestBatch'
+        '[PP] fetchBestBatchForCurrentView'
       ).catch((e) => {
         console.warn('[PP] autoload fetch error:', e);
         return null;
