@@ -543,6 +543,7 @@
           <button id="clear-content" type="button" class="secondary">Clear form</button>
           <button id="preview-full-poems-import" type="button" class="secondary" data-content-field="fullpoems">Preview JSON import</button>
           <button id="run-full-poems-import" type="button" class="secondary" data-content-field="fullpoems">Import JSON</button>
+          <button id="delete-full-poems-json" type="button" class="secondary" data-content-field="fullpoems">Delete JSON IDs</button>
         </div>
         <div id="content-library-list" style="margin-top:18px;"></div>
       </div>
@@ -1559,6 +1560,15 @@
       }));
     }
 
+    function fullPoemDocIdFromItem(item) {
+      const explicit = sanitizeDocIdSegment(item.docId || item.contentId || item.imageId || '');
+      if (explicit) return explicit;
+      const shortener = sanitizeDocIdSegment(item.bookShortener || '');
+      const title = String(item.title || '').trim();
+      if (!shortener || !title) return '';
+      return `${shortener}-FP-${slugify(title)}`;
+    }
+
     async function previewFullPoemsImport() {
       const statusEl = document.getElementById('content-status');
       statusEl.textContent = 'Previewing full poems import…';
@@ -1592,6 +1602,24 @@
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not import full poems.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function deleteFullPoemsImportIds() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Deleting full poems from selected JSON…';
+      statusEl.className = 'status';
+      try {
+        const items = await readFullPoemsImportItems();
+        const ids = Array.from(new Set(items.map((item) => fullPoemDocIdFromItem(item)).filter(Boolean)));
+        if (!ids.length) throw new Error('No valid IDs found in the selected JSON file.');
+        const payload = await api('admin/contentLibrary/deleteByIds', { method: 'POST', body: { type: 'fullpoems', ids } });
+        statusEl.textContent = `Deleted ${payload.deletedCount || 0} item(s). ${payload.missingCount ? `${payload.missingCount} not found.` : ''}`.trim();
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not delete the selected full poems.';
         statusEl.className = 'status error';
       }
     }
@@ -2283,6 +2311,7 @@
       document.getElementById("content-book-shortener").addEventListener("blur", () => maybeAutofillContentId());
       document.getElementById("preview-full-poems-import").addEventListener("click", () => previewFullPoemsImport());
       document.getElementById("run-full-poems-import").addEventListener("click", () => runFullPoemsImport());
+      document.getElementById("delete-full-poems-json").addEventListener("click", () => deleteFullPoemsImportIds());
       document.getElementById("preview-legacy-import").addEventListener("click", () => previewLegacyImport());
       document.getElementById("run-legacy-import").addEventListener("click", () => runLegacyImport());
       document.getElementById("legacy-import-type").addEventListener("change", () => {
