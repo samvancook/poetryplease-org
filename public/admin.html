@@ -1556,7 +1556,10 @@
       try {
         const items = await readFullPoemsImportItems();
         const payload = await api('admin/contentLibrary/bulkPreview', { method: 'POST', body: { type: 'full-poems', items } });
-        statusEl.textContent = `Preview ready: ${payload.createCount || 0} create, ${payload.updateCount || 0} update, ${payload.errorCount || 0} errors.`;
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Preview ready: ${payload.createCount || 0} create, ${payload.updateCount || 0} update, ${payload.errorCount || 0} errors.${firstError ? ` First error: ${firstError.error}` : ''}`;
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not preview full poems import.';
@@ -1571,7 +1574,10 @@
       try {
         const items = await readFullPoemsImportItems();
         const payload = await api('admin/contentLibrary/bulkUpsert', { method: 'POST', body: { type: 'full-poems', items } });
-        statusEl.textContent = `Import finished: ${payload.createdCount || 0} created, ${payload.updatedCount || 0} updated, ${payload.errorCount || 0} errors.`;
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Import finished: ${payload.createdCount || 0} created, ${payload.updatedCount || 0} updated, ${payload.errorCount || 0} errors.${firstError ? ` First error: ${firstError.error}` : ''}`;
         await loadContentLibrary();
       } catch (err) {
         console.error(err);
