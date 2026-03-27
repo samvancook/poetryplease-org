@@ -1050,7 +1050,7 @@ function collectionForContentType(type) {
   const normalized = normalizeKey(type);
   if (normalized === "graphics") return COLLECTIONS.graphics;
   if (normalized === "excerpts") return COLLECTIONS.excerpts;
-  if (normalized === "fullpoems") return COLLECTIONS.fullPoems;
+  if (normalized === "fullpoems" || normalized === "full-poems") return COLLECTIONS.fullPoems;
   if (normalized === "videos") return COLLECTIONS.videos;
   return "";
 }
@@ -1965,7 +1965,7 @@ app.get(getBoth("/admin/contentLibrary"), async (req, res) => {
   const collections = [];
   if (type === "all" || type === "graphics") collections.push(COLLECTIONS.graphics);
   if (type === "all" || type === "excerpts") collections.push(COLLECTIONS.excerpts);
-  if (type === "all" || type === "fullpoems") collections.push(COLLECTIONS.fullPoems);
+  if (type === "all" || type === "fullpoems" || type === "full-poems") collections.push(COLLECTIONS.fullPoems);
   if (type === "all" || type === "videos") collections.push(COLLECTIONS.videos);
   if (!collections.length) return res.status(400).json({ error: "invalid_content_type" });
 
