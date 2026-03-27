@@ -776,7 +776,7 @@ async function getOrCreateAnonId() {
   .top-bar .spacer{flex:1;}
   #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
 
-  #media-wrap{ max-width:min(1000px,95vw); margin:6px auto 12px; text-align:center; }
+  #media-wrap{ max-width:min(1080px,96vw); margin:6px auto 12px; text-align:center; }
   .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
   #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
   .button-container{ display:flex; justify-content:center; }
@@ -822,7 +822,7 @@ async function getOrCreateAnonId() {
     width: 100%;
     overflow: hidden;
     box-sizing: border-box;
-    padding: 6px 0;
+    padding: 2px 0;
   }
   .media-box > a{
     display:flex;
@@ -1614,7 +1614,7 @@ function adjustViewportFit() {
     });
   }
 
-  const buffer = 40;
+  const buffer = 22;
   const maxH = Math.max(160, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
 }
