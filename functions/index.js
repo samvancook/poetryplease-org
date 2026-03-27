@@ -969,7 +969,7 @@ function deriveContentDocId(type, body = {}) {
     if (!bookShortener || !poem) return "";
     return `${bookShortener}-EXC-${slugify(poem)}`.toUpperCase();
   }
-  if (type === "full-poems") {
+  if (type === "full-poems" || type === "fullpoems") {
     const explicit = normalizeText(body.docId || body.contentId || body.imageId);
     if (explicit) return explicit;
     const bookShortener = normalizeText(body.bookShortener);
@@ -992,7 +992,7 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     throw err;
   }
 
-  const imageType = normalizeText(body.imageType || (type === "excerpts" ? "EXC" : type === "full-poems" ? "FP" : type === "videos" ? "VV" : ""));
+  const imageType = normalizeText(body.imageType || (type === "excerpts" ? "EXC" : (type === "full-poems" || type === "fullpoems") ? "FP" : type === "videos" ? "VV" : ""));
   const payload = {
     imageType,
     contentId: docId,
@@ -1016,7 +1016,7 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.bookShortener = normalizeText(body.bookShortener);
     payload.imageID = docId;
     payload.imageId = docId;
-  } else if (type === "full-poems") {
+  } else if (type === "full-poems" || type === "fullpoems") {
     payload.title = normalizeText(body.title);
     payload.excerpt = normalizeText(body.excerpt);
     payload.pageNumber = normalizeText(body.pageNumber);
