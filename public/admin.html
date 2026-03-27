@@ -1283,6 +1283,16 @@
         .replace(/[^\w-]/g, '');
     }
 
+    function sanitizeDocIdSegment(value) {
+      return String(value || '')
+        .trim()
+        .replace(/[\/]+/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toUpperCase();
+    }
+
     function updateContentFormVisibility() {
       const type = state.contentType || 'graphics';
       document.querySelectorAll('[data-content-field]').forEach((el) => {
@@ -1364,12 +1374,12 @@
       const idInput = document.getElementById('content-doc-id');
       if (idInput.value.trim()) return;
       if (state.contentType === 'excerpts') {
-        const shortener = document.getElementById('content-book-shortener').value.trim();
+        const shortener = sanitizeDocIdSegment(document.getElementById('content-book-shortener').value);
         const poem = document.getElementById('content-poem').value.trim();
         if (shortener && poem) idInput.value = `${shortener}-EXC-${slugify(poem)}`;
       }
       if (state.contentType === 'fullpoems') {
-        const shortener = document.getElementById('content-book-shortener').value.trim();
+        const shortener = sanitizeDocIdSegment(document.getElementById('content-book-shortener').value);
         const title = document.getElementById('content-title').value.trim();
         if (shortener && title) idInput.value = `${shortener}-FP-${slugify(title)}`;
       }

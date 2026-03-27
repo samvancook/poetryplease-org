@@ -875,6 +875,14 @@ function slugify(value) {
     .slice(0, 80);
 }
 
+function sanitizeDocIdSegment(value) {
+  return normalizeText(value)
+    .replace(/[\/]+/g, "-")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 function sha256(value) {
   return createHash("sha256").update(String(value || "")).digest("hex");
 }
@@ -962,17 +970,17 @@ function deriveContentDocId(type, body = {}) {
     return normalizeText(body.docId || body.imageId);
   }
   if (type === "excerpts") {
-    const explicit = normalizeText(body.docId || body.imageID || body.imageId);
+    const explicit = sanitizeDocIdSegment(body.docId || body.imageID || body.imageId);
     if (explicit) return explicit;
-    const bookShortener = normalizeText(body.bookShortener);
+    const bookShortener = sanitizeDocIdSegment(body.bookShortener);
     const poem = normalizeText(body.poem || body.title);
     if (!bookShortener || !poem) return "";
     return `${bookShortener}-EXC-${slugify(poem)}`.toUpperCase();
   }
   if (type === "full-poems" || type === "fullpoems") {
-    const explicit = normalizeText(body.docId || body.contentId || body.imageId);
+    const explicit = sanitizeDocIdSegment(body.docId || body.contentId || body.imageId);
     if (explicit) return explicit;
-    const bookShortener = normalizeText(body.bookShortener);
+    const bookShortener = sanitizeDocIdSegment(body.bookShortener);
     const title = normalizeText(body.title);
     if (!bookShortener || !title) return "";
     return `${bookShortener}-FP-${slugify(title)}`.toUpperCase();
