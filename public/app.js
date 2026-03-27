@@ -742,7 +742,7 @@ async function getOrCreateAnonId() {
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
 
   .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
-  .full-poem-title { margin: 0 0 0.75rem; font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 700; line-height: 1.2; }
+  .full-poem-title { margin: 0 0 1.4rem; font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 700; line-height: 1.2; }
   .full-poem-body { margin: 0; }
   .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
   .meta-row p { margin:0; }
