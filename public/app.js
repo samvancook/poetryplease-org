@@ -742,6 +742,8 @@ async function getOrCreateAnonId() {
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
 
   .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
+  .full-poem-title { margin: 0 0 0.75rem; font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 700; line-height: 1.2; }
+  .full-poem-body { margin: 0; }
   .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
   .meta-row p { margin:0; }
   .vote-btn.voted { opacity:.85; }
@@ -1695,7 +1697,17 @@ function renderItemMedia(item) {
 
   if (item?.imageType === 'EXC' || item?.imageType === 'FP') {
     const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
-    const p = document.createElement('p'); p.textContent = item?.excerpt || ''; textDiv.appendChild(p); box.appendChild(textDiv);
+    if (item?.imageType === 'FP' && item?.title) {
+      const title = document.createElement('div');
+      title.className = 'full-poem-title';
+      title.textContent = item.title;
+      textDiv.appendChild(title);
+    }
+    const p = document.createElement('p');
+    p.className = item?.imageType === 'FP' ? 'full-poem-body' : '';
+    p.textContent = item?.excerpt || '';
+    textDiv.appendChild(p);
+    box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
     const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
     v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
