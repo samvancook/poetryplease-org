@@ -452,7 +452,7 @@
           <select id="content-type">
             <option value="graphics">Graphics</option>
             <option value="excerpts">Excerpts</option>
-            <option value="full-poems">Full Poems</option>
+            <option value="fullpoems">Full Poems</option>
             <option value="videos">Videos</option>
           </select>
           <input id="content-search" type="search" placeholder="Search recent content by ID, title, author, or catalog" />
@@ -473,11 +473,11 @@
           Author
           <input id="content-author" type="text" placeholder="Author name" />
         </label>
-        <label data-content-field="graphics excerpts full-poems videos">
+        <label data-content-field="graphics excerpts fullpoems videos">
           Book
           <input id="content-book" type="text" placeholder="Book title" />
         </label>
-        <label data-content-field="graphics full-poems videos">
+        <label data-content-field="graphics fullpoems videos">
           Title
           <input id="content-title" type="text" placeholder="Graphic, poem, or video title" />
         </label>
@@ -493,27 +493,27 @@
           Upload graphic
           <input id="content-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
         </label>
-        <label data-content-field="graphics excerpts full-poems videos">
+        <label data-content-field="graphics excerpts fullpoems videos">
           Drive Link
           <input id="content-drive-link" type="url" placeholder="Optional Drive link" />
         </label>
-        <label data-content-field="graphics excerpts full-poems videos">
+        <label data-content-field="graphics excerpts fullpoems videos">
           Book Link
           <input id="content-book-link" type="url" placeholder="Optional book link" />
         </label>
-        <label data-content-field="graphics excerpts full-poems videos">
+        <label data-content-field="graphics excerpts fullpoems videos">
           Release Catalog
           <input id="content-release-catalog" type="text" placeholder="Catalog code" />
         </label>
-        <label data-content-field="excerpts full-poems videos">
+        <label data-content-field="excerpts fullpoems videos">
           Page Number
           <input id="content-page-number" type="text" placeholder="Page #" />
         </label>
-        <label data-content-field="excerpts full-poems videos">
+        <label data-content-field="excerpts fullpoems videos">
           Book Shortener
           <input id="content-book-shortener" type="text" placeholder="Used in legacy IDs" />
         </label>
-        <label data-content-field="full-poems videos">
+        <label data-content-field="fullpoems videos">
           Release Year
           <input id="content-release-year" type="text" placeholder="YYYY" />
         </label>
@@ -529,11 +529,11 @@
           Misc
           <input id="content-misc" type="text" placeholder="Optional notes" />
         </label>
-        <label class="wide" data-content-field="excerpts full-poems">
+        <label class="wide" data-content-field="excerpts fullpoems">
           Text
           <textarea id="content-excerpt" placeholder="Excerpt or full poem text"></textarea>
         </label>
-        <label class="wide" data-content-field="full-poems">
+        <label class="wide" data-content-field="fullpoems">
           Full Poems JSON file
           <input id="content-full-poems-file" type="file" accept="application/json,.json" />
         </label>
@@ -541,8 +541,8 @@
         <div class="actions" style="margin-top:14px;">
           <button id="save-content" type="button">Save content</button>
           <button id="clear-content" type="button" class="secondary">Clear form</button>
-          <button id="preview-full-poems-import" type="button" class="secondary" data-content-field="full-poems">Preview JSON import</button>
-          <button id="run-full-poems-import" type="button" class="secondary" data-content-field="full-poems">Import JSON</button>
+          <button id="preview-full-poems-import" type="button" class="secondary" data-content-field="fullpoems">Preview JSON import</button>
+          <button id="run-full-poems-import" type="button" class="secondary" data-content-field="fullpoems">Import JSON</button>
         </div>
         <div id="content-library-list" style="margin-top:18px;"></div>
       </div>
@@ -1293,11 +1293,11 @@
       const imageTypeInput = document.getElementById('content-image-type');
       if (type === 'graphics') docIdInput.placeholder = 'Required. Usually the image ID.';
       if (type === 'excerpts') docIdInput.placeholder = 'Required or leave blank to derive from book shortener + poem.';
-      if (type === 'full-poems') docIdInput.placeholder = 'Optional. Leave blank to derive from book shortener + title.';
+      if (type === 'fullpoems') docIdInput.placeholder = 'Optional. Leave blank to derive from book shortener + title.';
       if (type === 'videos') docIdInput.placeholder = 'Required. Usually the raw file name or video ID.';
       if (imageTypeInput && !imageTypeInput.value.trim()) {
         if (type === 'excerpts') imageTypeInput.value = 'EXC';
-        if (type === 'full-poems') imageTypeInput.value = 'FP';
+        if (type === 'fullpoems') imageTypeInput.value = 'FP';
         if (type === 'videos') imageTypeInput.value = 'VV';
       }
     }
@@ -1368,7 +1368,7 @@
         const poem = document.getElementById('content-poem').value.trim();
         if (shortener && poem) idInput.value = `${shortener}-EXC-${slugify(poem)}`;
       }
-      if (state.contentType === 'full-poems') {
+      if (state.contentType === 'fullpoems') {
         const shortener = document.getElementById('content-book-shortener').value.trim();
         const title = document.getElementById('content-title').value.trim();
         if (shortener && title) idInput.value = `${shortener}-FP-${slugify(title)}`;
@@ -1555,7 +1555,7 @@
       statusEl.className = 'status';
       try {
         const items = await readFullPoemsImportItems();
-        const payload = await api('admin/contentLibrary/bulkPreview', { method: 'POST', body: { type: 'full-poems', items } });
+        const payload = await api('admin/contentLibrary/bulkPreview', { method: 'POST', body: { type: 'fullpoems', items } });
         const firstError = Array.isArray(payload.results)
           ? payload.results.find((row) => !row?.ok && row?.error)
           : null;
@@ -1573,7 +1573,7 @@
       statusEl.className = 'status';
       try {
         const items = await readFullPoemsImportItems();
-        const payload = await api('admin/contentLibrary/bulkUpsert', { method: 'POST', body: { type: 'full-poems', items } });
+        const payload = await api('admin/contentLibrary/bulkUpsert', { method: 'POST', body: { type: 'fullpoems', items } });
         const firstError = Array.isArray(payload.results)
           ? payload.results.find((row) => !row?.ok && row?.error)
           : null;
