@@ -583,6 +583,12 @@ async function buildScoreboardPayload() {
 
   const enrichedVotes = rawVotes.map((vote) => {
     const meta = metaMap.get(vote.imageId) || {};
+    const normalizedImageId = normalizeKey(vote.imageId);
+    const inferredType = meta.type
+      || (normalizedImageId.includes("-fp-") ? "FP" : "")
+      || (normalizedImageId.includes("-exc-") ? "EXC" : "")
+      || (normalizedImageId.endsWith(".mp4") || normalizedImageId.includes("-vv-") ? "VV" : "")
+      || "";
     return {
       imageId: vote.imageId,
       vote: vote.vote,
@@ -591,7 +597,7 @@ async function buildScoreboardPayload() {
       poemTitle: meta.poemTitle || "‹no title›",
       bookTitle: meta.bookTitle || "‹no book›",
       fileLink: meta.fileLink || "",
-      type: meta.type || "",
+      type: inferredType,
       excerpt: meta.excerpt || "",
     };
   });
