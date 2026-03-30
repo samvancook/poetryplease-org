@@ -370,6 +370,24 @@
       return num.toFixed(2);
     }
 
+    function enrichScoreMetrics(row) {
+      const likes = Number(row.likes || 0);
+      const dislikes = Number(row.dislikes || 0);
+      const meh = Number(row.meh || 0);
+      const movedMe = Number(row.movedMe || 0);
+      const totalVotes = Number(row.totalVotes || 0);
+      const rawScore = Number(row.score || (likes + (movedMe * 2) - dislikes) || 0);
+      return {
+        ...row,
+        score: rawScore,
+        scorePerVote: totalVotes ? rawScore / totalVotes : 0,
+        likeRate: totalVotes ? likes / totalVotes : 0,
+        movedMeRate: totalVotes ? movedMe / totalVotes : 0,
+        mehRate: totalVotes ? meh / totalVotes : 0,
+        dislikeRate: totalVotes ? dislikes / totalVotes : 0,
+      };
+    }
+
     async function createGoogleSheetFromRows(rows, isUserView) {
       const token = await getGoogleSheetsAccessToken();
       const computeExportMetrics = (row) => {
@@ -704,7 +722,7 @@
       setStatus('Loading scoreboard…');
       try {
         const payload = await api('scoreboard', { method: 'GET' });
-        aggregatedData = payload.aggregated || [];
+        aggregatedData = (payload.aggregated || []).map(enrichScoreMetrics);
         rawVotes = payload.rawVotes || [];
         allGraphics = payload.allGraphics || [];
         scoreboardSnapshotMeta = payload.snapshotMeta || null;
