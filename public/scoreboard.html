@@ -178,6 +178,8 @@
               <th data-column="movedMe">Moved Me</th>
               <th data-column="totalVotes">Total Votes</th>
               <th data-column="score">Score</th>
+              <th data-column="scorePerVote">Score / Vote</th>
+              <th data-column="movedMeRate">Moved Me %</th>
               <th data-column="vote" style="display:none;">Vote</th>
             </tr>
           </thead>
@@ -355,6 +357,17 @@
       if (raw === 'gp' || raw === 'graphics' || raw === 'graphic') return 'gp';
       if (raw === 'vv' || raw === 'video' || raw === 'videos') return 'vv';
       return raw;
+    }
+
+    function formatRate(value) {
+      const num = Number(value || 0);
+      return `${Math.round(num * 100)}%`;
+    }
+
+    function formatScorePerVote(value) {
+      const num = Number(value || 0);
+      if (!Number.isFinite(num)) return '0.00';
+      return num.toFixed(2);
     }
 
     async function createGoogleSheetFromRows(rows, isUserView) {
@@ -549,7 +562,7 @@
       const tbody = document.querySelector('#scoreboard tbody');
       tbody.innerHTML = '';
       if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="13"><div class="empty">No scoreboard rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="15"><div class="empty">No scoreboard rows match the current filters.</div></td></tr>';
         return;
       }
 
@@ -558,7 +571,7 @@
         const typeLabel = formatContentTypeLabel(row.type);
         const html = isUserView
           ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
-          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td></tr>`;
+          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
         tbody.insertAdjacentHTML('beforeend', html);
       });
     }
