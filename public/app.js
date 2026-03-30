@@ -873,6 +873,45 @@ async function getOrCreateAnonId() {
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
 
   .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
+  .excerpt-text.full-poem-scroll-shell {
+    width: min(780px, 92vw);
+    max-width: min(780px, 92vw);
+    max-height: 100%;
+    height: 100%;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 8px 18px 12px;
+  }
+  .full-poem-scroll-content {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .excerpt-text.full-poem-scroll-shell.is-overflowing {
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .excerpt-text.full-poem-scroll-shell.is-overflowing::-webkit-scrollbar { display: none; }
+  .excerpt-text.full-poem-scroll-shell.is-overflowing .full-poem-scroll-content {
+    justify-content: flex-start;
+    padding-bottom: 18vh;
+  }
+  .excerpt-text.full-poem-scroll-shell.is-user-paused::after {
+    content: 'Auto-scroll paused';
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    display: inline-block;
+    margin-top: 10px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(250, 247, 240, 0.92);
+    color: #666;
+    font-size: 0.78rem;
+    letter-spacing: 0.01em;
+  }
   .full-poem-title { margin: 0 0 1.4rem; font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 700; line-height: 1.2; }
   .full-poem-body { margin: 0; }
   .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
@@ -909,6 +948,7 @@ let isTransitioning = false;
 
 // ===== Mobile pinch-to-zoom and pan (image only) =====
 const __ppGestureState = new WeakMap();
+const __ppPoemScrollState = new WeakMap();
 
 function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
 
@@ -943,6 +983,85 @@ function applyMediaTransform_(imgEl) {
     box.style.setProperty('--pp-media-x', `${state.x}px`);
     box.style.setProperty('--pp-media-y', `${state.y}px`);
   }
+}
+
+function teardownFullPoemAutoScroll_(shell) {
+  const state = __ppPoemScrollState.get(shell);
+  if (!state) return;
+  if (state.rafId) cancelAnimationFrame(state.rafId);
+  if (state.resumeTimer) clearTimeout(state.resumeTimer);
+  if (Array.isArray(state.listeners)) {
+    state.listeners.forEach(({ target, type, handler, options }) => target.removeEventListener(type, handler, options));
+  }
+  shell.classList.remove('is-user-paused');
+  __ppPoemScrollState.delete(shell);
+}
+
+function setupFullPoemAutoScroll_(shell) {
+  if (!shell) return;
+  teardownFullPoemAutoScroll_(shell);
+
+  const maxScroll = Math.max(0, shell.scrollHeight - shell.clientHeight);
+  shell.classList.toggle('is-overflowing', maxScroll > 24);
+  shell.scrollTop = 0;
+  if (maxScroll <= 24) return;
+
+  const state = {
+    rafId: 0,
+    resumeTimer: 0,
+    lastTs: 0,
+    pausedUntil: performance.now() + 1600,
+    listeners: [],
+  };
+  const speed = IS_MOBILE_UI ? 12 : 18;
+
+  const pauseForInteraction = (pauseMs = 2800) => {
+    state.pausedUntil = performance.now() + pauseMs;
+    state.lastTs = 0;
+    shell.classList.add('is-user-paused');
+    if (state.resumeTimer) clearTimeout(state.resumeTimer);
+    state.resumeTimer = window.setTimeout(() => shell.classList.remove('is-user-paused'), Math.max(400, pauseMs - 200));
+  };
+
+  const addListener = (target, type, handler, options) => {
+    target.addEventListener(type, handler, options);
+    state.listeners.push({ target, type, handler, options });
+  };
+
+  addListener(shell, 'mouseenter', () => pauseForInteraction(2400));
+  addListener(shell, 'wheel', () => pauseForInteraction(3200), { passive: true });
+  addListener(shell, 'touchstart', () => pauseForInteraction(3400), { passive: true });
+  addListener(shell, 'touchmove', () => pauseForInteraction(3400), { passive: true });
+  addListener(shell, 'pointerdown', () => pauseForInteraction(3200), { passive: true });
+
+  const tick = (ts) => {
+    if (!document.body.contains(shell)) {
+      teardownFullPoemAutoScroll_(shell);
+      return;
+    }
+    const currentMax = Math.max(0, shell.scrollHeight - shell.clientHeight);
+    if (currentMax <= 24) {
+      shell.scrollTop = 0;
+      shell.classList.remove('is-overflowing');
+      teardownFullPoemAutoScroll_(shell);
+      return;
+    }
+    if (ts < state.pausedUntil) {
+      state.lastTs = ts;
+      state.rafId = requestAnimationFrame(tick);
+      return;
+    }
+    if (!state.lastTs) state.lastTs = ts;
+    const delta = (ts - state.lastTs) / 1000;
+    state.lastTs = ts;
+    const nextTop = Math.min(currentMax, shell.scrollTop + (speed * delta));
+    shell.scrollTop = nextTop;
+    if (nextTop >= currentMax - 0.5) return;
+    state.rafId = requestAnimationFrame(tick);
+  };
+
+  state.rafId = requestAnimationFrame(tick);
+  __ppPoemScrollState.set(shell, state);
 }
 
 function attachPinchZoomToImage_(imgEl) {
@@ -1666,6 +1785,8 @@ function adjustViewportFit() {
   const buffer = 14;
   const maxH = Math.max(160, vh - occupied - buffer);
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
+  const poemShell = document.querySelector('.full-poem-scroll-shell');
+  if (poemShell) requestAnimationFrame(() => setupFullPoemAutoScroll_(poemShell));
 }
 
 function getEmptyFilterMessage() {
@@ -1907,17 +2028,21 @@ function renderItemMedia(item) {
   let img = null, v = null;
 
   if (item?.imageType === 'EXC' || item?.imageType === 'FP') {
-    const textDiv = document.createElement('div'); textDiv.className='excerpt-text';
+    const textDiv = document.createElement('div');
+    textDiv.className = item?.imageType === 'FP' ? 'excerpt-text full-poem-scroll-shell' : 'excerpt-text';
+    const textContent = document.createElement('div');
+    textContent.className = item?.imageType === 'FP' ? 'full-poem-scroll-content' : '';
     if (item?.imageType === 'FP' && item?.title) {
       const title = document.createElement('div');
       title.className = 'full-poem-title';
       title.textContent = item.title;
-      textDiv.appendChild(title);
+      textContent.appendChild(title);
     }
     const p = document.createElement('p');
     p.className = item?.imageType === 'FP' ? 'full-poem-body' : '';
     p.textContent = item?.excerpt || '';
-    textDiv.appendChild(p);
+    textContent.appendChild(p);
+    textDiv.appendChild(textContent);
     box.appendChild(textDiv);
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
     const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
@@ -1944,6 +2069,9 @@ function renderItemMedia(item) {
 
   // Trigger viewport fit now and when media is ready
   requestAnimationFrame(() => { setViewportVars(); adjustViewportFit(); });
+  if (item?.imageType === 'FP') {
+    requestAnimationFrame(() => setupFullPoemAutoScroll_(box.querySelector('.full-poem-scroll-shell')));
+  }
   if (img) img.addEventListener('load', () => requestAnimationFrame(adjustViewportFit), { once: true });
   if (v) {
     const recalc = () => requestAnimationFrame(adjustViewportFit);
