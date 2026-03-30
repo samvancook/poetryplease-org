@@ -469,8 +469,20 @@ function renderFeedSignalsModal() {
     return;
   }
   const signals = item.__feedSignals || getFeedSignals(item);
-  const bucketTone = signals.bucket === 'boosted' ? '#d7e7e9' : signals.bucket === 'muted' ? '#f2dfd8' : '#ece7db';
-  const bucketInk = signals.bucket === 'boosted' ? '#2f5d62' : signals.bucket === 'muted' ? '#8b3d37' : '#6c6558';
+  const bucketTone = signals.bucket === 'confirmation'
+    ? '#efe7d9'
+    : signals.bucket === 'boosted'
+      ? '#d7e7e9'
+      : signals.bucket === 'muted'
+        ? '#f2dfd8'
+        : '#ece7db';
+  const bucketInk = signals.bucket === 'confirmation'
+    ? '#7a5c38'
+    : signals.bucket === 'boosted'
+      ? '#2f5d62'
+      : signals.bucket === 'muted'
+        ? '#8b3d37'
+        : '#6c6558';
   body.innerHTML = `
     <div style="display:grid;gap:10px;">
       <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
@@ -492,6 +504,7 @@ function renderFeedSignalsModal() {
           <div style="color:#6c6558;">Moved Me rate</div><div>${formatRate(signals.movedMeRate)}</div>
           <div style="color:#6c6558;">Meh rate</div><div>${formatRate(signals.mehRate)}</div>
           <div style="color:#6c6558;">Dislike rate</div><div>${formatRate(signals.dislikeRate)}</div>
+          <div style="color:#6c6558;">Needs confirmation</div><div>${signals.needsConfirmation ? 'Yes' : 'No'}</div>
           <div style="color:#6c6558;">Likes / Dislikes / Meh / Moved Me</div><div>${signals.likes} / ${signals.dislikes} / ${signals.meh} / ${signals.movedMe}</div>
         </div>
       </div>
@@ -1369,6 +1382,7 @@ function getFeedSignals(g) {
   const mehRate = totalVotes ? meh / totalVotes : 0;
   const dislikeRate = totalVotes ? dislikes / totalVotes : 0;
   const confidence = Math.min(1, totalVotes / 10);
+  const needsConfirmation = totalVotes === 1 && movedMe === 1;
   const feedScore = (
     (scorePerVote * 0.9) +
     (movedMeRate * 1.2) -
@@ -1377,7 +1391,8 @@ function getFeedSignals(g) {
   ) * (0.35 + (0.65 * confidence));
 
   let bucket = 'standard';
-  if (totalVotes >= 2 && (feedScore >= 0.65 || movedMeRate >= 0.22)) bucket = 'boosted';
+  if (needsConfirmation) bucket = 'confirmation';
+  else if (totalVotes >= 2 && (feedScore >= 0.65 || movedMeRate >= 0.22)) bucket = 'boosted';
   else if (totalVotes >= 3 && (feedScore <= 0.15 || mehRate >= 0.45 || dislikeRate >= 0.28)) bucket = 'muted';
 
   return {
@@ -1392,22 +1407,26 @@ function getFeedSignals(g) {
     mehRate,
     dislikeRate,
     confidence,
+    needsConfirmation,
     feedScore,
     bucket,
   };
 }
 function isMutedCandidate(g) { return getFeedSignals(g).bucket === 'muted'; }
 function isBoostedCandidate(g) { return getFeedSignals(g).bucket === 'boosted'; }
+function isConfirmationCandidate(g) { return getFeedSignals(g).bucket === 'confirmation'; }
 function communityAffinityOf(g) { return getFeedSignals(g).feedScore; }
 function orderByCommunityPreference(list, options = {}) {
   const includeMuted = options.includeMuted !== false;
+  const confirmation = [];
   const boosted = [];
   const standard = [];
   const muted = [];
 
   list.forEach((item) => {
     item.__feedSignals = getFeedSignals(item);
-    if (item.__feedSignals.bucket === 'muted') muted.push(item);
+    if (item.__feedSignals.bucket === 'confirmation') confirmation.push(item);
+    else if (item.__feedSignals.bucket === 'muted') muted.push(item);
     else if (item.__feedSignals.bucket === 'boosted') boosted.push(item);
     else standard.push(item);
   });
@@ -1417,6 +1436,7 @@ function orderByCommunityPreference(list, options = {}) {
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.item);
 
+  const confirmationQ = sortWithin(confirmation);
   const boostedQ = sortWithin(boosted);
   const standardQ = sortWithin(standard);
   const mutedQ = includeMuted ? sortWithin(muted) : [];
@@ -1430,6 +1450,7 @@ function orderByCommunityPreference(list, options = {}) {
     item.__feedSignals.interleaveCycle = cycle + 1;
     item.__feedSignals.position = position + 1;
     item.__feedSignals.interleaveNote =
+      slotType === 'confirmation-review' ? 'Confirmation slot for a single moved-me vote that needs another review.' :
       slotType === 'boosted-primary' ? 'Primary boost slot.' :
       slotType === 'boosted-secondary' ? 'Secondary boost slot in alternating cycles.' :
       slotType === 'standard-primary' ? 'Core discovery slot.' :
@@ -1440,8 +1461,9 @@ function orderByCommunityPreference(list, options = {}) {
     position += 1;
   };
 
-  while (boostedQ.length || standardQ.length || mutedQ.length) {
+  while (confirmationQ.length || boostedQ.length || standardQ.length || mutedQ.length) {
     if (boostedQ.length) pushWithPlacement(boostedQ.shift(), 'boosted-primary');
+    if (confirmationQ.length) pushWithPlacement(confirmationQ.shift(), 'confirmation-review');
     if (standardQ.length) pushWithPlacement(standardQ.shift(), 'standard-primary');
     if (boostedQ.length && cycle % 2 === 0) pushWithPlacement(boostedQ.shift(), 'boosted-secondary');
     if (standardQ.length) pushWithPlacement(standardQ.shift(), 'standard-secondary');

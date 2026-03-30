@@ -175,6 +175,21 @@ Interpretation:
 
 The feed should not be one flat sorted list. It should group items into buckets and then interleave them.
 
+### Confirmation
+
+Use when:
+
+- `totalVotes === 1`
+- `movedMe === 1`
+
+Meaning:
+
+- a promising item with a strong early signal
+- not yet proven enough to treat like a normal boosted item
+- should be shown again soon to gather confirming votes
+
+This is a review-priority bucket, not a permanent score boost.
+
 ### Boosted
 
 Use when:
@@ -215,6 +230,7 @@ The queue should interleave buckets instead of just sorting everything by feed s
 Recommended starting pattern:
 
 - boosted
+- confirmation
 - standard
 - boosted every other cycle
 - standard
@@ -222,6 +238,7 @@ Recommended starting pattern:
 
 This keeps:
 
+- single-`moved me` items from getting stranded at one vote
 - strong work visible
 - normal work present
 - muted work accessible but less dominant
@@ -236,6 +253,7 @@ For admins, the tool should expose the following per-item signals:
 - `mehRate`
 - `dislikeRate`
 - `confidence`
+- `needsConfirmation`
 - `feedScore`
 - `bucket`
 - interleaving / placement reason
