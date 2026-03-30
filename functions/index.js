@@ -1342,6 +1342,29 @@ app.get(getBoth("/ratingsSummary"), async (_req, res) => {
   res.json(aggregateRatings(compact));
 });
 
+app.get(getBoth("/contentById"), async (req, res) => {
+  const targetId = normalizeText(req.query?.id);
+  if (!targetId) return res.status(400).json({ error: "missing_id" });
+
+  const [allContent, flaggedIds] = await Promise.all([
+    getAllContentCached(),
+    getFlaggedContentIds(),
+  ]);
+  const all = excludeFlaggedContent(allContent, flaggedIds);
+  const normalizedTarget = normalizeKey(targetId);
+  const item = all.find((entry) =>
+    normalizeKey(entry.imageId) === normalizedTarget || normalizeKey(entry.contentId) === normalizedTarget
+  );
+
+  if (!item) return res.status(404).json({ error: "not_found" });
+
+  res.json({
+    item: mapToArr(item),
+    imageId: item.imageId || "",
+    contentId: item.contentId || "",
+  });
+});
+
 // scoreboard
 app.get(getBoth("/scoreboard"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);

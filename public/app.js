@@ -771,6 +771,7 @@ const fetchDataWrapped            = () => api('fetchData',        { body: { limi
 const fetchDataAnonWrapped        = (anonId) => api('fetchDataAnon', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeDomainMeta: false } });
 const fetchFullDataWrapped        = () => api('fetchData',        { body: { limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchFullDataAnonWrapped    = (anonId) => api('fetchDataAnon', { body: { anonId, limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
+const fetchContentByIdWrapped     = (id) => api(`contentById?id=${encodeURIComponent(id)}`, { method: 'GET' });
 const submitVoteWrapped           = (imageId, voteType, userId) => api('vote', { body: { imageId, voteType, userId } });
 const fetchReleaseCatalogsWrapped = () => api('releaseCatalogs', { method: 'GET' });
 const fetchImageTypesWrapped      = () => api('imageTypes',      { method: 'GET' });
@@ -1032,6 +1033,8 @@ let selectedCatalog= '';
 let selectedAuthor = '';
 let selectedBook = '';
 let selectedItemId = '';
+let selectedItemRecord = null;
+let routeItemConsumed = false;
 
 // Ratings + heuristics state
 let ratingsMap = {};                // { imageId: {score,total,rating} }
@@ -1110,6 +1113,8 @@ function syncFilterControls() {
 function initializeRouteState() {
   const route = readRouteState();
   selectedItemId = route.item.trim();
+  selectedItemRecord = null;
+  routeItemConsumed = false;
   selectedType = route.type.trim();
   selectedCatalog = route.catalog.trim();
   selectedAuthor = route.author.trim();
@@ -1500,6 +1505,14 @@ async function fetchBestBatchForCurrentView() {
 }
 
 async function ensureFilterReadyThenRebuild() {
+  if (selectedItemId && !selectedItemRecord) {
+    try {
+      const result = await fetchContentByIdWrapped(selectedItemId);
+      if (result?.item) selectedItemRecord = mapGraphic(result.item);
+    } catch (err) {
+      console.warn('Selected item fetch for filters failed', err);
+    }
+  }
   if (hasActiveFeedFilters() && !fullFeedHydrationDone) {
     try {
       const data = await fetchFullFeedData();
@@ -1585,6 +1598,10 @@ function buildFilteredList(data) {
     if (filterByBook && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
     return true;
   });
+
+  if (selectedItemId && !routeItemConsumed && selectedItemRecord && !list.some((g) => valuesMatch(g.id, selectedItemId))) {
+    list.unshift(selectedItemRecord);
+  }
 
   // Guide the feed toward community-loved work while keeping room for exploration.
   const suppressMutedInitially = sessionVotes < 5;
@@ -1938,6 +1955,9 @@ function renderCurrent(item) {
   resetVoteButtons();
   currentItem = item;
   window.currentItem = currentItem; // <-- make it available to mobile.html
+  if (selectedItemId && !routeItemConsumed && valuesMatch(currentItem?.id, selectedItemId)) {
+    routeItemConsumed = true;
+  }
 
   servedCounter = (servedCounter || 0) + 1;
   renderMetaRows(item);
@@ -2134,7 +2154,15 @@ async function ppAutoloadFirstItem() {
         return null;
       });
 
-      if (data && Array.isArray(data.newGraphics) && data.newGraphics.length) {
+      if (data && Array.isArray(data.newGraphics)) {
+        if (selectedItemId && !selectedItemRecord) {
+          try {
+            const result = await fetchContentByIdWrapped(selectedItemId);
+            if (result?.item) selectedItemRecord = mapGraphic(result.item);
+          } catch (err) {
+            console.warn('[PP] deep link item lookup failed', err);
+          }
+        }
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
         hydrateFullFeedInBackground();
