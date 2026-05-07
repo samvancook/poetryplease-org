@@ -59,6 +59,49 @@ var computed =
   });
 })();
 const IS_MOBILE_UI = window.IS_MOBILE_UI;
+const IS_EMBED_UI = (
+  window.__PP_EMBED === true ||
+  document.body?.dataset?.ui === 'embed' ||
+  /\/embed(?:\.html)?(?:$|\?|#)/.test(location.pathname + location.search + location.hash) ||
+  new URL(location.href).searchParams.get('embed') === '1'
+);
+
+(function ensureMobileRouteParity() {
+  if (IS_EMBED_UI) return;
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (pathname !== '/app') return;
+
+  const params = new URLSearchParams(window.location.search);
+  const explicitDesktop = params.get('view') === 'desktop' || params.get('desktop') === '1';
+  if (explicitDesktop) return;
+
+  const ua = navigator.userAgent || '';
+  const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+  const isSkinny = (() => { try { return window.innerWidth < 900; } catch (_) { return false; } })();
+  let isMobile = isMobileUA || isSkinny;
+
+  try {
+    if (!isMobile && navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') {
+      isMobile = !!navigator.userAgentData.mobile;
+    }
+    if (!isMobile) {
+      const platform = navigator.platform || '';
+      if (/Mac/.test(platform) && navigator.maxTouchPoints > 1) isMobile = true;
+    }
+    if (!isMobile && window.matchMedia) {
+      if (window.matchMedia('(pointer:coarse)').matches) isMobile = true;
+      if (window.matchMedia('(max-width: 768px)').matches) isMobile = true;
+    }
+  } catch (_) {}
+
+  if (!isMobile) return;
+
+  params.delete('desktop');
+  params.set('view', 'mobile');
+  const nextQuery = params.toString();
+  const nextUrl = `/m${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
+  window.location.replace(nextUrl);
+})();
 
 function safeLocalStorageGet(key) {
   try {
@@ -255,22 +298,39 @@ function queueDeferredBootWork() {
   if (deferredBootQueued) return;
   deferredBootQueued = true;
   const run = () => {
+    if (!lastData && __pp_initialLoad) {
+      deferredBootQueued = false;
+      setTimeout(queueDeferredBootWork, 180);
+      return;
+    }
     const selType = document.getElementById('type-filter');
     const selCat  = document.getElementById('catalog-filter');
-    if (!IS_MOBILE_UI) {
-      fetchAndPopulateTypes().then(() => {
+    const cachedTypes = Array.isArray(lastData?.imageTypes) ? lastData.imageTypes : null;
+    const cachedCatalogs = Array.isArray(lastData?.releaseCatalogs) ? lastData.releaseCatalogs : null;
+    if (IS_EMBED_UI) {
+      // Embed views use URL-supplied filters only.
+    } else if (!IS_MOBILE_UI) {
+      const typeTask = cachedTypes ? populateTypesSelect(cachedTypes) : fetchAndPopulateTypes();
+      typeTask.then(() => {
         const sel = document.getElementById('type-filter');
         if (sel) sel.onchange = () => setTypeFilter(sel.value);
       });
-      fetchAndPopulateCatalogs().then(() => {
+      const catalogTask = cachedCatalogs ? populateCatalogsSelect(cachedCatalogs) : fetchAndPopulateCatalogs();
+      catalogTask.then(() => {
         const sel = document.getElementById('catalog-filter');
         if (sel) sel.onchange = () => setCatalogFilter(sel.value);
       });
     } else {
-      if (selType) fetchAndPopulateTypes().then(() => { selType.onchange = () => setTypeFilter(selType.value); });
-      if (selCat)  fetchAndPopulateCatalogs().then(() => { selCat.onchange  = () => setCatalogFilter(selCat.value); });
+      if (selType) (cachedTypes ? populateTypesSelect(cachedTypes) : fetchAndPopulateTypes()).then(() => { selType.onchange = () => setTypeFilter(selType.value); });
+      if (selCat)  (cachedCatalogs ? populateCatalogsSelect(cachedCatalogs) : fetchAndPopulateCatalogs()).then(() => { selCat.onchange  = () => setCatalogFilter(selCat.value); });
     }
-    getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
+    if (!IS_EMBED_UI) {
+      if (lastData?.ratingsSummary) {
+        ratingsMap = lastData.ratingsSummary || {};
+      } else {
+        getRatingsSummaryWrapped().then(map => { ratingsMap = map || {}; }).catch(()=>{ ratingsMap = {}; });
+      }
+    }
   };
   if ('requestIdleCallback' in window) {
     requestIdleCallback(run, { timeout: 1500 });
@@ -290,6 +350,7 @@ function navigateToPreferredView(view) {
 
   const params = new URLSearchParams(location.search);
   ['view', 'mobile', 'desktop'].forEach((key) => params.delete(key));
+  params.set('view', nextView);
   const targetPath = nextView === 'mobile' ? '/m' : '/app';
   const targetQuery = params.toString();
   const targetUrl = `${targetPath}${targetQuery ? `?${targetQuery}` : ''}${location.hash || ''}`;
@@ -349,6 +410,7 @@ async function api(path, { method = 'POST', body } = {}) {
 
 let authorInviteStatus = { checked: false, inFlight: false, redeemed: false };
 let currentAccount = null;
+let lastFeedIdentityKey = null;
 
 function readAuthorInviteToken() {
   const params = new URLSearchParams(window.location.search);
@@ -404,6 +466,22 @@ function currentUserIsAdmin() {
 
 function currentUserIsTeamOrAdmin() {
   return currentUserIsAdmin() || !!currentAccount?.roles?.includes('team');
+}
+
+function getFeedIdentityKey() {
+  const user = getVisibleUser();
+  if (user?.email) return `user:${String(user.email).trim().toLowerCase()}`;
+  const anonId = String(safeLocalStorageGet('pp_anon') || '').trim().toLowerCase();
+  return anonId ? `anon:${anonId}` : 'anon:none';
+}
+
+function resetFeedForIdentityChange() {
+  queue = [];
+  idx = -1;
+  historyStack.length = 0;
+  currentItem = null;
+  window.currentItem = null;
+  __pp_initialLoad = false;
 }
 
 function updateResetControlsVisibility() {
@@ -468,7 +546,7 @@ function renderFeedSignalsModal() {
     body.innerHTML = '<div style="color:#6c6558;">No current item is loaded yet.</div>';
     return;
   }
-  const signals = item.__feedSignals || getFeedSignals(item);
+  const signals = refreshItemFeedSignals(item) || getFeedSignals(item);
   const bucketTone = signals.bucket === 'confirmation'
     ? '#efe7d9'
     : signals.bucket === 'boosted'
@@ -506,6 +584,9 @@ function renderFeedSignalsModal() {
           <div style="color:#6c6558;">Dislike rate</div><div>${formatRate(signals.dislikeRate)}</div>
           <div style="color:#6c6558;">Needs confirmation</div><div>${signals.needsConfirmation ? 'Yes' : 'No'}</div>
           <div style="color:#6c6558;">Likes / Dislikes / Meh / Moved Me</div><div>${signals.likes} / ${signals.dislikes} / ${signals.meh} / ${signals.movedMe}</div>
+          <div style="color:#6c6558;">External signal</div><div>${signals.externalSignalScore.toFixed(3)}</div>
+          <div style="color:#6c6558;">External boost</div><div>${signals.externalBoost.toFixed(3)}</div>
+          <div style="color:#6c6558;">YT views / likes / comments</div><div>${signals.socialViews} / ${signals.socialLikes} / ${signals.socialComments}</div>
         </div>
       </div>
       <div style="padding:14px 16px;border:1px solid #e8dece;border-radius:18px;background:#fff;">
@@ -624,6 +705,13 @@ function updateUserStatusUI() {
   const user = getVisibleUser();
   const div = $('#user-status');
   const loadBtn = $('#load-button');
+  if (IS_EMBED_UI) {
+    if (div) div.innerHTML = '';
+    if (loadBtn) loadBtn.style.display = 'none';
+    updateFilterControlsVisibility();
+    updateResetControlsVisibility();
+    return;
+  }
   if (user) {
     const isAdmin = currentUserIsAdmin();
     if (div) {
@@ -690,13 +778,29 @@ function updateUserStatusUI() {
     if (loadBtn) loadBtn.disabled = false;
     syncAdminViewToggle(false);
   }
+  updateFilterControlsVisibility();
   updateResetControlsVisibility();
+}
+
+function updateFilterControlsVisibility() {
+  const canSeeDropdownFilters = currentUserIsTeamOrAdmin();
+  const typeContainer = document.getElementById('type-filter-container');
+  const catalogContainer = document.getElementById('catalog-filter-container');
+  if (typeContainer) {
+    if (canSeeDropdownFilters) typeContainer.style.removeProperty('display');
+    else typeContainer.style.display = 'none';
+  }
+  if (catalogContainer) {
+    if (canSeeDropdownFilters) catalogContainer.style.removeProperty('display');
+    else catalogContainer.style.display = 'none';
+  }
 }
 
 async function refreshCurrentAccount() {
   const user = getVisibleUser();
   if (!user) {
     currentAccount = null;
+    updateFilterControlsVisibility();
     return null;
   }
   try {
@@ -705,6 +809,7 @@ async function refreshCurrentAccount() {
     console.warn('Failed to load account state', err);
     currentAccount = null;
   }
+  updateFilterControlsVisibility();
   return currentAccount;
 }
 
@@ -767,14 +872,14 @@ async function handleRegistration(e) {
 // ===== API Mappings (to your Cloud Functions) =====
 const STARTUP_BATCH_SIZE = 40;
 const FULL_HYDRATION_BATCH_SIZE = 5000;
-const fetchDataWrapped            = () => api('fetchData',        { body: { limit: STARTUP_BATCH_SIZE, includeDomainMeta: false } });
-const fetchDataAnonWrapped        = (anonId) => api('fetchDataAnon', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeDomainMeta: false } });
+const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
+const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
+const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: filters });
 const fetchFullDataWrapped        = () => api('fetchData',        { body: { limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchFullDataAnonWrapped    = (anonId) => api('fetchDataAnon', { body: { anonId, limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchContentByIdWrapped     = (id) => api(`contentById?id=${encodeURIComponent(id)}`, { method: 'GET' });
+const getJSONWrapped              = (path) => api(path, { method: 'GET' });
 const submitVoteWrapped           = (imageId, voteType, userId) => api('vote', { body: { imageId, voteType, userId } });
-const fetchReleaseCatalogsWrapped = () => api('releaseCatalogs', { method: 'GET' });
-const fetchImageTypesWrapped      = () => api('imageTypes',      { method: 'GET' });
 const getRatingsSummaryWrapped    = () => api('ratingsSummary',  { method: 'GET' });
 const submitContentFlagWrapped    = (imageId, note) => api('contentFlags', { method: 'POST', body: { imageId, note } });
 
@@ -800,7 +905,7 @@ async function getOrCreateAnonId() {
   .top-bar .spacer{flex:1;}
   #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
 
-  #media-wrap{ max-width:min(1120px,97vw); margin:6px auto 12px; text-align:center; }
+  #media-wrap{ max-width:min(1280px,98vw); margin:6px auto 12px; text-align:center; }
   .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
   #btn-go-back:disabled{ opacity:.45; cursor:not-allowed; }
   .button-container{ display:flex; justify-content:center; }
@@ -848,6 +953,42 @@ async function getOrCreateAnonId() {
     box-sizing: border-box;
     padding: 0;
   }
+  .media-box.text-media-box {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    align-items: flex-start;
+    overflow: visible;
+    padding-top: 8px;
+  }
+  .media-box.video-media-box {
+    overflow: visible;
+  }
+  .video-frame-shell{
+    width:min(100%, calc(var(--media-max-h, 70dvh) * 16 / 9));
+    max-width:100%;
+    aspect-ratio:16 / 9;
+    margin:0 auto;
+    border-radius:12px;
+    overflow:hidden;
+    background:#000;
+    box-sizing:border-box;
+  }
+  .video-frame-shell.is-portrait{
+    width:min(100%, calc(var(--media-max-h, 70dvh) * 9 / 16), 420px);
+    aspect-ratio:9 / 16;
+  }
+  .video-frame-shell iframe,
+  .video-frame-shell video{
+    width:100%;
+    height:100%;
+    max-width:100%;
+    max-height:100%;
+    display:block;
+    border:0;
+    object-fit:contain;
+    background:#000;
+  }
   .media-box > a{
     display:flex;
     align-items:center;
@@ -873,20 +1014,28 @@ async function getOrCreateAnonId() {
   .button-row { padding-bottom: env(safe-area-inset-bottom, 0); }
 
   .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
+  .excerpt-text.excerpt-card {
+    width: min(700px, 88vw);
+    max-width: min(700px, 88vw);
+    padding: 4px 10px 0;
+  }
   .excerpt-text.full-poem-scroll-shell {
-    width: min(780px, 92vw);
-    max-width: min(780px, 92vw);
-    max-height: 100%;
-    height: 100%;
+    width: min(720px, 88vw);
+    max-width: min(720px, 88vw);
+    max-height: min(var(--media-max-h, 70dvh), 58dvh);
+    height: auto;
     overflow: hidden;
     box-sizing: border-box;
-    padding: 8px 18px 12px;
+    padding: 4px 14px 12px;
   }
   .full-poem-scroll-content {
-    min-height: 100%;
+    min-height: 0;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-start;
+    width: fit-content;
+    max-width: min(100%, 42ch);
+    margin: 0 auto;
   }
   .excerpt-text.full-poem-scroll-shell.is-overflowing {
     overflow-y: auto;
@@ -919,13 +1068,92 @@ async function getOrCreateAnonId() {
   .vote-btn.voted { opacity:.85; }
   .toast { color:#0a7e22; margin-top:8px; min-height:1.4em; }
   .vote-counter { padding:5px 10px; border:1px solid #e6e6e6; border-radius:6px; background:#fafafa; }
+  body[data-ui="embed"]{
+    background:#f7f1e5;
+    padding:0;
+    margin:0;
+  }
+  body[data-ui="embed"] #pp-loader-reset,
+  body[data-ui="embed"] #user-status,
+  body[data-ui="embed"] #type-filter-container,
+  body[data-ui="embed"] #catalog-filter-container,
+  body[data-ui="embed"] #login-screen,
+  body[data-ui="embed"] #registration-screen,
+  body[data-ui="embed"] #load-button,
+  body[data-ui="embed"] #vote-row,
+  body[data-ui="embed"] #counters-bar,
+  body[data-ui="embed"] #error,
+  body[data-ui="embed"] #message,
+  body[data-ui="embed"] .pp-reset-state-button{
+    display:none !important;
+  }
+  body[data-ui="embed"] #poetry-screen{
+    max-width:min(960px, 100vw);
+    margin:0 auto;
+    padding:10px clamp(8px, 2vw, 18px) 14px;
+    box-sizing:border-box;
+  }
+  body[data-ui="embed"] #gallery{
+    display:none !important;
+  }
+  body[data-ui="embed"] #media-wrap{
+    max-width:min(920px, 100vw);
+    margin:0 auto 6px;
+  }
+  body[data-ui="embed"] .media-box{
+    height:min(74dvh, 860px);
+    max-height:min(74dvh, 860px);
+  }
+  body[data-ui="embed"] .meta-row{
+    padding:0;
+    margin:4px 0;
+  }
+  body[data-ui="embed"] .meta-row p{
+    font-size:14px;
+    line-height:1.35;
+  }
+  body[data-ui="embed"] #under-controls{
+    margin-top:8px;
+    gap:12px;
+  }
+  body[data-ui="embed"] #under-controls button{
+    padding:10px 16px;
+    border-radius:999px;
+    border:1px solid #d7cbb8;
+    background:#fffaf2;
+    color:#3b3022;
+    font-weight:600;
+    cursor:pointer;
+  }
+  body[data-ui="embed"] .video-frame-shell{
+    box-shadow:0 8px 30px rgba(30, 26, 21, 0.08);
+  }
+  @media (max-width: 680px) {
+    body[data-ui="embed"] #poetry-screen{
+      padding:8px 8px 10px;
+    }
+    body[data-ui="embed"] .media-box{
+      height:min(70dvh, 720px);
+      max-height:min(70dvh, 720px);
+    }
+    body[data-ui="embed"] #under-controls{
+      gap:8px;
+    }
+    body[data-ui="embed"] #under-controls button{
+      padding:9px 13px;
+      font-size:13px;
+    }
+    body[data-ui="embed"] .meta-row p{
+      font-size:13px;
+    }
+  }
   `;
   const tag = document.createElement('style'); tag.appendChild(document.createTextNode(css)); document.head.appendChild(tag);
 })();
 
 // --- Top bar slotting existing user-status (skip on mobile UI) ---
 (function buildTopBar(){
-  if (IS_MOBILE_UI) return; // do not inject desktop top bar on mobile.html
+  if (IS_MOBILE_UI || IS_EMBED_UI) return; // do not inject desktop top bar on mobile/embed
   if (document.querySelector('.top-bar')) return;
   const topBar = document.createElement('div'); topBar.className = 'top-bar';
   const filters = document.createElement('div'); filters.id = 'filters';
@@ -945,6 +1173,21 @@ let fullFeedHydrationDone = false;
 let queue = [];          // filtered & shuffled list
 let idx = -1;            // position in queue
 let isTransitioning = false;
+
+function postEmbedSize() {
+  if (!IS_EMBED_UI) return;
+  try {
+    const height = Math.max(
+      document.body?.scrollHeight || 0,
+      document.documentElement?.scrollHeight || 0
+    );
+    window.parent?.postMessage({
+      type: 'poetry-please-embed-resize',
+      height,
+      href: window.location.href,
+    }, '*');
+  } catch (_err) {}
+}
 
 // ===== Mobile pinch-to-zoom and pan (image only) =====
 const __ppGestureState = new WeakMap();
@@ -1002,37 +1245,30 @@ function setupFullPoemAutoScroll_(shell) {
   teardownFullPoemAutoScroll_(shell);
 
   const maxScroll = Math.max(0, shell.scrollHeight - shell.clientHeight);
-  shell.classList.toggle('is-overflowing', maxScroll > 24);
+  const overflowThreshold = 2;
+  shell.classList.toggle('is-overflowing', maxScroll > overflowThreshold);
   shell.scrollTop = 0;
-  if (maxScroll <= 24) return;
+  if (maxScroll <= overflowThreshold) return;
 
   const state = {
     rafId: 0,
-    resumeTimer: 0,
     lastTs: 0,
-    pausedUntil: performance.now() + 1600,
+    pausedUntil: performance.now() + 500,
     listeners: [],
+    pausedByUser: false,
   };
-  const speed = IS_MOBILE_UI ? 12 : 18;
-
-  const pauseForInteraction = (pauseMs = 2800) => {
-    state.pausedUntil = performance.now() + pauseMs;
-    state.lastTs = 0;
-    shell.classList.add('is-user-paused');
-    if (state.resumeTimer) clearTimeout(state.resumeTimer);
-    state.resumeTimer = window.setTimeout(() => shell.classList.remove('is-user-paused'), Math.max(400, pauseMs - 200));
-  };
+  const speed = IS_MOBILE_UI ? 14 : 20;
 
   const addListener = (target, type, handler, options) => {
     target.addEventListener(type, handler, options);
     state.listeners.push({ target, type, handler, options });
   };
 
-  addListener(shell, 'mouseenter', () => pauseForInteraction(2400));
-  addListener(shell, 'wheel', () => pauseForInteraction(3200), { passive: true });
-  addListener(shell, 'touchstart', () => pauseForInteraction(3400), { passive: true });
-  addListener(shell, 'touchmove', () => pauseForInteraction(3400), { passive: true });
-  addListener(shell, 'pointerdown', () => pauseForInteraction(3200), { passive: true });
+  addListener(shell, 'click', () => {
+    state.pausedByUser = !state.pausedByUser;
+    state.lastTs = 0;
+    shell.classList.toggle('is-user-paused', state.pausedByUser);
+  });
 
   const tick = (ts) => {
     if (!document.body.contains(shell)) {
@@ -1044,6 +1280,11 @@ function setupFullPoemAutoScroll_(shell) {
       shell.scrollTop = 0;
       shell.classList.remove('is-overflowing');
       teardownFullPoemAutoScroll_(shell);
+      return;
+    }
+    if (state.pausedByUser) {
+      state.lastTs = ts;
+      state.rafId = requestAnimationFrame(tick);
       return;
     }
     if (ts < state.pausedUntil) {
@@ -1152,6 +1393,7 @@ let selectedCatalog= '';
 let selectedAuthor = '';
 let selectedBook = '';
 let selectedItemId = '';
+let embedLockedItemId = '';
 let selectedItemRecord = null;
 let routeItemConsumed = false;
 
@@ -1440,6 +1682,12 @@ function mapGraphic(g){
       releaseCatalog: g[6] || '',
       imageType: g[7] || '',
       excerpt: g[8] || '',
+      youtubeId: g[9] || '',
+      uploadTime: g[10] || '',
+      socialViews: Number(g[11] || 0) || 0,
+      socialLikes: Number(g[12] || 0) || 0,
+      socialComments: Number(g[13] || 0) || 0,
+      socialDislikes: Number(g[14] || 0) || 0,
       author: g[0] || '',
       title: g[1] || '',
       book: g[2] || '',
@@ -1448,7 +1696,9 @@ function mapGraphic(g){
   }
   return {
     id: g?.id ?? g?.imageId ?? g?.contentId ?? g?.uid ?? null,
-    mediaUrl: g?.imageUrl ?? g?.videoUrl ?? g?.driveLink ?? g?.url ?? null,
+    mediaUrl: g?.imageType === 'YT'
+      ? (g?.youtubeUrl ?? g?.url ?? g?.imageUrl ?? null)
+      : (g?.imageUrl ?? g?.videoUrl ?? g?.driveLink ?? g?.url ?? null),
     bookUrl: g?.bookUrl ?? g?.bookLink ?? g?.link ?? '',
     releaseCatalog: g?.releaseCatalog ?? '',
     imageType: g?.imageType ?? '',
@@ -1456,26 +1706,127 @@ function mapGraphic(g){
     author: g?.author ?? '',
     title: g?.title ?? g?.poem ?? '',
     book: g?.book ?? '',
+    youtubeId: g?.youtubeId ?? '',
+    uploadTime: g?.uploadTime ?? '',
+    socialViews: Number(g?.socialViews || 0) || 0,
+    socialLikes: Number(g?.socialLikes || 0) || 0,
+    socialComments: Number(g?.socialComments || 0) || 0,
+    socialDislikes: Number(g?.socialDislikes || 0) || 0,
+    socialSyncSource: g?.socialSyncSource ?? '',
+    socialLastSyncedAt: g?.socialLastSyncedAt ?? null,
     raw: g
   };
 }
 
 const CONTENT_TYPE_LABELS = {
+  VIDEO: 'All Video',
   GP: 'Graphics',
   EXC: 'Excerpts',
   FP: 'Full Poems',
   VV: 'Video',
+  YT: 'YouTube',
 };
 
 function formatContentTypeLabel(value) {
   const code = String(value || '').trim();
   return CONTENT_TYPE_LABELS[code] || code || 'Unknown';
 }
+function isAggregateVideoType(value = '') {
+  const normalized = normalizeFilterValue(value);
+  return normalized === 'video' || normalized === 'videos' || normalized === 'allvideo' || normalized === 'all-video';
+}
+function matchesSelectedType(item, typeValue) {
+  const normalized = normalizeFilterValue(typeValue);
+  if (!normalized) return true;
+  const itemType = normalizeFilterValue(item?.imageType);
+  if (isAggregateVideoType(normalized)) {
+    return itemType === 'vv' || itemType === 'yt';
+  }
+  return itemType === normalized;
+}
 
 // ===== Utilities =====
 function isVideoUrl(url='') {
   const ext = url.split('?')[0].split('#')[0].split('.').pop().toLowerCase();
   return ['mov','mp4','webm','ogg'].includes(ext);
+}
+function isYouTubeUrl(url='') {
+  const raw = String(url || '').trim();
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw);
+    return /(^|\.)youtu\.be$/i.test(parsed.hostname) || /(^|\.)youtube\.com$/i.test(parsed.hostname);
+  } catch (_err) {
+    return false;
+  }
+}
+function extractYouTubeId(url='') {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw;
+  try {
+    const parsed = new URL(raw);
+    if (/(^|\.)youtu\.be$/i.test(parsed.hostname)) {
+      return String(parsed.pathname || '').replace(/^\/+/, '').split('/')[0] || '';
+    }
+    if (/(^|\.)youtube\.com$/i.test(parsed.hostname)) {
+      const watchId = parsed.searchParams.get('v');
+      if (watchId) return watchId;
+      const parts = String(parsed.pathname || '').split('/').filter(Boolean);
+      const marker = parts.findIndex((part) => ['embed', 'shorts', 'live'].includes(part));
+      if (marker >= 0 && parts[marker + 1]) return parts[marker + 1];
+    }
+  } catch (_err) {}
+  return '';
+}
+function youtubeEmbedUrl(url='') {
+  const id = extractYouTubeId(url);
+  return id ? `https://www.youtube.com/embed/${encodeURIComponent(id)}?rel=0` : '';
+}
+function extractGoogleDriveFileId(url='') {
+  const raw = String(url || '').trim();
+  if (!raw) return '';
+  const directMatch = raw.match(/\/file\/d\/([A-Za-z0-9_-]+)/i);
+  if (directMatch?.[1]) return directMatch[1];
+  try {
+    const parsed = new URL(raw);
+    if (!/(^|\.)drive\.google\.com$/i.test(parsed.hostname)) return '';
+    const idParam = parsed.searchParams.get('id');
+    if (idParam) return idParam;
+    const parts = String(parsed.pathname || '').split('/').filter(Boolean);
+    const fileIndex = parts.findIndex((part) => part === 'd');
+    if (fileIndex >= 0 && parts[fileIndex + 1]) return parts[fileIndex + 1];
+  } catch (_err) {}
+  return '';
+}
+function isGoogleDriveFileUrl(url='') {
+  return !!extractGoogleDriveFileId(url);
+}
+function googleDrivePreviewUrl(url='') {
+  const id = extractGoogleDriveFileId(url);
+  return id ? `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview` : '';
+}
+function isPortraitVideoItem(item) {
+  const misc = String(item?.raw?.misc || '');
+  const fileName = String(item?.raw?.updatedFileName || item?.raw?.fileName || '');
+  const title = String(item?.title || '');
+  const catalog = String(item?.releaseCatalog || '');
+  return (
+    /\bformat=vertical\b/i.test(misc) ||
+    /\bvertical\b/i.test(fileName) ||
+    /\bvertical\b/i.test(title) ||
+    /vertical workshop excerpts/i.test(catalog)
+  );
+}
+function isWorkshopItem(item) {
+  const catalog = String(item?.releaseCatalog || '');
+  const misc = String(item?.raw?.misc || '');
+  const title = String(item?.title || '');
+  return (
+    /vertical workshop excerpts/i.test(catalog) ||
+    /workshop/i.test(misc) ||
+    /button up: poetry 101/i.test(title)
+  );
 }
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
@@ -1493,6 +1844,25 @@ function isHighRated(g) { return ratingOf(g) >= 1; }
 function ratingMetaOf(g) {
   return ratingsMap[g?.id] || { score: 0, total: 0, rating: 1, likes: 0, dislikes: 0, meh: 0, movedMe: 0 };
 }
+
+function computeExternalSignalScore(g) {
+  const views = Number(g?.socialViews || g?.raw?.socialViews || 0) || 0;
+  const likes = Number(g?.socialLikes || g?.raw?.socialLikes || 0) || 0;
+  const comments = Number(g?.socialComments || g?.raw?.socialComments || 0) || 0;
+  const dislikes = Number(g?.socialDislikes || g?.raw?.socialDislikes || 0) || 0;
+  const engagementRate = (likes + (comments * 2) - (dislikes * 0.5)) / Math.max(views, 1);
+  const reachScore = Math.log10(Math.max(views, 1));
+  return {
+    views,
+    likes,
+    comments,
+    dislikes,
+    engagementRate,
+    reachScore,
+    externalSignalScore: (engagementRate * 1000) + reachScore,
+  };
+}
+
 function getFeedSignals(g) {
   const meta = ratingMetaOf(g);
   const likes = Number(meta.likes || 0);
@@ -1513,6 +1883,11 @@ function getFeedSignals(g) {
     (mehRate * 0.3) -
     (dislikeRate * 0.85)
   ) * (0.35 + (0.65 * confidence));
+  const externalSignals = computeExternalSignalScore(g);
+  const lowVoteYouTube = String(g?.imageType || '').toUpperCase() === 'YT' && totalVotes < 3;
+  const externalBoost = lowVoteYouTube
+    ? Math.max(0, Math.min(0.35, Math.sqrt(Math.max(0, externalSignals.externalSignalScore)) * 0.03))
+    : 0;
 
   let bucket = 'standard';
   if (needsConfirmation) bucket = 'confirmation';
@@ -1533,13 +1908,36 @@ function getFeedSignals(g) {
     confidence,
     needsConfirmation,
     feedScore,
+    externalSignalScore: externalSignals.externalSignalScore,
+    externalBoost,
+    socialViews: externalSignals.views,
+    socialLikes: externalSignals.likes,
+    socialComments: externalSignals.comments,
+    socialDislikes: externalSignals.dislikes,
+    engagementRate: externalSignals.engagementRate,
     bucket,
   };
+}
+function refreshItemFeedSignals(item) {
+  if (!item) return null;
+  const previousSignals = item.__feedSignals || {};
+  const nextSignals = getFeedSignals(item);
+  item.__feedSignals = {
+    ...nextSignals,
+    interleaveSlot: previousSignals.interleaveSlot,
+    interleaveCycle: previousSignals.interleaveCycle,
+    position: previousSignals.position,
+    interleaveNote: previousSignals.interleaveNote,
+  };
+  return item.__feedSignals;
 }
 function isMutedCandidate(g) { return getFeedSignals(g).bucket === 'muted'; }
 function isBoostedCandidate(g) { return getFeedSignals(g).bucket === 'boosted'; }
 function isConfirmationCandidate(g) { return getFeedSignals(g).bucket === 'confirmation'; }
-function communityAffinityOf(g) { return getFeedSignals(g).feedScore; }
+function communityAffinityOf(g) {
+  const signals = getFeedSignals(g);
+  return signals.feedScore + signals.externalBoost;
+}
 function orderByCommunityPreference(list, options = {}) {
   const includeMuted = options.includeMuted !== false;
   const confirmation = [];
@@ -1601,14 +1999,32 @@ function orderByCommunityPreference(list, options = {}) {
 // ===== Data fetch wrappers =====
 async function fetchLatestBatch() {
   const user = firebase.auth().currentUser;
-  if (user) return fetchDataWrapped();
+  if (user) return fetchBootstrapWrapped();
 
   const anonId = await getOrCreateAnonId();
-  return fetchDataAnonWrapped(anonId);
+  return fetchBootstrapAnonWrapped(anonId);
 }
 
 function hasActiveFeedFilters() {
   return !!(selectedType || selectedCatalog || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook));
+}
+
+function getActiveFilterPayload(extra = {}) {
+  return {
+    type: selectedType || '',
+    catalog: selectedCatalog || '',
+    author: filterByAuthor ? selectedAuthor : '',
+    book: filterByBook ? selectedBook : '',
+    ...extra,
+  };
+}
+
+async function fetchFilteredFeedData() {
+  const user = firebase.auth().currentUser;
+  if (user) return fetchFilteredWrapped(getActiveFilterPayload());
+
+  const anonId = await getOrCreateAnonId();
+  return fetchFilteredWrapped(getActiveFilterPayload({ anonId }));
 }
 
 async function fetchFullFeedData() {
@@ -1620,7 +2036,7 @@ async function fetchFullFeedData() {
 }
 
 async function fetchBestBatchForCurrentView() {
-  return hasActiveFeedFilters() ? fetchFullFeedData() : fetchLatestBatch();
+  return hasActiveFeedFilters() ? fetchFilteredFeedData() : fetchLatestBatch();
 }
 
 async function ensureFilterReadyThenRebuild() {
@@ -1632,22 +2048,22 @@ async function ensureFilterReadyThenRebuild() {
       console.warn('Selected item fetch for filters failed', err);
     }
   }
-  if (hasActiveFeedFilters() && !fullFeedHydrationDone) {
+  if (hasActiveFeedFilters()) {
     try {
-      const data = await fetchFullFeedData();
+      const data = await fetchFilteredFeedData();
       if (data && Array.isArray(data.newGraphics)) {
-        lastData = data;
-        fullFeedHydrationDone = true;
-        fullFeedHydrationStarted = true;
+        initQueueFromData(data);
+        return;
       }
     } catch (err) {
-      console.warn('Full feed fetch for filters failed', err);
+      console.warn('Filtered feed fetch failed', err);
     }
   }
   rebuildQueueAfterFilter();
 }
 
 async function hydrateFullFeedInBackground() {
+  if (IS_EMBED_UI) return;
   if (fullFeedHydrationStarted || fullFeedHydrationDone) return;
   fullFeedHydrationStarted = true;
 
@@ -1655,12 +2071,20 @@ async function hydrateFullFeedInBackground() {
     try {
       const data = await fetchFullFeedData();
       if (!data || !Array.isArray(data.newGraphics)) return;
-      const currentId = currentItem?.id || null;
+      if (hasActiveFeedFilters()) {
+        fullFeedHydrationDone = true;
+        return;
+      }
+      const currentId = getPreferredCurrentItemId();
       lastData = data;
-      if (!currentId) {
-        initQueueFromData(data);
-      } else {
+      if (currentId && !hasActiveFeedFilters()) {
+        fullFeedHydrationDone = true;
+        return;
+      }
+      if (currentId) {
         rebuildQueueAfterFilter();
+      } else {
+        initQueueFromData(data);
       }
       fullFeedHydrationDone = true;
     } catch (err) {
@@ -1677,28 +2101,50 @@ async function hydrateFullFeedInBackground() {
 }
 
 // ===== Filters: population =====
+async function populateTypesSelect(types) {
+  const sel = $('#type-filter');
+  if (!sel) return;
+  sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
+  const aggregate = document.createElement('option');
+  aggregate.value = 'VIDEO';
+  aggregate.textContent = formatContentTypeLabel('VIDEO');
+  sel.appendChild(aggregate);
+  (types || []).forEach(t => {
+    if (!t) return;
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = formatContentTypeLabel(t);
+    sel.appendChild(opt);
+  });
+  syncFilterControls();
+}
+
+async function populateCatalogsSelect(cats) {
+  const sel = $('#catalog-filter');
+  if (!sel) return;
+  sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
+  (cats || []).forEach(c => {
+    if (!c) return;
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = c;
+    sel.appendChild(opt);
+  });
+  syncFilterControls();
+}
+
 async function fetchAndPopulateTypes() {
   try {
-    const types = await fetchImageTypesWrapped();
-    const sel = $('#type-filter'); if (!sel) return;
-    sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
-    (types || []).forEach(t => {
-      if (!t) return;
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = formatContentTypeLabel(t);
-      sel.appendChild(opt);
-    });
-    syncFilterControls();
+    let types = Array.isArray(lastData?.imageTypes) ? lastData.imageTypes : [];
+    if (!types.length) types = await getJSONWrapped('imageTypes').catch(() => []);
+    await populateTypesSelect(types);
   } catch(e) { console.warn('fetchAndPopulateTypes error', e); }
 }
 async function fetchAndPopulateCatalogs() {
   try {
-    const cats = await fetchReleaseCatalogsWrapped();
-    const sel = $('#catalog-filter'); if (!sel) return;
-    sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
-    (cats || []).forEach(c => { if (!c) return; const opt = document.createElement('option'); opt.value=c; opt.textContent=c; sel.appendChild(opt); });
-    syncFilterControls();
+    let cats = Array.isArray(lastData?.releaseCatalogs) ? lastData.releaseCatalogs : [];
+    if (!cats.length) cats = await getJSONWrapped('releaseCatalogs').catch(() => []);
+    await populateCatalogsSelect(cats);
   } catch(e) { console.warn('fetchAndPopulateCatalogs error', e); }
 }
 
@@ -1711,14 +2157,21 @@ function buildFilteredList(data) {
 
   // Dropdown filters
   list = list.filter(g => {
-    if (selectedType && g.imageType !== selectedType) return false;
+    if (!matchesSelectedType(g, selectedType)) return false;
     if (selectedCatalog && g.releaseCatalog !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
     return true;
   });
 
+  const pinnedEmbedId = selectedItemId || embedLockedItemId;
+  if (IS_EMBED_UI && pinnedEmbedId) {
+    list = list.filter((g) => valuesMatch(g.id, pinnedEmbedId));
+  }
+
   if (selectedItemId && !routeItemConsumed && selectedItemRecord && !list.some((g) => valuesMatch(g.id, selectedItemId))) {
+    list.unshift(selectedItemRecord);
+  } else if (IS_EMBED_UI && embedLockedItemId && selectedItemRecord && !list.some((g) => valuesMatch(g.id, embedLockedItemId))) {
     list.unshift(selectedItemRecord);
   }
 
@@ -1732,7 +2185,9 @@ function preloadAsset(src, type) {
   if (!src) return Promise.resolve();
   if (preloadCache.has(src)) return preloadCache.get(src);
   let p;
-  if (type === 'VV' || isVideoUrl(src)) {
+  if (type === 'YT' || isYouTubeUrl(src)) {
+    p = Promise.resolve();
+  } else if (type === 'VV' || isVideoUrl(src)) {
     p = new Promise((resolve) => {
       const v = document.createElement('video'); v.preload='auto'; v.src=src; v.muted=true; v.load();
       const done = () => { cleanup(); resolve(); };
@@ -1791,9 +2246,18 @@ function adjustViewportFit() {
 
 function getEmptyFilterMessage() {
   if (hasActiveFeedFilters()) {
-    return 'No unvoted items remain for this filter. Try another type, catalog, author, or book.';
+    return 'No more items are available in this filter right now. Try Poetry, Please again or change filters.';
   }
   return 'No new items remain right now.';
+}
+
+async function refillCurrentViewWithRetry() {
+  let data = await fetchBestBatchForCurrentView().catch(() => null);
+  if (data) initQueueFromData(data);
+  if (currentItem || !hasActiveFeedFilters()) return;
+  await new Promise((resolve) => setTimeout(resolve, 450));
+  data = await fetchBestBatchForCurrentView().catch(() => null);
+  if (data) initQueueFromData(data);
 }
 
 function renderEmptyFilterState(message = getEmptyFilterMessage()) {
@@ -1822,6 +2286,9 @@ function renderEmptyFilterState(message = getEmptyFilterMessage()) {
 // ===== Init / rebuild =====
 function initQueueFromData(data) {
   lastData = data;
+  if (data?.ratingsSummary && !IS_EMBED_UI) {
+    ratingsMap = data.ratingsSummary || {};
+  }
   queue = buildFilteredList(data);
   if (!queue.length) {
     renderEmptyFilterState();
@@ -1839,9 +2306,14 @@ function initQueueFromData(data) {
   for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
   renderWhenReady(idx);
 }
+
+function getPreferredCurrentItemId() {
+  return currentItem?.id || queue?.[idx]?.id || selectedItemId || embedLockedItemId || null;
+}
+
 function rebuildQueueAfterFilter() {
   if (!lastData) return;
-  const keepId = currentItem?.id || null;
+  const keepId = getPreferredCurrentItemId();
   queue = buildFilteredList(lastData);
   if (!queue.length) {
     renderEmptyFilterState();
@@ -1881,6 +2353,32 @@ async function refreshAfterFlaggedContent(flaggedItemId) {
 
   if (idx >= queue.length) idx = queue.length - 1;
   renderWhenReady(idx);
+}
+
+function removeItemFromQueueById(itemId) {
+  const normalizedId = normalizeFilterValue(itemId);
+  if (!normalizedId || !Array.isArray(queue) || !queue.length) return;
+  const removalIndex = queue.findIndex((entry) => normalizeFilterValue(entry?.id) === normalizedId);
+  if (removalIndex < 0) return;
+  queue.splice(removalIndex, 1);
+  if (removalIndex <= idx) idx -= 1;
+  if (idx < -1) idx = -1;
+}
+
+function applyOptimisticVoteToRatings(itemId, voteType) {
+  const key = normalizeFilterValue(itemId);
+  if (!key) return;
+  const next = {
+    ...(ratingsMap[key] || { score: 0, total: 0, rating: 1, likes: 0, dislikes: 0, meh: 0, movedMe: 0 }),
+  };
+  next.total = Number(next.total || 0) + 1;
+  if (voteType === 'like') next.likes = Number(next.likes || 0) + 1;
+  if (voteType === 'dislike') next.dislikes = Number(next.dislikes || 0) + 1;
+  if (voteType === 'meh') next.meh = Number(next.meh || 0) + 1;
+  if (voteType === 'moved me') next.movedMe = Number(next.movedMe || 0) + 1;
+  next.score = Number(next.likes || 0) + (Number(next.movedMe || 0) * 2) - Number(next.dislikes || 0);
+  next.rating = next.total ? (next.score / next.total) : 1;
+  ratingsMap[key] = next;
 }
 
 async function flagCurrentContent() {
@@ -1924,17 +2422,6 @@ function renderMetaRows(item) {
   mediaWrap.querySelectorAll('.meta-row').forEach(n=>n.remove());
   if (!item) return;
 
-    // --- MOBILE: do not render inline meta; update bottom sheet instead ---
-  if (window.__PP_FORCE_MOBILE || (document.body && document.body.dataset.ui === 'mobile')) {
-    if (window.PP && typeof window.PP.updateInfo === 'function') {
-      window.PP.updateInfo(item);
-    }
-    const badge = document.getElementById('mobile-counts');
-    if (badge) badge.style.display = 'none';
-    return; // prevent the three mediaWrap.prepend(...) lines from running
-  }
-
-
   const row = (text, checkboxId, checked, label, onToggle) => {
     const r = document.createElement('div'); r.className='meta-row';
     const p = document.createElement('p'); p.textContent = text || ''; r.appendChild(p);
@@ -1962,7 +2449,30 @@ function renderMetaRows(item) {
     return r;
   };
 
+    // --- MOBILE: do not render inline meta; update bottom sheet instead ---
+  if (window.__PP_FORCE_MOBILE || (document.body && document.body.dataset.ui === 'mobile')) {
+    if (window.PP && typeof window.PP.updateInfo === 'function') {
+      window.PP.updateInfo(item);
+    }
+    const badge = document.getElementById('mobile-counts');
+    if (badge) badge.style.display = 'none';
+    return; // prevent the three mediaWrap.prepend(...) lines from running
+  }
+  if (IS_EMBED_UI) {
+    mediaWrap.prepend(row(`From their book: ${item.book || ''}`));
+    mediaWrap.prepend(row(`Title: ${item.title || ''}`));
+    mediaWrap.prepend(row(`Author: ${item.author || ''}`));
+    return;
+  }
+
   // On mobile we still show the metadata, but the checkboxes still work
+  mediaWrap.prepend(row(
+    `From their book: ${item.book || ''}`,
+    'bookCheckbox',
+    filterByBook && valuesMatch(selectedBook, item.book),
+    'More from this book',
+    () => setBookFilter(!(filterByBook && valuesMatch(selectedBook, item.book)), item.book)
+  ));
   mediaWrap.prepend(row(`Title: ${item.title || ''}`));
   mediaWrap.prepend(row(
     `Author: ${item.author || ''}`,
@@ -1971,21 +2481,15 @@ function renderMetaRows(item) {
     'More from this author',
     () => setAuthorFilter(!(filterByAuthor && valuesMatch(selectedAuthor, item.author)), item.author)
   ));
-  mediaWrap.prepend(row(
-    `From their book: ${item.book || ''}`,
-    'bookCheckbox',
-    filterByBook && valuesMatch(selectedBook, item.book),
-    'More from this book',
-    () => setBookFilter(!(filterByBook && valuesMatch(selectedBook, item.book)), item.book)
-  ));
   if (userCanFlagContent()) {
     mediaWrap.prepend(actionRow('Flag issue with this content', () => flagCurrentContent()));
   }
 }
 function renderCounter() {
+  if (IS_EMBED_UI) return;
   const all = Array.isArray(lastData?.allGraphics) ? lastData.allGraphics.map(mapGraphic) : [];
   let domainAll = all.filter(g => {
-    if (selectedType && g.imageType !== selectedType) return false;
+    if (!matchesSelectedType(g, selectedType)) return false;
     if (selectedCatalog && g.releaseCatalog !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook   && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
@@ -2022,14 +2526,17 @@ function resetVoteButtons(){
 }
 function renderItemMedia(item) {
   const mediaWrap = ensureMediaWrap();
+  if (mediaWrap?.dataset) mediaWrap.dataset.kind = '';
   const oldBox = mediaWrap.querySelector('.media-box'); if (oldBox) oldBox.remove();
   const box = document.createElement('div'); box.className='media-box'; mediaWrap.appendChild(box);
 
   let img = null, v = null;
 
   if (item?.imageType === 'EXC' || item?.imageType === 'FP') {
+    if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'text';
+    box.classList.add('text-media-box');
     const textDiv = document.createElement('div');
-    textDiv.className = item?.imageType === 'FP' ? 'excerpt-text full-poem-scroll-shell' : 'excerpt-text';
+    textDiv.className = item?.imageType === 'FP' ? 'excerpt-text full-poem-scroll-shell' : 'excerpt-text excerpt-card';
     const textContent = document.createElement('div');
     textContent.className = item?.imageType === 'FP' ? 'full-poem-scroll-content' : '';
     if (item?.imageType === 'FP' && item?.title) {
@@ -2044,11 +2551,49 @@ function renderItemMedia(item) {
     textContent.appendChild(p);
     textDiv.appendChild(textContent);
     box.appendChild(textDiv);
+  } else if (item?.mediaUrl && (item.imageType === 'YT' || isYouTubeUrl(item.mediaUrl))) {
+    if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'video';
+    box.classList.add('video-media-box');
+    const embed = youtubeEmbedUrl(item.mediaUrl);
+    if (embed) {
+      const shell = document.createElement('div');
+      shell.className = 'video-frame-shell';
+      const frame = document.createElement('iframe');
+      frame.src = embed;
+      frame.title = item?.title || 'YouTube video';
+      frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+      frame.allowFullscreen = true;
+      frame.referrerPolicy = 'strict-origin-when-cross-origin';
+      shell.appendChild(frame);
+      box.appendChild(shell);
+    } else {
+      const p = document.createElement('p');
+      p.textContent = 'This YouTube item could not be embedded.';
+      box.appendChild(p);
+    }
   } else if (item?.mediaUrl && (item.imageType === 'VV' || isVideoUrl(item.mediaUrl))) {
-    const a = document.createElement('a'); if (item?.bookUrl) { a.href=item.bookUrl; a.target='_blank'; }
-    v = document.createElement('video'); v.src=item.mediaUrl; v.controls=true; v.style.maxWidth='100%'; v.style.height='auto';
-    a.appendChild(v); box.appendChild(a);
+    if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'video';
+    box.classList.add('video-media-box');
+    const shell = document.createElement('div');
+    shell.className = 'video-frame-shell';
+    if (isPortraitVideoItem(item)) shell.classList.add('is-portrait');
+    if (isGoogleDriveFileUrl(item.mediaUrl)) {
+      const frame = document.createElement('iframe');
+      frame.src = googleDrivePreviewUrl(item.mediaUrl);
+      frame.title = item?.title || 'Drive video preview';
+      frame.allow = 'autoplay; fullscreen';
+      frame.allowFullscreen = true;
+      shell.appendChild(frame);
+      box.appendChild(shell);
+    } else {
+      v = document.createElement('video');
+      v.src = item.mediaUrl;
+      v.controls = true;
+      shell.appendChild(v);
+      box.appendChild(shell);
+    }
  } else if (item?.mediaUrl) {
+  if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'image';
   const a = document.createElement('a');
   if (item?.bookUrl) { a.href = item.bookUrl; a.target = '_blank'; }
 
@@ -2069,6 +2614,7 @@ function renderItemMedia(item) {
 
   // Trigger viewport fit now and when media is ready
   requestAnimationFrame(() => { setViewportVars(); adjustViewportFit(); });
+  requestAnimationFrame(() => postEmbedSize());
   if (item?.imageType === 'FP') {
     requestAnimationFrame(() => setupFullPoemAutoScroll_(box.querySelector('.full-poem-scroll-shell')));
   }
@@ -2082,7 +2628,12 @@ function renderItemMedia(item) {
 function renderCurrent(item) {
   resetVoteButtons();
   currentItem = item;
+  refreshItemFeedSignals(currentItem);
   window.currentItem = currentItem; // <-- make it available to mobile.html
+  if (IS_EMBED_UI && currentItem?.id && !embedLockedItemId) {
+    embedLockedItemId = currentItem.id;
+    selectedItemRecord = currentItem;
+  }
   if (selectedItemId && !routeItemConsumed && valuesMatch(currentItem?.id, selectedItemId)) {
     routeItemConsumed = true;
   }
@@ -2092,7 +2643,7 @@ function renderCurrent(item) {
   renderItemMedia(item);
 
   const back = $('#btn-go-back');
-  if (back) back.disabled = historyStack.length === 0;
+  if (back) back.disabled = IS_EMBED_UI ? true : historyStack.length === 0;
 
   const toBook = $('#btn-to-book');
   if (toBook)
@@ -2100,6 +2651,25 @@ function renderCurrent(item) {
       if (currentItem?.bookUrl)
         window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer');
     };
+  const toWorkshops = $('#btn-to-workshops');
+  if (toWorkshops) {
+    toWorkshops.style.display = (IS_EMBED_UI && isWorkshopItem(currentItem)) ? '' : 'none';
+    toWorkshops.onclick = () => {
+      window.open('https://buttonpoetry.com/products/workshops/', '_blank', 'noopener,noreferrer');
+    };
+  }
+  const toApp = $('#btn-open-app');
+  if (toApp) {
+    toApp.onclick = () => {
+      const params = new URLSearchParams();
+      if (currentItem?.id) params.set('item', currentItem.id);
+      if (selectedType || currentItem?.imageType) params.set('type', selectedType || currentItem.imageType);
+      if (selectedCatalog) params.set('catalog', selectedCatalog);
+      if (filterByAuthor && selectedAuthor) params.set('author', selectedAuthor);
+      if (filterByBook && selectedBook) params.set('book', selectedBook);
+      window.open(`/app${params.toString() ? `?${params.toString()}` : ''}`, '_blank', 'noopener,noreferrer');
+    };
+  }
 
   const gal = $('#gallery');
   if (gal)
@@ -2180,6 +2750,7 @@ async function submitVote(item, value){
 
 
 async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
+  if (IS_EMBED_UI) return;
   if (!currentItem || isTransitioning) return;
   isTransitioning = true;
   historyStack.push(currentItem);
@@ -2192,12 +2763,15 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
 
   try {
     await submitVote(currentItem, value);
+    applyOptimisticVoteToRatings(currentItem.id, value);
+    refreshItemFeedSignals(currentItem);
     if (value === 'like')     updateCounters({ like: 1 });
     if (value === 'dislike')  updateCounters({ dislike: 1 });
     if (value === 'moved me') updateCounters({ moved: 1 });
     if (value === 'meh')      updateCounters({ meh: 1 });
   } catch(e) { console.warn('vote error', e); }
   finally {
+    removeItemFromQueueById(currentItem?.id);
     lastVoteType = (value || '').toLowerCase();
     sessionVotes = (sessionVotes || 0) + 1;
     if (lastVoteType === 'meh' || lastVoteType === 'dislike') sessionNegatives = (sessionNegatives || 0) + 1;
@@ -2208,18 +2782,17 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
       safePreload(idx + PRELOAD_AHEAD);
       renderWhenReady(idx);
     } else {
-      const data = await fetchBestBatchForCurrentView().catch(()=>null);
-      if (data) initQueueFromData(data);
+      await refillCurrentViewWithRetry();
     }
     setVoteButtonsDisabled(false);
     isTransitioning = false;
   }
 }
 async function onSkip(){
+  if (IS_EMBED_UI) return;
   if (isTransitioning) return;
   if (!currentItem) {
-    const data = await fetchBestBatchForCurrentView().catch(()=>null);
-    if (data) initQueueFromData(data);
+    await refillCurrentViewWithRetry();
     return;
   }
   isTransitioning = true;
@@ -2229,13 +2802,18 @@ async function onSkip(){
   flashMessage(teamSkip ? 'Skipped without recording a vote.' : 'Skipped');
   try {
     if (!teamSkip) await submitVote(currentItem, 'meh');
+    if (!teamSkip) {
+      applyOptimisticVoteToRatings(currentItem.id, 'meh');
+      refreshItemFeedSignals(currentItem);
+    }
     updateCounters({ skip: 1 });
   }
   catch(e) { console.warn('skip vote error', e); }
   finally {
+    removeItemFromQueueById(currentItem?.id);
     const nextIndex = chooseNextIndex();
     if (nextIndex !== -1) { idx = nextIndex; safePreload(idx + PRELOAD_AHEAD); renderWhenReady(idx); }
-    else { const data = await fetchBestBatchForCurrentView().catch(()=>null); if (data) initQueueFromData(data); }
+    else { await refillCurrentViewWithRetry(); }
     setVoteButtonsDisabled(false); isTransitioning = false;
   }
 }
@@ -2293,10 +2871,10 @@ async function ppAutoloadFirstItem() {
         }
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
-        hydrateFullFeedInBackground();
+        if (!IS_EMBED_UI) hydrateFullFeedInBackground();
 
-        // If something prevented render, allow future attempts
-        if (!currentItem) {
+        // If nothing queued up, allow future attempts.
+        if (!currentItem && (!Array.isArray(queue) || !queue.length)) {
           console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
           __pp_initialLoad = false;
         }
@@ -2340,23 +2918,33 @@ firebase.auth().onAuthStateChanged(async (user) => {
   if (!currentItem) LoaderController.showInline();
   LoaderController.markScreenReady();
 
-  ppAutoloadFirstItem();   // <-- added
+  if (IS_EMBED_UI) {
+    updateUserStatusUI();
+    window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: currentItem } }));
+    ppAutoloadFirstItem();
+    return;
+  }
 
   if (visibleUser) {
     await mergeAnonymousVotesIntoAccount();
   }
 
-  refreshCurrentAccount()
-    .then(() => {
-      updateUserStatusUI();
-      if (currentItem) renderMetaRows(currentItem);
-      dispatchEvent(new CustomEvent('pp:state'));
-    })
-    .catch((err) => {
-      console.warn('refreshCurrentAccount failed during auth bootstrap', err);
-      updateUserStatusUI();
-      dispatchEvent(new CustomEvent('pp:state'));
-    });
+  try {
+    await refreshCurrentAccount();
+  } catch (err) {
+    console.warn('refreshCurrentAccount failed during auth bootstrap', err);
+  }
+
+  const nextFeedIdentityKey = getFeedIdentityKey();
+  if (lastFeedIdentityKey !== nextFeedIdentityKey) {
+    lastFeedIdentityKey = nextFeedIdentityKey;
+    resetFeedForIdentityChange();
+  }
+
+  updateUserStatusUI();
+  if (currentItem) renderMetaRows(currentItem);
+  dispatchEvent(new CustomEvent('pp:state'));
+  ppAutoloadFirstItem();
 
   if (visibleUser) {
     redeemAuthorInviteIfPresent().catch((err) => {
@@ -2397,13 +2985,12 @@ window.addEventListener('DOMContentLoaded', () => {
   updateUserStatusUI();
   LoaderController.maybeHidePrimary();
   if (!currentItem) LoaderController.showInline();
-  ppAutoloadFirstItem();
 
   // Viewport listeners
   setViewportVars();
   adjustViewportFit();
-  window.addEventListener('resize', () => { setViewportVars(); adjustViewportFit(); });
-  window.addEventListener('orientationchange', () => { setViewportVars(); setTimeout(adjustViewportFit, 100); });
+  window.addEventListener('resize', () => { setViewportVars(); adjustViewportFit(); postEmbedSize(); });
+  window.addEventListener('orientationchange', () => { setViewportVars(); setTimeout(() => { adjustViewportFit(); postEmbedSize(); }, 100); });
 });
 
 // ===== Scaffold UI (vote row, under-controls, counters) =====
@@ -2413,6 +3000,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
   let mediaWrap = $('#media-wrap');
   if (!mediaWrap) { mediaWrap=document.createElement('div'); mediaWrap.id='media-wrap'; const gal=$('#gallery'); (gal?.parentElement||document.body).insertBefore(mediaWrap, gal||null); }
+
+  if (IS_EMBED_UI) {
+    if (!$('#under-controls')) {
+      const row = document.createElement('div'); row.id='under-controls'; row.className='button-row';
+      const openApp = document.createElement('button'); openApp.id='btn-open-app'; openApp.textContent='Open in Poetry, Please';
+      const toBook = document.createElement('button'); toBook.id='btn-to-book'; toBook.textContent='Take me to the book';
+      const toWorkshops = document.createElement('button'); toWorkshops.id='btn-to-workshops'; toWorkshops.textContent='Take me to the writing workshops';
+      row.append(openApp, toBook, toWorkshops); mediaWrap.appendChild(row);
+    }
+    return;
+  }
 
   // VOTE ROW (above media)
   if (!$('#vote-row')) {
@@ -2426,7 +3024,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (!$('#under-controls')) {
     const row = document.createElement('div'); row.id='under-controls'; row.className='button-row';
     const back = document.createElement('button'); back.id='btn-go-back'; back.textContent='Go Back'; back.disabled=true; back.addEventListener('click', onGoBack);
-    const toBook = document.createElement('button'); toBook.id='btn-to-book'; toBook.textContent='Take me to the book'; toBook.addEventListener('click', () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); });
+    const toBook = document.createElement('button'); toBook.id='btn-to-book'; toBook.textContent='Take me to the book';
     row.append(back, toBook); mediaWrap.appendChild(row);
   }
 

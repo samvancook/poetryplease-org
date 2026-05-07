@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Poetry, Please</title>
+  <title>Poetry, Please Embed</title>
   <link rel="icon" type="image/png" href="/pp-loader-logo.png" />
   <link rel="apple-touch-icon" href="/pp-loader-logo.png" />
   <link rel="preconnect" href="https://www.gstatic.com" crossorigin />
@@ -11,8 +11,9 @@
   <link rel="stylesheet" href="/style.css?v=20260320a"/>
   <style>
     html, body {
-      background: #faf7f0;
+      background: #f7f1e5;
       color: #111;
+      margin: 0;
     }
     .pp-loader {
       position: fixed;
@@ -22,7 +23,7 @@
       align-items: center;
       justify-content: center;
       background:
-        radial-gradient(circle at top, rgba(47, 93, 98, 0.22), transparent 40%),
+        radial-gradient(circle at top, rgba(47, 93, 98, 0.18), transparent 40%),
         linear-gradient(180deg, #faf7f0 0%, #f4ecdd 100%);
       opacity: 1;
       visibility: visible;
@@ -34,11 +35,10 @@
       pointer-events: none;
     }
     .pp-loader__mark {
-      width: min(46vw, 220px);
+      width: min(36vw, 180px);
       opacity: 0;
       transform: translateY(10px) scale(0.94);
       animation: ppLoaderFadeIn 900ms ease forwards;
-      filter: drop-shadow(0 18px 32px rgba(30, 26, 21, 0.14));
     }
     .pp-loader__content {
       display: flex;
@@ -51,15 +51,6 @@
       letter-spacing: 0.18em;
       text-transform: uppercase;
       color: rgba(30, 26, 21, 0.68);
-    }
-    .pp-loader__reset {
-      border: 1px solid rgba(30, 26, 21, 0.12);
-      background: rgba(255, 255, 255, 0.9);
-      border-radius: 999px;
-      padding: 8px 12px;
-      font: 600 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      color: rgba(30, 26, 21, 0.72);
-      cursor: pointer;
     }
     .pp-loader__dots {
       display: inline-block;
@@ -80,16 +71,13 @@
       0% { content: ""; }
       25% { content: "."; }
       50% { content: ".."; }
-      75%,
-      100% { content: "..."; }
+      75%, 100% { content: "..."; }
     }
   </style>
-
-  <!-- Firebase (compat) SDKs -->
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
-
   <script>
+    window.__PP_EMBED = true;
     const FIREBASE_CONFIG = {
       apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
       authDomain: "poetry-please.firebaseapp.com",
@@ -100,72 +88,14 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
-    window.addEventListener('load', () => {
-      const loadAnalytics = () => {
-        const script = document.createElement('script');
-        script.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics-compat.js';
-        script.async = true;
-        script.onload = () => {
-          try {
-            firebase.analytics().logEvent('page_view');
-          } catch (err) {
-            console.warn('Analytics init skipped', err);
-          }
-        };
-        document.head.appendChild(script);
-      };
-
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(loadAnalytics, { timeout: 2000 });
-      } else {
-        setTimeout(loadAnalytics, 800);
-      }
-    }, { once: true });
   </script>
 </head>
-<body>
+<body data-ui="embed">
   <div id="pp-loader" class="pp-loader" aria-hidden="true">
     <div class="pp-loader__content">
       <img class="pp-loader__mark" src="/pp-loader-logo.png?v=20260323b" alt="" decoding="async" />
       <div class="pp-loader__text">Loading<span class="pp-loader__dots" aria-hidden="true"></span></div>
-      <button id="pp-loader-reset" class="pp-loader__reset" type="button">Reset app state</button>
     </div>
-  </div>
-  <div id="user-status"></div>
-
-  <div id="type-filter-container">
-    <label for="type-filter">Filter by Image Type:</label>
-    <select id="type-filter">
-      <option value="">All Types</option>
-    </select>
-  </div>
-
-  <div id="catalog-filter-container">
-    <label for="catalog-filter">Filter by Release Catalog:</label>
-    <select id="catalog-filter">
-      <option value="">All Releases</option>
-    </select>
-  </div>
-
-  <div id="login-screen" style="display:none">
-    <h1>Welcome to Poetry, Please!</h1>
-    <button id="login-google">Log in with Google</button>
-    <form id="email-login-form">
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Password" required />
-      <button type="submit">Log in</button>
-    </form>
-    <button id="show-registration">Create an Account</button>
-  </div>
-
-  <div id="registration-screen" style="display:none">
-    <h1>Create an Account</h1>
-    <form id="registration-form">
-      <input type="email" id="reg-email" placeholder="Email" required />
-      <input type="password" id="reg-password" placeholder="Password" required />
-      <button type="submit">Sign Up</button>
-    </form>
-    <button id="show-login">Back to Login</button>
   </div>
 
   <div id="poetry-screen">

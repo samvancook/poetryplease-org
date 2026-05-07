@@ -118,7 +118,9 @@
   auth.getRedirectResult().catch(console.error);
   auth.onAuthStateChanged((u) => {
     const status = document.getElementById('mobile-login-status');
+    const google = document.getElementById('mobile-google');
     if (status) status.textContent = u ? (u.email || 'Signed in') : 'Signed out';
+    if (google) google.style.display = u ? 'none' : '';
   });
 
   document.getElementById('info-filter-author')?.addEventListener('change', (e) => {

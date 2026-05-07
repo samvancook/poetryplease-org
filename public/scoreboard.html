@@ -45,11 +45,11 @@
     }
     .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
     .controls label { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
-    input[type="search"], select, button {
+    input[type="search"], input[type="number"], select, button {
       border-radius: 16px; border: 1px solid var(--line); background: rgba(255,255,255,0.76);
       color: var(--ink); font: inherit; padding: 11px 14px;
     }
-    input[type="search"], select { min-width: 190px; }
+    input[type="search"], input[type="number"], select { min-width: 190px; }
     button { cursor: pointer; font-weight: 600; }
     button.primary { background: var(--accent); color: white; border-color: transparent; }
     button.active { background: var(--accent-soft); color: var(--accent); }
@@ -127,7 +127,7 @@
 <body>
   <main class="shell">
     <div class="topbar">
-      <a href="/app">Back to app</a>
+      <a href="/">Back to app</a>
       <div class="topbar-actions">
         <a href="/admin">Admin</a>
         <span id="auth-note" class="auth-note">Checking access…</span>
@@ -151,6 +151,15 @@
         <label>Filter by book
           <select id="bookDropdown"></select>
         </label>
+        <div id="characterCountControls" style="display:none;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+          <label title="Character count includes author name, poem title, and text with spaces.">Character count min
+            <input id="characterCountMin" type="number" min="0" step="1" placeholder="Min characters" />
+          </label>
+          <label title="Character count includes author name, poem title, and text with spaces.">Character count max
+            <input id="characterCountMax" type="number" min="0" step="1" placeholder="Max characters" />
+          </label>
+          <span class="meta" title="Character count includes author name, poem title, and text with spaces.">Character count includes author name, poem title, and text with spaces.</span>
+        </div>
         <label><input type="checkbox" id="filterCompletedBooks" /> Show only completed books</label>
         <button id="exportBtn" type="button">Export visible to Google Sheet</button>
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
@@ -171,6 +180,7 @@
               <th data-column="poemTitle">Poem Title</th>
               <th data-column="bookTitle">Book Title</th>
               <th data-column="type">Type</th>
+              <th data-column="charCount">Character Count</th>
               <th data-column="fileLink">File Link</th>
               <th data-column="likes">Likes</th>
               <th data-column="dislikes">Dislikes</th>
@@ -290,6 +300,45 @@
       });
     }
 
+    function openComparisonWindow(href, windowName) {
+      const width = 820;
+      const height = Math.max(720, Math.min(960, (window.screen?.availHeight || window.outerHeight || 960) - 80));
+      const screenLeft = typeof window.screenX === "number" ? window.screenX : 0;
+      const screenTop = typeof window.screenY === "number" ? window.screenY : 0;
+      const outerWidth = window.outerWidth || window.innerWidth || width;
+      const availWidth = window.screen?.availWidth || screenLeft + outerWidth + width + 40;
+      const rightSideLeft = screenLeft + outerWidth + 20;
+      const leftSideLeft = screenLeft - width - 20;
+      let left = rightSideLeft;
+
+      if (rightSideLeft + width > availWidth - 20) {
+        left = leftSideLeft >= 20 ? leftSideLeft : Math.max(20, availWidth - width - 20);
+      }
+
+      const top = Math.max(20, screenTop + 40);
+      const features = [
+        "popup=yes",
+        `width=${width}`,
+        `height=${height}`,
+        `left=${Math.round(left)}`,
+        `top=${Math.round(top)}`,
+        "toolbar=no",
+        "menubar=no",
+        "location=no",
+        "status=no",
+        "scrollbars=yes",
+        "resizable=yes"
+      ].join(",");
+      const popup = window.open("", windowName, features);
+
+      if (popup) {
+        popup.location.replace(href);
+        popup.focus();
+      } else {
+        window.open(href, "_blank", "noopener,noreferrer");
+      }
+    }
+
     function formatSnapshotMeta(meta) {
       if (!meta?.builtAtMs) return '';
       const built = new Date(meta.builtAtMs);
@@ -342,6 +391,7 @@
       EXC: 'Excerpts',
       FP: 'Full Poems',
       VV: 'Video',
+      YT: 'YouTube',
     };
 
     function formatContentTypeLabel(value) {
@@ -356,6 +406,7 @@
       if (raw === 'exc' || raw === 'excerpts' || raw === 'excerpt') return 'exc';
       if (raw === 'gp' || raw === 'graphics' || raw === 'graphic') return 'gp';
       if (raw === 'vv' || raw === 'video' || raw === 'videos') return 'vv';
+      if (raw === 'yt' || raw === 'youtube' || raw === 'youtube video' || raw === 'youtube videos') return 'yt';
       return raw;
     }
 
@@ -412,8 +463,8 @@
         };
       };
       const headers = isUserView
-        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'vote']
-        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score', 'scorePerVote', 'likeRate', 'movedMeRate', 'mehRate', 'dislikeRate'];
+        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'excerpt', 'vote']
+        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score', 'scorePerVote', 'likeRate', 'movedMeRate', 'mehRate', 'dislikeRate'];
       const values = [
         headers,
         ...rows.map((row) => {
@@ -512,9 +563,21 @@
 
     function buildUserDropdown() {
       const sel = document.getElementById('userDropdown');
+      const ANON_GROUP_VALUE = '__anon_local__';
+      const hasAnonymousLocalUsers = rawVotes.some((row) => isAnonymousLocalUser(row.user));
       const users = Array.from(new Set(rawVotes.map((row) => row.user).filter(Boolean)))
+        .filter((user) => !isAnonymousLocalUser(user))
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
-      sel.innerHTML = '<option value="">All Users</option>' + users.map((user) => `<option>${escapeHtml(user)}</option>`).join('');
+      sel.innerHTML = (
+        '<option value="">All Users</option>'
+        + (hasAnonymousLocalUsers ? `<option value="${ANON_GROUP_VALUE}">Anonymous browser users</option>` : '')
+        + users.map((user) => `<option>${escapeHtml(user)}</option>`).join('')
+      );
+    }
+
+    function isAnonymousLocalUser(user) {
+      const normalized = String(user || '').trim().toLowerCase();
+      return /^local-[a-z0-9]{6,}$/.test(normalized) || /^poetrylover\d+$/.test(normalized);
     }
 
     function buildBookDropdown(books = null) {
@@ -547,20 +610,48 @@
       });
     }
 
+
+    function updateCharacterCountControlsVisibility() {
+      const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
+      const shouldShow = typeVal === 'fp' || typeVal === 'exc';
+      document.getElementById('characterCountControls').style.display = shouldShow ? 'flex' : 'none';
+    }
+
     function filterData() {
       if (!scoreboardLoaded) return;
       const userVal = document.getElementById('userDropdown').value.trim().toLowerCase();
       const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
+      updateCharacterCountControlsVisibility();
+      const charCountMinRaw = document.getElementById('characterCountMin').value.trim();
+      const charCountMaxRaw = document.getElementById('characterCountMax').value.trim();
+      const charCountMin = charCountMinRaw ? Number(charCountMinRaw) : null;
+      const charCountMax = charCountMaxRaw ? Number(charCountMaxRaw) : null;
+      const supportsCharCount = typeVal === 'fp' || typeVal === 'exc';
+      const hasCharCountFilter = supportsCharCount && (Number.isFinite(charCountMin) || Number.isFinite(charCountMax));
 
       let data = userVal
-        ? rawVotes.filter((row) => String(row.user || '').trim().toLowerCase() === userVal)
+        ? rawVotes.filter((row) => (
+            userVal === '__anon_local__'
+              ? isAnonymousLocalUser(row.user)
+              : String(row.user || '').trim().toLowerCase() === userVal
+          ))
         : aggregatedData.slice();
 
       if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
       if (typeVal) data = data.filter((row) => normalizeTypeForFilter(row.type) === typeVal);
       if (bookVal) data = data.filter((row) => String(row.bookTitle || '').trim().toLowerCase() === bookVal);
+      if (hasCharCountFilter) {
+        data = data.filter((row) => {
+          const rowType = normalizeTypeForFilter(row.type);
+          if (rowType !== 'fp' && rowType !== 'exc') return false;
+          const charCount = Number(row.charCount || 0) || 0;
+          if (Number.isFinite(charCountMin) && charCount < charCountMin) return false;
+          if (Number.isFinite(charCountMax) && charCount > charCountMax) return false;
+          return true;
+        });
+      }
 
       filteredData = data;
       sortData();
@@ -573,23 +664,28 @@
       document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
         const col = th.dataset.column;
         th.style.display = isUserView
-          ? (['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'fileLink', 'vote'].includes(col) ? '' : 'none')
+          ? (['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'vote'].includes(col) ? '' : 'none')
           : (col === 'vote' ? 'none' : '');
       });
 
       const tbody = document.querySelector('#scoreboard tbody');
       tbody.innerHTML = '';
       if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="15"><div class="empty">No scoreboard rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="16"><div class="empty">No scoreboard rows match the current filters.</div></td></tr>';
         return;
       }
 
       data.forEach((row) => {
-        const link = row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
+        const isTextPreviewType = ['fp', 'exc'].includes(normalizeTypeForFilter(row.type)) && String(row.excerpt || '').trim();
+        const textPreviewUrl = `/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}`;
+        const link = isTextPreviewType
+          ? `<a href="${escapeHtml(textPreviewUrl)}" class="text-preview-link" data-image-id="${escapeHtml(row.imageId)}">Open</a>`
+          : row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" target="_blank" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
         const typeLabel = formatContentTypeLabel(row.type);
+        const charCount = Number(row.charCount || 0) || 0;
         const html = isUserView
-          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
-          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
+          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
+          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
         tbody.insertAdjacentHTML('beforeend', html);
       });
     }
@@ -598,6 +694,7 @@
       const userVal = document.getElementById('userDropdown').value;
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
+      updateCharacterCountControlsVisibility();
       const showCompleted = document.getElementById('filterCompletedBooks').checked;
 
       const bookMap = {};
@@ -611,7 +708,11 @@
       });
 
       const source = userVal
-        ? rawVotes.filter((row) => row.user === userVal)
+        ? rawVotes.filter((row) => (
+            userVal === '__anon_local__'
+              ? isAnonymousLocalUser(row.user)
+              : row.user === userVal
+          ))
         : aggregatedData.filter((row) => row.totalVotes > 0);
 
       source.forEach((row) => {
@@ -745,11 +846,27 @@
 
     async function init() {
       wireSortHeaders();
+      updateCharacterCountControlsVisibility();
       document.getElementById('userDropdown').addEventListener('change', filterData);
-      document.getElementById('typeDropdown').addEventListener('change', filterData);
+      document.getElementById('typeDropdown').addEventListener('change', () => {
+        updateCharacterCountControlsVisibility();
+        filterData();
+      });
       document.getElementById('bookDropdown').addEventListener('change', filterData);
+      document.getElementById('characterCountMin').addEventListener('input', filterData);
+      document.getElementById('characterCountMax').addEventListener('input', filterData);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);
       document.getElementById('filterCompletedBooks').addEventListener('change', filterData);
+      document.querySelector('#scoreboard tbody').addEventListener('click', (event) => {
+        const link = event.target.closest('.text-preview-link');
+        if (!link) return;
+        event.preventDefault();
+        const imageId = link.dataset.imageId;
+        const row = filteredData.find((item) => item.imageId === imageId) || aggregatedData.find((item) => item.imageId === imageId) || rawVotes.find((item) => item.imageId === imageId);
+        if (!row) return;
+        const windowName = `poetry-please-text-${String(imageId || 'preview').replace(/[^a-z0-9_-]/gi, '-')}`;
+        openComparisonWindow(link.href, windowName);
+      });
       document.getElementById('exportBtn').addEventListener('click', exportVisibleSheet);
       refreshSnapshotBtn.addEventListener('click', async () => {
         refreshSnapshotBtn.disabled = true;

@@ -1,6 +1,6 @@
 POETRY PLEASE LINK GUIDE
 
-This guide explains how to build direct links into the new app at:
+This guide explains how to build direct links into Poetry Please at:
 https://poetryplease.org
 
 
@@ -11,6 +11,9 @@ https://poetryplease.org/app
 
 Auto-detect entry:
 https://poetryplease.org/
+
+Single-item embed:
+https://poetryplease.org/embed
 
 The auto-detect entry preserves link parameters, so both of these work:
 https://poetryplease.org/app?type=EXC
@@ -24,6 +27,9 @@ Sends a user to a specific piece of content first.
 
 type
 Filters content by content type.
+
+Special type alias:
+type=video includes both hosted Poetry Please videos (VV) and YouTube-backed videos (YT).
 
 catalog
 Filters content by release catalog.
@@ -41,11 +47,13 @@ BEHAVIOR
 
 If item is provided, the app tries to show that item first.
 
-After loading the first item, the app keeps serving more content that matches the active filters.
+After loading the first item, the full app keeps serving more content that matches the active filters.
 
 Existing in-app controls still work after landing from a link.
 
-The URL updates as filters change in the app.
+The URL updates as filters change in the full app.
+
+The embed route uses the same filter parameters, but serves a single item at a time with a button to open the full app.
 
 
 IMPORTANT NOTES
@@ -59,6 +67,10 @@ Example: "Hailey Tran" and "Hailey M. Tran" currently behave like different auth
 
 If a parameter combination has no matching content, the app will show no matching items.
 
+Workshop excerpts currently live in the video lane as:
+type=VV
+catalog=2025 Vertical Workshop Excerpts
+
 
 SINGLE-PARAMETER EXAMPLES
 
@@ -71,20 +83,27 @@ Content type
 https://poetryplease.org/app?type=EXC
 https://poetryplease.org/app?type=INT
 https://poetryplease.org/app?type=VV
+https://poetryplease.org/app?type=YT
+https://poetryplease.org/app?type=FP
+https://poetryplease.org/app?type=video
 
 Catalog
 https://poetryplease.org/app?catalog=Fall%202025
 https://poetryplease.org/app?catalog=Fall%202021
 https://poetryplease.org/app?catalog=Write%20Bloody%20Books
+https://poetryplease.org/app?catalog=2025%20Vertical%20Workshop%20Excerpts
 
 Author
 https://poetryplease.org/app?author=Andrea%20Gibson
 https://poetryplease.org/app?author=Hailey%20Tran
 https://poetryplease.org/app?author=Hailey%20M.%20Tran
+https://poetryplease.org/app?author=Adrienne%20Novy
+https://poetryplease.org/app?author=Rachel%20Camacho
 
 Book
 https://poetryplease.org/app?book=Apocrypha
 https://poetryplease.org/app?book=Cause%20of%20Death%20and%20Other%20Ordinary%20Things
+https://poetryplease.org/app?book=Good%20Luck%20in%20the%20Real%20World
 
 
 COMBINED EXAMPLES
@@ -92,17 +111,21 @@ COMBINED EXAMPLES
 Author + type
 https://poetryplease.org/app?author=Andrea%20Gibson&type=VV
 https://poetryplease.org/app?author=Hailey%20M.%20Tran&type=EXC
+https://poetryplease.org/app?author=Adrienne%20Novy&type=VV
 
 Catalog + type
 https://poetryplease.org/app?catalog=Fall%202025&type=INT
 https://poetryplease.org/app?catalog=Fall%202025&type=EXC
+https://poetryplease.org/app?catalog=2025%20Vertical%20Workshop%20Excerpts&type=VV
 
 Author + catalog
 https://poetryplease.org/app?author=Andrea%20Gibson&catalog=Fall%202021
 https://poetryplease.org/app?author=Hailey%20Tran&catalog=Fall%202025
+https://poetryplease.org/app?author=Adrienne%20Novy&catalog=2025%20Vertical%20Workshop%20Excerpts
 
 Author + book
 https://poetryplease.org/app?author=Hailey%20M.%20Tran&book=Apocrypha
+https://poetryplease.org/app?author=Adrienne%20Novy&book=Good%20Luck%20in%20the%20Real%20World
 
 Item + type
 https://poetryplease.org/app?item=AEO-EXC-APOCRYPHA-1&type=EXC
@@ -120,6 +143,24 @@ https://poetryplease.org/app?item=AEO-EXC-APOCRYPHA-1&author=Hailey%20M.%20Tran&
 
 Item + catalog + type
 https://poetryplease.org/app?item=AEO%20-%20INT%20-%20hi-10.jpg&catalog=Fall%202025&type=INT
+
+Workshop vertical
+https://poetryplease.org/app?type=VV&catalog=2025%20Vertical%20Workshop%20Excerpts
+https://poetryplease.org/app?author=Adrienne%20Novy&type=VV&catalog=2025%20Vertical%20Workshop%20Excerpts
+https://poetryplease.org/app?book=Good%20Luck%20in%20the%20Real%20World&type=VV&catalog=2025%20Vertical%20Workshop%20Excerpts
+
+
+EMBED EXAMPLES
+
+Random workshop excerpt inside the workshop lane
+https://poetryplease.org/embed?type=VV&catalog=2025%20Vertical%20Workshop%20Excerpts
+https://poetryplease.org/embed?type=video
+
+Specific workshop excerpt
+https://poetryplease.org/embed?item=Adrienne%20Novy%20-%20%5BVertical%20Workshop%20Excerpt%5D%20Button%20Up%3A%20Poetry%20101%20-%20Adrienne%20Novy%20-%20September%2011%2C%202025%20%5B1-5%20Minute%20-%20Excerpt%201%5D%20-%20Vertical&type=VV&catalog=2025%20Vertical%20Workshop%20Excerpts
+
+Specific author inside workshop excerpts
+https://poetryplease.org/embed?author=Adrienne%20Novy&type=VV&catalog=2025%20Vertical%20Workshop%20Excerpts
 
 
 HOW TO BUILD LINKS
@@ -140,6 +181,12 @@ https://poetryplease.org/app?author=Andrea%20Gibson&type=VV
 Link to a specific item inside a vertical:
 https://poetryplease.org/app?item=CONTENT_ID&author=...&type=...&catalog=...
 
+Link to an embeddable single-item experience:
+https://poetryplease.org/embed?type=...&catalog=...
+
+Link to a specific item inside the embed:
+https://poetryplease.org/embed?item=CONTENT_ID&type=...&catalog=...
+
 
 CURRENT SAMPLE CONTENT IDS
 
@@ -147,3 +194,4 @@ AEO-EXC-APOCRYPHA-1
 AEO-EXC-CANNIBALISM-IS-SEXY-1
 AEO - INT - hi-10.jpg
 Andrea Gibson - After the Breakup.mp4
+Adrienne Novy - [Vertical Workshop Excerpt] Button Up: Poetry 101 - Adrienne Novy - September 11, 2025 [1-5 Minute - Excerpt 1] - Vertical

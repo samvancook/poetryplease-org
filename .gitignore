@@ -1,3 +1,7 @@
 poetry-please-firebase-adminsdk-k1gj0-cefceec2c2.json
+.DS_Store
+.firebase/
+exports/
 functions/node_modules/
 functions/package-lock.json
+functions/.env

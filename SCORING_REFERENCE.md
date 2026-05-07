@@ -258,6 +258,61 @@ For admins, the tool should expose the following per-item signals:
 - `bucket`
 - interleaving / placement reason
 
+## YouTube External Signals
+
+YouTube performance should stay separate from internal Poetry Please voting.
+
+Internal votes remain the primary editorial signal.
+
+YouTube metrics are a secondary audience signal for `YT` items only.
+
+Store:
+
+- `youtubeId`
+- `uploadTime`
+- `socialViews`
+- `socialLikes`
+- `socialComments`
+- `socialDislikes`
+- `socialSyncSource`
+- `socialLastSyncedAt`
+
+### External Signal Formula
+
+For `YT` items, derive:
+
+- `engagementRate = (socialLikes + socialComments * 2) / max(socialViews, 1)`
+- `reachScore = log10(max(socialViews, 1))`
+- `externalSignalScore = engagementRate * 1000 + reachScore`
+
+Interpretation:
+
+- `engagementRate` measures response quality, not just reach
+- comments count more heavily than likes
+- `reachScore` gives modest credit for proven audience size
+- `externalSignalScore` is not a replacement for internal scoring
+
+### Weighting Rule
+
+Use `externalSignalScore` only as a secondary factor:
+
+- internal `feedScore` stays primary
+- `externalSignalScore` acts as a tie-breaker
+- `externalSignalScore` can lightly boost low-vote `YT` items
+- `externalSignalScore` should not override clearly weak internal performance
+
+Recommended first-pass use:
+
+- if `totalVotes >= 3`, sort `YT` by internal `feedScore` first
+- if `totalVotes < 3`, allow `externalSignalScore` to influence placement inside the current bucket
+- never blend external metrics into non-`YT` content
+
+This keeps the system compatible with the current model:
+
+- internal votes = editorial quality signal
+- YouTube metrics = external audience signal
+- serving can still improve for public users and team review without flattening the two together
+
 ## Recommended Export Columns
 
 Keep:
@@ -272,6 +327,11 @@ Add:
 - `likeRate`
 - `mehRate`
 - `dislikeRate`
+- `externalSignalScore` for `YT` only
+- `socialViews`
+- `socialLikes`
+- `socialComments`
+- `socialDislikes`
 
 ## Suggested Direction
 

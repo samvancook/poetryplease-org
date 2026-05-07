@@ -361,7 +361,7 @@
 <body>
   <main class="shell">
     <div class="topbar">
-      <a href="/app">Back to app</a>
+      <a href="/">Back to app</a>
       <div class="topbar-actions">
         <a href="/scoreboard">Scoreboard</a>
         <div id="admin-view-toggle-slot"></div>
@@ -458,6 +458,65 @@
 
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
+        <h2 style="margin-top:0;">Duplicate Review</h2>
+        <button id="duplicate-review-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="duplicate-review-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
+      </div>
+      <div id="duplicate-review-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review duplicate graphics captured by the Weaver -> Poetry Please pipeline. Confirmed duplicates stay quarantined; dismissed rows are marked safe.</p>
+        <div id="duplicate-review-status" class="status">Loading duplicates…</div>
+        <div id="duplicate-review-list"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <div class="section-head">
+        <h2 style="margin-top:0;">Author Profiles</h2>
+        <button id="author-profiles-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="author-profiles-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
+      </div>
+      <div id="author-profiles-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Inspect author profiles, publishing state, and linked account data without leaving admin.</p>
+        <div id="author-profiles-status" class="status">Loading author profiles…</div>
+        <div id="author-profiles-list"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <div class="section-head">
+        <h2 style="margin-top:0;">User Submissions</h2>
+        <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="user-submissions-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
+      </div>
+      <div id="user-submissions-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review text and image submissions from readers and authors. Current submissions are tagged to the <strong>User submitted</strong> catalog.</p>
+        <div class="controls" style="margin-bottom:16px;">
+          <input id="user-submissions-query" placeholder="Search title, submitter, text, or note" />
+          <select id="user-submissions-status-filter">
+            <option value="all">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select id="user-submissions-type-filter">
+            <option value="all">All types</option>
+            <option value="text">Text</option>
+            <option value="image">Image</option>
+          </select>
+        </div>
+        <div id="user-submissions-status" class="status">Loading submissions…</div>
+        <div id="user-submissions-list"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <div class="section-head">
         <h2>Content Library</h2>
         <button id="content-library-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="content-library-section-body">
           <span class="chevron">▾</span>
@@ -472,11 +531,12 @@
             <option value="excerpts">Excerpts</option>
             <option value="fullpoems">Full Poems</option>
             <option value="videos">Videos</option>
+            <option value="youtube">YouTube</option>
           </select>
           <input id="content-search" type="search" placeholder="Search recent content by ID, title, author, or catalog" />
           <button id="refresh-content" type="button" class="secondary">Refresh content</button>
         </div>
-        <div class="hint">For graphics, you can upload the image file here and the app will store it in Firebase Storage before saving the Firestore record. Full Poems can also be imported from a JSON file in the same content shape.</div>
+        <div class="hint">For graphics, you can upload the image file here and the app will store it in Firebase Storage before saving the Firestore record. Video JSON imports now ingest linked workshop/media files into Poetry Please storage so they do not need to keep serving from Drive. Full Poems can also be imported from a JSON file in the same content shape. YouTube can be added as its own review lane using a YouTube link plus optional thumbnail and metadata.</div>
         <div id="content-status" class="status">Loading content library…</div>
         <div class="form-grid" id="content-form">
         <label>
@@ -485,17 +545,17 @@
         </label>
         <label>
           Image Type
-          <input id="content-image-type" type="text" placeholder="Examples: GP, EXC, FP, VV" />
+          <input id="content-image-type" type="text" placeholder="Examples: GP, EXC, FP, VV, YT" />
         </label>
         <label>
           Author
           <input id="content-author" type="text" placeholder="Author name" />
         </label>
-        <label data-content-field="graphics excerpts fullpoems videos">
+        <label data-content-field="graphics excerpts fullpoems videos youtube">
           Book
           <input id="content-book" type="text" placeholder="Book title" />
         </label>
-        <label data-content-field="graphics fullpoems videos">
+        <label data-content-field="graphics fullpoems videos youtube">
           Title
           <input id="content-title" type="text" placeholder="Graphic, poem, or video title" />
         </label>
@@ -503,49 +563,57 @@
           Poem
           <input id="content-poem" type="text" placeholder="Poem title" />
         </label>
-        <label data-content-field="graphics videos">
+        <label data-content-field="graphics videos youtube">
           Public URL
-          <input id="content-image-url" type="url" placeholder="Public image or file URL" />
+          <input id="content-image-url" type="url" placeholder="Public image, thumbnail, or file URL" />
         </label>
         <label data-content-field="graphics">
           Upload graphic
           <input id="content-file" type="file" accept="image/jpeg,image/png,image/webp,image/gif" />
         </label>
-        <label data-content-field="graphics excerpts fullpoems videos">
+        <label data-content-field="graphics excerpts fullpoems videos youtube">
           Drive Link
           <input id="content-drive-link" type="url" placeholder="Optional Drive link" />
         </label>
-        <label data-content-field="graphics excerpts fullpoems videos">
+        <label data-content-field="graphics excerpts fullpoems videos youtube">
           Book Link
           <input id="content-book-link" type="url" placeholder="Optional book link" />
         </label>
-        <label data-content-field="graphics excerpts fullpoems videos">
+        <label data-content-field="graphics excerpts fullpoems videos youtube">
           Release Catalog
           <input id="content-release-catalog" type="text" placeholder="Catalog code" />
         </label>
-        <label data-content-field="excerpts fullpoems videos">
+        <label data-content-field="excerpts fullpoems videos youtube">
           Page Number
           <input id="content-page-number" type="text" placeholder="Page #" />
         </label>
-        <label data-content-field="excerpts fullpoems videos">
+        <label data-content-field="excerpts fullpoems videos youtube">
           Book Shortener
           <input id="content-book-shortener" type="text" placeholder="Used in legacy IDs" />
         </label>
-        <label data-content-field="fullpoems videos">
+        <label data-content-field="fullpoems videos youtube">
           Release Year
           <input id="content-release-year" type="text" placeholder="YYYY" />
         </label>
-        <label data-content-field="videos">
+        <label data-content-field="videos youtube">
           Updated File Name
           <input id="content-updated-file-name" type="text" placeholder="Optional file name" />
         </label>
-        <label data-content-field="videos">
-          YouTube Link
+        <label data-content-field="videos youtube">
+          Video Link
           <input id="content-url" type="url" placeholder="YouTube or video URL" />
         </label>
-        <label data-content-field="videos">
+        <label data-content-field="videos youtube">
           Misc
           <input id="content-misc" type="text" placeholder="Optional notes" />
+        </label>
+        <label data-content-field="youtube">
+          Channel
+          <input id="content-channel" type="text" placeholder="Channel or source name" />
+        </label>
+        <label data-content-field="youtube">
+          Duration
+          <input id="content-duration" type="text" placeholder="Optional duration, e.g. 5:32" />
         </label>
         <label class="wide" data-content-field="excerpts fullpoems">
           Text
@@ -555,14 +623,38 @@
           Full Poems JSON file
           <input id="content-full-poems-file" type="file" accept="application/json,.json" />
         </label>
+        <label class="wide" data-content-field="youtube">
+          YouTube JSON file
+          <input id="content-youtube-file" type="file" accept="application/json,.json" />
+        </label>
+        <label class="wide" data-content-field="videos">
+          Videos JSON file
+          <input id="content-videos-file" type="file" accept="application/json,.json" />
+        </label>
+        <label class="wide" data-content-field="graphics">
+          Weaver completed graphics feed URL
+          <input id="content-weaver-source-url" type="url" placeholder="Paste the Weaver /api/poetry-please/qc-approved-graphics URL here" />
+          <div class="hint" id="content-weaver-hint" style="margin-top:8px;">
+            First-pass Weaver bridge for `QI`: use the dedicated Poetry Please handoff feed. Poetry Please expects QC-approved P.I.G. returns with a usable asset link and per-item metadata.
+          </div>
+        </label>
         </div>
         <div class="actions" style="margin-top:14px;">
           <button id="save-content" type="button">Save content</button>
           <button id="clear-content" type="button" class="secondary">Clear form</button>
+          <button id="preview-weaver-import" type="button" class="secondary" data-content-field="graphics">Preview Weaver QI</button>
+          <button id="run-weaver-import" type="button" class="secondary" data-content-field="graphics">Import Weaver QI</button>
+          <button id="preview-videos-import" type="button" class="secondary" data-content-field="videos">Preview JSON import</button>
+          <button id="run-videos-import" type="button" class="secondary" data-content-field="videos">Import JSON</button>
+          <button id="delete-videos-json" type="button" class="secondary" data-content-field="videos">Delete JSON IDs</button>
           <button id="preview-full-poems-import" type="button" class="secondary" data-content-field="fullpoems">Preview JSON import</button>
           <button id="run-full-poems-import" type="button" class="secondary" data-content-field="fullpoems">Import JSON</button>
           <button id="delete-full-poems-json" type="button" class="secondary" data-content-field="fullpoems">Delete JSON IDs</button>
+          <button id="preview-youtube-import" type="button" class="secondary" data-content-field="youtube">Preview JSON import</button>
+          <button id="run-youtube-import" type="button" class="secondary" data-content-field="youtube">Import JSON</button>
+          <button id="delete-youtube-json" type="button" class="secondary" data-content-field="youtube">Delete JSON IDs</button>
         </div>
+        <div id="content-import-preview" class="empty" style="margin-top:12px;">No import preview yet.</div>
         <div id="content-library-list" style="margin-top:18px;"></div>
       </div>
     </section>
@@ -714,9 +806,18 @@
       syncedCount: 0,
       invites: [],
       claims: [],
+      duplicates: [],
+      authorProfiles: [],
+      submissions: [],
+      submissionQuery: "",
+      submissionStatusFilter: "all",
+      submissionTypeFilter: "all",
       contentItems: [],
+      contentTotalCount: 0,
       contentType: "graphics",
       contentQuery: "",
+      weaverPreview: null,
+      weaverSourceUrl: localStorage.getItem('pp_admin_weaver_source_url') || '',
       legacyImportPreview: null,
       legacyImportFingerprint: "",
       flags: [],
@@ -729,6 +830,9 @@
       contentLibraryCollapsed: localStorage.getItem('pp_admin_content_library_collapsed') !== 'false',
       authorInvitesCollapsed: localStorage.getItem('pp_admin_author_invites_collapsed') !== 'false',
       contentClaimsCollapsed: localStorage.getItem('pp_admin_content_claims_collapsed') !== 'false',
+      duplicateReviewCollapsed: localStorage.getItem('pp_admin_duplicate_review_collapsed') !== 'false',
+      authorProfilesCollapsed: localStorage.getItem('pp_admin_author_profiles_collapsed') !== 'false',
+      userSubmissionsCollapsed: localStorage.getItem('pp_admin_user_submissions_collapsed') !== 'false',
       legacyImportCollapsed: localStorage.getItem('pp_admin_legacy_import_collapsed') !== 'false',
       flaggedContentCollapsed: localStorage.getItem('pp_admin_flagged_content_collapsed') !== 'false',
     };
@@ -775,6 +879,18 @@
 
     function applyContentClaimsCollapseState() {
       applySectionCollapseState('content-claims-toggle', 'content-claims-section-body', state.contentClaimsCollapsed);
+    }
+
+    function applyDuplicateReviewCollapseState() {
+      applySectionCollapseState('duplicate-review-toggle', 'duplicate-review-section-body', state.duplicateReviewCollapsed);
+    }
+
+    function applyAuthorProfilesCollapseState() {
+      applySectionCollapseState('author-profiles-toggle', 'author-profiles-section-body', state.authorProfilesCollapsed);
+    }
+
+    function applyUserSubmissionsCollapseState() {
+      applySectionCollapseState('user-submissions-toggle', 'user-submissions-section-body', state.userSubmissionsCollapsed);
     }
 
     function applyLegacyImportCollapseState() {
@@ -1092,21 +1208,23 @@
                   ${(user.roles || []).includes("admin") ? '<span class="pill">Admin</span>' : ""}
                   ${(user.roles || []).includes("team") ? '<span class="pill">Team</span>' : ""}
                   ${(user.roles || []).includes("author") ? '<span class="pill">Author</span>' : ""}
-                  <div class="meta">Last active: ${formatLastActive(user.lastLoginAt)}</div>
+                  <div class="meta">Last login: ${formatLastActive(user.lastLoginAt)}</div>
                 </td>
                 <td>
                   <div class="role-set">
+                    ${user.isAnonymousAggregate ? '<span class="meta">Grouped anonymous users</span>' : `
                     ${roleCheckbox(user.uid, "user", (user.roles || []).includes("user"))}
                     ${roleCheckbox(user.uid, "author", (user.roles || []).includes("author"))}
                     ${roleCheckbox(user.uid, "team", (user.roles || []).includes("team"))}
                     ${roleCheckbox(user.uid, "admin", (user.roles || []).includes("admin"))}
+                    `}
                   </div>
                 </td>
                 <td>${user.authorProfileId || "—"}</td>
-                <td>${formatLastActive(user.lastLoginAt)}</td>
+                <td>${formatLastActive(user.lastAppActivityAt || user.lastLoginAt)}</td>
                 <td>${user.status || "active"}</td>
                 <td>${Number(user.voteCount || 0).toLocaleString()}</td>
-                <td><button type="button" data-save="${user.uid}">Save roles</button></td>
+                <td>${user.isAnonymousAggregate ? '—' : `<button type="button" data-save="${user.uid}">Save roles</button>`}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -1340,6 +1458,204 @@
       }
     }
 
+    function renderDuplicates() {
+      const container = document.getElementById("duplicate-review-list");
+      const statusEl = document.getElementById("duplicate-review-status");
+      if (!state.duplicates.length) {
+        container.innerHTML = '<div class="empty">No duplicate captures yet.</div>';
+        statusEl.textContent = 'No duplicates to review.';
+        return;
+      }
+      const pending = state.duplicates.filter((row) => row.status === 'pending');
+      statusEl.textContent = `${pending.length} pending duplicate${pending.length === 1 ? '' : 's'} out of ${state.duplicates.length}.`;
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Captured item</th>
+              <th>Primary match</th>
+              <th>Match type</th>
+              <th>Status</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.duplicates.map((row) => `
+              <tr>
+                <td>
+                  <div class="user-name">${row.title || row.imageId}</div>
+                  <div>${row.author || '—'}${row.releaseCatalog ? ' · ' + row.releaseCatalog : ''}</div>
+                  <div><a href="/?item=${encodeURIComponent(row.imageId)}" target="_blank" rel="noopener">Open captured</a></div>
+                </td>
+                <td>
+                  <div class="user-name">${row.duplicateOfTitle || row.duplicateOfImageId || '—'}</div>
+                  <div>${row.duplicateOfAuthor || '—'}${row.duplicateOfBook ? ' · ' + row.duplicateOfBook : ''}</div>
+                  ${row.duplicateOfImageId ? `<div><a href="/?item=${encodeURIComponent(row.duplicateOfImageId)}" target="_blank" rel="noopener">Open primary</a></div>` : ''}
+                </td>
+                <td>${row.duplicateMatchType || '—'}</td>
+                <td>${row.status || 'pending'}</td>
+                <td>
+                  <div class="actions" style="margin-top:0;">
+                    <button type="button" data-review-duplicate="${row.id}" data-decision="confirmed" ${row.status !== 'pending' ? 'disabled' : ''}>Confirm</button>
+                    <button type="button" class="secondary" data-review-duplicate="${row.id}" data-decision="dismissed" ${row.status !== 'pending' ? 'disabled' : ''}>Dismiss</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      container.querySelectorAll('[data-review-duplicate]').forEach((button) => {
+        button.addEventListener('click', () => reviewDuplicate(button.getAttribute('data-review-duplicate'), button.getAttribute('data-decision')));
+      });
+    }
+
+    async function loadDuplicates() {
+      const statusEl = document.getElementById('duplicate-review-status');
+      statusEl.textContent = 'Loading duplicates…';
+      try {
+        const payload = await api('admin/contentDuplicates', { method: 'GET' });
+        state.duplicates = payload.duplicates || [];
+        renderDuplicates();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('duplicate-review-list').innerHTML = '<div class="empty">Could not load duplicates.</div>';
+        statusEl.textContent = err.message || 'Could not load duplicates.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    function renderAuthorProfiles() {
+      const container = document.getElementById("author-profiles-list");
+      const statusEl = document.getElementById("author-profiles-status");
+      if (!state.authorProfiles.length) {
+        container.innerHTML = '<div class="empty">No author profiles yet.</div>';
+        statusEl.textContent = 'No author profiles found.';
+        return;
+      }
+      const published = state.authorProfiles.filter((profile) => profile.published);
+      statusEl.textContent = `${state.authorProfiles.length} profiles loaded, ${published.length} published.`;
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Slug</th>
+              <th>Email</th>
+              <th>Published</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${state.authorProfiles.map((profile) => `
+              <tr>
+                <td>${profile.displayName || '—'}</td>
+                <td>${profile.slug || '—'}</td>
+                <td>${profile.email || '—'}</td>
+                <td>${profile.published ? 'Yes' : 'No'}</td>
+                <td>${profile.slug ? `<a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">View page</a>` : '—'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    async function loadAuthorProfiles() {
+      const statusEl = document.getElementById('author-profiles-status');
+      statusEl.textContent = 'Loading author profiles…';
+      try {
+        const payload = await api('admin/authorProfiles', { method: 'GET' });
+        state.authorProfiles = payload.profiles || [];
+        renderAuthorProfiles();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('author-profiles-list').innerHTML = '<div class="empty">Could not load author profiles.</div>';
+        statusEl.textContent = err.message || 'Could not load author profiles.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    function renderUserSubmissions() {
+      const container = document.getElementById("user-submissions-list");
+      const statusEl = document.getElementById("user-submissions-status");
+      if (!state.submissions.length) {
+        container.innerHTML = '<div class="empty">No user submissions yet.</div>';
+        statusEl.textContent = 'No submissions to review.';
+        return;
+      }
+      const pending = state.submissions.filter((row) => row.status === 'pending');
+      const query = state.submissionQuery.trim().toLowerCase();
+      const filtered = state.submissions.filter((row) => {
+        if (state.submissionStatusFilter !== 'all' && (row.status || 'pending') !== state.submissionStatusFilter) return false;
+        if (state.submissionTypeFilter !== 'all' && (row.submissionType || '') !== state.submissionTypeFilter) return false;
+        if (!query) return true;
+        const haystack = [
+          row.title,
+          row.submitterEmail,
+          row.submitterUid,
+          row.submitterDisplayName,
+          row.text,
+          row.note,
+          row.adminNote,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return haystack.includes(query);
+      });
+      statusEl.textContent = `${pending.length} pending submission${pending.length === 1 ? '' : 's'} out of ${state.submissions.length}. Showing ${filtered.length}.`;
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Submission</th>
+              <th>From</th>
+              <th>Status</th>
+              <th>Review</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filtered.map((row) => `
+              <tr>
+                <td>
+                  <div class="user-name">${row.title || row.id}</div>
+                  <div>${row.submissionType || '—'} · ${row.releaseCatalog || 'User submitted'}</div>
+                  ${row.text ? `<div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(row.text.slice(0, 220))}${row.text.length > 220 ? '…' : ''}</div>` : ''}
+                  ${row.note ? `<div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(row.note.slice(0, 160))}${row.note.length > 160 ? '…' : ''}</div>` : ''}
+                  ${row.adminNote ? `<div style="margin-top:6px; color:#7b6955;">Admin note: ${escapeHtml(row.adminNote.slice(0, 160))}${row.adminNote.length > 160 ? '…' : ''}</div>` : ''}
+                  ${row.imageUrl ? `<div style="margin-top:6px;"><a href="${row.imageUrl}" target="_blank" rel="noopener">Open image</a></div>` : ''}
+                </td>
+                <td>${row.submitterEmail || row.submitterUid || '—'}</td>
+                <td>${row.status || 'pending'}</td>
+                <td>
+                  <div class="actions" style="margin-top:0;">
+                    <button type="button" data-review-submission="${row.id}" data-decision="approved" ${row.status !== 'pending' ? 'disabled' : ''}>Approve</button>
+                    <button type="button" class="secondary" data-review-submission="${row.id}" data-decision="rejected" ${row.status !== 'pending' ? 'disabled' : ''}>Reject</button>
+                  </div>
+                </td>
+              </tr>
+            `).join('') || '<tr><td colspan="4">No submissions match the current filters.</td></tr>'}
+          </tbody>
+        </table>
+      `;
+      container.querySelectorAll('[data-review-submission]').forEach((button) => {
+        button.addEventListener('click', () => reviewSubmission(button.getAttribute('data-review-submission'), button.getAttribute('data-decision')));
+      });
+    }
+
+    async function loadUserSubmissions() {
+      const statusEl = document.getElementById('user-submissions-status');
+      statusEl.textContent = 'Loading submissions…';
+      try {
+        const payload = await api('admin/contentSubmissions', { method: 'GET' });
+        state.submissions = payload.submissions || [];
+        renderUserSubmissions();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('user-submissions-list').innerHTML = '<div class="empty">Could not load submissions.</div>';
+        statusEl.textContent = err.message || 'Could not load submissions.';
+        statusEl.className = 'status error';
+      }
+    }
+
     function slugify(value) {
       return String(value || '')
         .trim()
@@ -1358,6 +1674,26 @@
         .toUpperCase();
     }
 
+    function extractYouTubeId(value) {
+      const raw = String(value || '').trim();
+      if (!raw) return '';
+      if (/^[A-Za-z0-9_-]{11}$/.test(raw)) return raw;
+      try {
+        const url = new URL(raw);
+        if (/(^|\.)youtu\.be$/i.test(url.hostname)) {
+          return String(url.pathname || '').replace(/^\/+/, '').split('/')[0] || '';
+        }
+        if (/(^|\.)youtube\.com$/i.test(url.hostname)) {
+          const watchId = url.searchParams.get('v');
+          if (watchId) return watchId;
+          const parts = String(url.pathname || '').split('/').filter(Boolean);
+          const marker = parts.findIndex((part) => ['embed', 'shorts', 'live'].includes(part));
+          if (marker >= 0 && parts[marker + 1]) return parts[marker + 1];
+        }
+      } catch (_err) {}
+      return '';
+    }
+
     function updateContentFormVisibility() {
       const type = state.contentType || 'graphics';
       document.querySelectorAll('[data-content-field]').forEach((el) => {
@@ -1370,11 +1706,37 @@
       if (type === 'excerpts') docIdInput.placeholder = 'Required or leave blank to derive from book shortener + poem.';
       if (type === 'fullpoems') docIdInput.placeholder = 'Optional. Leave blank to derive from book shortener + title.';
       if (type === 'videos') docIdInput.placeholder = 'Required. Usually the raw file name or video ID.';
-      if (imageTypeInput && !imageTypeInput.value.trim()) {
+      if (type === 'youtube') docIdInput.placeholder = 'Optional. Leave blank to derive from the YouTube link or book shortener + title.';
+      const currentImageType = imageTypeInput ? imageTypeInput.value.trim().toUpperCase() : '';
+      if (imageTypeInput && (!currentImageType
+        || (type === 'youtube' && currentImageType === 'VV')
+        || (type === 'videos' && currentImageType === 'YT'))) {
         if (type === 'excerpts') imageTypeInput.value = 'EXC';
         if (type === 'fullpoems') imageTypeInput.value = 'FP';
         if (type === 'videos') imageTypeInput.value = 'VV';
+        if (type === 'youtube') imageTypeInput.value = 'YT';
       }
+      syncWeaverIntakeControls();
+    }
+
+    function syncWeaverIntakeControls() {
+      const sourceInput = document.getElementById('content-weaver-source-url');
+      const hint = document.getElementById('content-weaver-hint');
+      const previewButton = document.getElementById('preview-weaver-import');
+      const runButton = document.getElementById('run-weaver-import');
+      const isGraphics = (state.contentType || 'graphics') === 'graphics';
+      const imageType = String(document.getElementById('content-image-type')?.value || '').trim().toUpperCase();
+      const isQiMode = !imageType || imageType === 'QI';
+      const hasSource = !!String(sourceInput?.value || state.weaverSourceUrl || '').trim();
+      const message = !isGraphics
+        ? 'Weaver intake is available in the Graphics lane.'
+        : !isQiMode
+          ? 'Weaver preview/import is currently wired for QI first. Set Image Type to QI to use it.'
+          : 'Preview/import approved P.I.G. returns from the dedicated Weaver Poetry Please handoff feed through the same admin workflow used for JSON.';
+
+      if (hint) hint.textContent = message;
+      if (previewButton) previewButton.disabled = !(isGraphics && isQiMode && hasSource);
+      if (runButton) runButton.disabled = !(isGraphics && isQiMode && hasSource);
     }
 
     function clearContentForm() {
@@ -1395,6 +1757,8 @@
         'content-updated-file-name',
         'content-url',
         'content-misc',
+        'content-channel',
+        'content-duration',
         'content-excerpt',
       ].forEach((id) => {
         const el = document.getElementById(id);
@@ -1404,11 +1768,17 @@
       if (fileInput) fileInput.value = '';
       const fullPoemsFile = document.getElementById('content-full-poems-file');
       if (fullPoemsFile) fullPoemsFile.value = '';
+      const youtubeFile = document.getElementById('content-youtube-file');
+      if (youtubeFile) youtubeFile.value = '';
+      const videosFile = document.getElementById('content-videos-file');
+      if (videosFile) videosFile.value = '';
     }
 
     function populateContentForm(item) {
       if (!item) return;
-      const nextType = item.collection || 'graphics';
+      const nextType = item.collection === 'videos' && String(item.imageType || '').trim().toUpperCase() === 'YT'
+        ? 'youtube'
+        : (item.collection || 'graphics');
       state.contentType = nextType;
       document.getElementById('content-type').value = nextType;
       updateContentFormVisibility();
@@ -1428,10 +1798,16 @@
       document.getElementById('content-updated-file-name').value = item.updatedFileName || '';
       document.getElementById('content-url').value = item.url || '';
       document.getElementById('content-misc').value = item.misc || '';
+      document.getElementById('content-channel').value = item.channel || '';
+      document.getElementById('content-duration').value = item.duration || '';
       document.getElementById('content-excerpt').value = item.excerpt || '';
       document.getElementById('content-file').value = '';
       const fullPoemsFile = document.getElementById('content-full-poems-file');
       if (fullPoemsFile) fullPoemsFile.value = '';
+      const youtubeFile = document.getElementById('content-youtube-file');
+      if (youtubeFile) youtubeFile.value = '';
+      const videosFile = document.getElementById('content-videos-file');
+      if (videosFile) videosFile.value = '';
       document.getElementById('content-status').textContent = `Loaded ${item.contentId || item.id} into the form.`;
     }
 
@@ -1448,6 +1824,17 @@
         const title = document.getElementById('content-title').value.trim();
         if (shortener && title) idInput.value = `${shortener}-FP-${slugify(title)}`;
       }
+      if (state.contentType === 'youtube') {
+        const youtubeUrl = document.getElementById('content-url').value.trim();
+        const youtubeId = extractYouTubeId(youtubeUrl);
+        if (youtubeId) {
+          idInput.value = `YT-${youtubeId}`;
+          return;
+        }
+        const shortener = sanitizeDocIdSegment(document.getElementById('content-book-shortener').value);
+        const title = document.getElementById('content-title').value.trim();
+        if (shortener && title) idInput.value = `${shortener}-YT-${slugify(title)}`;
+      }
     }
 
     function renderContentLibrary() {
@@ -1459,7 +1846,15 @@
         return;
       }
 
-      statusEl.textContent = `Showing ${state.contentItems.length} recent ${state.contentType === 'all' ? 'content items' : state.contentType}.`;
+      const typeLabel = state.contentType === 'all'
+        ? 'content items'
+        : state.contentType === 'youtube'
+          ? 'YouTube items'
+          : state.contentType;
+      const totalCount = Number(state.contentTotalCount || state.contentItems.length || 0);
+      statusEl.textContent = totalCount > state.contentItems.length
+        ? `Showing ${state.contentItems.length} of ${totalCount} ${typeLabel}.`
+        : `Showing ${state.contentItems.length} ${typeLabel}.`;
       container.innerHTML = `
         <table>
           <thead>
@@ -1475,11 +1870,11 @@
           <tbody>
             ${state.contentItems.map((item) => `
               <tr>
-                <td>${escapeHtml(item.collection || '—')}<div class="meta">${escapeHtml(item.imageType || '—')}</div></td>
+                <td>${escapeHtml(item.collection === 'videos' && String(item.imageType || '').trim().toUpperCase() === 'YT' ? 'youtube' : (item.collection || '—'))}<div class="meta">${escapeHtml(item.imageType || '—')}</div></td>
                 <td>
                   <div class="user-name">${escapeHtml(item.title || item.poem || item.contentId || 'Untitled')}</div>
                   <div>${escapeHtml(item.contentId || item.id || '—')}</div>
-                  ${item.imageUrl ? `<div class="meta"><a href="${escapeHtml(item.imageUrl)}" target="_blank" rel="noopener noreferrer">Open asset</a></div>` : ''}
+                  ${item.imageUrl || item.url || item.youtubeUrl ? `<div class="meta"><a href="${escapeHtml(item.youtubeUrl || item.url || item.imageUrl)}" target="_blank" rel="noopener noreferrer">Open asset</a></div>` : ''}
                 </td>
                 <td>${escapeHtml(item.author || '—')}</td>
                 <td>${escapeHtml(item.book || '—')}${item.releaseCatalog ? `<div class="meta">${escapeHtml(item.releaseCatalog)}</div>` : ''}</td>
@@ -1512,8 +1907,10 @@
     async function deleteContentItem(item) {
       if (!item) return;
       const statusEl = document.getElementById('content-status');
-      const id = item.contentId || item.id || '';
-      const type = item.collection || state.contentType || 'graphics';
+      const id = item.id || item.contentId || '';
+      const type = item.collection === 'videos' && String(item.imageType || '').trim().toUpperCase() === 'YT'
+        ? 'youtube'
+        : (item.collection || state.contentType || 'graphics');
       const label = item.title || item.poem || id || 'this item';
       if (!id) {
         statusEl.textContent = 'Could not determine which content item to delete.';
@@ -1543,6 +1940,7 @@
         const q = encodeURIComponent(state.contentQuery || '');
         const payload = await api(`admin/contentLibrary?type=${encodeURIComponent(type)}&q=${q}`, { method: 'GET' });
         state.contentItems = payload.items || [];
+        state.contentTotalCount = Number(payload.totalCount || state.contentItems.length || 0);
         renderContentLibrary();
       } catch (err) {
         console.error(err);
@@ -1594,6 +1992,8 @@
           updatedFileName: document.getElementById('content-updated-file-name').value.trim(),
           url: document.getElementById('content-url').value.trim(),
           misc: document.getElementById('content-misc').value.trim(),
+          channel: document.getElementById('content-channel').value.trim(),
+          duration: document.getElementById('content-duration').value.trim(),
           ...uploadPayload,
         };
         const payload = await api('admin/contentLibrary/upsert', { method: 'POST', body });
@@ -1660,6 +2060,164 @@
       }));
     }
 
+    async function readYouTubeImportItems() {
+      const file = document.getElementById('content-youtube-file').files?.[0];
+      if (!file) throw new Error('Choose a JSON file first.');
+      const raw = await readJsonFile(file);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw new Error('The selected file is not valid JSON.');
+      }
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error('JSON import expects a non-empty array of YouTube objects.');
+      return parsed.map((item) => ({
+        docId: item.docId || item.contentId || item.videoId || item.imageId || '',
+        contentId: item.contentId || item.docId || item.videoId || item.imageId || '',
+        imageId: item.imageId || item.docId || item.videoId || item.contentId || '',
+        imageType: item.imageType || 'YT',
+        author: item.author || '',
+        book: item.book || '',
+        title: item.title || '',
+        imageUrl: item.imageUrl || item.thumbnailUrl || '',
+        driveLink: item.driveLink || '',
+        bookLink: item.bookLink || '',
+        releaseCatalog: item.releaseCatalog || '',
+        pageNumber: item.pageNumber || '',
+        bookShortener: item.bookShortener || '',
+        releaseYear: item.releaseYear || '',
+        updatedFileName: item.updatedFileName || '',
+        url: item.url || item.youtubeUrl || '',
+        misc: item.misc || '',
+        channel: item.channel || '',
+        duration: item.duration || '',
+        youtubeId: item.youtubeId || '',
+        uploadTime: item.uploadTime || '',
+        socialViews: item.socialViews ?? item.views ?? '',
+        socialLikes: item.socialLikes ?? item.likes ?? '',
+        socialComments: item.socialComments ?? item.comments ?? '',
+        socialDislikes: item.socialDislikes ?? item.dislikes ?? '',
+        socialSyncSource: item.socialSyncSource || '',
+        socialLastSyncedAt: item.socialLastSyncedAt || '',
+      }));
+    }
+
+    async function readVideosImportItems() {
+      const file = document.getElementById('content-videos-file').files?.[0];
+      if (!file) throw new Error('Choose a JSON file first.');
+      const raw = await readJsonFile(file);
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw new Error('The selected file is not valid JSON.');
+      }
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error('JSON import expects a non-empty array of video objects.');
+      return parsed.map((item) => ({
+        docId: item.docId || item.contentId || item.videoId || item.imageId || '',
+        contentId: item.contentId || item.docId || item.videoId || item.imageId || '',
+        imageId: item.imageId || item.docId || item.videoId || item.contentId || '',
+        imageType: item.imageType || 'VV',
+        author: item.author || '',
+        book: item.book || '',
+        title: item.title || '',
+        imageUrl: item.imageUrl || '',
+        driveLink: item.driveLink || '',
+        bookLink: item.bookLink || '',
+        releaseCatalog: item.releaseCatalog || '',
+        pageNumber: item.pageNumber || '',
+        bookShortener: item.bookShortener || '',
+        releaseYear: item.releaseYear || '',
+        updatedFileName: item.updatedFileName || '',
+        url: item.url || item.imageUrl || item.driveLink || '',
+        misc: item.misc || '',
+      }));
+    }
+
+    function getWeaverGraphicsImportOptions() {
+      const sourceUrl = String(document.getElementById('content-weaver-source-url')?.value || state.weaverSourceUrl || '').trim();
+      if (!sourceUrl) throw new Error('Paste a Weaver completed graphics feed URL first.');
+      const imageType = String(document.getElementById('content-image-type')?.value || 'QI').trim().toUpperCase() || 'QI';
+      if (imageType !== 'QI') throw new Error('Weaver import is currently wired for QI. Set Image Type to QI first.');
+      return { sourceUrl, imageType };
+    }
+
+    function renderWeaverPreview(payload) {
+      const previewEl = document.getElementById('content-import-preview');
+      if (!previewEl) return;
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      if (!items.length) {
+        previewEl.className = 'empty';
+        previewEl.textContent = 'No Weaver rows are currently importable from this feed.';
+        return;
+      }
+      const cards = items.slice(0, 6).map((item, index) => `
+        <div class="preview-card">
+          <strong>Preview ${index + 1}</strong>
+          ${item.imageUrl ? `<img src="${item.imageUrl}" alt="Weaver preview for ${item.title || item.imageId || 'graphic'}" />` : '<div class="empty-preview">No preview image available.</div>'}
+          <div class="meta" style="margin-top:10px;">
+            <div><strong style="display:inline;color:var(--ink);font-size:13px;letter-spacing:0;text-transform:none;">Title:</strong> ${item.title || '—'}</div>
+            <div><strong style="display:inline;color:var(--ink);font-size:13px;letter-spacing:0;text-transform:none;">Author:</strong> ${item.author || '—'}</div>
+            <div><strong style="display:inline;color:var(--ink);font-size:13px;letter-spacing:0;text-transform:none;">Book:</strong> ${item.book || '—'}</div>
+            <div><strong style="display:inline;color:var(--ink);font-size:13px;letter-spacing:0;text-transform:none;">Release Catalog:</strong> ${item.releaseCatalog || '<em>blank</em>'}</div>
+            <div><strong style="display:inline;color:var(--ink);font-size:13px;letter-spacing:0;text-transform:none;">Book Link:</strong> ${item.bookLink ? `<a href="${item.bookLink}" target="_blank" rel="noopener">Open</a>` : '<em>blank</em>'}</div>
+          </div>
+        </div>
+      `).join('');
+      previewEl.className = '';
+      previewEl.innerHTML = `
+        <div class="meta" style="margin-bottom:10px;">
+          Showing ${Math.min(items.length, 6)} of ${items.length} mapped Weaver item(s). This preview reflects the catalog/book-link enrichment Poetry Please will use on import.
+        </div>
+        <div class="preview-grid">${cards}</div>
+      `;
+    }
+
+    async function previewWeaverImport() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Previewing Weaver QI feed…';
+      statusEl.className = 'status';
+      try {
+        const options = getWeaverGraphicsImportOptions();
+        const payload = await api('admin/contentLibrary/weaverPreview', { method: 'POST', body: options });
+        state.weaverPreview = {
+          sourceUrl: options.sourceUrl,
+          imageType: options.imageType,
+          items: payload.items || [],
+          results: payload.results || [],
+        };
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Weaver preview ready: ${payload.createCount || 0} create, ${payload.updateCount || 0} update, ${payload.duplicateCount || 0} duplicate${payload.duplicateCount === 1 ? '' : 's'}, ${payload.errorCount || 0} errors across ${payload.mappedCount || 0} mapped item(s) from ${payload.eligibleCount || payload.mappedCount || 0} eligible QC row(s) out of ${payload.sourceCount || payload.mappedCount || 0} total row(s).${firstError ? ` First error: ${firstError.error}` : ''}`;
+        renderWeaverPreview(payload);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not preview Weaver graphics.';
+        statusEl.className = 'status error';
+        renderWeaverPreview({ items: [] });
+      }
+    }
+
+    async function runWeaverImport() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Importing Weaver QI feed…';
+      statusEl.className = 'status';
+      try {
+        const options = getWeaverGraphicsImportOptions();
+        const payload = await api('admin/contentLibrary/weaverImport', { method: 'POST', body: options });
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Weaver import finished: ${payload.createdCount || 0} created, ${payload.updatedCount || 0} updated, ${payload.capturedDuplicateCount || 0} duplicate${payload.capturedDuplicateCount === 1 ? '' : 's'} captured, ${payload.errorCount || 0} errors across ${payload.mappedCount || 0} mapped item(s) from ${payload.eligibleCount || payload.mappedCount || 0} eligible QC row(s) out of ${payload.sourceCount || payload.mappedCount || 0} total row(s).${firstError ? ` First error: ${firstError.error}` : ''}`;
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not import Weaver graphics.';
+        statusEl.className = 'status error';
+      }
+    }
+
     function fullPoemDocIdFromItem(item) {
       const explicit = sanitizeDocIdSegment(item.docId || item.contentId || item.imageId || '');
       if (explicit) return explicit;
@@ -1669,13 +2227,112 @@
       return `${shortener}-FP-${slugify(title)}`;
     }
 
+    function youTubeDocIdFromItem(item) {
+      const explicit = sanitizeDocIdSegment(item.docId || item.contentId || item.imageId || item.videoId || '');
+      if (explicit) return explicit;
+      const youtubeId = extractYouTubeId(item.url || item.youtubeUrl || '');
+      if (youtubeId) return `YT-${youtubeId}`;
+      const shortener = sanitizeDocIdSegment(item.bookShortener || '');
+      const title = String(item.title || '').trim();
+      if (!shortener || !title) return '';
+      return `${shortener}-YT-${slugify(title)}`;
+    }
+
+    function videoDocIdFromItem(item) {
+      return sanitizeDocIdSegment(item.docId || item.contentId || item.imageId || item.videoId || '');
+    }
+
+    function chunkItems(items, size = 500) {
+      const out = [];
+      for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+      return out;
+    }
+
+    async function runChunkedContentAction(endpoint, type, items, statusEl, verb) {
+      const chunks = chunkItems(items, 500);
+      let createCount = 0;
+      let updateCount = 0;
+      let createdCount = 0;
+      let updatedCount = 0;
+      let errorCount = 0;
+      const results = [];
+
+      for (let index = 0; index < chunks.length; index += 1) {
+        statusEl.textContent = `${verb} chunk ${index + 1} of ${chunks.length}…`;
+        const payload = await api(endpoint, { method: 'POST', body: { type, items: chunks[index] } });
+        createCount += Number(payload.createCount || 0);
+        updateCount += Number(payload.updateCount || 0);
+        createdCount += Number(payload.createdCount || 0);
+        updatedCount += Number(payload.updatedCount || 0);
+        errorCount += Number(payload.errorCount || 0);
+        if (Array.isArray(payload.results)) results.push(...payload.results);
+      }
+
+      return { createCount, updateCount, createdCount, updatedCount, errorCount, results };
+    }
+
+    async function previewVideosImport() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Previewing videos import…';
+      statusEl.className = 'status';
+      try {
+        const items = await readVideosImportItems();
+        const payload = await runChunkedContentAction('admin/contentLibrary/bulkPreview', 'videos', items, statusEl, 'Previewing videos import');
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Preview ready: ${payload.createCount || 0} create, ${payload.updateCount || 0} update, ${payload.errorCount || 0} errors.${firstError ? ` First error: ${firstError.error}` : ''}`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not preview videos import.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function runVideosImport() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Importing videos…';
+      statusEl.className = 'status';
+      try {
+        const items = await readVideosImportItems();
+        const payload = await runChunkedContentAction('admin/contentLibrary/bulkUpsert', 'videos', items, statusEl, 'Importing videos');
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Import finished: ${payload.createdCount || 0} created, ${payload.updatedCount || 0} updated, ${payload.errorCount || 0} errors.${firstError ? ` First error: ${firstError.error}` : ''}`;
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not import videos.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function deleteVideosImportIds() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Deleting videos from selected JSON…';
+      statusEl.className = 'status';
+      try {
+        const items = await readVideosImportItems();
+        const ids = Array.from(new Set(items.map((item) => videoDocIdFromItem(item)).filter(Boolean)));
+        if (!ids.length) throw new Error('Could not derive any video document IDs from this file.');
+        const payload = await api('admin/contentLibrary/deleteByIds', { method: 'POST', body: { type: 'videos', ids } });
+        statusEl.textContent = `Deleted ${payload.deletedCount || 0} item(s). ${payload.missingCount ? `${payload.missingCount} not found.` : ''}`.trim();
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not delete videos from the selected file.';
+        statusEl.className = 'status error';
+      }
+    }
+
     async function previewFullPoemsImport() {
       const statusEl = document.getElementById('content-status');
       statusEl.textContent = 'Previewing full poems import…';
       statusEl.className = 'status';
       try {
         const items = await readFullPoemsImportItems();
-        const payload = await api('admin/contentLibrary/bulkPreview', { method: 'POST', body: { type: 'fullpoems', items } });
+        const payload = await runChunkedContentAction('admin/contentLibrary/bulkPreview', 'fullpoems', items, statusEl, 'Previewing full poems import');
         const firstError = Array.isArray(payload.results)
           ? payload.results.find((row) => !row?.ok && row?.error)
           : null;
@@ -1693,7 +2350,7 @@
       statusEl.className = 'status';
       try {
         const items = await readFullPoemsImportItems();
-        const payload = await api('admin/contentLibrary/bulkUpsert', { method: 'POST', body: { type: 'fullpoems', items } });
+        const payload = await runChunkedContentAction('admin/contentLibrary/bulkUpsert', 'fullpoems', items, statusEl, 'Importing full poems');
         const firstError = Array.isArray(payload.results)
           ? payload.results.find((row) => !row?.ok && row?.error)
           : null;
@@ -1702,6 +2359,61 @@
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not import full poems.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function previewYouTubeImport() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Previewing YouTube import…';
+      statusEl.className = 'status';
+      try {
+        const items = await readYouTubeImportItems();
+        const payload = await runChunkedContentAction('admin/contentLibrary/bulkPreview', 'youtube', items, statusEl, 'Previewing YouTube import');
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Preview ready: ${payload.createCount || 0} create, ${payload.updateCount || 0} update, ${payload.errorCount || 0} errors.${firstError ? ` First error: ${firstError.error}` : ''}`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not preview YouTube import.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function runYouTubeImport() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Importing YouTube items…';
+      statusEl.className = 'status';
+      try {
+        const items = await readYouTubeImportItems();
+        const payload = await runChunkedContentAction('admin/contentLibrary/bulkUpsert', 'youtube', items, statusEl, 'Importing YouTube items');
+        const firstError = Array.isArray(payload.results)
+          ? payload.results.find((row) => !row?.ok && row?.error)
+          : null;
+        statusEl.textContent = `Import finished: ${payload.createdCount || 0} created, ${payload.updatedCount || 0} updated, ${payload.errorCount || 0} errors.${firstError ? ` First error: ${firstError.error}` : ''}`;
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not import YouTube items.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function deleteYouTubeImportIds() {
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Deleting YouTube items from selected JSON…';
+      statusEl.className = 'status';
+      try {
+        const items = await readYouTubeImportItems();
+        const ids = Array.from(new Set(items.map((item) => youTubeDocIdFromItem(item)).filter(Boolean)));
+        if (!ids.length) throw new Error('Could not derive any YouTube document IDs from this file.');
+        const payload = await api('admin/contentLibrary/deleteByIds', { method: 'POST', body: { type: 'youtube', ids } });
+        statusEl.textContent = `Deleted ${payload.deletedCount || 0} item(s). ${payload.missingCount ? `${payload.missingCount} not found.` : ''}`.trim();
+        await loadContentLibrary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not delete YouTube items from the selected file.';
         statusEl.className = 'status error';
       }
     }
@@ -1980,7 +2692,7 @@
                 <td>
                   <div class="user-name">${flag.title || flag.imageId || 'Untitled content'}</div>
                   <div>${flag.imageType || '—'}${flag.releaseCatalog ? ' · ' + flag.releaseCatalog : ''}</div>
-                  ${flag.imageId ? `<div class="meta"><a href="/app?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener noreferrer">Open item</a></div>` : ''}
+                  ${flag.imageId ? `<div class="meta"><a href="/?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener noreferrer">Open item</a></div>` : ''}
                   <div class="preview-grid">
                     <div class="preview-card">
                       <strong>Current live asset</strong>
@@ -2006,10 +2718,10 @@
                     <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="updated" ${flag.status !== 'pending' ? 'disabled' : ''}>Mark updated</button>
                   </div>
                   <div class="actions" style="margin-top:10px;flex-wrap:wrap;">
-                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV'].includes(flag.imageType || '') ? 'disabled' : ''} />
-                    <button type="button" class="secondary" data-upload-replacement="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV'].includes(flag.imageType || '') ? 'disabled' : ''}>Replace asset</button>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''} />
+                    <button type="button" class="secondary" data-upload-replacement="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''}>Replace asset</button>
                   </div>
-                  ${['EXC', 'FP', 'VV'].includes(flag.imageType || '') ? '<div class="meta">Replacement upload is currently available for graphics only.</div>' : ''}
+                  ${['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? '<div class="meta">Replacement upload is currently available for graphics only.</div>' : ''}
                 </td>
               </tr>
             `).join('')}
@@ -2044,7 +2756,7 @@
         const matchesQuery = !query || haystack.includes(query);
         const matchesStatus = state.flagStatusFilter === 'all' || (flag.status || 'pending') === state.flagStatusFilter;
         const matchesType = state.flagTypeFilter === 'all'
-          || (state.flagTypeFilter === 'graphics' ? !['EXC', 'FP', 'VV'].includes(flag.imageType || '') : (flag.imageType || '') === state.flagTypeFilter);
+          || (state.flagTypeFilter === 'graphics' ? !['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') : (flag.imageType || '') === state.flagTypeFilter);
         return matchesQuery && matchesStatus && matchesType;
       });
       const byTime = (flag) => normalizeTimestamp(flag.createdAt)?.getTime?.() || 0;
@@ -2202,6 +2914,36 @@
       }
     }
 
+    async function reviewDuplicate(duplicateId, decision) {
+      const statusEl = document.getElementById('duplicate-review-status');
+      statusEl.textContent = `${decision === 'confirmed' ? 'Confirming' : 'Dismissing'} duplicate…`;
+      statusEl.className = 'status';
+      try {
+        await api(`admin/contentDuplicates/${duplicateId}/review`, { method: 'POST', body: { decision } });
+        await loadDuplicates();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not review duplicate.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function reviewSubmission(submissionId, decision) {
+      const statusEl = document.getElementById('user-submissions-status');
+      const note = window.prompt(`Optional note for this ${decision} decision:`, '');
+      if (note === null) return;
+      statusEl.textContent = `${decision === 'approved' ? 'Approving' : 'Rejecting'} submission…`;
+      statusEl.className = 'status';
+      try {
+        await api(`admin/contentSubmissions/${submissionId}/review`, { method: 'POST', body: { decision, note } });
+        await loadUserSubmissions();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not review submission.';
+        statusEl.className = 'status error';
+      }
+    }
+
     async function reviewFlag(flagId, decision) {
       const statusEl = document.getElementById('flag-review-status');
       const actionLabel = decision === 'approved' ? 're-approve' : 'mark as updated';
@@ -2337,6 +3079,9 @@
       applyContentLibraryCollapseState();
       applyAuthorInvitesCollapseState();
       applyContentClaimsCollapseState();
+      applyDuplicateReviewCollapseState();
+      applyAuthorProfilesCollapseState();
+      applyUserSubmissionsCollapseState();
       applyLegacyImportCollapseState();
       applyFlaggedContentCollapseState();
 
@@ -2362,7 +3107,7 @@
         }
 
         renderAdminPreviewToggle();
-        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadContentLibrary(), loadFlags()]);
+        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadDuplicates(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -2403,6 +3148,33 @@
         localStorage.setItem('pp_admin_content_claims_collapsed', state.contentClaimsCollapsed ? 'true' : 'false');
         applyContentClaimsCollapseState();
       });
+      document.getElementById("duplicate-review-toggle").addEventListener("click", () => {
+        state.duplicateReviewCollapsed = !state.duplicateReviewCollapsed;
+        localStorage.setItem('pp_admin_duplicate_review_collapsed', state.duplicateReviewCollapsed ? 'true' : 'false');
+        applyDuplicateReviewCollapseState();
+      });
+      document.getElementById("author-profiles-toggle").addEventListener("click", () => {
+        state.authorProfilesCollapsed = !state.authorProfilesCollapsed;
+        localStorage.setItem('pp_admin_author_profiles_collapsed', state.authorProfilesCollapsed ? 'true' : 'false');
+        applyAuthorProfilesCollapseState();
+      });
+      document.getElementById("user-submissions-toggle").addEventListener("click", () => {
+        state.userSubmissionsCollapsed = !state.userSubmissionsCollapsed;
+        localStorage.setItem('pp_admin_user_submissions_collapsed', state.userSubmissionsCollapsed ? 'true' : 'false');
+        applyUserSubmissionsCollapseState();
+      });
+      document.getElementById("user-submissions-query").addEventListener("input", (event) => {
+        state.submissionQuery = event.target.value || "";
+        renderUserSubmissions();
+      });
+      document.getElementById("user-submissions-status-filter").addEventListener("change", (event) => {
+        state.submissionStatusFilter = event.target.value || "all";
+        renderUserSubmissions();
+      });
+      document.getElementById("user-submissions-type-filter").addEventListener("change", (event) => {
+        state.submissionTypeFilter = event.target.value || "all";
+        renderUserSubmissions();
+      });
       document.getElementById("legacy-import-toggle").addEventListener("click", () => {
         state.legacyImportCollapsed = !state.legacyImportCollapsed;
         localStorage.setItem('pp_admin_legacy_import_collapsed', state.legacyImportCollapsed ? 'true' : 'false');
@@ -2430,12 +3202,27 @@
       document.getElementById("refresh-content").addEventListener("click", () => loadContentLibrary());
       document.getElementById("save-content").addEventListener("click", () => saveContent());
       document.getElementById("clear-content").addEventListener("click", () => clearContentForm());
+      document.getElementById("content-image-type").addEventListener("input", () => syncWeaverIntakeControls());
+      document.getElementById("content-weaver-source-url").value = state.weaverSourceUrl || '';
+      document.getElementById("content-weaver-source-url").addEventListener("input", (event) => {
+        state.weaverSourceUrl = event.target.value || '';
+        localStorage.setItem('pp_admin_weaver_source_url', state.weaverSourceUrl);
+        syncWeaverIntakeControls();
+      });
       document.getElementById("content-poem").addEventListener("blur", () => maybeAutofillContentId());
       document.getElementById("content-title").addEventListener("blur", () => maybeAutofillContentId());
       document.getElementById("content-book-shortener").addEventListener("blur", () => maybeAutofillContentId());
+      document.getElementById("preview-weaver-import").addEventListener("click", () => previewWeaverImport());
+      document.getElementById("run-weaver-import").addEventListener("click", () => runWeaverImport());
+      document.getElementById("preview-videos-import").addEventListener("click", () => previewVideosImport());
+      document.getElementById("run-videos-import").addEventListener("click", () => runVideosImport());
+      document.getElementById("delete-videos-json").addEventListener("click", () => deleteVideosImportIds());
       document.getElementById("preview-full-poems-import").addEventListener("click", () => previewFullPoemsImport());
       document.getElementById("run-full-poems-import").addEventListener("click", () => runFullPoemsImport());
       document.getElementById("delete-full-poems-json").addEventListener("click", () => deleteFullPoemsImportIds());
+      document.getElementById("preview-youtube-import").addEventListener("click", () => previewYouTubeImport());
+      document.getElementById("run-youtube-import").addEventListener("click", () => runYouTubeImport());
+      document.getElementById("delete-youtube-json").addEventListener("click", () => deleteYouTubeImportIds());
       document.getElementById("preview-legacy-import").addEventListener("click", () => previewLegacyImport());
       document.getElementById("run-legacy-import").addEventListener("click", () => runLegacyImport());
       document.getElementById("legacy-import-type").addEventListener("change", () => {
@@ -2470,6 +3257,7 @@
         location.href = "/admin";
       });
       updateContentFormVisibility();
+      syncWeaverIntakeControls();
       resetLegacyImportPreview();
     }
 

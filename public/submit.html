@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Submit Your Work | Poetry, Please</title>
+  <link rel="icon" type="image/png" href="/pp-loader-logo.png" />
+  <link rel="stylesheet" href="/style.css?v=20260320a" />
+  <style>
+    body { background:#faf7f0; color:#1f1a14; margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    .shell { max-width:900px; margin:0 auto; padding:32px 20px 56px; }
+    .card { background:#fffdf8; border:1px solid #e7dccb; border-radius:24px; padding:24px; box-shadow:0 6px 24px rgba(31,26,20,.06); }
+    .topbar { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:18px; flex-wrap:wrap; }
+    h1,h2 { font-family:Georgia,"Times New Roman",serif; }
+    .lede { color:#675b4b; max-width:72ch; }
+    .controls, .field-grid { display:grid; gap:14px; }
+    .field-grid { grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); }
+    label { display:flex; flex-direction:column; gap:6px; font-size:14px; }
+    input, select, textarea, button { font:inherit; }
+    input, select, textarea { border:1px solid #d7cab6; border-radius:14px; padding:12px 14px; background:#fff; }
+    textarea { min-height:140px; resize:vertical; }
+    button { border:0; border-radius:999px; padding:12px 18px; background:#2f5d62; color:#fff; cursor:pointer; }
+    button.secondary { background:#efe3cf; color:#4d3f30; }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .status { margin-top:12px; color:#675b4b; }
+    .status.error { color:#9d3d32; }
+    .hint { color:#7d715f; font-size:13px; }
+    .hidden { display:none !important; }
+    .submission-list { display:grid; gap:12px; margin-top:18px; }
+    .submission { border:1px solid #e7dccb; border-radius:18px; padding:16px; background:#fff; }
+    .submission img { max-width:180px; border-radius:12px; margin-top:10px; display:block; }
+    .pill { display:inline-flex; align-items:center; border-radius:999px; padding:5px 10px; font-size:12px; background:#f1e6d5; color:#5c4a35; margin-right:8px; }
+    .notification { margin:16px 0; padding:14px 16px; border-radius:16px; background:#eef6ee; color:#214c26; border:1px solid #cfe3cf; }
+    .reaction-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    .reaction-row button.active { background:#214c26; color:#fff; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <a href="/" style="color:#2f5d62;">Back to Poetry Please</a>
+      <div id="auth-status" class="hint">Checking sign-in…</div>
+    </div>
+
+    <section class="card">
+      <h1 style="margin:0 0 8px;">Submit your own work</h1>
+      <p class="lede">For this first version, you can either type in text or upload an image. Everything lands in the <strong>User submitted</strong> catalog and waits for review.</p>
+      <div id="notification-box" class="notification hidden"></div>
+      <div class="controls">
+        <label>
+          Submission type
+          <select id="submission-type">
+            <option value="text">Text</option>
+            <option value="image">Image</option>
+          </select>
+        </label>
+      </div>
+      <div class="field-grid" style="margin-top:14px;">
+        <label>
+          Title
+          <input id="submission-title" type="text" maxlength="120" placeholder="Give your submission a title" />
+          <div class="hint">Max 120 characters.</div>
+        </label>
+      </div>
+      <div id="text-fields" style="margin-top:14px;">
+        <label>
+          Text
+          <textarea id="submission-text" maxlength="2200" placeholder="Paste your poem or excerpt here"></textarea>
+          <div class="hint">Max 2,200 characters.</div>
+        </label>
+      </div>
+      <div id="image-fields" class="hidden" style="margin-top:14px;">
+        <label>
+          Image file
+          <input id="submission-image" type="file" accept="image/png,image/jpeg,image/webp,image/gif" />
+          <div class="hint">Max 10 MB. Max 3000 × 3000 px.</div>
+        </label>
+        <label style="margin-top:14px;">
+          Note
+          <textarea id="submission-note" maxlength="600" placeholder="Optional context for the image"></textarea>
+          <div class="hint">Max 600 characters.</div>
+        </label>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button id="submit-button" type="button">Submit work</button>
+        <button id="login-google" class="secondary hidden" type="button">Sign in with Google</button>
+      </div>
+      <div id="submit-status" class="status">Sign in to submit work.</div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h2 style="margin-top:0;">Your submissions</h2>
+      <div class="hint">We’ll show status here, plus positive responses when they arrive.</div>
+      <div id="submissions-list" class="submission-list">
+        <div class="hint">No submissions loaded yet.</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <h2 style="margin-top:0;">Community review</h2>
+      <div class="hint">Approved user submissions can start getting reactions here.</div>
+      <div id="community-list" class="submission-list">
+        <div class="hint">No approved submissions yet.</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.firebasestorage.app",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    firebase.initializeApp(FIREBASE_CONFIG);
+
+    const state = { me: null, submissions: [], approvedSubmissions: [] };
+
+    function setStatus(message, kind = "") {
+      const el = document.getElementById("submit-status");
+      el.textContent = message;
+      el.className = `status${kind ? ` ${kind}` : ""}`;
+    }
+
+    async function getIdTokenOrNull() {
+      const user = firebase.auth().currentUser;
+      return user ? await user.getIdToken(false) : null;
+    }
+
+    async function api(path, { method = "GET", body } = {}) {
+      const token = await getIdTokenOrNull();
+      const res = await fetch(`/api/${path.replace(/^\//, "")}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(text || `Request failed (${res.status})`);
+      }
+      return res.json();
+    }
+
+    function updateTypeUI() {
+      const type = document.getElementById("submission-type").value;
+      document.getElementById("text-fields").classList.toggle("hidden", type !== "text");
+      document.getElementById("image-fields").classList.toggle("hidden", type !== "image");
+    }
+
+    function renderNotifications() {
+      const box = document.getElementById("notification-box");
+      const fresh = state.submissions.filter((row) => row.hasNewPositiveResponse);
+      if (!fresh.length) {
+        box.classList.add("hidden");
+        box.textContent = "";
+        return;
+      }
+      box.classList.remove("hidden");
+      box.innerHTML = `${fresh.length} submission${fresh.length === 1 ? "" : "s"} got a positive response. <button id="mark-seen" class="secondary" type="button" style="margin-left:10px;">Mark seen</button>`;
+      document.getElementById("mark-seen")?.addEventListener("click", async () => {
+        await api("my/submissions/markPositiveResponsesSeen", { method: "POST" });
+        await loadSubmissions();
+      });
+    }
+
+    function renderSubmissions() {
+      const container = document.getElementById("submissions-list");
+      if (!state.submissions.length) {
+        container.innerHTML = '<div class="hint">No submissions yet.</div>';
+        renderNotifications();
+        return;
+      }
+      container.innerHTML = state.submissions.map((row) => `
+        <article class="submission">
+          <div>
+            <span class="pill">${row.submissionType}</span>
+            <span class="pill">${row.status}</span>
+            ${row.positiveResponseCount ? `<span class="pill">${row.positiveResponseCount} positive response${row.positiveResponseCount === 1 ? "" : "s"}</span>` : ""}
+          </div>
+          <h3 style="margin:10px 0 6px;">${escapeHtml(row.title || "Untitled")}</h3>
+          ${row.text ? `<div style="white-space:pre-wrap;">${escapeHtml(row.text)}</div>` : ""}
+          ${row.note ? `<div style="white-space:pre-wrap;">${escapeHtml(row.note)}</div>` : ""}
+          ${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(row.title || "Submitted image")}" />` : ""}
+          ${row.reviewNote ? `<div class="hint" style="margin-top:8px;">Review note: ${escapeHtml(row.reviewNote)}</div>` : ""}
+        </article>
+      `).join("");
+      renderNotifications();
+    }
+
+    function renderCommunity() {
+      const container = document.getElementById("community-list");
+      if (!state.approvedSubmissions.length) {
+        container.innerHTML = '<div class="hint">No approved submissions yet.</div>';
+        return;
+      }
+      container.innerHTML = state.approvedSubmissions.map((row) => `
+        <article class="submission">
+          <div>
+            <span class="pill">${row.submissionType}</span>
+            <span class="pill">${row.likeCount || 0} likes</span>
+            <span class="pill">${row.movedMeCount || 0} moved me</span>
+          </div>
+          <h3 style="margin:10px 0 6px;">${escapeHtml(row.title || "Untitled")}</h3>
+          ${row.text ? `<div style="white-space:pre-wrap;">${escapeHtml(row.text)}</div>` : ""}
+          ${row.note ? `<div style="white-space:pre-wrap;">${escapeHtml(row.note)}</div>` : ""}
+          ${row.imageUrl ? `<img src="${escapeHtml(row.imageUrl)}" alt="${escapeHtml(row.title || "Submitted image")}" />` : ""}
+          <div class="reaction-row">
+            ${["like","movedme","meh","dislike"].map((voteType) => `
+              <button type="button" class="${row.currentUserReaction === voteType ? 'active' : 'secondary'}" data-react-submission="${row.id}" data-vote-type="${voteType}">
+                ${voteType === 'movedme' ? 'Moved me' : voteType.charAt(0).toUpperCase() + voteType.slice(1)}
+              </button>
+            `).join("")}
+          </div>
+        </article>
+      `).join("");
+      container.querySelectorAll('[data-react-submission]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          if (!firebase.auth().currentUser) {
+            setStatus("Sign in to react to submissions.", "error");
+            return;
+          }
+          await api(`submissions/${button.getAttribute('data-react-submission')}/react`, {
+            method: "POST",
+            body: { voteType: button.getAttribute('data-vote-type') }
+          });
+          await Promise.all([loadSubmissions(), loadApprovedSubmissions()]);
+        });
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    async function loadSubmissions() {
+      if (!firebase.auth().currentUser) return;
+      const payload = await api("my/submissions", { method: "GET" });
+      state.submissions = payload.submissions || [];
+      renderSubmissions();
+    }
+
+    async function loadApprovedSubmissions() {
+      const token = await getIdTokenOrNull();
+      const res = await fetch(`/api/submissions/approved`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const payload = await res.json();
+      state.approvedSubmissions = payload.submissions || [];
+      renderCommunity();
+    }
+
+    async function readFileAsPayload(file) {
+      const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = reject;
+        image.src = dataUrl;
+      });
+      const [, meta, base64Data] = String(dataUrl).match(/^data:([^;]+);base64,(.+)$/) || [];
+      return {
+        mimeType: meta || "",
+        base64Data,
+        fileName: file.name,
+        fileSize: file.size,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      };
+    }
+
+    async function submitWork() {
+      if (!firebase.auth().currentUser) {
+        setStatus("Please sign in first.", "error");
+        return;
+      }
+      const submissionType = document.getElementById("submission-type").value;
+      const title = document.getElementById("submission-title").value.trim();
+      const text = document.getElementById("submission-text").value.trim();
+      const note = document.getElementById("submission-note").value.trim();
+      setStatus("Submitting…");
+      try {
+        const body = { submissionType, title, text, note };
+        if (submissionType === "image") {
+          const file = document.getElementById("submission-image").files?.[0];
+          if (!file) throw new Error("Please choose an image file.");
+          Object.assign(body, await readFileAsPayload(file));
+        }
+        await api("submissions", { method: "POST", body });
+        setStatus("Submission received.");
+        document.getElementById("submission-title").value = "";
+        document.getElementById("submission-text").value = "";
+        document.getElementById("submission-note").value = "";
+        document.getElementById("submission-image").value = "";
+        await loadSubmissions();
+      } catch (err) {
+        setStatus(err.message || "Could not submit work.", "error");
+      }
+    }
+
+    async function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      await firebase.auth().signInWithPopup(provider);
+    }
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      document.getElementById("auth-status").textContent = user ? (user.email || "Signed in") : "Signed out";
+      document.getElementById("login-google").classList.toggle("hidden", !!user);
+      document.getElementById("submit-button").disabled = !user;
+      if (!user) {
+        state.submissions = [];
+        renderSubmissions();
+        await loadApprovedSubmissions();
+        setStatus("Sign in to submit work.");
+        return;
+      }
+      setStatus("Ready to submit.");
+      await Promise.all([loadSubmissions(), loadApprovedSubmissions()]);
+    });
+
+    document.getElementById("submission-type").addEventListener("change", updateTypeUI);
+    document.getElementById("submit-button").addEventListener("click", submitWork);
+    document.getElementById("login-google").addEventListener("click", signInWithGoogle);
+    updateTypeUI();
+    loadApprovedSubmissions();
+  </script>
+</body>
+</html>
