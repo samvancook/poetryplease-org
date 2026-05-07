@@ -101,6 +101,7 @@ const BROKEN_QI_MANIFEST = JSON.parse(
   readFileSync(path.join(__dirname, "broken-qi-ids.json"), "utf8")
 );
 const BOOK_CATALOG_LOOKUP = new Map();
+const BOOK_CATALOG_SHORTENER_LOOKUP = new Map();
 const BOOK_CATALOG_TITLE_BUCKETS = new Map();
 const BROKEN_QI_IDS = new Set(
   Array.isArray(BROKEN_QI_MANIFEST?.ids) ? BROKEN_QI_MANIFEST.ids.map((value) => normalizeKey(value)) : []
@@ -114,6 +115,10 @@ const POETRY_PLEASE_API_KEYS = new Set(
 
 for (const record of BOOK_CATALOG_LOOKUP_ROWS) {
   const authorKey = String(record?.authorKey || "").trim();
+  const shortener = sanitizeDocIdSegment(record?.bookShortener || "");
+  if (shortener && !BOOK_CATALOG_SHORTENER_LOOKUP.has(shortener)) {
+    BOOK_CATALOG_SHORTENER_LOOKUP.set(shortener, record);
+  }
   const titleKeys = Array.isArray(record?.titleKeys) ? record.titleKeys.filter(Boolean) : [];
   titleKeys.forEach((titleKey) => {
     BOOK_CATALOG_TITLE_BUCKETS.set(titleKey, [
@@ -124,6 +129,26 @@ for (const record of BOOK_CATALOG_LOOKUP_ROWS) {
       BOOK_CATALOG_LOOKUP.set(`${authorKey}|${titleKey}`, record);
     }
   });
+}
+
+function inferBookShortenerFromFilename(fileName = "") {
+  const upper = String(fileName || "").toUpperCase();
+  const candidates = [...new Set((upper.match(/[A-Z0-9]{2,8}/g) || []).filter(Boolean))];
+  return candidates.find((candidate) => BOOK_CATALOG_SHORTENER_LOOKUP.has(candidate)) || "";
+}
+
+function resolveCatalogBookRecord({ author = "", book = "", bookShortener = "", fileName = "" } = {}) {
+  const normalizedShortener = sanitizeDocIdSegment(bookShortener || inferBookShortenerFromFilename(fileName));
+  if (normalizedShortener && BOOK_CATALOG_SHORTENER_LOOKUP.has(normalizedShortener)) {
+    return BOOK_CATALOG_SHORTENER_LOOKUP.get(normalizedShortener);
+  }
+  const titleKey = normalizeKey(book);
+  if (!titleKey) return null;
+  const bucket = BOOK_CATALOG_TITLE_BUCKETS.get(titleKey) || [];
+  if (!bucket.length) return null;
+  const authorKey = normalizeKey(author);
+  if (!authorKey) return bucket[0];
+  return bucket.find((row) => normalizeKey(row.author) === authorKey || normalizeKey(row.authorKey) === authorKey) || bucket[0];
 }
 
 /** ====== EXPRESS / CORS ====== */
@@ -4416,6 +4441,44 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/review"), async (req, 
 
   const saved = await ref.get();
   res.json({ ok: true, submission: mapSubmissionDoc(saved) });
+});
+
+app.post(getBoth("/admin/importAssistant/resolve"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  const imageType = normalizeText(req.body?.imageType || "QI") || "QI";
+  const resolved = rows.slice(0, 100).map((row, index) => {
+    const fileName = normalizeText(row?.fileName || row?.sourceFileName || "");
+    const author = normalizeText(row?.author || "");
+    const book = normalizeText(row?.book || "");
+    const title = normalizeText(row?.title || "");
+    const driveLink = normalizeText(row?.driveLink || "");
+    const matched = resolveCatalogBookRecord({
+      author,
+      book,
+      bookShortener: row?.bookShortener || "",
+      fileName,
+    });
+    const bookShortener = sanitizeDocIdSegment(row?.bookShortener || matched?.bookShortener || inferBookShortenerFromFilename(fileName));
+    const resolvedTitle = title || fileName.replace(/\.[a-z0-9]+$/i, "").trim();
+    return {
+      index,
+      fileName,
+      driveLink,
+      imageType,
+      matched: !!matched,
+      author: author || matched?.author || "",
+      book: book || matched?.title || "",
+      bookLink: normalizeText(row?.bookLink || matched?.bookLink || ""),
+      releaseCatalog: normalizeText(row?.releaseCatalog || matched?.releaseCatalog || ""),
+      bookShortener,
+      title: resolvedTitle,
+      suggestedDocId: bookShortener && resolvedTitle ? `${bookShortener}-${imageType}-${slugify(resolvedTitle)}`.toUpperCase() : "",
+    };
+  });
+  res.json({ resolved });
 });
 
 

@@ -39,6 +39,7 @@
   - make bucket-backed asset URLs the enforced default for future `QI` and `INT` imports so we do not regress to Drive thumbnails
 - Build the next-generation import assistant:
   - centralize book/catalog metadata lookup
+  - first pass: resolve filenames/rows against catalog metadata inside admin before import
   - infer metadata from Drive folder hierarchy, filenames, EPUB/catalog context, and handle sheets
   - produce a ready-import file plus a follow-up review file instead of relying on one-off manual reshaping
 - Surface YouTube social signal data more clearly in admin/content-library views, not only in Feed Signals

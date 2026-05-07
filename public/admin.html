@@ -661,6 +661,30 @@
 
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
+        <h2 style="margin-top:0;">Import Assistant</h2>
+      </div>
+      <div>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Paste filenames or tab-separated rows to get a first-pass catalog match before import.</p>
+        <div class="controls">
+          <select id="import-assistant-image-type">
+            <option value="QI">QI</option>
+            <option value="INT">INT</option>
+            <option value="EXC">EXC</option>
+            <option value="FP">FP</option>
+          </select>
+          <button id="run-import-assistant" type="button">Resolve metadata</button>
+          <button id="import-assistant-download" type="button" class="secondary">Download JSON</button>
+          <button id="import-assistant-load-first" type="button" class="secondary">Load first into form</button>
+        </div>
+        <div class="hint">Use one filename per line, or tab-separated columns in this order: file name, author, book, title, drive link.</div>
+        <textarea id="import-assistant-text" placeholder="CAMACHO - PE - QUOTE IMAGES - DRIFT - 1.png&#10;WTF - INT - hi-01.jpg"></textarea>
+        <div id="import-assistant-status" class="status">No import-assistant run yet.</div>
+        <div id="import-assistant-results" class="empty">No results yet.</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <div class="section-head">
         <h2 style="margin-top:0;">Legacy Import Tool</h2>
         <button id="legacy-import-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="legacy-import-section-body">
           <span class="chevron">▾</span>
@@ -812,6 +836,7 @@
       submissionQuery: "",
       submissionStatusFilter: "all",
       submissionTypeFilter: "all",
+      importAssistantResults: [],
       contentItems: [],
       contentTotalCount: 0,
       contentType: "graphics",
@@ -1597,7 +1622,7 @@
           row.submitterDisplayName,
           row.text,
           row.note,
-          row.adminNote,
+          row.reviewNote,
         ].filter(Boolean).join(' ').toLowerCase();
         return haystack.includes(query);
       });
@@ -1620,7 +1645,7 @@
                   <div>${row.submissionType || '—'} · ${row.releaseCatalog || 'User submitted'}</div>
                   ${row.text ? `<div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(row.text.slice(0, 220))}${row.text.length > 220 ? '…' : ''}</div>` : ''}
                   ${row.note ? `<div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(row.note.slice(0, 160))}${row.note.length > 160 ? '…' : ''}</div>` : ''}
-                  ${row.adminNote ? `<div style="margin-top:6px; color:#7b6955;">Admin note: ${escapeHtml(row.adminNote.slice(0, 160))}${row.adminNote.length > 160 ? '…' : ''}</div>` : ''}
+                  ${row.reviewNote ? `<div style="margin-top:6px; color:#7b6955;">Admin note: ${escapeHtml(row.reviewNote.slice(0, 160))}${row.reviewNote.length > 160 ? '…' : ''}</div>` : ''}
                   ${row.imageUrl ? `<div style="margin-top:6px;"><a href="${row.imageUrl}" target="_blank" rel="noopener">Open image</a></div>` : ''}
                 </td>
                 <td>${row.submitterEmail || row.submitterUid || '—'}</td>
@@ -1639,6 +1664,154 @@
       container.querySelectorAll('[data-review-submission]').forEach((button) => {
         button.addEventListener('click', () => reviewSubmission(button.getAttribute('data-review-submission'), button.getAttribute('data-decision')));
       });
+    }
+
+    function parseImportAssistantRows(raw) {
+      return String(raw || '')
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const cols = line.split('\t');
+          return {
+            fileName: String(cols[0] || '').trim(),
+            author: String(cols[1] || '').trim(),
+            book: String(cols[2] || '').trim(),
+            title: String(cols[3] || '').trim(),
+            driveLink: String(cols[4] || '').trim(),
+          };
+        });
+    }
+
+    function buildImportAssistantContentItem(row) {
+      const imageType = String(document.getElementById('import-assistant-image-type').value || 'QI').trim().toUpperCase();
+      const collection = imageType === 'EXC' ? 'excerpts' : imageType === 'FP' ? 'fullpoems' : 'graphics';
+      return {
+        collection,
+        contentId: row.suggestedDocId || '',
+        imageType,
+        author: row.author || '',
+        book: row.book || '',
+        title: imageType === 'EXC' ? '' : (row.title || ''),
+        poem: imageType === 'EXC' ? (row.title || '') : '',
+        imageUrl: '',
+        driveLink: row.driveLink || '',
+        bookLink: row.bookLink || '',
+        releaseCatalog: row.releaseCatalog || '',
+        bookShortener: row.bookShortener || '',
+        excerpt: '',
+        misc: row.fileName ? `Import Assistant source file: ${row.fileName}` : '',
+      };
+    }
+
+    function downloadImportAssistantJson() {
+      const statusEl = document.getElementById('import-assistant-status');
+      if (!state.importAssistantResults.length) {
+        statusEl.textContent = 'Resolve metadata first.';
+        statusEl.className = 'status error';
+        return;
+      }
+      const payload = state.importAssistantResults.map((row) => buildImportAssistantContentItem(row));
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `import-assistant-${(document.getElementById('import-assistant-image-type').value || 'content').toLowerCase()}.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      statusEl.textContent = `Downloaded ${payload.length} rows as JSON.`;
+      statusEl.className = 'status';
+    }
+
+    function loadFirstImportAssistantRowIntoForm() {
+      const statusEl = document.getElementById('import-assistant-status');
+      const first = state.importAssistantResults[0];
+      if (!first) {
+        statusEl.textContent = 'Resolve metadata first.';
+        statusEl.className = 'status error';
+        return;
+      }
+      populateContentForm(buildImportAssistantContentItem(first));
+      statusEl.textContent = `Loaded ${first.fileName || first.title || first.suggestedDocId} into Content Library.`;
+      statusEl.className = 'status';
+    }
+
+    function renderImportAssistantResults(rows) {
+      const resultsEl = document.getElementById('import-assistant-results');
+      if (!rows.length) {
+        resultsEl.className = 'empty';
+        resultsEl.innerHTML = 'No results yet.';
+        return;
+      }
+      resultsEl.className = '';
+      resultsEl.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Suggested metadata</th>
+              <th>Doc ID</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((row) => `
+              <tr>
+                <td>${escapeHtml(row.fileName || '—')}</td>
+                <td>
+                  <div>${escapeHtml(row.author || '—')}</div>
+                  <div>${escapeHtml(row.book || '—')}</div>
+                  <div>${escapeHtml(row.releaseCatalog || '—')} · ${escapeHtml(row.bookShortener || '—')}</div>
+                  ${row.matched ? '' : '<div class="meta">No catalog match.</div>'}
+                </td>
+                <td>${escapeHtml(row.suggestedDocId || '—')}</td>
+                <td><button type="button" class="secondary" data-import-assistant-use="${escapeHtml(row.index)}">Use in form</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+      resultsEl.querySelectorAll('[data-import-assistant-use]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const row = rows.find((entry) => String(entry.index) === String(button.getAttribute('data-import-assistant-use')));
+          if (!row) return;
+          populateContentForm(buildImportAssistantContentItem(row));
+        });
+      });
+    }
+
+    async function runImportAssistant() {
+      const statusEl = document.getElementById('import-assistant-status');
+      const rows = parseImportAssistantRows(document.getElementById('import-assistant-text').value);
+      if (!rows.length) {
+        statusEl.textContent = 'Paste at least one row.';
+        statusEl.className = 'status error';
+        renderImportAssistantResults([]);
+        return;
+      }
+      statusEl.textContent = 'Resolving metadata…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/importAssistant/resolve', {
+          method: 'POST',
+          body: {
+            imageType: document.getElementById('import-assistant-image-type').value,
+            rows,
+          },
+        });
+        const resolved = payload.resolved || [];
+        state.importAssistantResults = resolved;
+        renderImportAssistantResults(resolved);
+        const matchedCount = resolved.filter((row) => row.matched).length;
+        statusEl.textContent = `Resolved ${resolved.length} rows. ${matchedCount} matched catalog metadata.`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not resolve metadata.';
+        statusEl.className = 'status error';
+        state.importAssistantResults = [];
+      }
     }
 
     async function loadUserSubmissions() {
@@ -3128,6 +3301,9 @@
       });
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
+      document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
+      document.getElementById("import-assistant-download").addEventListener("click", () => downloadImportAssistantJson());
+      document.getElementById("import-assistant-load-first").addEventListener("click", () => loadFirstImportAssistantRowIntoForm());
       document.getElementById("users-toggle").addEventListener("click", () => {
         state.usersCollapsed = !state.usersCollapsed;
         localStorage.setItem('pp_admin_users_collapsed', state.usersCollapsed ? 'true' : 'false');
