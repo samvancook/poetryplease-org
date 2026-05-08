@@ -341,6 +341,17 @@ function isGoogleDriveFileUrl(url = "") {
   return !!extractGoogleDriveFileId(url);
 }
 
+function isGoogleDriveFolderUrl(url = "") {
+  const raw = normalizeText(url);
+  if (!raw) return false;
+  try {
+    const parsed = new URL(raw);
+    return /(^|\.)drive\.google\.com$/i.test(parsed.hostname) && /\/folders\//i.test(parsed.pathname || "");
+  } catch (_err) {
+    return false;
+  }
+}
+
 function preferredRemoteMediaName(body = {}, sourceUrl = "") {
   return normalizeText(body.updatedFileName || body.fileName || body.title || sourceUrl);
 }
@@ -363,6 +374,11 @@ function inferRemoteMimeType(contentType = "", fileName = "", sourceUrl = "", ru
 }
 
 async function fetchRemoteMediaResponse(sourceUrl, rules, body = {}) {
+  if (isGoogleDriveFolderUrl(sourceUrl)) {
+    const err = new Error("drive_folder_url_not_supported");
+    err.status = 400;
+    throw err;
+  }
   const driveId = extractGoogleDriveFileId(sourceUrl);
   const candidates = driveId
     ? [
@@ -386,6 +402,15 @@ async function fetchRemoteMediaResponse(sourceUrl, rules, body = {}) {
       if (!mimeType) {
         lastError = new Error("unsupported_remote_media_type");
         continue;
+      }
+      if (mimeType.startsWith("image/")) {
+        const sniff = response.clone();
+        const buffer = Buffer.from(await sniff.arrayBuffer());
+        const detectedMimeType = detectImageMimeType(buffer);
+        if (!detectedMimeType || detectedMimeType !== mimeType) {
+          lastError = new Error("remote_image_type_mismatch");
+          continue;
+        }
       }
       const contentLength = Number(response.headers.get("content-length") || 0) || 0;
       if (contentLength && contentLength > rules.maxBytes) {

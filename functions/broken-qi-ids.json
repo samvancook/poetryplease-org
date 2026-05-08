@@ -1,6 +1,6 @@
 {
   "generatedAt": "2026-04-23T14:15:14.301399Z",
-  "count": 692,
+  "count": 693,
   "ids": [
     "ACHK-QI-A-CHOIR-OF-HONEST-KILLERS-V3",
     "ALSA-QI-BREAK",
@@ -693,7 +693,8 @@
     "WILLIAMS - OADW - Quote Images  - Introducing\u2026 - 27.png",
     "WSH-QI-HOW-TO-DEFINE-YOU",
     "WSH-QI-SACRAL-CHAKRA-V2",
-    "WTS-QI-LET-THE-FIRE-BIRTH-V2"
+    "WTS-QI-LET-THE-FIRE-BIRTH-V2",
+    "drive-folder-1GRnGDkr-m5i1NUyil1OKEtFdOxP41h62"
   ],
   "details": [
     {
@@ -2093,6 +2094,13 @@
       "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Olivia%20-%20NABF%20-%20Quote%20Image%20-%20%5Bthe%20last%20time%20we%20made%20love%20you%20asked%20me%5D.png",
       "driveLink": "https://drive.google.com/a/buttonpoetry.com/file/d/0B_-uqSs_rEYCMHR2MV9NZloydTQ/view?usp=drivesdk",
       "firstBytes": "{\n  \"error\": {\n    \"code\": 404,\n"
+    },
+    {
+      "id": "drive-folder-1GRnGDkr-m5i1NUyil1OKEtFdOxP41h62",
+      "reason": "non_image_bytes",
+      "imageUrl": "https://firebasestorage.googleapis.com/v0/b/poetry-please.firebasestorage.app/o/content-library%2Fgraphics%2Fdrive-folder-1grngdkr-m5i1nuyil1oketfdoxp41h62%2F1777321548901.jpg?alt=media&token=00594dd7-3c78-4923-882d-abb71d5b4117",
+      "driveLink": "https://drive.google.com/drive/folders/1GRnGDkr-m5i1NUyil1OKEtFdOxP41h62",
+      "firstBytes": "<!doctype html><html lang=\"en-US\" dir=\"ltr\"><head><base href=\"https://accounts.google.com/v3/signin/\">"
     }
   ]
 }
