@@ -21,6 +21,7 @@
 - Resolve and visibly preview `releaseCatalog` during Weaver imports before commit
 - Strengthen `bookLink` on handoff so imported assets carry a more complete catalog connection
 - Reuse or port the Weaver excerpt/viewer module into Poetry Please so text previews behave consistently across tools
+- Move Drive service-account-backed folder import automation earlier in the import-assistant roadmap because it should reduce repeated manual recovery/import work long-term
 - Move from preview/import to direct ingest once the handoff contract is stable
 - Expose Poetry Please ranked texts as a P.I.G.-friendly source feed with stable text identity and duplication guard rails
 - Add feed dedupe protection so sibling duplicate records do not re-serve after a recent vote
@@ -40,6 +41,8 @@
 - Build the next-generation import assistant:
   - centralize book/catalog metadata lookup
   - first pass: resolve filenames/rows against catalog metadata inside admin before import
+  - add Drive service account support so the tool can enumerate shared folder contents without depending on an interactive browser session
+  - add true folder import automation so a pasted Drive folder link can list candidate assets directly in admin
   - infer metadata from Drive folder hierarchy, filenames, EPUB/catalog context, and handle sheets
   - produce a ready-import file plus a follow-up review file instead of relying on one-off manual reshaping
 - Surface YouTube social signal data more clearly in admin/content-library views, not only in Feed Signals

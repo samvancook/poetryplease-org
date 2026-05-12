@@ -4468,27 +4468,22 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/review"), async (req, 
   res.json({ ok: true, submission: mapSubmissionDoc(saved) });
 });
 
-app.post(getBoth("/admin/importAssistant/resolve"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
-  if (!ctx) return;
-
-  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
-  const imageType = normalizeText(req.body?.imageType || "QI") || "QI";
-  const resolved = rows.slice(0, 100).map((row, index) => {
+function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") {
+  return rows.slice(0, 100).map((row, index) => {
     const fileName = normalizeText(row?.fileName || row?.sourceFileName || "");
-    const author = normalizeText(row?.author || "");
-    const book = normalizeText(row?.book || "");
+    const author = normalizeText(row?.author || defaults?.author || "");
+    const book = normalizeText(row?.book || defaults?.book || "");
     const title = normalizeText(row?.title || "");
-    const driveLink = normalizeText(row?.driveLink || "");
+    const driveLink = normalizeText(row?.driveLink || defaults?.driveFolderLink || "");
     const matched = resolveCatalogBookRecord({
       author,
       book,
-      bookShortener: row?.bookShortener || "",
+      bookShortener: row?.bookShortener || defaults?.bookShortener || "",
       fileName,
     });
-    const bookShortener = sanitizeDocIdSegment(row?.bookShortener || matched?.bookShortener || inferBookShortenerFromFilename(fileName));
+    const bookShortener = sanitizeDocIdSegment(row?.bookShortener || defaults?.bookShortener || matched?.bookShortener || inferBookShortenerFromFilename(fileName));
     const resolvedTitle = title || fileName.replace(/\.[a-z0-9]+$/i, "").trim();
-    return {
+    const resolvedRow = {
       index,
       fileName,
       driveLink,
@@ -4496,14 +4491,115 @@ app.post(getBoth("/admin/importAssistant/resolve"), async (req, res) => {
       matched: !!matched,
       author: author || matched?.author || "",
       book: book || matched?.title || "",
-      bookLink: normalizeText(row?.bookLink || matched?.bookLink || ""),
-      releaseCatalog: normalizeText(row?.releaseCatalog || matched?.releaseCatalog || ""),
+      bookLink: normalizeText(row?.bookLink || defaults?.bookLink || matched?.bookLink || ""),
+      releaseCatalog: normalizeText(row?.releaseCatalog || defaults?.releaseCatalog || matched?.releaseCatalog || ""),
       bookShortener,
       title: resolvedTitle,
       suggestedDocId: bookShortener && resolvedTitle ? `${bookShortener}-${imageType}-${slugify(resolvedTitle)}`.toUpperCase() : "",
+      folderLink: normalizeText(defaults?.driveFolderLink || ""),
     };
+    resolvedRow.contentItem = {
+      docId: resolvedRow.suggestedDocId,
+      imageId: resolvedRow.suggestedDocId,
+      imageType,
+      author: resolvedRow.author,
+      book: resolvedRow.book,
+      title: resolvedRow.title,
+      imageUrl: "",
+      driveLink: resolvedRow.driveLink,
+      bookLink: resolvedRow.bookLink,
+      releaseCatalog: resolvedRow.releaseCatalog,
+      misc: [resolvedRow.fileName ? `Import Assistant source file: ${resolvedRow.fileName}` : "", resolvedRow.folderLink ? `Import Assistant folder: ${resolvedRow.folderLink}` : ""].filter(Boolean).join(" · "),
+    };
+    return resolvedRow;
   });
+}
+
+function finalizeImportAssistantGraphicRow(row, remoteMedia = null) {
+  const effectiveFileName = normalizeText(row?.fileName || remoteMedia?.fileName || "");
+  const effectiveTitle = normalizeText(row?.title || effectiveFileName.replace(/\.[a-z0-9]+$/i, "").trim());
+  const effectiveDocId = row?.bookShortener && effectiveTitle
+    ? `${row.bookShortener}-${row.imageType}-${slugify(effectiveTitle)}`.toUpperCase()
+    : normalizeText(row?.suggestedDocId || "");
+  return {
+    ...row,
+    fileName: effectiveFileName,
+    title: effectiveTitle,
+    suggestedDocId: effectiveDocId,
+    contentItem: {
+      ...(row?.contentItem || {}),
+      docId: effectiveDocId,
+      imageId: effectiveDocId,
+      title: effectiveTitle,
+      driveLink: normalizeText(row?.driveLink || ""),
+      misc: [effectiveFileName ? `Import Assistant source file: ${effectiveFileName}` : "", row?.folderLink ? `Import Assistant folder: ${row.folderLink}` : ""].filter(Boolean).join(" · "),
+    },
+  };
+}
+
+app.post(getBoth("/admin/importAssistant/resolve"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  const imageType = normalizeText(req.body?.imageType || "QI") || "QI";
+  const resolved = resolveImportAssistantRows(rows, req.body?.defaults || {}, imageType);
   res.json({ resolved });
+});
+
+app.post(getBoth("/admin/importAssistant/previewGraphics"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  const resolved = resolveImportAssistantRows(rows, req.body?.defaults || {}, "QI");
+  const results = [];
+  for (const row of resolved) {
+    let resolvedRow = finalizeImportAssistantGraphicRow(row);
+    let item = resolvedRow.contentItem || {};
+    let action = "error";
+    let validation = { ok: false, error: "missing_drive_link" };
+    try {
+      const preview = await previewContentLibraryItem("graphics", item);
+      action = preview.action || "create";
+    } catch (err) {
+      action = "error";
+    }
+    if (item.driveLink) {
+      try {
+        const remote = await fetchRemoteMediaResponse(item.driveLink, UPLOAD_RULES.libraryGraphic, item);
+        resolvedRow = finalizeImportAssistantGraphicRow(resolvedRow, remote);
+        item = resolvedRow.contentItem || item;
+        if (action === "error") {
+          try {
+            const preview = await previewContentLibraryItem("graphics", item);
+            action = preview.action || "create";
+          } catch (err) {}
+        }
+        validation = {
+          ok: true,
+          mimeType: remote.mimeType,
+          fileName: remote.fileName,
+          width: remote.width,
+          height: remote.height,
+          fileSize: remote.fileSize,
+        };
+      } catch (err) {
+        validation = { ok: false, error: err.message || "validation_failed" };
+      }
+    }
+    results.push({
+      ...resolvedRow,
+      action,
+      validation,
+    });
+  }
+
+  const createCount = results.filter((row) => row.action === "create").length;
+  const updateCount = results.filter((row) => row.action === "update").length;
+  const validCount = results.filter((row) => row.validation?.ok).length;
+  const invalidCount = results.length - validCount;
+  res.json({ ok: true, rows: results, createCount, updateCount, validCount, invalidCount });
 });
 
 

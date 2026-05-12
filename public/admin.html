@@ -665,6 +665,32 @@
       </div>
       <div>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Paste filenames or tab-separated rows to get a first-pass catalog match before import.</p>
+        <div class="form-grid" style="margin-bottom:14px;">
+          <label>
+            Drive folder link
+            <input id="import-assistant-folder-link" type="url" placeholder="Optional folder context" />
+          </label>
+          <label>
+            Default author
+            <input id="import-assistant-author" type="text" placeholder="Author" />
+          </label>
+          <label>
+            Default book
+            <input id="import-assistant-book" type="text" placeholder="Book title" />
+          </label>
+          <label>
+            Default book link
+            <input id="import-assistant-book-link" type="url" placeholder="Product or book URL" />
+          </label>
+          <label>
+            Release catalog
+            <input id="import-assistant-release-catalog" type="text" placeholder="Fall 2026" />
+          </label>
+          <label>
+            Book shortener
+            <input id="import-assistant-book-shortener" type="text" placeholder="TGIT" />
+          </label>
+        </div>
         <div class="controls">
           <select id="import-assistant-image-type">
             <option value="QI">QI</option>
@@ -673,10 +699,12 @@
             <option value="FP">FP</option>
           </select>
           <button id="run-import-assistant" type="button">Resolve metadata</button>
+          <button id="preview-import-assistant-graphics" type="button" class="secondary">Validate graphics</button>
+          <button id="run-import-assistant-graphics" type="button" class="secondary">Import valid graphics</button>
           <button id="import-assistant-download" type="button" class="secondary">Download JSON</button>
           <button id="import-assistant-load-first" type="button" class="secondary">Load first into form</button>
         </div>
-        <div class="hint">Use one filename per line, or tab-separated columns in this order: file name, author, book, title, drive link.</div>
+        <div class="hint">Use one filename per line, or tab-separated columns in this order: file name, author, book, title, drive link. For graphics, validation checks that each drive link resolves to a real image before import.</div>
         <textarea id="import-assistant-text" placeholder="CAMACHO - PE - QUOTE IMAGES - DRIFT - 1.png&#10;WTF - INT - hi-01.jpg"></textarea>
         <div id="import-assistant-status" class="status">No import-assistant run yet.</div>
         <div id="import-assistant-results" class="empty">No results yet.</div>
@@ -837,6 +865,7 @@
       submissionStatusFilter: "all",
       submissionTypeFilter: "all",
       importAssistantResults: [],
+      importAssistantPreviewRows: [],
       contentItems: [],
       contentTotalCount: 0,
       contentType: "graphics",
@@ -1673,14 +1702,26 @@
         .filter(Boolean)
         .map((line) => {
           const cols = line.split('\t');
+          const first = String(cols[0] || '').trim();
           return {
-            fileName: String(cols[0] || '').trim(),
+            fileName: /^https?:\/\//i.test(first) ? '' : first,
             author: String(cols[1] || '').trim(),
             book: String(cols[2] || '').trim(),
             title: String(cols[3] || '').trim(),
-            driveLink: String(cols[4] || '').trim(),
+            driveLink: /^https?:\/\//i.test(first) ? first : String(cols[4] || '').trim(),
           };
         });
+    }
+
+    function importAssistantDefaults() {
+      return {
+        driveFolderLink: document.getElementById('import-assistant-folder-link').value.trim(),
+        author: document.getElementById('import-assistant-author').value.trim(),
+        book: document.getElementById('import-assistant-book').value.trim(),
+        bookLink: document.getElementById('import-assistant-book-link').value.trim(),
+        releaseCatalog: document.getElementById('import-assistant-release-catalog').value.trim(),
+        bookShortener: document.getElementById('import-assistant-book-shortener').value.trim(),
+      };
     }
 
     function buildImportAssistantContentItem(row) {
@@ -1753,6 +1794,8 @@
               <th>File</th>
               <th>Suggested metadata</th>
               <th>Doc ID</th>
+              <th>Write</th>
+              <th>Validation</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -1767,6 +1810,10 @@
                   ${row.matched ? '' : '<div class="meta">No catalog match.</div>'}
                 </td>
                 <td>${escapeHtml(row.suggestedDocId || '—')}</td>
+                <td>${escapeHtml(row.action || '—')}</td>
+                <td>${row.validation ? (row.validation.ok
+                  ? `${escapeHtml(row.validation.fileName || row.fileName || 'image')} · ${escapeHtml(row.validation.mimeType || 'image')} · ${escapeHtml(String(row.validation.width || '?'))}×${escapeHtml(String(row.validation.height || '?'))}`
+                  : `<span class="meta" style="color:#9a3f2d;">${escapeHtml(row.validation.error || 'invalid')}</span>`) : '—'}</td>
                 <td><button type="button" class="secondary" data-import-assistant-use="${escapeHtml(row.index)}">Use in form</button></td>
               </tr>
             `).join('')}
@@ -1799,10 +1846,12 @@
           body: {
             imageType: document.getElementById('import-assistant-image-type').value,
             rows,
+            defaults: importAssistantDefaults(),
           },
         });
         const resolved = payload.resolved || [];
         state.importAssistantResults = resolved;
+        state.importAssistantPreviewRows = [];
         renderImportAssistantResults(resolved);
         const matchedCount = resolved.filter((row) => row.matched).length;
         statusEl.textContent = `Resolved ${resolved.length} rows. ${matchedCount} matched catalog metadata.`;
@@ -1811,6 +1860,60 @@
         statusEl.textContent = err.message || 'Could not resolve metadata.';
         statusEl.className = 'status error';
         state.importAssistantResults = [];
+        state.importAssistantPreviewRows = [];
+      }
+    }
+
+    async function previewImportAssistantGraphics() {
+      const statusEl = document.getElementById('import-assistant-status');
+      const rows = parseImportAssistantRows(document.getElementById('import-assistant-text').value);
+      if (!rows.length) {
+        statusEl.textContent = 'Paste at least one row.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = 'Validating graphics…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/importAssistant/previewGraphics', {
+          method: 'POST',
+          body: {
+            rows,
+            defaults: importAssistantDefaults(),
+          },
+        });
+        state.importAssistantResults = payload.rows || [];
+        state.importAssistantPreviewRows = payload.rows || [];
+        renderImportAssistantResults(state.importAssistantResults);
+        statusEl.textContent = `Validated ${payload.rows.length} rows. ${payload.validCount} valid, ${payload.invalidCount} invalid. ${payload.createCount} create / ${payload.updateCount} update. Drive links can now populate filenames during validation.`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not validate graphics.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function runImportAssistantGraphics() {
+      const statusEl = document.getElementById('import-assistant-status');
+      const rows = state.importAssistantPreviewRows.length ? state.importAssistantPreviewRows : state.importAssistantResults;
+      const items = rows.filter((row) => row.validation?.ok).map((row) => row.contentItem).filter(Boolean);
+      if (!items.length) {
+        statusEl.textContent = 'Validate graphics first, then import the valid rows.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = 'Importing valid graphics…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/contentLibrary/bulkUpsert', {
+          method: 'POST',
+          body: { type: 'graphics', items },
+        });
+        statusEl.textContent = `Imported ${payload.createdCount} created, ${payload.updatedCount} updated, ${payload.errorCount} failed.`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not import valid graphics.';
+        statusEl.className = 'status error';
       }
     }
 
@@ -3302,6 +3405,8 @@
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
+      document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
+      document.getElementById("run-import-assistant-graphics").addEventListener("click", () => runImportAssistantGraphics());
       document.getElementById("import-assistant-download").addEventListener("click", () => downloadImportAssistantJson());
       document.getElementById("import-assistant-load-first").addEventListener("click", () => loadFirstImportAssistantRowIntoForm());
       document.getElementById("users-toggle").addEventListener("click", () => {
