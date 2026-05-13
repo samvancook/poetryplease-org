@@ -164,6 +164,7 @@
           <span class="meta" title="Character count includes author name, poem title, and text with spaces.">Character count includes author name, poem title, and text with spaces.</span>
         </div>
         <label><input type="checkbox" id="filterCompletedBooks" /> Show only completed books</label>
+        <label><input type="checkbox" id="filterMissingBaseline" /> Show only books missing baseline content</label>
         <button id="exportBtn" type="button">Export visible to Google Sheet</button>
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
@@ -208,10 +209,12 @@
               <th data-column="catalog">Catalog</th>
               <th data-column="QI">QI</th>
               <th data-column="INT">INT</th>
+              <th data-column="GP">GP</th>
               <th data-column="EXC">EXC</th>
               <th data-column="FP">FP</th>
               <th data-column="VV">VV</th>
               <th data-column="YT">YT</th>
+              <th data-column="missing">Missing Baseline</th>
               <th data-column="votes">Votes</th>
               <th data-column="total">Total</th>
               <th data-column="percent">Progress</th>
@@ -405,6 +408,15 @@
       VV: 'Video',
       YT: 'YouTube',
     };
+    const CONTENT_BASELINE_TARGETS = {
+      QI: 25,
+      INT: 25,
+      GP: 25,
+      EXC: 1,
+      VV: 5,
+      YT: 5,
+    };
+    const PROGRESS_COUNT_TYPES = ['QI', 'INT', 'GP', 'EXC', 'FP', 'VV', 'YT'];
 
     function formatContentTypeLabel(value) {
       const code = String(value || '').trim();
@@ -723,6 +735,7 @@
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
       const showCompleted = document.getElementById('filterCompletedBooks').checked;
+      const showMissingBaseline = document.getElementById('filterMissingBaseline').checked;
 
       const bookMap = {};
       allGraphics.forEach((graphic) => {
@@ -735,7 +748,7 @@
         if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
         const graphicType = String(graphic.type || '').trim().toUpperCase();
         if (typeVal && normalizeTypeForFilter(graphicType) !== typeVal) return;
-        if (!bookMap[key]) bookMap[key] = { title, catalog, total: 0, voted: 0, counts: { QI: 0, INT: 0, EXC: 0, FP: 0, VV: 0, YT: 0 } };
+        if (!bookMap[key]) bookMap[key] = { title, catalog, total: 0, voted: 0, counts: Object.fromEntries(PROGRESS_COUNT_TYPES.map((type) => [type, 0])), missingBaseline: 0, missingBaselineLabel: '' };
         bookMap[key].total += 1;
         if (bookMap[key].counts[graphicType] != null) bookMap[key].counts[graphicType] += 1;
       });
@@ -760,8 +773,18 @@
       });
 
       let rows = Object.values(bookMap);
+      rows.forEach((row) => {
+        const missing = [];
+        Object.entries(CONTENT_BASELINE_TARGETS).forEach(([type, target]) => {
+          const count = row.counts[type] || 0;
+          if (count < target) missing.push(`${type} ${target - count}`);
+        });
+        row.missingBaseline = missing.reduce((sum, item) => sum + Number(item.split(' ')[1] || 0), 0);
+        row.missingBaselineLabel = missing.join(', ');
+      });
       if (hideZero) rows = rows.filter((row) => row.voted > 0);
       if (showCompleted) rows = rows.filter((row) => row.voted >= row.total);
+      if (showMissingBaseline) rows = rows.filter((row) => row.missingBaseline > 0);
 
       rows.sort((a, b) => {
         let va, vb;
@@ -769,11 +792,13 @@
           case 'catalog': va = a.catalog.toLowerCase(); vb = b.catalog.toLowerCase(); break;
           case 'QI':
           case 'INT':
+          case 'GP':
           case 'EXC':
           case 'FP':
           case 'VV':
           case 'YT':
             va = a.counts[currentProgressSortKey] || 0; vb = b.counts[currentProgressSortKey] || 0; break;
+          case 'missing': va = a.missingBaseline; vb = b.missingBaseline; break;
           case 'votes': va = a.voted; vb = b.voted; break;
           case 'total': va = a.total; vb = b.total; break;
           case 'percent': va = a.total ? a.voted / a.total : 0; vb = b.total ? b.voted / b.total : 0; break;
@@ -788,7 +813,7 @@
       const tbody = document.getElementById('progressBarsBody');
       tbody.innerHTML = '';
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="11"><div class="empty">No progress rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="13"><div class="empty">No progress rows match the current filters.</div></td></tr>';
         return;
       }
 
@@ -800,10 +825,12 @@
           <td>${escapeHtml(row.catalog || '')}</td>
           <td>${row.counts.QI || 0}</td>
           <td>${row.counts.INT || 0}</td>
+          <td>${row.counts.GP || 0}</td>
           <td>${row.counts.EXC || 0}</td>
           <td>${row.counts.FP || 0}</td>
           <td>${row.counts.VV || 0}</td>
           <td>${row.counts.YT || 0}</td>
+          <td>${escapeHtml(row.missingBaselineLabel || 'Complete')}</td>
           <td>${row.voted}</td>
           <td>${row.total}</td>
           <td>
