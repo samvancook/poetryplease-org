@@ -151,6 +151,9 @@
         <label>Filter by book
           <select id="bookDropdown"></select>
         </label>
+        <label>Filter by catalog
+          <select id="catalogDropdown"></select>
+        </label>
         <div id="characterCountControls" style="display:none;align-items:flex-end;gap:12px;flex-wrap:wrap;">
           <label title="Character count includes author name, poem title, and text with spaces.">Character count min
             <input id="characterCountMin" type="number" min="0" step="1" placeholder="Min characters" />
@@ -202,6 +205,13 @@
           <thead>
             <tr>
               <th data-column="book">Book Title</th>
+              <th data-column="catalog">Catalog</th>
+              <th data-column="QI">QI</th>
+              <th data-column="INT">INT</th>
+              <th data-column="EXC">EXC</th>
+              <th data-column="FP">FP</th>
+              <th data-column="VV">VV</th>
+              <th data-column="YT">YT</th>
               <th data-column="votes">Votes</th>
               <th data-column="total">Total</th>
               <th data-column="percent">Progress</th>
@@ -387,6 +397,8 @@
     }
 
     const CONTENT_TYPE_LABELS = {
+      QI: 'Quote Images',
+      INT: 'Interior Images',
       GP: 'Graphics',
       EXC: 'Excerpts',
       FP: 'Full Poems',
@@ -404,6 +416,8 @@
       if (!raw) return '';
       if (raw === 'fp' || raw === 'full poems' || raw === 'fullpoems' || raw === 'full-poems') return 'fp';
       if (raw === 'exc' || raw === 'excerpts' || raw === 'excerpt') return 'exc';
+      if (raw === 'qi' || raw === 'quote images' || raw === 'quote image') return 'qi';
+      if (raw === 'int' || raw === 'interior images' || raw === 'interior image') return 'int';
       if (raw === 'gp' || raw === 'graphics' || raw === 'graphic') return 'gp';
       if (raw === 'vv' || raw === 'video' || raw === 'videos') return 'vv';
       if (raw === 'yt' || raw === 'youtube' || raw === 'youtube video' || raw === 'youtube videos') return 'yt';
@@ -582,16 +596,25 @@
 
     function buildBookDropdown(books = null) {
       const sel = document.getElementById('bookDropdown');
-      const rawList = books || aggregatedData.map((row) => row.bookTitle || '');
+      const rawList = books || allGraphics.map((row) => row.bookTitle || '');
       const normalized = Array.from(new Map(rawList.map((title) => [String(title).trim().toLowerCase(), String(title).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = '<option value="">All Books</option>' + normalized.map((book) => `<option>${escapeHtml(book)}</option>`).join('');
     }
 
+    function buildCatalogDropdown(catalogs = null) {
+      const sel = document.getElementById('catalogDropdown');
+      const rawList = catalogs || allGraphics.map((row) => row.releaseCatalog || '');
+      const normalized = Array.from(new Map(rawList.map((catalog) => [String(catalog).trim().toLowerCase(), String(catalog).trim()])).values())
+        .filter(Boolean)
+        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+      sel.innerHTML = '<option value="">All Catalogs</option>' + normalized.map((catalog) => `<option>${escapeHtml(catalog)}</option>`).join('');
+    }
+
     function buildTypeDropdown(types = null) {
       const sel = document.getElementById('typeDropdown');
-      const rawList = types || aggregatedData.map((row) => row.type || '');
+      const rawList = types || allGraphics.map((row) => row.type || '');
       const normalized = Array.from(new Map(rawList.map((type) => [String(type).trim().toLowerCase(), String(type).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
@@ -622,6 +645,7 @@
       const userVal = document.getElementById('userDropdown').value.trim().toLowerCase();
       const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
+      const catalogVal = document.getElementById('catalogDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
       const charCountMinRaw = document.getElementById('characterCountMin').value.trim();
@@ -642,6 +666,7 @@
       if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
       if (typeVal) data = data.filter((row) => normalizeTypeForFilter(row.type) === typeVal);
       if (bookVal) data = data.filter((row) => String(row.bookTitle || '').trim().toLowerCase() === bookVal);
+      if (catalogVal) data = data.filter((row) => String(row.releaseCatalog || '').trim().toLowerCase() === catalogVal);
       if (hasCharCountFilter) {
         data = data.filter((row) => {
           const rowType = normalizeTypeForFilter(row.type);
@@ -692,7 +717,9 @@
 
     function renderProgressBars() {
       const userVal = document.getElementById('userDropdown').value;
+      const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
+      const catalogVal = document.getElementById('catalogDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
       const showCompleted = document.getElementById('filterCompletedBooks').checked;
@@ -701,10 +728,16 @@
       allGraphics.forEach((graphic) => {
         const title = String(graphic.bookTitle || '').trim();
         if (!title) return;
-        const key = title.toLowerCase();
-        if (bookVal && key !== bookVal) return;
-        if (!bookMap[key]) bookMap[key] = { title, total: 0, voted: 0 };
+        const catalog = String(graphic.releaseCatalog || '').trim();
+        const bookKey = title.toLowerCase();
+        const key = `${bookKey}|${catalog.toLowerCase()}`;
+        if (bookVal && bookKey !== bookVal) return;
+        if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
+        const graphicType = String(graphic.type || '').trim().toUpperCase();
+        if (typeVal && normalizeTypeForFilter(graphicType) !== typeVal) return;
+        if (!bookMap[key]) bookMap[key] = { title, catalog, total: 0, voted: 0, counts: { QI: 0, INT: 0, EXC: 0, FP: 0, VV: 0, YT: 0 } };
         bookMap[key].total += 1;
+        if (bookMap[key].counts[graphicType] != null) bookMap[key].counts[graphicType] += 1;
       });
 
       const source = userVal
@@ -716,8 +749,13 @@
         : aggregatedData.filter((row) => row.totalVotes > 0);
 
       source.forEach((row) => {
-        const key = String(row.bookTitle || '').trim().toLowerCase();
-        if (bookVal && key !== bookVal) return;
+        const title = String(row.bookTitle || '').trim();
+        const catalog = String(row.releaseCatalog || '').trim();
+        const bookKey = title.toLowerCase();
+        const key = `${bookKey}|${catalog.toLowerCase()}`;
+        if (bookVal && bookKey !== bookVal) return;
+        if (catalogVal && String(row.releaseCatalog || '').trim().toLowerCase() !== catalogVal) return;
+        if (typeVal && normalizeTypeForFilter(row.type) !== typeVal) return;
         if (bookMap[key]) bookMap[key].voted += 1;
       });
 
@@ -728,6 +766,14 @@
       rows.sort((a, b) => {
         let va, vb;
         switch (currentProgressSortKey) {
+          case 'catalog': va = a.catalog.toLowerCase(); vb = b.catalog.toLowerCase(); break;
+          case 'QI':
+          case 'INT':
+          case 'EXC':
+          case 'FP':
+          case 'VV':
+          case 'YT':
+            va = a.counts[currentProgressSortKey] || 0; vb = b.counts[currentProgressSortKey] || 0; break;
           case 'votes': va = a.voted; vb = b.voted; break;
           case 'total': va = a.total; vb = b.total; break;
           case 'percent': va = a.total ? a.voted / a.total : 0; vb = b.total ? b.voted / b.total : 0; break;
@@ -742,7 +788,7 @@
       const tbody = document.getElementById('progressBarsBody');
       tbody.innerHTML = '';
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="4"><div class="empty">No progress rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11"><div class="empty">No progress rows match the current filters.</div></td></tr>';
         return;
       }
 
@@ -751,6 +797,13 @@
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${escapeHtml(row.title)}</td>
+          <td>${escapeHtml(row.catalog || '')}</td>
+          <td>${row.counts.QI || 0}</td>
+          <td>${row.counts.INT || 0}</td>
+          <td>${row.counts.EXC || 0}</td>
+          <td>${row.counts.FP || 0}</td>
+          <td>${row.counts.VV || 0}</td>
+          <td>${row.counts.YT || 0}</td>
           <td>${row.voted}</td>
           <td>${row.total}</td>
           <td>
@@ -830,6 +883,7 @@
         buildUserDropdown();
         buildTypeDropdown();
         buildBookDropdown();
+        buildCatalogDropdown();
         filteredData = aggregatedData.slice();
         sortData();
         setControlsDisabled(false);
@@ -853,6 +907,7 @@
         filterData();
       });
       document.getElementById('bookDropdown').addEventListener('change', filterData);
+      document.getElementById('catalogDropdown').addEventListener('change', filterData);
       document.getElementById('characterCountMin').addEventListener('input', filterData);
       document.getElementById('characterCountMax').addEventListener('input', filterData);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);

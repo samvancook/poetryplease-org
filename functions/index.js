@@ -1444,6 +1444,7 @@ async function buildScoreboardPayload() {
       fileLink: item.imageUrl || item.bookLink || "",
       type: item.imageType || "",
       excerpt: item.excerpt || "",
+      releaseCatalog: item.releaseCatalog || "",
       charCount: countCharacters([item.author || "", item.title || "", item.excerpt || ""]),
     };
     keys.forEach((key) => metaMap.set(key, payload));
@@ -1472,6 +1473,7 @@ async function buildScoreboardPayload() {
       fileLink: meta.fileLink || "",
       type: inferredType,
       excerpt: meta.excerpt || "",
+      releaseCatalog: meta.releaseCatalog || "",
       charCount: Number(meta.charCount || 0) || 0,
     };
   });
@@ -1492,6 +1494,7 @@ async function buildScoreboardPayload() {
         movedMe: 0,
         totalVotes: 0,
         type: vote.type || "",
+        releaseCatalog: vote.releaseCatalog || "",
         charCount: Number(vote.charCount || 0) || 0,
       });
     }
@@ -1514,6 +1517,7 @@ async function buildScoreboardPayload() {
       imageId: item.imageId || "",
       bookTitle: item.book || "‹no book›",
       type: item.imageType || "",
+      releaseCatalog: item.releaseCatalog || "",
     }));
 
   return {
