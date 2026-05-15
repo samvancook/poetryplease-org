@@ -2300,6 +2300,14 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     updatedAt: now,
     updatedBy: normalizeText(options.updatedBy || ""),
   };
+  const sourceSystem = normalizeText(body.sourceSystem);
+  const sourceRecordId = normalizeText(body.sourceRecordId);
+  if (sourceSystem) payload.sourceSystem = sourceSystem;
+  if (sourceRecordId) payload.sourceRecordId = sourceRecordId;
+  if (normalizeText(body.sourceUrl)) payload.sourceUrl = normalizeText(body.sourceUrl);
+  if (normalizeText(body.approvedAt)) payload.approvedAt = normalizeText(body.approvedAt);
+  if (normalizeText(body.sourceUpdatedAt || body.updatedAt)) payload.sourceUpdatedAt = normalizeText(body.sourceUpdatedAt || body.updatedAt);
+  if (normalizeText(body.sourceContentId)) payload.sourceContentId = normalizeText(body.sourceContentId);
 
   if (type === "graphics") {
     payload.title = normalizeText(body.title);
@@ -3982,6 +3990,84 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
   };
 }
 
+function flattenWeaverExcerptRecords(rawPayload) {
+  if (Array.isArray(rawPayload)) return rawPayload;
+  if (Array.isArray(rawPayload?.records)) return rawPayload.records;
+  if (Array.isArray(rawPayload?.items)) return rawPayload.items;
+  if (Array.isArray(rawPayload?.excerpts)) return rawPayload.excerpts;
+  return rawPayload && typeof rawPayload === "object" ? [rawPayload] : [];
+}
+
+function buildWeaverExcerptImportItem(record = {}) {
+  const sourceRecordId = normalizeText(record.sourceRecordId || record.recordId || record.id || record.ledgerId);
+  const recordId = normalizeText(record.recordId || record.docId || record.imageId || (sourceRecordId ? `weaver-exc-${sourceRecordId}` : ""));
+  return {
+    docId: recordId,
+    imageId: recordId,
+    imageID: recordId,
+    imageType: "EXC",
+    sourceSystem: normalizeText(record.sourceSystem || "weaver"),
+    sourceRecordId,
+    sourceUrl: normalizeText(record.sourceUrl || record.weaverUrl || record.url),
+    sourceContentId: normalizeText(record.sourceContentId || record.relatedGraphicId || ""),
+    author: normalizeText(record.author),
+    book: normalizeText(record.book || record.bookTitle),
+    title: normalizeText(record.poem || record.poemTitle || record.title),
+    poem: normalizeText(record.poem || record.poemTitle || record.title),
+    excerpt: normalizeText(record.excerpt || record.excerptText || record.text),
+    pageNumber: normalizeText(record.pageNumber),
+    bookShortener: normalizeText(record.bookShortener),
+    bookLink: normalizeText(record.bookLink),
+    releaseCatalog: normalizeText(record.releaseCatalog),
+    driveLink: normalizeText(record.driveLink),
+    approvedAt: normalizeText(record.approvedAt),
+    sourceUpdatedAt: normalizeText(record.updatedAt),
+  };
+}
+
+async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
+  const sourceRecords = flattenWeaverExcerptRecords(rawPayload);
+  const mappedItems = sourceRecords.map(buildWeaverExcerptImportItem).filter((item) => item.docId && item.author && item.book && item.poem && item.excerpt);
+  if (!mappedItems.length) {
+    const err = new Error("no_importable_weaver_excerpt_records");
+    err.status = 400;
+    throw err;
+  }
+
+  const results = [];
+  for (const item of mappedItems.slice(0, 500)) {
+    try {
+      const result = await upsertContentLibraryItem("excerpts", item, actor);
+      results.push({ ok: true, id: result.item?.id || item.docId, created: !!result.created });
+    } catch (err) {
+      results.push({
+        ok: false,
+        id: deriveContentDocId("excerpts", item) || item.docId || "",
+        error: err.message || "import_failed",
+      });
+    }
+  }
+
+  const createdCount = results.filter((row) => row.ok && row.created).length;
+  const updatedCount = results.filter((row) => row.ok && !row.created).length;
+  const errorCount = results.filter((row) => !row.ok).length;
+  if (createdCount || updatedCount) {
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot("content_weaver_import:excerpts");
+  }
+
+  return {
+    ok: true,
+    sourceCount: sourceRecords.length,
+    eligibleCount: mappedItems.length,
+    mappedCount: mappedItems.length,
+    createdCount,
+    updatedCount,
+    errorCount,
+    results,
+  };
+}
+
 app.post(getBoth("/admin/contentLibrary/weaverImport"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -4006,7 +4092,7 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
   }
 
   try {
-    const defaultImageType = normalizeText(req.body?.imageType || "QI").toUpperCase();
+    const defaultImageType = normalizeText(req.body?.contentType || req.body?.imageType || "QI").toUpperCase();
     const rawPayload = req.body?.payload
       || req.body?.records
       || (normalizeText(req.body?.sourceUrl) ? await fetchRemoteJson(req.body.sourceUrl) : null);
@@ -4014,10 +4100,13 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
       return res.status(400).json({ error: "missing_weaver_payload" });
     }
 
-    const result = await importWeaverGraphicsPayload(rawPayload, defaultImageType, {
+    const actor = {
       uid: "weaver-automation",
       email: "weaver-automation@buttonpoetry.com",
-    });
+    };
+    const result = defaultImageType === "EXC"
+      ? await importWeaverExcerptsPayload(rawPayload, actor)
+      : await importWeaverGraphicsPayload(rawPayload, defaultImageType, actor);
     res.json(result);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "weaver_import_failed" });
