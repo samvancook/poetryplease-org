@@ -7,6 +7,7 @@
 - Admin workflow improvements
 - Author account framework and implementation
 - Import and pipeline reliability into Poetry Please
+- Maintain `APP_FUNCTION.md` as the canonical app/storage model reference
 - Weaver -> Poetry Please graphics handoff (`QI` first)
 - Catalog coverage diagnostics for low/missing marketing support by book
 - Ranked texts endpoint for P.I.G. (`EXC` + `FP` first)
