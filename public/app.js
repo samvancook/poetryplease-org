@@ -921,6 +921,14 @@ function showWelcomeChoice() {
   document.getElementById('pp-welcome-login')?.addEventListener('click', signInWithGoogle);
 }
 
+function scheduleWelcomeChoice() {
+  if (IS_EMBED_UI) return;
+  window.setTimeout(() => {
+    if (currentItem || getVisibleUser()) return;
+    showWelcomeChoice();
+  }, 900);
+}
+
 // ===== Anonymous ID helper (local only, no API) =====
 async function getOrCreateAnonId() {
   let anon = localStorage.getItem('pp_anon');
@@ -2998,7 +3006,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
-  showWelcomeChoice();
+  scheduleWelcomeChoice();
   if (!currentItem) ppAutoloadFirstItem();
   window.setTimeout(() => {
     // If Firebase auth never fires, keep Poetry Please usable instead of
