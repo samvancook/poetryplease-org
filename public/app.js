@@ -838,6 +838,7 @@ async function mergeAnonymousVotesIntoAccount() {
 function showLoginScreen() { show($('#registration-screen'), false); show($('#login-screen'), true); }
 function showRegistrationForm() { show($('#login-screen'), false); show($('#registration-screen'), true); }
 async function signInWithGoogle() {
+  hideWelcomeChoice();
   const auth = firebase.auth();
   const provider = new firebase.auth.GoogleAuthProvider();
 
@@ -877,7 +878,7 @@ async function handleRegistration(e) {
 }
 
 // ===== API Mappings (to your Cloud Functions) =====
-const STARTUP_BATCH_SIZE = 40;
+const STARTUP_BATCH_SIZE = 12;
 const FULL_HYDRATION_BATCH_SIZE = 5000;
 const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
 const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
@@ -889,6 +890,36 @@ const getJSONWrapped              = (path) => api(path, { method: 'GET' });
 const submitVoteWrapped           = (imageId, voteType, userId) => api('vote', { body: { imageId, voteType, userId } });
 const getRatingsSummaryWrapped    = () => api('ratingsSummary',  { method: 'GET' });
 const submitContentFlagWrapped    = (imageId, note) => api('contentFlags', { method: 'POST', body: { imageId, note } });
+
+function hideWelcomeChoice() {
+  const el = document.getElementById('pp-welcome-choice');
+  if (el) el.remove();
+}
+
+function showWelcomeChoice() {
+  if (IS_EMBED_UI || document.getElementById('pp-welcome-choice')) return;
+  const visible = getVisibleUser();
+  if (visible) return;
+  const el = document.createElement('div');
+  el.id = 'pp-welcome-choice';
+  el.style.cssText = 'position:fixed;inset:0;z-index:22000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(250,247,240,0.74);backdrop-filter:blur(5px);';
+  el.innerHTML = `
+    <div style="max-width:420px;width:min(100%,420px);border:1px solid #d8cdbd;border-radius:24px;background:#fffaf2;box-shadow:0 24px 80px rgba(43,34,24,0.18);padding:28px;text-align:center;color:#34291f;">
+      <div style="font-family:Georgia,serif;font-size:34px;line-height:1.05;margin-bottom:10px;">Poetry, Please</div>
+      <div style="font-size:15px;line-height:1.45;color:#6c6558;margin-bottom:22px;">Log in to save votes across devices, or continue reading while the feed loads.</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+        <button id="pp-welcome-continue" type="button" style="border:1px solid #d8cdbd;border-radius:999px;background:#34291f;color:#fff;padding:12px 18px;font-weight:700;cursor:pointer;">Continue without logging in</button>
+        <button id="pp-welcome-login" type="button" style="border:1px solid #d8cdbd;border-radius:999px;background:#fff;color:#34291f;padding:12px 18px;font-weight:700;cursor:pointer;">Log in with Google</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+  document.getElementById('pp-welcome-continue')?.addEventListener('click', () => {
+    hideWelcomeChoice();
+    if (!currentItem) ppAutoloadFirstItem();
+  });
+  document.getElementById('pp-welcome-login')?.addEventListener('click', signInWithGoogle);
+}
 
 // ===== Anonymous ID helper (local only, no API) =====
 async function getOrCreateAnonId() {
@@ -2913,6 +2944,7 @@ async function ppAutoloadFirstItem() {
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
   const visibleUser = user && !user.isAnonymous ? user : null;
+  if (visibleUser) hideWelcomeChoice();
   const loginEl  = document.getElementById('login-screen');
   const registrationEl = document.getElementById('registration-screen');
   const poetryEl = document.getElementById('poetry-screen');
@@ -2966,6 +2998,8 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
+  showWelcomeChoice();
+  if (!currentItem) ppAutoloadFirstItem();
   window.setTimeout(() => {
     // If Firebase auth never fires, keep Poetry Please usable instead of
     // stranding returning visitors on the primary loading screen.
