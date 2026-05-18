@@ -2285,6 +2285,8 @@ function renderEmptyFilterState(message = getEmptyFilterMessage()) {
   setViewportVars();
   adjustViewportFit();
   window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: null } }));
+  LoaderController.clearInline();
+  LoaderController.markScreenReady();
   if (currentUserIsAdmin() && document.getElementById('pp-feed-signals-modal')?.style.display === 'flex') {
     renderFeedSignalsModal();
   }
