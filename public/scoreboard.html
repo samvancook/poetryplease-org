@@ -489,14 +489,16 @@
         };
       };
       const headers = isUserView
-        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'excerpt', 'vote']
-        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score', 'scorePerVote', 'likeRate', 'movedMeRate', 'mehRate', 'dislikeRate'];
+        ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'cloudLink', 'driveLink', 'sourceFolderLink', 'sourceFileName', 'excerpt', 'vote']
+        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'cloudLink', 'driveLink', 'sourceFolderLink', 'sourceFileName', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score', 'scorePerVote', 'likeRate', 'movedMeRate', 'mehRate', 'dislikeRate'];
       const values = [
         headers,
         ...rows.map((row) => {
           const derived = isUserView ? {} : computeExportMetrics(row);
           return headers.map((key) => {
-            const rawValue = key in derived ? derived[key] : row[key];
+            const rawValue = key === 'fileLink'
+              ? (row.driveLink || row.fileLink || row.cloudLink)
+              : (key in derived ? derived[key] : row[key]);
             const value = key === 'type' ? formatContentTypeLabel(rawValue) : rawValue;
             return typeof value === 'number' ? value : (value ?? '');
           });

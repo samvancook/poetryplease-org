@@ -1437,12 +1437,20 @@ async function buildScoreboardPayload() {
     const keys = uniq([imageId, contentId].filter(Boolean));
     if (!keys.length) return;
     if (keys.some((key) => flaggedIds.has(normalizeKey(key)))) return;
+    const cloudLink = normalizeText(item.imageUrl || item.url || item.videoUrl || "");
+    const driveLink = normalizeText(item.driveLink || "");
+    const sourceFolderLink = normalizeText(item.sourceFolderLink || readMiscValue(item.misc, "sourceFolderLink"));
+    const sourceFileName = normalizeText(item.sourceFileName || readMiscValue(item.misc, "sourceFileName"));
     const payload = {
       imageId: imageId || contentId,
       author: item.author || "",
       poemTitle: item.title || item.poem || "",
       bookTitle: item.book || "",
-      fileLink: item.imageUrl || item.bookLink || "",
+      fileLink: cloudLink || item.bookLink || "",
+      cloudLink,
+      driveLink,
+      sourceFolderLink,
+      sourceFileName,
       type: item.imageType || "",
       excerpt: item.excerpt || "",
       releaseCatalog: item.releaseCatalog || "",
@@ -1472,6 +1480,10 @@ async function buildScoreboardPayload() {
       poemTitle: meta.poemTitle || "‹no title›",
       bookTitle: meta.bookTitle || "‹no book›",
       fileLink: meta.fileLink || "",
+      cloudLink: meta.cloudLink || "",
+      driveLink: meta.driveLink || "",
+      sourceFolderLink: meta.sourceFolderLink || "",
+      sourceFileName: meta.sourceFileName || "",
       type: inferredType,
       excerpt: meta.excerpt || "",
       releaseCatalog: meta.releaseCatalog || "",
@@ -1488,6 +1500,10 @@ async function buildScoreboardPayload() {
         poemTitle: vote.poemTitle,
         bookTitle: vote.bookTitle,
         fileLink: vote.fileLink,
+        cloudLink: vote.cloudLink || "",
+        driveLink: vote.driveLink || "",
+        sourceFolderLink: vote.sourceFolderLink || "",
+        sourceFileName: vote.sourceFileName || "",
         excerpt: vote.excerpt || "",
         likes: 0,
         dislikes: 0,
@@ -1516,6 +1532,10 @@ async function buildScoreboardPayload() {
       poemTitle: meta.poemTitle || "‹no title›",
       bookTitle: meta.bookTitle || "‹no book›",
       fileLink: meta.fileLink || "",
+      cloudLink: meta.cloudLink || "",
+      driveLink: meta.driveLink || "",
+      sourceFolderLink: meta.sourceFolderLink || "",
+      sourceFileName: meta.sourceFileName || "",
       excerpt: meta.excerpt || "",
       likes: 0,
       dislikes: 0,
@@ -2994,13 +3014,13 @@ app.post(getBoth("/scoreboard/exportSheet"), async (req, res) => {
   if (!rows.length) return res.status(400).json({ error: "no_rows" });
 
   const headers = isUserView
-    ? ["imageId", "author", "poemTitle", "bookTitle", "type", "fileLink", "excerpt", "vote"]
-    : ["imageId", "author", "poemTitle", "bookTitle", "type", "fileLink", "excerpt", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score"];
+    ? ["imageId", "author", "poemTitle", "bookTitle", "type", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "vote"]
+    : ["imageId", "author", "poemTitle", "bookTitle", "type", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score"];
 
   const normalizedRows = rows.map((row) =>
     headers.map((key) => {
-      const value = row?.[key];
-      return typeof value === "string" ? value : value == null ? "" : String(value);
+      const rawValue = key === "fileLink" ? (row?.driveLink || row?.fileLink || row?.cloudLink) : row?.[key];
+      return typeof rawValue === "string" ? rawValue : rawValue == null ? "" : String(rawValue);
     })
   );
 
