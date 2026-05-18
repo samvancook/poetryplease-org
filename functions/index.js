@@ -2346,6 +2346,8 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   const sourceRecordId = normalizeText(body.sourceRecordId);
   if (sourceSystem) payload.sourceSystem = sourceSystem;
   if (sourceRecordId) payload.sourceRecordId = sourceRecordId;
+  if (normalizeText(body.excerptHash)) payload.excerptHash = normalizeText(body.excerptHash);
+  if (normalizeText(body.normalizedExcerpt)) payload.normalizedExcerpt = normalizeText(body.normalizedExcerpt);
   if (normalizeText(body.sourceUrl)) payload.sourceUrl = normalizeText(body.sourceUrl);
   if (normalizeText(body.approvedAt)) payload.approvedAt = normalizeText(body.approvedAt);
   if (normalizeText(body.sourceUpdatedAt || body.updatedAt)) payload.sourceUpdatedAt = normalizeText(body.sourceUpdatedAt || body.updatedAt);
@@ -4040,16 +4042,20 @@ function flattenWeaverExcerptRecords(rawPayload) {
   return rawPayload && typeof rawPayload === "object" ? [rawPayload] : [];
 }
 
+function resolveExcerptBookShortener(item = {}) {
+  const explicit = sanitizeDocIdSegment(item.bookShortener);
+  if (explicit) return explicit.toUpperCase();
+  const match = resolveCatalogBookRecord({ author: item.author, book: item.book });
+  return sanitizeDocIdSegment(match?.bookShortener || "").toUpperCase();
+}
+
 function buildWeaverExcerptImportItem(record = {}) {
-  const sourceRecordId = normalizeText(record.sourceRecordId || record.recordId || record.id || record.ledgerId);
-  const recordId = normalizeText(record.recordId || record.docId || record.imageId || (sourceRecordId ? `weaver-exc-${sourceRecordId}` : ""));
+  const sourceRecordId = normalizeText(record.sourceRecordId || record.excerptHash || record.recordId || record.id || record.ledgerId);
   return {
-    docId: recordId,
-    imageId: recordId,
-    imageID: recordId,
     imageType: "EXC",
     sourceSystem: normalizeText(record.sourceSystem || "weaver"),
     sourceRecordId,
+    excerptHash: normalizeText(record.excerptHash || sourceRecordId),
     sourceUrl: normalizeText(record.sourceUrl || record.weaverUrl || record.url),
     sourceContentId: normalizeText(record.sourceContentId || record.relatedGraphicId || ""),
     author: normalizeText(record.author),
@@ -4057,6 +4063,7 @@ function buildWeaverExcerptImportItem(record = {}) {
     title: normalizeText(record.poem || record.poemTitle || record.title),
     poem: normalizeText(record.poem || record.poemTitle || record.title),
     excerpt: normalizeText(record.excerpt || record.excerptText || record.text),
+    normalizedExcerpt: normalizeText(record.normalizedExcerpt),
     pageNumber: normalizeText(record.pageNumber),
     bookShortener: normalizeText(record.bookShortener),
     bookLink: normalizeText(record.bookLink),
@@ -4067,9 +4074,32 @@ function buildWeaverExcerptImportItem(record = {}) {
   };
 }
 
+function assignCanonicalExcerptIds(items = []) {
+  const grouped = new Map();
+  items.forEach((item, index) => {
+    const bookShortener = resolveExcerptBookShortener(item);
+    if (!bookShortener || !item.poem) return;
+    const key = `${bookShortener}|${slugify(item.poem)}`;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push({ item, index, bookShortener });
+  });
+
+  grouped.forEach((entries) => {
+    entries.forEach(({ item, bookShortener }, idx) => {
+      const baseId = `${bookShortener}-EXC-${slugify(item.poem)}`.toUpperCase();
+      const docId = entries.length > 1 ? `${baseId}-${idx + 1}` : baseId;
+      item.docId = docId;
+      item.imageId = docId;
+      item.imageID = docId;
+      item.bookShortener = bookShortener;
+    });
+  });
+  return items;
+}
+
 async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const sourceRecords = flattenWeaverExcerptRecords(rawPayload);
-  const mappedItems = sourceRecords.map(buildWeaverExcerptImportItem).filter((item) => item.docId && item.author && item.book && item.poem && item.excerpt);
+  const mappedItems = assignCanonicalExcerptIds(sourceRecords.map(buildWeaverExcerptImportItem)).filter((item) => item.docId && item.author && item.book && item.poem && item.excerpt);
   if (!mappedItems.length) {
     const err = new Error("no_importable_weaver_excerpt_records");
     err.status = 400;
