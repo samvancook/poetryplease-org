@@ -1438,14 +1438,15 @@ async function buildScoreboardPayload() {
     if (!keys.length) return;
     if (keys.some((key) => flaggedIds.has(normalizeKey(key)))) return;
     const payload = {
+      imageId: imageId || contentId,
       author: item.author || "",
-      poemTitle: item.title || "",
+      poemTitle: item.title || item.poem || "",
       bookTitle: item.book || "",
       fileLink: item.imageUrl || item.bookLink || "",
       type: item.imageType || "",
       excerpt: item.excerpt || "",
       releaseCatalog: item.releaseCatalog || "",
-      charCount: countCharacters([item.author || "", item.title || "", item.excerpt || ""]),
+      charCount: countCharacters([item.author || "", item.title || item.poem || "", item.excerpt || ""]),
     };
     keys.forEach((key) => metaMap.set(key, payload));
   };
@@ -1504,6 +1505,27 @@ async function buildScoreboardPayload() {
     else if (vote.vote === "meh") entry.meh += 1;
     else if (vote.vote === "moved me") entry.movedMe += 1;
     entry.totalVotes += 1;
+  });
+
+  metaMap.forEach((meta) => {
+    const imageId = normalizeText(meta.imageId);
+    if (!imageId || board.has(imageId)) return;
+    board.set(imageId, {
+      imageId,
+      author: meta.author || "‹no author›",
+      poemTitle: meta.poemTitle || "‹no title›",
+      bookTitle: meta.bookTitle || "‹no book›",
+      fileLink: meta.fileLink || "",
+      excerpt: meta.excerpt || "",
+      likes: 0,
+      dislikes: 0,
+      meh: 0,
+      movedMe: 0,
+      totalVotes: 0,
+      type: meta.type || "",
+      releaseCatalog: meta.releaseCatalog || "",
+      charCount: Number(meta.charCount || 0) || 0,
+    });
   });
 
   const aggregated = Array.from(board.values()).map((entry) => ({
