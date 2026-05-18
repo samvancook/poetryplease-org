@@ -1999,7 +1999,7 @@ function orderByCommunityPreference(list, options = {}) {
 // ===== Data fetch wrappers =====
 async function fetchLatestBatch() {
   const user = firebase.auth().currentUser;
-  if (user) return fetchBootstrapWrapped();
+  if (user && !user.isAnonymous) return fetchBootstrapWrapped();
 
   const anonId = await getOrCreateAnonId();
   return fetchBootstrapAnonWrapped(anonId);
@@ -2021,7 +2021,7 @@ function getActiveFilterPayload(extra = {}) {
 
 async function fetchFilteredFeedData() {
   const user = firebase.auth().currentUser;
-  if (user) return fetchFilteredWrapped(getActiveFilterPayload());
+  if (user && !user.isAnonymous) return fetchFilteredWrapped(getActiveFilterPayload());
 
   const anonId = await getOrCreateAnonId();
   return fetchFilteredWrapped(getActiveFilterPayload({ anonId }));
@@ -2029,7 +2029,7 @@ async function fetchFilteredFeedData() {
 
 async function fetchFullFeedData() {
   const user = firebase.auth().currentUser;
-  if (user) return fetchFullDataWrapped();
+  if (user && !user.isAnonymous) return fetchFullDataWrapped();
 
   const anonId = await getOrCreateAnonId();
   return fetchFullDataAnonWrapped(anonId);
