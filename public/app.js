@@ -275,11 +275,12 @@ const LoaderController = (() => {
           if (state.loaderHidden) return;
           hidePrimary();
           // Auth restoration can hang on stale browser state. Never leave the UI
-          // trapped behind a loading layer; expose the app/login controls.
+          // trapped behind only the primary splash; keep the inline loader until
+          // an item actually renders so we do not expose a blank shell.
           state.authResolved = true;
           state.screenReady = true;
-          clearInline();
           maybeHidePrimary();
+          if (typeof currentItem === 'undefined' || !currentItem) showInline();
           if (typeof ppAutoloadFirstItem === 'function') ppAutoloadFirstItem();
         }, state.maxLoaderMs);
       }
@@ -2965,10 +2966,10 @@ window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
   window.setTimeout(() => {
     // If Firebase auth never fires, keep Poetry Please usable instead of
-    // stranding returning visitors on the loading screen.
+    // stranding returning visitors on the primary loading screen.
     LoaderController.markAuthResolved();
     LoaderController.markScreenReady();
-    LoaderController.clearInline();
+    if (!currentItem) LoaderController.showInline();
     if (typeof ppAutoloadFirstItem === 'function' && !currentItem) ppAutoloadFirstItem();
   }, 3500);
   on(document.getElementById('pp-loader-reset'), 'click', () => resetLocalAppState());
