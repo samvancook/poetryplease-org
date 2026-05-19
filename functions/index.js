@@ -2843,6 +2843,16 @@ app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
   res.json(cats);
 });
 
+app.get(getBoth("/books"), async (_req, res) => {
+  const [allContent, flaggedIds] = await Promise.all([
+    getAllContentCached(),
+    getFlaggedContentIds(),
+  ]);
+  const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+  const books = [...new Set(all.map((i) => i.book).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  res.json(books);
+});
+
 // ratingsSummary
 app.get(getBoth("/ratingsSummary"), async (_req, res) => {
   const votesSnap = await getAllVotes();

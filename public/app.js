@@ -312,6 +312,7 @@ function queueDeferredBootWork() {
     }
     const selType = document.getElementById('type-filter');
     const selCat  = document.getElementById('catalog-filter');
+    const selBook = document.getElementById('book-filter');
     const cachedTypes = Array.isArray(lastData?.imageTypes) ? lastData.imageTypes : null;
     const cachedCatalogs = Array.isArray(lastData?.releaseCatalogs) ? lastData.releaseCatalogs : null;
     if (IS_EMBED_UI) {
@@ -327,9 +328,15 @@ function queueDeferredBootWork() {
         const sel = document.getElementById('catalog-filter');
         if (sel) sel.onchange = () => setCatalogFilter(sel.value);
       });
+      const bookTask = fetchAndPopulateBooks();
+      bookTask.then(() => {
+        const sel = document.getElementById('book-filter');
+        if (sel) sel.onchange = () => setBookDropdownFilter(sel.value);
+      });
     } else {
       if (selType) (cachedTypes ? populateTypesSelect(cachedTypes) : fetchAndPopulateTypes()).then(() => { selType.onchange = () => setTypeFilter(selType.value); });
       if (selCat)  (cachedCatalogs ? populateCatalogsSelect(cachedCatalogs) : fetchAndPopulateCatalogs()).then(() => { selCat.onchange  = () => setCatalogFilter(selCat.value); });
+      if (selBook) fetchAndPopulateBooks().then(() => { selBook.onchange = () => setBookDropdownFilter(selBook.value); });
     }
     if (!IS_EMBED_UI) {
       if (lastData?.ratingsSummary) {
@@ -793,6 +800,7 @@ function updateFilterControlsVisibility() {
   const canSeeDropdownFilters = currentUserIsTeamOrAdmin();
   const typeContainer = document.getElementById('type-filter-container');
   const catalogContainer = document.getElementById('catalog-filter-container');
+  const bookContainer = document.getElementById('book-filter-container');
   if (typeContainer) {
     if (canSeeDropdownFilters) typeContainer.style.removeProperty('display');
     else typeContainer.style.display = 'none';
@@ -800,6 +808,10 @@ function updateFilterControlsVisibility() {
   if (catalogContainer) {
     if (canSeeDropdownFilters) catalogContainer.style.removeProperty('display');
     else catalogContainer.style.display = 'none';
+  }
+  if (bookContainer) {
+    if (canSeeDropdownFilters) bookContainer.style.removeProperty('display');
+    else bookContainer.style.display = 'none';
   }
 }
 
@@ -1123,6 +1135,7 @@ async function getOrCreateAnonId() {
   body[data-ui="embed"] #user-status,
   body[data-ui="embed"] #type-filter-container,
   body[data-ui="embed"] #catalog-filter-container,
+  body[data-ui="embed"] #book-filter-container,
   body[data-ui="embed"] #login-screen,
   body[data-ui="embed"] #registration-screen,
   body[data-ui="embed"] #load-button,
@@ -1513,8 +1526,10 @@ function writeRouteState() {
 function syncFilterControls() {
   const typeSel = document.getElementById('type-filter');
   const catalogSel = document.getElementById('catalog-filter');
+  const bookSel = document.getElementById('book-filter');
   if (typeSel) typeSel.value = selectedType;
   if (catalogSel) catalogSel.value = selectedCatalog;
+  if (bookSel) bookSel.value = filterByBook ? selectedBook : '';
 }
 
 function initializeRouteState() {
@@ -1556,8 +1571,13 @@ function setBookFilter(active, book = currentItem?.book || selectedBook) {
   const nextBook = String(book || '').trim();
   filterByBook = !!active && !!nextBook;
   selectedBook = filterByBook ? nextBook : '';
+  syncFilterControls();
   writeRouteState();
   ensureFilterReadyThenRebuild();
+}
+
+function setBookDropdownFilter(value) {
+  setBookFilter(!!String(value || '').trim(), value);
 }
 
 initializeRouteState();
@@ -2147,6 +2167,20 @@ async function hydrateFullFeedInBackground() {
 }
 
 // ===== Filters: population =====
+async function populateBooksSelect(books) {
+  const sel = $('#book-filter');
+  if (!sel) return;
+  sel.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
+  (books || []).forEach(b => {
+    if (!b) return;
+    const opt = document.createElement('option');
+    opt.value = b;
+    opt.textContent = b;
+    sel.appendChild(opt);
+  });
+  syncFilterControls();
+}
+
 async function populateTypesSelect(types) {
   const sel = $('#type-filter');
   if (!sel) return;
@@ -2177,6 +2211,13 @@ async function populateCatalogsSelect(cats) {
     sel.appendChild(opt);
   });
   syncFilterControls();
+}
+
+async function fetchAndPopulateBooks() {
+  try {
+    const books = await getJSONWrapped('books').catch(() => []);
+    await populateBooksSelect(books);
+  } catch(e) { console.warn('fetchAndPopulateBooks error', e); }
 }
 
 async function fetchAndPopulateTypes() {
@@ -2260,7 +2301,7 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','type-filter-container','catalog-filter-container','page-title'];
+  const ids = ['user-status','type-filter-container','catalog-filter-container','book-filter-container','page-title'];
   const mediaWrap = document.getElementById('media-wrap');
   const nodes = [
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
