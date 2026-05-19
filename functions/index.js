@@ -699,6 +699,18 @@ function readMiscValue(misc = "", key = "") {
     .trim() || "";
 }
 
+function classifyExcQualityLane(item = {}) {
+  const type = normalizeText(item.imageType).toUpperCase();
+  if (type !== "EXC") return "";
+  const excerpt = normalizeText(item.excerpt);
+  const title = normalizeText(item.poem || item.title);
+  if (!normalizeText(item.releaseCatalog)) return "missing_catalog";
+  if (!title) return "missing_poem_title";
+  if (excerpt.includes("...")) return "photo_instruction_ellipsis";
+  if (excerpt.length > 280) return "too_long";
+  return "";
+}
+
 function buildGraphicDuplicateKeys(item = {}) {
   const keys = [];
   const sourceCompletionId = normalizeKey(
@@ -749,6 +761,7 @@ async function createContentDuplicateForItem(item, primary, actor, extra = {}) {
     author: item.author || "",
     imageType: item.imageType || "",
     releaseCatalog: item.releaseCatalog || "",
+    qualityLane: extra.qualityLane || classifyExcQualityLane(item),
     currentImageUrl: item.imageUrl || "",
     driveLink: item.driveLink || "",
     duplicateOfImageId: primary?.imageId || "",

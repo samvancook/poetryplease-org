@@ -801,6 +801,14 @@
             <option value="FP">Full Poems</option>
             <option value="VV">Video</option>
           </select>
+          <select id="flag-quality-lane-filter">
+            <option value="all">All quality lanes</option>
+            <option value="photo_instruction_ellipsis">Photo instructions</option>
+            <option value="too_long">Too long</option>
+            <option value="duplicate_excerpt">Duplicate excerpt</option>
+            <option value="missing_catalog">Missing catalog</option>
+            <option value="missing_poem_title">Missing poem title</option>
+          </select>
           <select id="flag-sort">
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
@@ -878,6 +886,7 @@
       flagQuery: "",
       flagStatusFilter: "all",
       flagTypeFilter: "all",
+      flagQualityLaneFilter: "all",
       flagSort: "newest",
       batchFlagIdentifiers: [],
       usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') !== 'false',
@@ -2980,7 +2989,7 @@
                     </div>
                   </div>
                 </td>
-                <td>${flag.note || '—'}</td>
+                <td>${flag.qualityLane ? `<div><strong>${escapeHtml(formatQualityLane(flag.qualityLane))}</strong></div>` : ''}${flag.note || '—'}</td>
                 <td>${flag.flaggedByEmail || flag.flaggedByUid || '—'}</td>
                 <td>${formatLastActive(flag.createdAt)}</td>
                 <td>
@@ -3016,6 +3025,27 @@
       });
     }
 
+    function inferQualityLane(flag) {
+      const note = String(flag.note || '').toLowerCase();
+      if (flag.qualityLane) return flag.qualityLane;
+      if (note.includes('possible_photo_instruction_ellipsis') || note.includes('photo_instruction_ellipsis')) return 'photo_instruction_ellipsis';
+      if (note.includes('duplicate excerpt')) return 'duplicate_excerpt';
+      if (note.includes('missing catalog')) return 'missing_catalog';
+      if (note.includes('missing poem')) return 'missing_poem_title';
+      if (note.includes('too long')) return 'too_long';
+      return '';
+    }
+
+    function formatQualityLane(value) {
+      return ({
+        photo_instruction_ellipsis: 'Photo instructions',
+        too_long: 'Too long',
+        duplicate_excerpt: 'Duplicate excerpt',
+        missing_catalog: 'Missing catalog',
+        missing_poem_title: 'Missing poem title',
+      })[value] || value || 'Unclassified';
+    }
+
     function filteredFlags() {
       const query = String(state.flagQuery || '').trim().toLowerCase();
       const filtered = state.flags.filter((flag) => {
@@ -3033,7 +3063,9 @@
         const matchesStatus = state.flagStatusFilter === 'all' || (flag.status || 'pending') === state.flagStatusFilter;
         const matchesType = state.flagTypeFilter === 'all'
           || (state.flagTypeFilter === 'graphics' ? !['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') : (flag.imageType || '') === state.flagTypeFilter);
-        return matchesQuery && matchesStatus && matchesType;
+        const lane = inferQualityLane(flag);
+        const matchesQualityLane = state.flagQualityLaneFilter === 'all' || lane === state.flagQualityLaneFilter;
+        return matchesQuery && matchesStatus && matchesType && matchesQualityLane;
       });
       const byTime = (flag) => normalizeTimestamp(flag.createdAt)?.getTime?.() || 0;
       const alpha = (value) => String(value || '').toLowerCase();
@@ -3524,6 +3556,10 @@
       });
       document.getElementById("flag-type-filter").addEventListener("change", (event) => {
         state.flagTypeFilter = event.target.value || "all";
+        renderFlags();
+      });
+      document.getElementById("flag-quality-lane-filter").addEventListener("change", (event) => {
+        state.flagQualityLaneFilter = event.target.value || "all";
         renderFlags();
       });
       document.getElementById("flag-sort").addEventListener("change", (event) => {
