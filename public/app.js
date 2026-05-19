@@ -333,10 +333,14 @@ function queueDeferredBootWork() {
         const sel = document.getElementById('book-filter');
         if (sel) sel.onchange = () => setBookDropdownFilter(sel.value);
       });
+      const queueModeSel = document.getElementById('queue-mode-filter');
+      if (queueModeSel) queueModeSel.onchange = () => setQueueMode(queueModeSel.value);
     } else {
       if (selType) (cachedTypes ? populateTypesSelect(cachedTypes) : fetchAndPopulateTypes()).then(() => { selType.onchange = () => setTypeFilter(selType.value); });
       if (selCat)  (cachedCatalogs ? populateCatalogsSelect(cachedCatalogs) : fetchAndPopulateCatalogs()).then(() => { selCat.onchange  = () => setCatalogFilter(selCat.value); });
       if (selBook) fetchAndPopulateBooks().then(() => { selBook.onchange = () => setBookDropdownFilter(selBook.value); });
+      const queueModeSel = document.getElementById('queue-mode-filter');
+      if (queueModeSel) queueModeSel.onchange = () => setQueueMode(queueModeSel.value);
     }
     if (!IS_EMBED_UI) {
       if (lastData?.ratingsSummary) {
@@ -801,6 +805,7 @@ function updateFilterControlsVisibility() {
   const typeContainer = document.getElementById('type-filter-container');
   const catalogContainer = document.getElementById('catalog-filter-container');
   const bookContainer = document.getElementById('book-filter-container');
+  const queueModeContainer = document.getElementById('queue-mode-container');
   if (typeContainer) {
     if (canSeeDropdownFilters) typeContainer.style.removeProperty('display');
     else typeContainer.style.display = 'none';
@@ -812,6 +817,10 @@ function updateFilterControlsVisibility() {
   if (bookContainer) {
     if (canSeeDropdownFilters) bookContainer.style.removeProperty('display');
     else bookContainer.style.display = 'none';
+  }
+  if (queueModeContainer) {
+    if (canSeeDropdownFilters) queueModeContainer.style.removeProperty('display');
+    else queueModeContainer.style.display = 'none';
   }
 }
 
@@ -1136,6 +1145,7 @@ async function getOrCreateAnonId() {
   body[data-ui="embed"] #type-filter-container,
   body[data-ui="embed"] #catalog-filter-container,
   body[data-ui="embed"] #book-filter-container,
+  body[data-ui="embed"] #queue-mode-container,
   body[data-ui="embed"] #login-screen,
   body[data-ui="embed"] #registration-screen,
   body[data-ui="embed"] #load-button,
@@ -1451,6 +1461,7 @@ let selectedType   = '';
 let selectedCatalog= '';
 let selectedAuthor = '';
 let selectedBook = '';
+let selectedQueueMode = 'ranked';
 let selectedItemId = '';
 let embedLockedItemId = '';
 let selectedItemRecord = null;
@@ -1527,9 +1538,11 @@ function syncFilterControls() {
   const typeSel = document.getElementById('type-filter');
   const catalogSel = document.getElementById('catalog-filter');
   const bookSel = document.getElementById('book-filter');
+  const queueModeSel = document.getElementById('queue-mode-filter');
   if (typeSel) typeSel.value = selectedType;
   if (catalogSel) catalogSel.value = selectedCatalog;
   if (bookSel) bookSel.value = filterByBook ? selectedBook : '';
+  if (queueModeSel) queueModeSel.value = selectedQueueMode;
 }
 
 function initializeRouteState() {
@@ -1578,6 +1591,12 @@ function setBookFilter(active, book = currentItem?.book || selectedBook) {
 
 function setBookDropdownFilter(value) {
   setBookFilter(!!String(value || '').trim(), value);
+}
+
+function setQueueMode(value) {
+  selectedQueueMode = String(value || 'ranked').trim() || 'ranked';
+  syncFilterControls();
+  rebuildQueueAfterFilter();
 }
 
 initializeRouteState();
@@ -2262,6 +2281,20 @@ function buildFilteredList(data) {
     list.unshift(selectedItemRecord);
   }
 
+  if (selectedQueueMode === 'import-order') return list;
+  if (selectedQueueMode === 'zero-votes') {
+    return list.slice().sort((a, b) => (ratingMetaOf(a).total || 0) - (ratingMetaOf(b).total || 0));
+  }
+  if (selectedQueueMode === 'needs-attention') {
+    return list.slice().sort((a, b) => {
+      const ma = ratingMetaOf(a);
+      const mb = ratingMetaOf(b);
+      const scoreA = (ma.total ? 0 : 3) + (a.releaseCatalog ? 0 : 2) + (a.mediaUrl || a.imageType === 'EXC' || a.imageType === 'FP' ? 0 : 2);
+      const scoreB = (mb.total ? 0 : 3) + (b.releaseCatalog ? 0 : 2) + (b.mediaUrl || b.imageType === 'EXC' || b.imageType === 'FP' ? 0 : 2);
+      return scoreB - scoreA;
+    });
+  }
+
   // Explicit filter views are usually admin/team review passes; preserve the server order
   // so newly repaired/imported sets do not get buried by random community interleaving.
   if (hasActiveFeedFilters()) return list;
@@ -2301,7 +2334,7 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','type-filter-container','catalog-filter-container','book-filter-container','page-title'];
+  const ids = ['user-status','type-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
   const mediaWrap = document.getElementById('media-wrap');
   const nodes = [
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
