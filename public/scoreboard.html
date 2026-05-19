@@ -214,6 +214,9 @@
               <th data-column="FP">FP</th>
               <th data-column="VV">VV</th>
               <th data-column="YT">YT</th>
+              <th data-column="missingCatalog">Missing Catalog</th>
+              <th data-column="missingBucketUrl">Missing Bucket URL</th>
+              <th data-column="flagged">Flagged</th>
               <th data-column="missing">Missing Baseline</th>
               <th data-column="votes">Votes</th>
               <th data-column="total">Total</th>
@@ -750,7 +753,7 @@
         if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
         const graphicType = String(graphic.type || '').trim().toUpperCase();
         if (typeVal && normalizeTypeForFilter(graphicType) !== typeVal) return;
-        if (!bookMap[key]) bookMap[key] = { title, catalog, total: 0, voted: 0, counts: Object.fromEntries(PROGRESS_COUNT_TYPES.map((type) => [type, 0])), missingBaseline: 0, missingBaselineLabel: '' };
+        if (!bookMap[key]) bookMap[key] = { title, catalog, total: 0, voted: 0, counts: Object.fromEntries(PROGRESS_COUNT_TYPES.map((type) => [type, 0])), missingBaseline: 0, missingBaselineLabel: '', missingCatalog: 0, missingBucketUrl: 0, flagged: 0 };
         bookMap[key].total += 1;
         if (bookMap[key].counts[graphicType] != null) bookMap[key].counts[graphicType] += 1;
       });
@@ -772,6 +775,16 @@
         if (catalogVal && String(row.releaseCatalog || '').trim().toLowerCase() !== catalogVal) return;
         if (typeVal && normalizeTypeForFilter(row.type) !== typeVal) return;
         if (bookMap[key]) bookMap[key].voted += 1;
+      });
+
+      allGraphics.forEach((graphic) => {
+        const title = String(graphic.bookTitle || '').trim();
+        const catalog = String(graphic.releaseCatalog || '').trim();
+        const key = `${title.toLowerCase()}|${catalog.toLowerCase()}`;
+        if (!bookMap[key]) return;
+        if (graphic.missingCatalog) bookMap[key].missingCatalog += 1;
+        if (graphic.missingBucketUrl) bookMap[key].missingBucketUrl += 1;
+        if (graphic.flagged) bookMap[key].flagged += 1;
       });
 
       let rows = Object.values(bookMap);
@@ -800,6 +813,9 @@
           case 'VV':
           case 'YT':
             va = a.counts[currentProgressSortKey] || 0; vb = b.counts[currentProgressSortKey] || 0; break;
+          case 'missingCatalog': va = a.missingCatalog || 0; vb = b.missingCatalog || 0; break;
+          case 'missingBucketUrl': va = a.missingBucketUrl || 0; vb = b.missingBucketUrl || 0; break;
+          case 'flagged': va = a.flagged || 0; vb = b.flagged || 0; break;
           case 'missing': va = a.missingBaseline; vb = b.missingBaseline; break;
           case 'votes': va = a.voted; vb = b.voted; break;
           case 'total': va = a.total; vb = b.total; break;
@@ -815,7 +831,7 @@
       const tbody = document.getElementById('progressBarsBody');
       tbody.innerHTML = '';
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="13"><div class="empty">No progress rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="16"><div class="empty">No progress rows match the current filters.</div></td></tr>';
         return;
       }
 
@@ -832,6 +848,9 @@
           <td>${row.counts.FP || 0}</td>
           <td>${row.counts.VV || 0}</td>
           <td>${row.counts.YT || 0}</td>
+          <td>${row.missingCatalog || 0}</td>
+          <td>${row.missingBucketUrl || 0}</td>
+          <td>${row.flagged || 0}</td>
           <td>${escapeHtml(row.missingBaselineLabel || 'Complete')}</td>
           <td>${row.voted}</td>
           <td>${row.total}</td>

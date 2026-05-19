@@ -1553,13 +1553,16 @@ async function buildScoreboardPayload() {
     score: entry.likes + (entry.movedMe * 2) - entry.dislikes,
   }));
 
+  const flaggedKeySet = flaggedIds;
   const allGraphics = [...metaObjs, ...excerptObjs, ...fullPoemObjs, ...videoObjs]
-    .filter((item) => !flaggedIds.has(normalizeKey(item.imageId || "")))
     .map((item) => ({
       imageId: item.imageId || "",
       bookTitle: item.book || "‹no book›",
       type: item.imageType || "",
       releaseCatalog: item.releaseCatalog || "",
+      missingCatalog: !normalizeText(item.releaseCatalog),
+      missingBucketUrl: ["QI", "INT", "GP", "VV"].includes(normalizeText(item.imageType).toUpperCase()) && !normalizeText(item.imageUrl || item.videoUrl || item.url),
+      flagged: flaggedKeySet.has(normalizeKey(item.imageId || "")),
     }));
 
   return {
