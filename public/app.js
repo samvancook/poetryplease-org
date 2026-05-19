@@ -2221,6 +2221,10 @@ function buildFilteredList(data) {
     list.unshift(selectedItemRecord);
   }
 
+  // Explicit filter views are usually admin/team review passes; preserve the server order
+  // so newly repaired/imported sets do not get buried by random community interleaving.
+  if (hasActiveFeedFilters()) return list;
+
   // Guide the feed toward community-loved work while keeping room for exploration.
   const suppressMutedInitially = sessionVotes < 5;
   return orderByCommunityPreference(list, { includeMuted: !suppressMutedInitially });
