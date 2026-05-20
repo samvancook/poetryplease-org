@@ -456,6 +456,9 @@ async function redeemAuthorInviteIfPresent() {
     clearAuthorInviteToken();
     flashMessage('Author invite redeemed.');
     console.info('Author invite redeemed', result);
+    window.setTimeout(() => {
+      window.location.href = '/author/edit';
+    }, 500);
   } catch (err) {
     console.warn('Author invite redemption failed', err);
   } finally {

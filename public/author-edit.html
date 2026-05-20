@@ -68,6 +68,7 @@
     .featured-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
     .featured-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--accent-warm); color: #7a4d20; font-size: 13px; }
     .empty { border: 1px dashed var(--line); border-radius: 16px; padding: 16px; color: var(--muted); }
+    .is-hidden { display: none !important; }
   </style>
 </head>
 <body>
@@ -75,7 +76,8 @@
     <div class="topbar">
       <a href="/">Back to app</a>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-        <a href="/admin">Admin</a>
+        <a id="admin-link" href="/admin" class="is-hidden">Admin</a>
+        <button id="login-google" class="ghost is-hidden" type="button">Log in with Google</button>
         <button id="logout" class="secondary" type="button">Log out</button>
       </div>
     </div>
@@ -234,6 +236,25 @@
       const el = document.getElementById("photo-upload-status");
       el.textContent = message;
       el.className = `status${kind ? ` ${kind}` : ""}`;
+    }
+
+    async function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        await firebase.auth().signInWithPopup(provider);
+      } catch (err) {
+        if (err?.code === "auth/popup-blocked" || err?.code === "auth/popup-closed-by-user") {
+          await firebase.auth().signInWithRedirect(provider);
+          return;
+        }
+        throw err;
+      }
+    }
+
+    function setAccessUI({ signedIn = false, isAdmin = false } = {}) {
+      document.getElementById("login-google").classList.toggle("is-hidden", signedIn);
+      document.getElementById("logout").classList.toggle("is-hidden", !signedIn);
+      document.getElementById("admin-link").classList.toggle("is-hidden", !isAdmin);
     }
 
     async function getIdTokenOrNull() {
@@ -580,9 +601,11 @@
     async function init() {
       firebase.auth().onAuthStateChanged(async (user) => {
         if (!user) {
+          setAccessUI({ signedIn: false });
           setStatus("Please sign in first.", "error");
           return;
         }
+        setAccessUI({ signedIn: true });
         try {
           state.me = await api("me", { method: "GET" });
         } catch (err) {
@@ -590,6 +613,7 @@
           setStatus("Could not load account state.", "error");
           return;
         }
+        setAccessUI({ signedIn: true, isAdmin: state.me?.roles?.includes("admin") });
         if (!state.me?.roles?.some((role) => role === "author" || role === "admin")) {
           setStatus("You need author or admin access to edit author profiles.", "error");
           return;
@@ -598,6 +622,7 @@
       });
 
       document.getElementById("save").addEventListener("click", () => saveProfile());
+      document.getElementById("login-google").addEventListener("click", () => signInWithGoogle().catch((err) => setStatus(err.message || "Sign-in failed.", "error")));
       document.getElementById("upload-photo").addEventListener("click", () => uploadAuthorPhoto());
       document.getElementById("displayName").addEventListener("input", () => updateSlugUI());
       document.getElementById("slug").addEventListener("input", () => {
