@@ -945,9 +945,10 @@ function showWelcomeChoice() {
 function scheduleWelcomeChoice() {
   if (IS_EMBED_UI) return;
   window.setTimeout(() => {
+    if (!window.__pp_authResolved) return;
     if (currentItem || getVisibleUser()) return;
     showWelcomeChoice();
-  }, 900);
+  }, 1400);
 }
 
 // ===== Anonymous ID helper (local only, no API) =====
@@ -3029,6 +3030,7 @@ async function ppAutoloadFirstItem() {
 
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
+  window.__pp_authResolved = true;
   const visibleUser = user && !user.isAnonymous ? user : null;
   if (visibleUser) hideWelcomeChoice();
   const loginEl  = document.getElementById('login-screen');
@@ -3072,6 +3074,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
   if (currentItem) renderMetaRows(currentItem);
   dispatchEvent(new CustomEvent('pp:state'));
   ppAutoloadFirstItem();
+  if (!visibleUser) scheduleWelcomeChoice();
 
   if (visibleUser) {
     redeemAuthorInviteIfPresent().catch((err) => {
@@ -3084,15 +3087,16 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
-  scheduleWelcomeChoice();
   if (!currentItem) ppAutoloadFirstItem();
   window.setTimeout(() => {
     // If Firebase auth never fires, keep Poetry Please usable instead of
     // stranding returning visitors on the primary loading screen.
     LoaderController.markAuthResolved();
+    window.__pp_authResolved = true;
     LoaderController.markScreenReady();
     if (!currentItem) LoaderController.showInline();
     if (typeof ppAutoloadFirstItem === 'function' && !currentItem) ppAutoloadFirstItem();
+    scheduleWelcomeChoice();
   }, 3500);
   on(document.getElementById('pp-loader-reset'), 'click', () => resetLocalAppState());
   updateResetControlsVisibility();

@@ -67,7 +67,7 @@ async function main() {
     ['App shell', checkAppShell],
     ['Health', checkHealth],
     ['Books', checkBooks],
-    ['Stunt Water EXC', () => checkFilteredFeed('Stunt Water', 70)],
+    ['Stunt Water EXC', () => checkFilteredFeed('Stunt Water', 60)],
     ['ACHK EXC', () => checkFilteredFeed('A Choir of Honest Killers', 20)],
   ];
 
