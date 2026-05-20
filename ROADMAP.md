@@ -2,6 +2,8 @@
 
 ## Active Focus
 - App polish and reliability
+- Safer development and deploy workflow so new features do not destabilize existing app behavior
+- Public/general-user onboarding polish, load-time improvements, and non-Google account options
 - Mobile-specific UX cleanup
 - Feed and scoreboard clarity
 - Admin workflow improvements
@@ -15,7 +17,34 @@
 - Published social asset history ingestion tied back to Poetry Please items
 - Catalog-consistent `INT` import workflow for new Drive folders so incoming assets match existing catalog metadata and conventions
 
+## Top Product Priorities
+- Smooth the general user experience:
+  - make logged-out and anonymous entry feel intentional instead of like a loading state
+  - keep first content load fast and predictable
+  - improve account creation options beyond Google/Gmail where useful
+  - make login, continue-without-login, and account creation visually polished
+  - add lightweight load/error timing so stuck sessions are easier to diagnose
+- Get author accounts fully usable:
+  - finish author claim/invite flow
+  - give authors a simple dashboard of their own content
+  - let authors flag or suggest corrections on their own content
+  - show author-facing response summaries without exposing raw admin tooling
+- Reduce development risk while continuing feature work:
+  - use small scoped changes and checkpoint commits before risky edits
+  - add a short smoke-test checklist for every deploy
+  - add automated checks for logged-out load, logged-in load, filtered queue, scoreboard, and admin
+  - avoid mixing data repair, UI work, and unrelated deploys in one pass when possible
+  - keep lightweight deploy notes so we know what changed and why
+
 ## Near-Term Build Order
+- Establish a low-friction safety rail before larger product changes:
+  - create a one-command smoke test covering public load, logged-in feed API, filtered queue API, scoreboard API, and admin health
+  - create a tiny deploy notes template/checklist so each deploy records what changed and what was verified
+  - keep this process lightweight enough that it does not add meaningful manual work
+- Then improve the public entry experience:
+  - polish the first screen and login/anonymous choice
+  - measure first content load timing
+  - investigate non-Google account creation path after the entry flow is stable
 - Use the existing Poetry Please admin/content-library area as the first-pass Weaver intake surface
 - Reuse the current JSON-style preview/import flow for Weaver-fed `QI`
 - Preserve per-item metadata even when Weaver groups requests upstream
