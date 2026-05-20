@@ -2832,10 +2832,11 @@ async function requirePigReadAccess(req, res) {
 app.get("/", (_req, res) => {
   res.type("text/plain").send("Poetry Please API is alive ✅  Try /imageTypes etc.");
 });
-app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
 /** ====== ROUTE REGISTRATION (supports both with and without /api) ====== */
 const getBoth = (p) => [p, `/api${p}`];
+
+app.get(getBoth("/healthz"), (_req, res) => res.json({ ok: true }));
 
 // imageTypes
 app.get(getBoth("/imageTypes"), async (_req, res) => {
