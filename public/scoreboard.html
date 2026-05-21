@@ -281,6 +281,8 @@
     let currentSortDir = 1;
     let currentPage = 1;
     let pageSize = 25;
+    let totalFilteredRows = 0;
+    let fullScoreboardLoaded = false;
     let currentAccount = null;
     let scoreboardLoaded = false;
     let scoreboardSnapshotMeta = null;
@@ -594,8 +596,8 @@
       scoreboardContainer.style.display = isScoreboard ? '' : 'none';
       document.getElementById('scoreboardPagination').style.display = isScoreboard ? 'flex' : 'none';
       progressBarsContainer.style.display = isScoreboard ? 'none' : '';
-      if (isScoreboard) updateTable(filteredData);
-      else renderProgressBars();
+      if (isScoreboard) loadScoreboardPage();
+      else ensureFullScoreboard().then(renderProgressBars).catch((err) => setStatus(err.message || 'Could not load progress data.', true));
     }
 
     function updateAuthUI(user) {
@@ -626,18 +628,21 @@
       }
     }
 
-    function buildUserDropdown() {
+    function buildUserDropdown(users = null) {
       const sel = document.getElementById('userDropdown');
+      const selected = sel.value;
       const ANON_GROUP_VALUE = '__anon_local__';
-      const hasAnonymousLocalUsers = rawVotes.some((row) => isAnonymousLocalUser(row.user));
-      const users = Array.from(new Set(rawVotes.map((row) => row.user).filter(Boolean)))
+      const sourceUsers = users || rawVotes.map((row) => row.user);
+      const hasAnonymousLocalUsers = sourceUsers.some((user) => isAnonymousLocalUser(user));
+      const userList = Array.from(new Set(sourceUsers.filter(Boolean)))
         .filter((user) => !isAnonymousLocalUser(user))
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = (
         '<option value="">All Users</option>'
         + (hasAnonymousLocalUsers ? `<option value="${ANON_GROUP_VALUE}">Anonymous browser users</option>` : '')
-        + users.map((user) => `<option>${escapeHtml(user)}</option>`).join('')
+        + userList.map((user) => `<option>${escapeHtml(user)}</option>`).join('')
       );
+      if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
     }
 
     function isAnonymousLocalUser(user) {
@@ -647,29 +652,35 @@
 
     function buildBookDropdown(books = null) {
       const sel = document.getElementById('bookDropdown');
+      const selected = sel.value;
       const rawList = books || allGraphics.map((row) => row.bookTitle || '');
       const normalized = Array.from(new Map(rawList.map((title) => [String(title).trim().toLowerCase(), String(title).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = '<option value="">All Books</option>' + normalized.map((book) => `<option>${escapeHtml(book)}</option>`).join('');
+      if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
     }
 
     function buildCatalogDropdown(catalogs = null) {
       const sel = document.getElementById('catalogDropdown');
+      const selected = sel.value;
       const rawList = catalogs || allGraphics.map((row) => row.releaseCatalog || '');
       const normalized = Array.from(new Map(rawList.map((catalog) => [String(catalog).trim().toLowerCase(), String(catalog).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = '<option value="">All Catalogs</option>' + normalized.map((catalog) => `<option>${escapeHtml(catalog)}</option>`).join('');
+      if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
     }
 
     function buildTypeDropdown(types = null) {
       const sel = document.getElementById('typeDropdown');
+      const selected = sel.value;
       const rawList = types || allGraphics.map((row) => row.type || '');
       const normalized = Array.from(new Map(rawList.map((type) => [String(type).trim().toLowerCase(), String(type).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = '<option value="">All Types</option>' + normalized.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(formatContentTypeLabel(type))}</option>`).join('');
+      if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
     }
 
     function sortData() {
@@ -693,6 +704,11 @@
 
     function filterData() {
       if (!scoreboardLoaded) return;
+      if (scoreboardContainer.style.display === '') {
+        currentPage = 1;
+        loadScoreboardPage();
+        return;
+      }
       const userVal = document.getElementById('userDropdown').value.trim().toLowerCase();
       const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
@@ -736,7 +752,7 @@
       else renderProgressBars();
     }
 
-    function updatePaginationControls(totalRows = 0) {
+    function updatePaginationControls(totalRows = totalFilteredRows) {
       const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
       currentPage = Math.min(Math.max(1, currentPage), totalPages);
       const start = totalRows ? ((currentPage - 1) * pageSize) + 1 : 0;
@@ -748,7 +764,7 @@
       document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
     }
 
-    function updateTable(data) {
+    function updateTable(data, totalRows = totalFilteredRows || data.length) {
       const isUserView = !!document.getElementById('userDropdown').value;
       document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
         const col = th.dataset.column;
@@ -765,8 +781,8 @@
         return;
       }
 
-      updatePaginationControls(data.length);
-      const pageRows = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+      updatePaginationControls(totalRows);
+      const pageRows = data;
       pageRows.forEach((row) => {
         const isTextPreviewType = ['fp', 'exc'].includes(normalizeTypeForFilter(row.type)) && String(row.excerpt || '').trim();
         const textPreviewUrl = `/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}`;
@@ -949,9 +965,8 @@
           }
           document.querySelectorAll('#scoreboard th').forEach((node) => node.classList.remove('asc', 'desc'));
           th.classList.add(currentSortDir > 0 ? 'asc' : 'desc');
-          sortData();
           currentPage = 1;
-          updateTable(filteredData);
+          loadScoreboardPage();
         });
       });
       document.querySelectorAll('#progressBars th[data-column]').forEach((th) => {
@@ -970,31 +985,74 @@
       });
     }
 
-    async function loadScoreboard() {
+    function scoreboardPagePath() {
+      const params = new URLSearchParams({
+        paged: '1',
+        page: String(currentPage),
+        pageSize: String(pageSize),
+        sortKey: currentSortKey,
+        sortDir: String(currentSortDir),
+        hideZero: String(document.getElementById('filterZeroVotes').checked),
+      });
+      const user = document.getElementById('userDropdown').value.trim();
+      const type = document.getElementById('typeDropdown').value.trim();
+      const book = document.getElementById('bookDropdown').value.trim();
+      const catalog = document.getElementById('catalogDropdown').value.trim();
+      const charMin = document.getElementById('characterCountMin').value.trim();
+      const charMax = document.getElementById('characterCountMax').value.trim();
+      if (user) params.set('user', user);
+      if (type) params.set('type', type);
+      if (book) params.set('book', book);
+      if (catalog) params.set('catalog', catalog);
+      if (charMin) params.set('charMin', charMin);
+      if (charMax) params.set('charMax', charMax);
+      return `scoreboard?${params.toString()}`;
+    }
+
+    async function loadScoreboardPage() {
       setControlsDisabled(true);
       setStatus('Loading scoreboard…');
       try {
-        const payload = await api('scoreboard', { method: 'GET' });
-        aggregatedData = (payload.aggregated || []).map(enrichScoreMetrics);
-        rawVotes = payload.rawVotes || [];
-        allGraphics = payload.allGraphics || [];
+        const payload = await api(scoreboardPagePath(), { method: 'GET' });
+        filteredData = (payload.aggregated || []).map(enrichScoreMetrics);
+        totalFilteredRows = Number(payload.totalRows || filteredData.length);
         scoreboardSnapshotMeta = payload.snapshotMeta || null;
-        buildUserDropdown();
-        buildTypeDropdown();
-        buildBookDropdown();
-        buildCatalogDropdown();
-        filteredData = aggregatedData.slice();
-        sortData();
+        const options = payload.filterOptions || {};
+        buildUserDropdown(options.users || []);
+        buildTypeDropdown(options.types || []);
+        buildBookDropdown(options.books || []);
+        buildCatalogDropdown(options.catalogs || []);
         setControlsDisabled(false);
-        switchView('scoreboard');
-        updateTable(filteredData);
+        scoreboardBtn.classList.add('active');
+        progressBarsBtn.classList.remove('active');
+        scoreboardContainer.style.display = '';
+        document.getElementById('scoreboardPagination').style.display = 'flex';
+        progressBarsContainer.style.display = 'none';
+        updateTable(filteredData, totalFilteredRows);
         const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
-        setStatus(`Loaded ${aggregatedData.length} scored item${aggregatedData.length === 1 ? '' : 's'} and ${rawVotes.length} latest votes.${metaText ? ` ${metaText}` : ''}`);
+        setStatus(`Loaded ${totalFilteredRows} matching scored item${totalFilteredRows === 1 ? '' : 's'}.${metaText ? ` ${metaText}` : ''}`);
       } catch (err) {
         console.error(err);
         setControlsDisabled(false);
         setStatus(err.message || 'Could not load scoreboard.', true);
       }
+    }
+
+    async function ensureFullScoreboard() {
+      if (fullScoreboardLoaded) return;
+      setControlsDisabled(true);
+      setStatus('Loading progress data…');
+      const payload = await api('scoreboard', { method: 'GET' });
+      aggregatedData = (payload.aggregated || []).map(enrichScoreMetrics);
+      rawVotes = payload.rawVotes || [];
+      allGraphics = payload.allGraphics || [];
+      scoreboardSnapshotMeta = payload.snapshotMeta || null;
+      fullScoreboardLoaded = true;
+      setControlsDisabled(false);
+    }
+
+    async function loadScoreboard() {
+      await loadScoreboardPage();
     }
 
     async function init() {
@@ -1019,15 +1077,15 @@
         }
         pageSize = nextSize;
         currentPage = 1;
-        updateTable(filteredData);
+        loadScoreboardPage();
       });
       document.getElementById('prevPageBtn').addEventListener('click', () => {
         currentPage = Math.max(1, currentPage - 1);
-        updateTable(filteredData);
+        loadScoreboardPage();
       });
       document.getElementById('nextPageBtn').addEventListener('click', () => {
         currentPage += 1;
-        updateTable(filteredData);
+        loadScoreboardPage();
       });
       document.querySelector('#scoreboard tbody').addEventListener('click', (event) => {
         const link = event.target.closest('.text-preview-link');

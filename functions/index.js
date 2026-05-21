@@ -2010,6 +2010,96 @@ async function getScoreboardPayloadFromSnapshot({ forceRefresh = false } = {}) {
   };
 }
 
+function normalizeScoreboardType(value = "") {
+  const raw = normalizeKey(value);
+  if (raw === "fp" || raw === "fullpoems" || raw === "fullpoem") return "fp";
+  if (raw === "exc" || raw === "excerpts" || raw === "excerpt") return "exc";
+  if (raw === "qi" || raw === "quoteimages" || raw === "quoteimage") return "qi";
+  if (raw === "int" || raw === "interiorimages" || raw === "interiorimage") return "int";
+  if (raw === "gp" || raw === "graphics" || raw === "graphic") return "gp";
+  if (raw === "vv" || raw === "video" || raw === "videos") return "vv";
+  if (raw === "yt" || raw === "youtube" || raw === "youtubevideo" || raw === "youtubevideos") return "yt";
+  return raw;
+}
+
+function buildScoreboardFilterOptions(payload = {}) {
+  const allGraphics = Array.isArray(payload.allGraphics) ? payload.allGraphics : [];
+  const rawVotes = Array.isArray(payload.rawVotes) ? payload.rawVotes : [];
+  const uniqueSorted = (values) => Array.from(new Map(values
+    .map((value) => normalizeText(value))
+    .filter(Boolean)
+    .map((value) => [value.toLowerCase(), value])).values())
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  return {
+    users: uniqueSorted(rawVotes.map((row) => row.user)),
+    books: uniqueSorted(allGraphics.map((row) => row.bookTitle)),
+    catalogs: uniqueSorted(allGraphics.map((row) => row.releaseCatalog)),
+    types: uniqueSorted(allGraphics.map((row) => row.type)),
+  };
+}
+
+function isAnonymousScoreboardUser(user = "") {
+  const normalized = normalizeText(user).toLowerCase();
+  return /^local-[a-z0-9]{6,}$/.test(normalized) || /^poetrylover\d+$/.test(normalized);
+}
+
+function applyScoreboardQuery(payload = {}, query = {}) {
+  const user = normalizeText(query.user).toLowerCase();
+  const type = normalizeScoreboardType(query.type);
+  const book = normalizeText(query.book).toLowerCase();
+  const catalog = normalizeText(query.catalog).toLowerCase();
+  const hideZero = normalizeText(query.hideZero) !== "false";
+  const charMin = query.charMin === undefined || query.charMin === "" ? null : Number(query.charMin);
+  const charMax = query.charMax === undefined || query.charMax === "" ? null : Number(query.charMax);
+  const source = user
+    ? (payload.rawVotes || []).filter((row) => (
+        user === "__anon_local__"
+          ? isAnonymousScoreboardUser(row.user)
+          : normalizeText(row.user).toLowerCase() === user
+      ))
+    : [...(payload.aggregated || [])];
+  let rows = source;
+  if (!user && hideZero) rows = rows.filter((row) => Number(row.totalVotes || 0) > 0);
+  if (type) rows = rows.filter((row) => normalizeScoreboardType(row.type) === type);
+  if (book) rows = rows.filter((row) => normalizeText(row.bookTitle).toLowerCase() === book);
+  if (catalog) rows = rows.filter((row) => normalizeText(row.releaseCatalog).toLowerCase() === catalog);
+  if ((type === "fp" || type === "exc") && (Number.isFinite(charMin) || Number.isFinite(charMax))) {
+    rows = rows.filter((row) => {
+      const count = Number(row.charCount || 0) || 0;
+      if (Number.isFinite(charMin) && count < charMin) return false;
+      if (Number.isFinite(charMax) && count > charMax) return false;
+      return true;
+    });
+  }
+  return rows;
+}
+
+function sortScoreboardRows(rows = [], sortKey = "bookTitle", sortDir = 1) {
+  const dir = Number(sortDir) < 0 ? -1 : 1;
+  const allowed = new Set(["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score", "scorePerVote", "movedMeRate", "vote"]);
+  const key = allowed.has(sortKey) ? sortKey : "bookTitle";
+  const readValue = (row) => {
+    if (key === "scorePerVote") {
+      const totalVotes = Number(row.totalVotes || 0);
+      return totalVotes ? Number(row.score || 0) / totalVotes : 0;
+    }
+    if (key === "movedMeRate") {
+      const totalVotes = Number(row.totalVotes || 0);
+      return totalVotes ? Number(row.movedMe || 0) / totalVotes : 0;
+    }
+    return row[key];
+  };
+  return [...rows].sort((a, b) => {
+    let va = readValue(a);
+    let vb = readValue(b);
+    if (typeof va === "string") va = va.toLowerCase();
+    if (typeof vb === "string") vb = vb.toLowerCase();
+    if (va > vb) return dir;
+    if (va < vb) return -dir;
+    return 0;
+  });
+}
+
 async function verifyIdTokenFromHeader(req) {
   const h = req.headers.authorization || "";
   const m = h.match(/^Bearer (.+)$/i);
@@ -2990,6 +3080,29 @@ app.get(getBoth("/scoreboard"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
   const result = await getScoreboardPayloadFromSnapshot();
+  if (normalizeText(req.query?.paged) === "1") {
+    const pageSize = Math.max(1, Math.min(Number(req.query?.pageSize) || 25, 100));
+    const page = Math.max(1, Number(req.query?.page) || 1);
+    const rows = sortScoreboardRows(
+      applyScoreboardQuery(result.payload, req.query),
+      normalizeText(req.query?.sortKey || "bookTitle"),
+      Number(req.query?.sortDir || 1)
+    );
+    const start = (page - 1) * pageSize;
+    return res.json({
+      ok: true,
+      aggregated: rows.slice(start, start + pageSize),
+      totalRows: rows.length,
+      page,
+      pageSize,
+      filterOptions: buildScoreboardFilterOptions(result.payload),
+      snapshotMeta: {
+        source: result.source,
+        builtAtMs: result.builtAtMs,
+        ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+      },
+    });
+  }
   res.json({
     ...result.payload,
     snapshotMeta: {
