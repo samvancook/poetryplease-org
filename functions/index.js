@@ -4124,17 +4124,76 @@ function assignCanonicalExcerptIds(items = []) {
   return items;
 }
 
+function isWeaverExcerptImportType(value = "") {
+  const normalized = normalizeKey(value);
+  return normalized === "exc" || normalized === "excerpt" || normalized === "excerpts";
+}
+
+function looksLikeDirectWeaverExcerptPayload(body = {}) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  return !!(
+    body.excerpt
+    || body.excerptText
+    || body.normalizedExcerpt
+    || body.excerptHash
+    || body.poemTitle
+  );
+}
+
+async function assignPersistentWeaverExcerptIds(items = []) {
+  const usedIds = new Set();
+  for (const item of items) {
+    if (!item.docId || !item.bookShortener || !item.poem) continue;
+
+    const sourceRecordId = normalizeText(item.sourceRecordId);
+    const excerptHash = normalizeText(item.excerptHash);
+    const sourceField = sourceRecordId ? "sourceRecordId" : (excerptHash ? "excerptHash" : "");
+    const sourceValue = sourceRecordId || excerptHash;
+    if (sourceField && sourceValue) {
+      const existingBySource = await db.collection(COLLECTIONS.excerpts)
+        .where(sourceField, "==", sourceValue)
+        .limit(1)
+        .get();
+      if (!existingBySource.empty) {
+        item.docId = existingBySource.docs[0].id;
+        item.imageId = item.docId;
+        item.imageID = item.docId;
+        usedIds.add(item.docId);
+        continue;
+      }
+    }
+
+    const baseId = `${sanitizeDocIdSegment(item.bookShortener)}-EXC-${slugify(item.poem)}`.toUpperCase();
+    const requestedId = sanitizeDocIdSegment(item.docId).toUpperCase();
+    const suffixMatch = requestedId.match(/-(\d+)$/);
+    let nextId = requestedId || baseId;
+    let index = suffixMatch ? Number(suffixMatch[1]) : 1;
+    while (usedIds.has(nextId) || (await db.collection(COLLECTIONS.excerpts).doc(nextId).get()).exists) {
+      index += 1;
+      nextId = `${baseId}-${index}`;
+    }
+    item.docId = nextId;
+    item.imageId = nextId;
+    item.imageID = nextId;
+    usedIds.add(nextId);
+  }
+  return items;
+}
+
 async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const sourceRecords = flattenWeaverExcerptRecords(rawPayload);
-  const mappedItems = assignCanonicalExcerptIds(sourceRecords.map(buildWeaverExcerptImportItem)).filter((item) => item.docId && item.author && item.book && item.poem && item.excerpt);
-  if (!mappedItems.length) {
+  const mappedItems = await assignPersistentWeaverExcerptIds(
+    assignCanonicalExcerptIds(sourceRecords.map(buildWeaverExcerptImportItem))
+  );
+  const importableItems = mappedItems.filter((item) => item.docId && item.author && item.book && item.poem && item.excerpt);
+  if (!importableItems.length) {
     const err = new Error("no_importable_weaver_excerpt_records");
     err.status = 400;
     throw err;
   }
 
   const results = [];
-  for (const item of mappedItems.slice(0, 500)) {
+  for (const item of importableItems.slice(0, 500)) {
     try {
       const result = await upsertContentLibraryItem("excerpts", item, actor);
       results.push({ ok: true, id: result.item?.id || item.docId, created: !!result.created });
@@ -4158,8 +4217,8 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   return {
     ok: true,
     sourceCount: sourceRecords.length,
-    eligibleCount: mappedItems.length,
-    mappedCount: mappedItems.length,
+    eligibleCount: importableItems.length,
+    mappedCount: importableItems.length,
     createdCount,
     updatedCount,
     errorCount,
@@ -4194,8 +4253,11 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
     const defaultImageType = normalizeText(req.body?.contentType || req.body?.imageType || "QI").toUpperCase();
     const rawPayload = req.body?.payload
       || req.body?.records
+      || req.body?.items
+      || req.body?.excerpts
       || (normalizeText(req.body?.sourceUrl) ? await fetchRemoteJson(req.body.sourceUrl) : null);
-    if (!rawPayload) {
+    const payload = rawPayload || (isWeaverExcerptImportType(defaultImageType) && looksLikeDirectWeaverExcerptPayload(req.body) ? req.body : null);
+    if (!payload) {
       return res.status(400).json({ error: "missing_weaver_payload" });
     }
 
@@ -4203,9 +4265,9 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
       uid: "weaver-automation",
       email: "weaver-automation@buttonpoetry.com",
     };
-    const result = defaultImageType === "EXC"
-      ? await importWeaverExcerptsPayload(rawPayload, actor)
-      : await importWeaverGraphicsPayload(rawPayload, defaultImageType, actor);
+    const result = isWeaverExcerptImportType(defaultImageType)
+      ? await importWeaverExcerptsPayload(payload, actor)
+      : await importWeaverGraphicsPayload(payload, defaultImageType, actor);
     res.json(result);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "weaver_import_failed" });
