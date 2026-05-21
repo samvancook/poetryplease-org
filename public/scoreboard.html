@@ -195,8 +195,6 @@
             <option value="25" selected>25</option>
             <option value="50">50</option>
             <option value="100">100</option>
-            <option value="250">250</option>
-            <option value="500">500</option>
           </select>
         </label>
         <div class="pagination-actions">
@@ -1071,10 +1069,6 @@
       document.getElementById('filterCompletedBooks').addEventListener('change', filterData);
       document.getElementById('pageSizeSelect').addEventListener('change', (event) => {
         const nextSize = Number(event.target.value || 25);
-        if (nextSize > 100 && !confirm(`Show ${nextSize} rows at once? This can make the page slower.`)) {
-          event.target.value = String(pageSize);
-          return;
-        }
         pageSize = nextSize;
         currentPage = 1;
         loadScoreboardPage();
