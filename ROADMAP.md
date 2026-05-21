@@ -77,6 +77,12 @@
   - produce a ready-import file plus a follow-up review file instead of relying on one-off manual reshaping
 - Surface YouTube social signal data more clearly in admin/content-library views, not only in Feed Signals
 - Keep the content library count improvements generalized and trustworthy across all content types
+- Make Scoreboard lighter and cheaper after first-pass pagination:
+  - separate loaded rows from rendered rows throughout the table UI
+  - consider server-side filtering/pagination for large scoreboard queries
+  - make summary/progress views avoid loading/rendering the full item table
+  - lazy-render expensive cells such as links and long IDs only for visible rows
+  - make zero-vote inclusion an intentional heavier mode where useful
 - Keep improving user submissions:
   - stronger admin review tools (filters, search, status visibility)
   - later convert approved submissions into regular Poetry Please content when that workflow is ready
