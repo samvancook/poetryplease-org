@@ -473,6 +473,16 @@
 
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
+        <h2 style="margin-top:0;">Weaver EXC Health</h2>
+        <button id="refresh-weaver-exc-health" class="secondary" type="button">Refresh</button>
+      </div>
+      <p class="lede" style="margin-bottom:16px;max-width:none;">Quick check for Weaver-approved excerpts landing in Poetry Please, with missing catalog and duplicate-risk warnings.</p>
+      <div id="weaver-exc-health-status" class="status">Loading Weaver EXC health…</div>
+      <div id="weaver-exc-health-list"></div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <div class="section-head">
         <h2 style="margin-top:0;">Author Profiles</h2>
         <button id="author-profiles-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="author-profiles-section-body">
           <span class="chevron">▾</span>
@@ -868,6 +878,7 @@
       invites: [],
       claims: [],
       duplicates: [],
+      weaverExcHealth: null,
       authorProfiles: [],
       submissions: [],
       submissionQuery: "",
@@ -1585,6 +1596,63 @@
         console.error(err);
         document.getElementById('duplicate-review-list').innerHTML = '<div class="empty">Could not load duplicates.</div>';
         statusEl.textContent = err.message || 'Could not load duplicates.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    function renderWeaverExcHealth() {
+      const health = state.weaverExcHealth;
+      const container = document.getElementById('weaver-exc-health-list');
+      const statusEl = document.getElementById('weaver-exc-health-status');
+      if (!health) {
+        container.innerHTML = '<div class="empty">No Weaver EXC health data loaded yet.</div>';
+        return;
+      }
+      statusEl.textContent = `${health.weaverExcCount || 0} Weaver EXC checked. ${health.missingCatalogCount || 0} missing catalog. ${health.possibleDuplicateGroupCount || 0} duplicate-risk groups.`;
+      const warningRows = [
+        ...(health.missingCatalog || []).map((row) => ({ ...row, issue: 'Missing catalog' })),
+        ...(health.possibleDuplicates || []).map((row) => ({
+          id: (row.ids || []).join(', '),
+          title: row.title,
+          author: row.author,
+          book: row.book,
+          issue: `Possible duplicate group (${row.count})`,
+        })),
+      ].slice(0, 40);
+      container.innerHTML = `
+        <div class="controls" style="margin-bottom:12px;">
+          <span class="chip">Weaver EXC: ${health.weaverExcCount || 0}</span>
+          <span class="chip">Missing catalog: ${health.missingCatalogCount || 0}</span>
+          <span class="chip">Duplicate risks: ${health.possibleDuplicateGroupCount || 0}</span>
+        </div>
+        ${warningRows.length ? `
+          <table>
+            <thead><tr><th>Issue</th><th>ID(s)</th><th>Title</th><th>Author</th><th>Book</th></tr></thead>
+            <tbody>${warningRows.map((row) => `
+              <tr>
+                <td>${row.issue || '—'}</td>
+                <td>${row.id || '—'}</td>
+                <td>${row.title || '—'}</td>
+                <td>${row.author || '—'}</td>
+                <td>${row.book || '—'}</td>
+              </tr>
+            `).join('')}</tbody>
+          </table>
+        ` : '<div class="empty">No missing-catalog or duplicate-risk warnings in the sampled Weaver EXC set.</div>'}
+      `;
+    }
+
+    async function loadWeaverExcHealth() {
+      const statusEl = document.getElementById('weaver-exc-health-status');
+      statusEl.textContent = 'Loading Weaver EXC health…';
+      try {
+        const payload = await api('admin/weaverExcHealth', { method: 'GET' });
+        state.weaverExcHealth = payload;
+        renderWeaverExcHealth();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('weaver-exc-health-list').innerHTML = '<div class="empty">Could not load Weaver EXC health.</div>';
+        statusEl.textContent = err.message || 'Could not load Weaver EXC health.';
         statusEl.className = 'status error';
       }
     }
@@ -3447,7 +3515,7 @@
         }
 
         renderAdminPreviewToggle();
-        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadDuplicates(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
+        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -3562,6 +3630,7 @@
       document.getElementById("preview-videos-import").addEventListener("click", () => previewVideosImport());
       document.getElementById("run-videos-import").addEventListener("click", () => runVideosImport());
       document.getElementById("delete-videos-json").addEventListener("click", () => deleteVideosImportIds());
+      document.getElementById("refresh-weaver-exc-health").addEventListener("click", () => loadWeaverExcHealth());
       document.getElementById("preview-full-poems-import").addEventListener("click", () => previewFullPoemsImport());
       document.getElementById("run-full-poems-import").addEventListener("click", () => runFullPoemsImport());
       document.getElementById("delete-full-poems-json").addEventListener("click", () => deleteFullPoemsImportIds());

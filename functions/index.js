@@ -4646,6 +4646,61 @@ app.get(getBoth("/admin/contentDuplicates"), async (req, res) => {
   res.json({ duplicates });
 });
 
+app.get(getBoth("/admin/weaverExcHealth"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const snap = await db.collection(COLLECTIONS.excerpts).limit(1000).get();
+  const excerpts = snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+  const weaverRows = excerpts.filter((row) => normalizeKey(row.sourceSystem) === "weaver" || normalizeText(row.sourceRecordId || row.excerptHash));
+  const missingCatalog = weaverRows.filter((row) => !normalizeText(row.releaseCatalog));
+  const duplicateGroups = new Map();
+  weaverRows.forEach((row) => {
+    const key = normalizeText(row.normalizedExcerpt || row.excerptHash || "").toLowerCase();
+    if (!key) return;
+    duplicateGroups.set(key, [...(duplicateGroups.get(key) || []), row]);
+  });
+  const possibleDuplicates = Array.from(duplicateGroups.values())
+    .filter((rows) => rows.length > 1)
+    .slice(0, 25)
+    .map((rows) => ({
+      count: rows.length,
+      ids: rows.map((row) => row.imageId || row.id).slice(0, 8),
+      title: rows[0]?.poem || rows[0]?.title || "",
+      book: rows[0]?.book || "",
+      author: rows[0]?.author || "",
+    }));
+  const recent = weaverRows
+    .sort((a, b) => (normalizeTimestamp(b.updatedAt)?.getTime() || 0) - (normalizeTimestamp(a.updatedAt)?.getTime() || 0))
+    .slice(0, 25)
+    .map((row) => ({
+      id: row.imageId || row.id,
+      title: row.poem || row.title || "",
+      author: row.author || "",
+      book: row.book || "",
+      releaseCatalog: row.releaseCatalog || "",
+      sourceRecordId: row.sourceRecordId || "",
+      excerptHash: row.excerptHash || "",
+      updatedAt: row.updatedAt || null,
+    }));
+  res.json({
+    ok: true,
+    checkedCount: excerpts.length,
+    weaverExcCount: weaverRows.length,
+    missingCatalogCount: missingCatalog.length,
+    possibleDuplicateGroupCount: possibleDuplicates.length,
+    missingCatalog: missingCatalog.slice(0, 25).map((row) => ({
+      id: row.imageId || row.id,
+      title: row.poem || row.title || "",
+      author: row.author || "",
+      book: row.book || "",
+      sourceRecordId: row.sourceRecordId || "",
+    })),
+    possibleDuplicates,
+    recent,
+  });
+});
+
 app.post(getBoth("/admin/contentDuplicates/:duplicateId/review"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
