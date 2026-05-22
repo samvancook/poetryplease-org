@@ -39,6 +39,9 @@
       background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px;
       box-shadow: 0 22px 60px rgba(24, 19, 12, 0.08); backdrop-filter: blur(8px); margin-top: 18px;
     }
+    .section-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .section-head h2 { margin: 0; }
+    .card-body.is-collapsed { display: none; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
     label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
     input[type="text"], input[type="url"], textarea {
@@ -92,8 +95,13 @@
     <h1>Author Profile Editor</h1>
     <p class="lede">This editor controls the public author page, social links, and featured work. Slugs are generated automatically, and featured content comes from the content we currently associate with the author.</p>
 
-    <section class="card">
-      <div class="grid">
+    <section class="card" data-panel="profile">
+      <div class="section-head">
+        <h2>Profile Details</h2>
+        <button class="secondary" type="button" data-collapse-panel="profile">Collapse</button>
+      </div>
+      <div class="card-body" data-panel-body="profile">
+        <div class="grid">
         <label>
           Display name
           <input id="displayName" type="text" />
@@ -136,68 +144,79 @@
           Short bio
           <textarea id="shortBio" style="min-height:90px;"></textarea>
         </label>
-      </div>
-
-      <label style="margin-top:16px;">
-        Full bio
-        <textarea id="bio"></textarea>
-      </label>
-
-      <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
-        <span class="chip">Public slug: <span id="slug-display" style="margin-left:6px;">—</span></span>
-        <a id="preview-link" class="preview" href="#" target="_blank" rel="noopener" style="display:none;">Open public profile</a>
-      </div>
-
-      <details>
-        <summary>Advanced profile settings</summary>
-        <div class="grid" style="margin-top:16px;">
-          <label>
-            Slug override
-            <input id="slug" type="text" placeholder="Optional override" />
-          </label>
-          <label>
-            Author name variants
-            <textarea id="authorNameVariants" placeholder="Used internally to match content. One per line or comma separated."></textarea>
-          </label>
         </div>
-        <p class="hint">Author name variants are for matching differences like pen names, initials, or metadata inconsistencies. Most authors should rarely need to touch this.</p>
-      </details>
 
-      <label style="margin-top:16px;" class="inline">
-        <input id="published" type="checkbox" />
-        Published on public author page
-      </label>
+        <label style="margin-top:16px;">
+          Full bio
+          <textarea id="bio"></textarea>
+        </label>
 
-      <div class="actions">
-        <button id="save" type="button">Save profile</button>
+        <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+          <span class="chip">Public slug: <span id="slug-display" style="margin-left:6px;">—</span></span>
+          <a id="preview-link" class="preview" href="#" target="_blank" rel="noopener" style="display:none;">Open public profile</a>
+        </div>
+
+        <details>
+          <summary>Advanced profile settings</summary>
+          <div class="grid" style="margin-top:16px;">
+            <label>
+              Slug override
+              <input id="slug" type="text" placeholder="Optional override" />
+            </label>
+            <label>
+              Author name variants
+              <textarea id="authorNameVariants" placeholder="Used internally to match content. One per line or comma separated."></textarea>
+            </label>
+          </div>
+          <p class="hint">Author name variants are for matching differences like pen names, initials, or metadata inconsistencies. Most authors should rarely need to touch this.</p>
+        </details>
+
+        <label style="margin-top:16px;" class="inline">
+          <input id="published" type="checkbox" />
+          Published on public author page
+        </label>
+
+        <div class="actions">
+          <button id="save" type="button">Save profile</button>
+        </div>
+        <div id="status" class="status">Loading profile…</div>
       </div>
-      <div id="status" class="status">Loading profile…</div>
     </section>
 
-    <section class="card">
-      <h2 style="margin-top:0;">Featured Work</h2>
-      <p class="hint">Select featured work from the content we currently associate with this author. If nothing is selected, the public page falls back to top-rated content automatically.</p>
-      <div id="featured-list" class="featured-list"></div>
-      <label class="review-toggle">
-        <input id="author-review-mode" type="checkbox" />
-        <span>
-          <strong>Review all associated work</strong>
-          <span id="author-review-count">Loading associated work…</span>
-        </span>
-      </label>
-      <div id="content-picker" class="picker-grid"></div>
+    <section class="card" data-panel="featured">
+      <div class="section-head">
+        <h2>Featured Work</h2>
+        <button class="secondary" type="button" data-collapse-panel="featured">Collapse</button>
+      </div>
+      <div class="card-body" data-panel-body="featured">
+        <p class="hint">Select featured work from the content we currently associate with this author. If nothing is selected, the public page falls back to top-rated content automatically.</p>
+        <div id="featured-list" class="featured-list"></div>
+        <label class="review-toggle">
+          <input id="author-review-mode" type="checkbox" />
+          <span>
+            <strong>Review all associated work</strong>
+            <span id="author-review-count">Loading associated work…</span>
+          </span>
+        </label>
+        <div id="content-picker" class="picker-grid"></div>
+      </div>
     </section>
 
-    <section class="card">
-      <h2 style="margin-top:0;">Claim Existing Content</h2>
-      <p class="hint">Search for pieces that belong to you but are not yet associated with your profile. Claims will go to admin for review.</p>
-      <div class="actions">
-        <input id="claim-search" type="text" placeholder="Search title, author, catalog, or content ID" style="min-width:320px;" />
-        <button id="search-claims" type="button" class="secondary">Search content</button>
+    <section class="card" data-panel="claims">
+      <div class="section-head">
+        <h2>Claim Existing Content</h2>
+        <button class="secondary" type="button" data-collapse-panel="claims">Collapse</button>
       </div>
-      <div id="claim-status" class="status">No claim search yet.</div>
-      <div id="claim-results" class="picker-grid"></div>
-      <div id="my-claims" style="margin-top:18px;"></div>
+      <div class="card-body" data-panel-body="claims">
+        <p class="hint">Search for pieces that belong to you but are not yet associated with your profile. Claims will go to admin for review.</p>
+        <div class="actions">
+          <input id="claim-search" type="text" placeholder="Search title, author, catalog, or content ID" style="min-width:320px;" />
+          <button id="search-claims" type="button" class="secondary">Search content</button>
+        </div>
+        <div id="claim-status" class="status">No claim search yet.</div>
+        <div id="claim-results" class="picker-grid"></div>
+        <div id="my-claims" style="margin-top:18px;"></div>
+      </div>
     </section>
   </main>
 
@@ -279,6 +298,28 @@
       const statusEl = document.getElementById("status");
       statusEl.textContent = `Admin preview loaded for ${state.reviewAuthor}. Changes here are for review only.`;
       statusEl.className = "status ok";
+    }
+
+    function setPanelCollapsed(panel, collapsed) {
+      const body = document.querySelector(`[data-panel-body="${panel}"]`);
+      const button = document.querySelector(`[data-collapse-panel="${panel}"]`);
+      if (!body || !button) return;
+      body.classList.toggle("is-collapsed", collapsed);
+      button.textContent = collapsed ? "Expand" : "Collapse";
+      button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      localStorage.setItem(`pp_author_panel_${panel}_collapsed`, collapsed ? "true" : "false");
+    }
+
+    function initCollapsiblePanels() {
+      document.querySelectorAll("[data-collapse-panel]").forEach((button) => {
+        const panel = button.getAttribute("data-collapse-panel");
+        const collapsed = localStorage.getItem(`pp_author_panel_${panel}_collapsed`) === "true";
+        setPanelCollapsed(panel, collapsed);
+        button.addEventListener("click", () => {
+          const body = document.querySelector(`[data-panel-body="${panel}"]`);
+          setPanelCollapsed(panel, !body?.classList.contains("is-collapsed"));
+        });
+      });
     }
 
     async function getIdTokenOrNull() {
@@ -660,6 +701,7 @@
     }
 
     async function init() {
+      initCollapsiblePanels();
       firebase.auth().onAuthStateChanged(async (user) => {
         if (!user) {
           setAccessUI({ signedIn: false });
