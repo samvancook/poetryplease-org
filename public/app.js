@@ -3199,7 +3199,8 @@ firebase.auth().onAuthStateChanged(async (user) => {
   const nextFeedIdentityKey = getFeedIdentityKey();
   if (lastFeedIdentityKey !== nextFeedIdentityKey) {
     lastFeedIdentityKey = nextFeedIdentityKey;
-    resetFeedForIdentityChange();
+    if (!currentItem) resetFeedForIdentityChange();
+    else LoadTiming.mark('identityReady', 'kept rendered item');
   }
 
   updateUserStatusUI();
