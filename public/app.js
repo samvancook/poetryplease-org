@@ -926,14 +926,17 @@ function showWelcomeChoice() {
   if (visible) return;
   const el = document.createElement('div');
   el.id = 'pp-welcome-choice';
-  el.style.cssText = 'position:fixed;inset:0;z-index:22000;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(250,247,240,0.74);backdrop-filter:blur(5px);';
+  el.setAttribute('role', 'dialog');
+  el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-labelledby', 'pp-welcome-title');
   el.innerHTML = `
-    <div style="max-width:420px;width:min(100%,420px);border:1px solid #d8cdbd;border-radius:24px;background:#fffaf2;box-shadow:0 24px 80px rgba(43,34,24,0.18);padding:28px;text-align:center;color:#34291f;">
-      <div style="font-family:Georgia,serif;font-size:34px;line-height:1.05;margin-bottom:10px;">Poetry, Please</div>
-      <div style="font-size:15px;line-height:1.45;color:#6c6558;margin-bottom:22px;">Log in to save votes across devices, or continue reading while the feed loads.</div>
-      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-        <button id="pp-welcome-continue" type="button" style="border:1px solid #d8cdbd;border-radius:999px;background:#34291f;color:#fff;padding:12px 18px;font-weight:700;cursor:pointer;">Continue without logging in</button>
-        <button id="pp-welcome-login" type="button" style="border:1px solid #d8cdbd;border-radius:999px;background:#fff;color:#34291f;padding:12px 18px;font-weight:700;cursor:pointer;">Log in with Google</button>
+    <div class="pp-welcome-card">
+      <div class="pp-welcome-kicker">Poetry, Please</div>
+      <h2 id="pp-welcome-title">Start reading now</h2>
+      <p>Votes are welcome either way. Log in when you want them saved across devices.</p>
+      <div class="pp-welcome-actions">
+        <button id="pp-welcome-continue" class="pp-welcome-primary" type="button">Continue without logging in</button>
+        <button id="pp-welcome-login" class="pp-welcome-secondary" type="button">Log in with Google</button>
       </div>
     </div>
   `;
@@ -943,6 +946,10 @@ function showWelcomeChoice() {
     if (!currentItem) ppAutoloadFirstItem();
   });
   document.getElementById('pp-welcome-login')?.addEventListener('click', signInWithGoogle);
+  el.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') hideWelcomeChoice();
+  });
+  document.getElementById('pp-welcome-continue')?.focus();
 }
 
 function scheduleWelcomeChoice() {
@@ -972,6 +979,70 @@ async function getOrCreateAnonId() {
 // --- Minimal CSS injection (works even if styles.css missing) ---
 (function injectUIPatchStyles(){
   const css = `
+  #pp-welcome-choice{
+    position:fixed;
+    inset:0;
+    z-index:22000;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+    background:rgba(250,247,240,0.78);
+    backdrop-filter:blur(5px);
+  }
+  .pp-welcome-card{
+    width:min(100%,420px);
+    border:1px solid #d8cdbd;
+    border-radius:20px;
+    background:#fffaf2;
+    box-shadow:0 24px 80px rgba(43,34,24,0.18);
+    padding:28px;
+    text-align:center;
+    color:#34291f;
+  }
+  .pp-welcome-kicker{
+    font:600 12px/1.2 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    letter-spacing:0.16em;
+    text-transform:uppercase;
+    color:#7a6d5c;
+    margin-bottom:10px;
+  }
+  .pp-welcome-card h2{
+    margin:0;
+    font-family:Georgia,serif;
+    font-size:34px;
+    line-height:1.05;
+    letter-spacing:0;
+  }
+  .pp-welcome-card p{
+    margin:12px 0 22px;
+    font-size:15px;
+    line-height:1.45;
+    color:#6c6558;
+  }
+  .pp-welcome-actions{
+    display:flex;
+    gap:10px;
+    justify-content:center;
+    flex-wrap:wrap;
+  }
+  .pp-welcome-actions button{
+    min-height:44px;
+    border:1px solid #d8cdbd;
+    border-radius:999px;
+    padding:12px 18px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .pp-welcome-primary{ background:#34291f; color:#fff; }
+  .pp-welcome-secondary{ background:#fff; color:#34291f; }
+  @media (max-width: 520px) {
+    #pp-welcome-choice{ align-items:flex-end; padding:16px; }
+    .pp-welcome-card{ padding:24px 20px; }
+    .pp-welcome-card h2{ font-size:30px; }
+    .pp-welcome-actions{ flex-direction:column; }
+    .pp-welcome-actions button{ width:100%; }
+  }
   .top-bar{ display:flex; align-items:center; gap:12px; flex-wrap:nowrap; padding:8px 12px; }
   .top-bar .spacer{flex:1;}
   #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
