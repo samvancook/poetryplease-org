@@ -224,6 +224,8 @@
       myClaims: [],
       claimResults: [],
       authorReviewMode: localStorage.getItem("pp_author_review_mode") !== "false",
+      reviewAuthor: new URLSearchParams(window.location.search).get("reviewAuthor") || "",
+      previewMode: false,
     };
 
     function slugify(value) {
@@ -270,6 +272,13 @@
       document.getElementById("login-google").classList.toggle("is-hidden", signedIn);
       document.getElementById("logout").classList.toggle("is-hidden", !signedIn);
       document.getElementById("admin-link").classList.toggle("is-hidden", !isAdmin);
+    }
+
+    function updatePreviewStatus() {
+      if (!state.previewMode) return;
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = `Admin preview loaded for ${state.reviewAuthor}. Changes here are for review only.`;
+      statusEl.className = "status ok";
     }
 
     async function getIdTokenOrNull() {
@@ -506,11 +515,16 @@
     }
 
     async function loadEditorData() {
-      const payload = await api("my/authorProfileEditorData", { method: "GET" });
+      const previewAuthor = state.reviewAuthor.trim();
+      const payload = previewAuthor
+        ? await api(`admin/authorReviewPreview?author=${encodeURIComponent(previewAuthor)}`, { method: "GET" })
+        : await api("my/authorProfileEditorData", { method: "GET" });
+      state.previewMode = !!payload.preview;
       state.authoredContent = payload.authoredContent || [];
       fillProfile(payload.profile || null, payload.workingProfile || payload.profile || {});
       renderContentPicker();
-      setStatus(payload.profile ? "Profile loaded." : "No profile yet. Fill this out to create one.");
+      if (state.previewMode) updatePreviewStatus();
+      else setStatus(payload.profile ? "Profile loaded." : "No profile yet. Fill this out to create one.");
     }
 
 
@@ -613,6 +627,10 @@
     }
 
     async function saveProfile() {
+      if (state.previewMode) {
+        setStatus("Preview mode does not save profile changes.", "error");
+        return;
+      }
       setStatus("Saving profile…");
       try {
         const payload = await api("authorProfiles", { method: "POST", body: collectPayload() });

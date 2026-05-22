@@ -3638,6 +3638,45 @@ app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
   });
 });
 
+app.get(getBoth("/admin/authorReviewPreview"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const author = normalizeText(req.query?.author);
+  if (!author) return res.status(400).json({ error: "missing_author" });
+
+  const workingProfile = mapProfileDoc(`preview-${slugify(author)}`, {
+    displayName: author,
+    slug: slugify(author),
+    authorNameVariants: [author],
+    featuredContentIds: [],
+    published: false,
+  });
+
+  const [g, e, fp, v, votes] = await Promise.all([
+    getAllFrom(COLLECTIONS.graphics),
+    getAllFrom(COLLECTIONS.excerpts),
+    getAllFrom(COLLECTIONS.fullPoems),
+    getAllFrom(COLLECTIONS.videos),
+    getAllFrom(COLLECTIONS.votes),
+  ]);
+  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
+  const allContent = [...g, ...e, ...fp, ...v];
+  const { authored, featured } = pickProfileContent(workingProfile, allContent, ratings);
+
+  res.json({
+    profile: null,
+    workingProfile,
+    authoredContent: authored,
+    featuredContent: featured,
+    stats: {
+      authoredCount: authored.length,
+      featuredCount: featured.length,
+    },
+    preview: true,
+  });
+});
+
 app.post(getBoth("/authorProfiles"), async (req, res) => {
   const ctx = await requireRole(req, res, ["author", "admin"]);
   if (!ctx) return;
