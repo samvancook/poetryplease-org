@@ -296,7 +296,7 @@
     function updatePreviewStatus() {
       if (!state.previewMode) return;
       const statusEl = document.getElementById("status");
-      statusEl.textContent = `Admin preview loaded for ${state.reviewAuthor}. Changes here are for review only.`;
+      statusEl.textContent = `Preview loaded for ${state.reviewAuthor}. Changes here are for review only.`;
       statusEl.className = "status ok";
     }
 
@@ -311,9 +311,11 @@
     }
 
     function initCollapsiblePanels() {
+      const defaultCollapsed = new Set(["profile", "claims"]);
       document.querySelectorAll("[data-collapse-panel]").forEach((button) => {
         const panel = button.getAttribute("data-collapse-panel");
-        const collapsed = localStorage.getItem(`pp_author_panel_${panel}_collapsed`) === "true";
+        const stored = localStorage.getItem(`pp_author_panel_${panel}_collapsed`);
+        const collapsed = stored === null ? defaultCollapsed.has(panel) : stored === "true";
         setPanelCollapsed(panel, collapsed);
         button.addEventListener("click", () => {
           const body = document.querySelector(`[data-panel-body="${panel}"]`);
@@ -717,11 +719,13 @@
           return;
         }
         setAccessUI({ signedIn: true, isAdmin: state.me?.roles?.includes("admin") });
-        if (!state.me?.roles?.some((role) => role === "author" || role === "admin")) {
+        const canPreview = !!state.reviewAuthor && state.me?.roles?.some((role) => role === "team" || role === "admin");
+        const canEdit = state.me?.roles?.some((role) => role === "author" || role === "admin");
+        if (!canPreview && !canEdit) {
           setStatus("You need author or admin access to edit author profiles.", "error");
           return;
         }
-        await Promise.all([loadEditorData(), loadMyClaims()]);
+        await Promise.all([loadEditorData(), canPreview ? Promise.resolve() : loadMyClaims()]);
       });
 
       document.getElementById("save").addEventListener("click", () => saveProfile());

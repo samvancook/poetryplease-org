@@ -3639,7 +3639,7 @@ app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
 });
 
 app.get(getBoth("/admin/authorReviewPreview"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
 
   const author = normalizeText(req.query?.author);
