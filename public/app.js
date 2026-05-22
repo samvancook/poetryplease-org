@@ -66,6 +66,38 @@ const IS_EMBED_UI = (
   new URL(location.href).searchParams.get('embed') === '1'
 );
 
+const LoadTiming = (() => {
+  const params = new URLSearchParams(window.location.search);
+  const enabled = params.get('debugLoad') === '1';
+  const start = performance.now();
+  const rows = [];
+  let panel = null;
+  function render() {
+    if (!enabled || !document.body) return;
+    if (!panel) {
+      panel = document.createElement('div');
+      panel.id = 'pp-load-debug';
+      panel.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:30000;max-width:min(420px,calc(100vw - 24px));max-height:48vh;overflow:auto;background:rgba(18,15,12,0.92);color:#fff;border-radius:12px;padding:12px 14px;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 18px 48px rgba(0,0,0,0.28);';
+      document.body.appendChild(panel);
+    }
+    panel.innerHTML = `<div style="font-weight:700;margin-bottom:8px;">Load timings</div>${rows.map((row) => `<div><strong>${row.ms}ms</strong> ${row.label}${row.detail ? ` <span style="opacity:.72">${row.detail}</span>` : ''}</div>`).join('')}`;
+  }
+  function mark(label, detail = '') {
+    if (!enabled) return;
+    const row = { label, detail, ms: Math.round(performance.now() - start) };
+    rows.push(row);
+    console.debug(`[PP load] ${row.ms}ms ${label}${detail ? ` ${detail}` : ''}`);
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', render, { once: true });
+    } else {
+      render();
+    }
+  }
+  window.PP_LOAD_TIMING = { mark, rows, enabled };
+  mark('scriptStart');
+  return { enabled, mark, rows };
+})();
+
 (function ensureMobileRouteParity() {
   if (IS_EMBED_UI) return;
   const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
@@ -192,6 +224,7 @@ const LoaderController = (() => {
       return;
     }
     state.loaderHidden = true;
+    LoadTiming.mark('loaderHidden');
     loader.classList.add('is-hidden');
     window.setTimeout(() => {
       if (loader.parentNode) loader.parentNode.removeChild(loader);
@@ -270,6 +303,7 @@ const LoaderController = (() => {
     markDomReady() {
       state.domReady = true;
       state.loaderShownAt = Date.now();
+      LoadTiming.mark('domReady');
       if (!state.hardCapTimerId) {
         state.hardCapTimerId = window.setTimeout(() => {
           if (state.loaderHidden) return;
@@ -287,9 +321,11 @@ const LoaderController = (() => {
     },
     markAuthResolved() {
       state.authResolved = true;
+      LoadTiming.mark('authResolved');
     },
     markScreenReady() {
       state.screenReady = true;
+      LoadTiming.mark('screenReady');
       queueDeferredBootWork();
       maybeHidePrimary();
     },
@@ -402,6 +438,8 @@ async function getIdTokenOrNull() {
 }
 async function api(path, { method = 'POST', body } = {}) {
   const url = `${CONSTANTS.API_BASE}/${path.replace(/^\//, '')}`;
+  const timingLabel = `api:${path.replace(/^\//, '').split('?')[0]}`;
+  LoadTiming.mark(`${timingLabel}:start`);
   let token = await getIdTokenOrNull();
   const doFetch = async (tkn) =>
     fetch(url, {
@@ -423,6 +461,7 @@ async function api(path, { method = 'POST', body } = {}) {
     throw new Error(`API ${method} ${url} failed: ${res.status} ${text}`);
   }
   const isJSON = res.headers.get('content-type')?.includes('application/json');
+  LoadTiming.mark(`${timingLabel}:end`, String(res.status));
   return isJSON ? res.json() : res.text();
 }
 
@@ -2486,6 +2525,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage()) {
 
 // ===== Init / rebuild =====
 function initQueueFromData(data) {
+  LoadTiming.mark('queueInit', `${Array.isArray(data?.newGraphics) ? data.newGraphics.length : 0} items`);
   lastData = data;
   if (data?.ratingsSummary && !IS_EMBED_UI) {
     ratingsMap = data.ratingsSummary || {};
@@ -2726,6 +2766,7 @@ function resetVoteButtons(){
   });
 }
 function renderItemMedia(item) {
+  LoadTiming.mark('mediaRenderStart', item?.imageType || '');
   const mediaWrap = ensureMediaWrap();
   if (mediaWrap?.dataset) mediaWrap.dataset.kind = '';
   const oldBox = mediaWrap.querySelector('.media-box'); if (oldBox) oldBox.remove();
@@ -2819,14 +2860,21 @@ function renderItemMedia(item) {
   if (item?.imageType === 'FP') {
     requestAnimationFrame(() => setupFullPoemAutoScroll_(box.querySelector('.full-poem-scroll-shell')));
   }
-  if (img) img.addEventListener('load', () => requestAnimationFrame(adjustViewportFit), { once: true });
+  if (img) img.addEventListener('load', () => {
+    LoadTiming.mark('firstMediaLoaded', 'image');
+    requestAnimationFrame(adjustViewportFit);
+  }, { once: true });
   if (v) {
-    const recalc = () => requestAnimationFrame(adjustViewportFit);
+    const recalc = () => {
+      LoadTiming.mark('firstMediaLoaded', 'video');
+      requestAnimationFrame(adjustViewportFit);
+    };
     v.addEventListener('loadedmetadata', recalc, { once: true });
     v.addEventListener('canplay',        recalc, { once: true });
   }
 }
 function renderCurrent(item) {
+  LoadTiming.mark('firstItemRender', item?.id || '');
   resetVoteButtons();
   currentItem = item;
   refreshItemFeedSignals(currentItem);
@@ -3042,6 +3090,7 @@ function withTimeout_(promise, ms, label) {
 async function ppAutoloadFirstItem() {
   if (__pp_initialLoad || currentItem) return;
 
+  LoadTiming.mark('autoloadStart');
   console.debug('[PP] autoload: starting');
 
   // Lock while we try; we’ll unlock in finally if we didn’t actually render an item
@@ -3062,6 +3111,7 @@ async function ppAutoloadFirstItem() {
       });
 
       if (data && Array.isArray(data.newGraphics)) {
+        LoadTiming.mark('bootstrapDataReady', `${data.newGraphics.length} items`);
         if (selectedItemId && !selectedItemRecord) {
           try {
             const result = await fetchContentByIdWrapped(selectedItemId);
