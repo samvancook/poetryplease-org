@@ -68,6 +68,13 @@
     .featured-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
     .featured-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--accent-warm); color: #7a4d20; font-size: 13px; }
     .empty { border: 1px dashed var(--line); border-radius: 16px; padding: 16px; color: var(--muted); }
+    .review-toggle {
+      display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 2px solid var(--accent);
+      border-radius: 18px; background: #fff; color: var(--ink); margin-top: 12px;
+    }
+    .review-toggle input { width: 24px; height: 24px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--accent); }
+    .review-toggle strong { display: block; font-size: 18px; color: var(--ink); }
+    .review-toggle span { display: block; margin-top: 4px; color: var(--muted); line-height: 1.45; }
     .is-hidden { display: none !important; }
   </style>
 </head>
@@ -171,6 +178,13 @@
       <h2 style="margin-top:0;">Featured Work</h2>
       <p class="hint">Select featured work from the content we currently associate with this author. If nothing is selected, the public page falls back to top-rated content automatically.</p>
       <div id="featured-list" class="featured-list"></div>
+      <label class="review-toggle">
+        <input id="author-review-mode" type="checkbox" />
+        <span>
+          <strong>Review all associated work</strong>
+          <span id="author-review-count">Loading associated work…</span>
+        </span>
+      </label>
       <div id="content-picker" class="picker-grid"></div>
     </section>
 
@@ -209,6 +223,7 @@
       photoUrl: "",
       myClaims: [],
       claimResults: [],
+      authorReviewMode: localStorage.getItem("pp_author_review_mode") !== "false",
     };
 
     function slugify(value) {
@@ -400,6 +415,18 @@
 
     function renderContentPicker() {
       const container = document.getElementById("content-picker");
+      const toggle = document.getElementById("author-review-mode");
+      const count = document.getElementById("author-review-count");
+      if (toggle) toggle.checked = state.authorReviewMode;
+      if (count) {
+        count.textContent = state.authoredContent.length
+          ? `${state.authoredContent.length} pieces are currently associated with this author profile.`
+          : "No associated work found yet.";
+      }
+      if (!state.authorReviewMode) {
+        container.innerHTML = "";
+        return;
+      }
       if (!state.authoredContent.length) {
         container.innerHTML = '<div class="empty">We do not currently infer any associated content for this author yet. Saving name variants can help refine matching.</div>';
         return;
@@ -630,6 +657,11 @@
         updateSlugUI();
       });
       document.getElementById("search-claims").addEventListener("click", () => searchClaimCandidates());
+      document.getElementById("author-review-mode").addEventListener("change", (event) => {
+        state.authorReviewMode = event.target.checked;
+        localStorage.setItem("pp_author_review_mode", state.authorReviewMode ? "true" : "false");
+        renderContentPicker();
+      });
       document.getElementById("logout").addEventListener("click", async () => {
         await firebase.auth().signOut();
         location.href = "/app";
