@@ -2396,27 +2396,37 @@ function buildFilteredList(data) {
     list.unshift(selectedItemRecord);
   }
 
-  if (selectedQueueMode === 'import-order') return list;
+  const pinSelectedItem = (items) => {
+    if (!selectedItemId || routeItemConsumed) return items;
+    const targetIdx = items.findIndex((g) => valuesMatch(g.id, selectedItemId));
+    if (targetIdx <= 0) return items;
+    const next = items.slice();
+    const [target] = next.splice(targetIdx, 1);
+    next.unshift(target);
+    return next;
+  };
+
+  if (selectedQueueMode === 'import-order') return pinSelectedItem(list);
   if (selectedQueueMode === 'zero-votes') {
-    return list.slice().sort((a, b) => (ratingMetaOf(a).total || 0) - (ratingMetaOf(b).total || 0));
+    return pinSelectedItem(list.slice().sort((a, b) => (ratingMetaOf(a).total || 0) - (ratingMetaOf(b).total || 0)));
   }
   if (selectedQueueMode === 'needs-attention') {
-    return list.slice().sort((a, b) => {
+    return pinSelectedItem(list.slice().sort((a, b) => {
       const ma = ratingMetaOf(a);
       const mb = ratingMetaOf(b);
       const scoreA = (ma.total ? 0 : 3) + (a.releaseCatalog ? 0 : 2) + (a.mediaUrl || a.imageType === 'EXC' || a.imageType === 'FP' ? 0 : 2);
       const scoreB = (mb.total ? 0 : 3) + (b.releaseCatalog ? 0 : 2) + (b.mediaUrl || b.imageType === 'EXC' || b.imageType === 'FP' ? 0 : 2);
       return scoreB - scoreA;
-    });
+    }));
   }
 
   // Explicit filter views are usually admin/team review passes; preserve the server order
   // so newly repaired/imported sets do not get buried by random community interleaving.
-  if (hasActiveFeedFilters()) return list;
+  if (hasActiveFeedFilters()) return pinSelectedItem(list);
 
   // Guide the feed toward community-loved work while keeping room for exploration.
   const suppressMutedInitially = sessionVotes < 5;
-  return orderByCommunityPreference(list, { includeMuted: !suppressMutedInitially });
+  return pinSelectedItem(orderByCommunityPreference(list, { includeMuted: !suppressMutedInitially }));
 }
 
 // ===== Preload =====

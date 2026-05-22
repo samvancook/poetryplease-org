@@ -490,7 +490,7 @@
     }
 
     function reviewItemUrl(item) {
-      return item?.imageId ? `/?item=${encodeURIComponent(item.imageId)}` : "/";
+      return item?.imageId ? `/app?item=${encodeURIComponent(item.imageId)}` : "/app";
     }
 
     function reviewAuthorUrl() {
