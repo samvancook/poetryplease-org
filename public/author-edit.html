@@ -75,6 +75,11 @@
     .review-toggle input { width: 24px; height: 24px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--accent); }
     .review-toggle strong { display: block; font-size: 18px; color: var(--ink); }
     .review-toggle span { display: block; margin-top: 4px; color: var(--muted); line-height: 1.45; }
+    .review-queue { margin-top: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: #fff; }
+    .review-queue h3 { margin: 8px 0; font-size: 24px; line-height: 1.15; }
+    .review-progress { color: var(--muted); font-size: 14px; }
+    .review-current-text { margin: 12px 0 0; color: var(--ink); line-height: 1.55; white-space: pre-wrap; }
+    .content-card.is-current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
     .is-hidden { display: none !important; }
   </style>
 </head>
@@ -185,6 +190,7 @@
           <span id="author-review-count">Loading associated work…</span>
         </span>
       </label>
+      <div id="author-review-queue"></div>
       <div id="content-picker" class="picker-grid"></div>
     </section>
 
@@ -226,6 +232,8 @@
       authorReviewMode: localStorage.getItem("pp_author_review_mode") !== "false",
       reviewAuthor: new URLSearchParams(window.location.search).get("reviewAuthor") || "",
       previewMode: false,
+      reviewIndex: 0,
+      reviewedIds: new Set(),
     };
 
     function slugify(value) {
@@ -424,27 +432,37 @@
 
     function renderContentPicker() {
       const container = document.getElementById("content-picker");
+      const queueContainer = document.getElementById("author-review-queue");
       const toggle = document.getElementById("author-review-mode");
       const count = document.getElementById("author-review-count");
       if (toggle) toggle.checked = state.authorReviewMode;
       if (count) {
+        const authorName = state.workingProfile?.displayName || state.reviewAuthor || "this author";
+        const appUrl = `/app?author=${encodeURIComponent(authorName)}`;
         count.textContent = state.authoredContent.length
           ? `${state.authoredContent.length} pieces are currently associated with this author profile.`
           : "No associated work found yet.";
+        count.insertAdjacentHTML("beforeend", ` <a class="preview" href="${appUrl}" target="_blank" rel="noopener">Review in Poetry Please</a>`);
       }
       if (!state.authorReviewMode) {
+        queueContainer.innerHTML = "";
         container.innerHTML = "";
         return;
       }
       if (!state.authoredContent.length) {
+        queueContainer.innerHTML = "";
         container.innerHTML = '<div class="empty">We do not currently infer any associated content for this author yet. Saving name variants can help refine matching.</div>';
         return;
       }
-      container.innerHTML = state.authoredContent.map((item) => {
+      if (state.reviewIndex >= state.authoredContent.length) state.reviewIndex = 0;
+      renderAuthorReviewQueue();
+      container.innerHTML = state.authoredContent.map((item, index) => {
         const isFeatured = state.featuredIds.includes(item.imageId);
+        const isCurrent = index === state.reviewIndex;
+        const isReviewed = state.reviewedIds.has(item.imageId);
         return `
-          <article class="content-card">
-            <span class="chip">${item.imageType || 'Content'}</span>
+          <article class="content-card${isCurrent ? ' is-current' : ''}" data-review-index="${index}">
+            <span class="chip">${isReviewed ? 'Reviewed' : (item.imageType || 'Content')}</span>
             <h3>${item.title || 'Untitled'}</h3>
             <p>${item.author || ''}</p>
             <p>${item.releaseCatalog || ''}</p>
@@ -457,6 +475,61 @@
       }).join('');
       container.querySelectorAll('[data-feature-id]').forEach((button) => {
         button.addEventListener('click', () => toggleFeatured(button.getAttribute('data-feature-id')));
+      });
+      container.querySelectorAll('[data-review-index]').forEach((card) => {
+        card.addEventListener('click', (event) => {
+          if (event.target.closest('button, a')) return;
+          state.reviewIndex = Number(card.getAttribute('data-review-index')) || 0;
+          renderContentPicker();
+        });
+      });
+    }
+
+    function currentReviewItem() {
+      return state.authoredContent[state.reviewIndex] || null;
+    }
+
+    function reviewItemUrl(item) {
+      return item?.imageId ? `/?item=${encodeURIComponent(item.imageId)}` : "/";
+    }
+
+    function reviewAuthorUrl() {
+      const authorName = state.workingProfile?.displayName || state.reviewAuthor || currentReviewItem()?.author || "";
+      return `/app${authorName ? `?author=${encodeURIComponent(authorName)}` : ""}`;
+    }
+
+    function renderAuthorReviewQueue() {
+      const container = document.getElementById("author-review-queue");
+      const item = currentReviewItem();
+      if (!item) {
+        container.innerHTML = "";
+        return;
+      }
+      const reviewedCount = state.reviewedIds.size;
+      const body = item.excerpt || item.text || "";
+      container.innerHTML = `
+        <div class="review-queue">
+          <div class="review-progress">Piece ${state.reviewIndex + 1} of ${state.authoredContent.length} · ${reviewedCount} reviewed this session</div>
+          <span class="chip">${item.imageType || 'Content'}</span>
+          <h3>${item.title || 'Untitled'}</h3>
+          <p>${item.author || ''}${item.releaseCatalog ? ' · ' + item.releaseCatalog : ''}</p>
+          ${body ? `<div class="review-current-text">${body}</div>` : ''}
+          <div class="actions">
+            <button type="button" class="secondary" id="review-prev">Previous</button>
+            <a class="preview" id="review-open" href="${reviewItemUrl(item)}" target="_blank" rel="noopener">Open current</a>
+            <a class="preview" href="${reviewAuthorUrl()}" target="_blank" rel="noopener">Review in Poetry Please</a>
+            <button type="button" id="review-next">Reviewed / Next</button>
+          </div>
+        </div>
+      `;
+      document.getElementById("review-prev").addEventListener("click", () => {
+        state.reviewIndex = Math.max(0, state.reviewIndex - 1);
+        renderContentPicker();
+      });
+      document.getElementById("review-next").addEventListener("click", () => {
+        if (item.imageId) state.reviewedIds.add(item.imageId);
+        state.reviewIndex = Math.min(state.authoredContent.length - 1, state.reviewIndex + 1);
+        renderContentPicker();
       });
     }
 
