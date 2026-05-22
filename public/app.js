@@ -541,6 +541,7 @@ function resetFeedForIdentityChange() {
   historyStack.length = 0;
   currentItem = null;
   window.currentItem = null;
+  __pp_initialLoadSeq += 1;
   __pp_initialLoad = false;
 }
 
@@ -3076,6 +3077,7 @@ function onGoBack(){
 
 // ===== AUTOLOAD FIRST ITEM =====
 let __pp_initialLoad = false;
+let __pp_initialLoadSeq = 0;
 
 // Simple promise timeout helper
 function withTimeout_(promise, ms, label) {
@@ -3095,6 +3097,7 @@ async function ppAutoloadFirstItem() {
 
   // Lock while we try; we’ll unlock in finally if we didn’t actually render an item
   __pp_initialLoad = true;
+  const loadSeq = ++__pp_initialLoadSeq;
 
   try {
     // 2 retries (3 total attempts), each with a timeout
@@ -3112,6 +3115,11 @@ async function ppAutoloadFirstItem() {
 
       if (data && Array.isArray(data.newGraphics)) {
         LoadTiming.mark('bootstrapDataReady', `${data.newGraphics.length} items`);
+        if (loadSeq !== __pp_initialLoadSeq || currentItem) {
+          LoadTiming.mark('autoloadStale', `seq ${loadSeq}`);
+          console.debug('[PP] autoload: ignoring stale startup data');
+          return;
+        }
         if (selectedItemId && !selectedItemRecord) {
           try {
             const result = await fetchContentByIdWrapped(selectedItemId);
@@ -3127,7 +3135,7 @@ async function ppAutoloadFirstItem() {
         // If nothing queued up, allow future attempts.
         if (!currentItem && (!Array.isArray(queue) || !queue.length)) {
           console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
-          __pp_initialLoad = false;
+          if (loadSeq === __pp_initialLoadSeq) __pp_initialLoad = false;
         }
         return; // ✅ success (or unlocked above if render didn’t happen)
       }
@@ -3142,8 +3150,8 @@ async function ppAutoloadFirstItem() {
     console.warn('[PP] autoload: fatal error', e);
   } finally {
     // ✅ If we *still* don’t have an item, allow future attempts (e.g., user logs in later)
-    if (!currentItem) __pp_initialLoad = false;
-    if (!currentItem) LoaderController.markScreenReady();
+    if (loadSeq === __pp_initialLoadSeq && !currentItem) __pp_initialLoad = false;
+    if (loadSeq === __pp_initialLoadSeq && !currentItem) LoaderController.markScreenReady();
   }
 }
 
