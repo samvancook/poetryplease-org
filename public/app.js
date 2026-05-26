@@ -946,7 +946,7 @@ const STARTUP_BATCH_SIZE = 12;
 const FULL_HYDRATION_BATCH_SIZE = 5000;
 const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
 const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
-const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: filters });
+const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: { limit: FULL_HYDRATION_BATCH_SIZE, ...filters } });
 const fetchFullDataWrapped        = () => api('fetchData',        { body: { limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchFullDataAnonWrapped    = (anonId) => api('fetchDataAnon', { body: { anonId, limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchContentByIdWrapped     = (id) => api(`contentById?id=${encodeURIComponent(id)}`, { method: 'GET' });
@@ -2278,6 +2278,11 @@ async function hydrateFullFeedInBackground() {
       const currentId = getPreferredCurrentItemId();
       lastData = data;
       if (currentId && !hasActiveFeedFilters()) {
+        const hydratedQueue = buildFilteredList(data);
+        const currentPos = hydratedQueue.findIndex((g) => valuesMatch(g.id, currentId));
+        if (currentPos >= 0) hydratedQueue.splice(currentPos, 1);
+        queue = [currentItem || queue[idx], ...hydratedQueue].filter(Boolean);
+        idx = 0;
         fullFeedHydrationDone = true;
         return;
       }
@@ -2863,17 +2868,13 @@ function renderItemMedia(item) {
     }
  } else if (item?.mediaUrl) {
   if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'image';
-  const a = document.createElement('a');
-  if (item?.bookUrl) { a.href = item.bookUrl; a.target = '_blank'; }
-
   img = document.createElement('img');
   img.src = item.mediaUrl;
   img.alt = item?.id || '';
   img.style.maxWidth = '100%';
   img.style.height = 'auto';
 
-  a.appendChild(img);
-  box.appendChild(a);
+  box.appendChild(img);
 
   attachPinchZoomToImage_(img);
 }

@@ -3007,6 +3007,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     author: normalizeText(req.body?.author),
     book: normalizeText(req.body?.book),
   };
+  const limit = Math.max(10, Math.min(Number(req.body?.limit) || 500, 5000));
 
   const [allContent, flaggedIds, votedIds] = await Promise.all([
     getAllContentCached(),
@@ -3020,7 +3021,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
 
   res.json({
     allGraphics: filteredAll.map(mapToCounterArr),
-    newGraphics: filteredNew.map(mapToArr),
+    newGraphics: sampleItems(filteredNew, limit).map(mapToArr),
     totalImages: all.length,
     votedImagesCount: votedIds.size,
     remainingImagesCount: filteredNew.length,
