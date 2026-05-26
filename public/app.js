@@ -804,7 +804,7 @@ function updateUserStatusUI() {
       const resetBadge = canAccessScoreboard
         ? ' <button id="reset-app-state-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#fff;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;">Reset app state</button>'
         : '';
-      const buildBadge = isAdmin
+      const buildBadge = canAccessScoreboard
         ? ` <span id="build-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#6c6558;font-size:12px;font-weight:600;">Build ${getCurrentBuildLabel()}</span>`
         : '';
       const viewToggle = isAdmin
@@ -942,7 +942,7 @@ async function handleRegistration(e) {
 }
 
 // ===== API Mappings (to your Cloud Functions) =====
-const STARTUP_BATCH_SIZE = 12;
+const STARTUP_BATCH_SIZE = 120;
 const FULL_HYDRATION_BATCH_SIZE = 5000;
 const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
 const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
