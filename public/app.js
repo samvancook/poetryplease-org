@@ -2751,11 +2751,30 @@ function renderCounter() {
   const totalImages = Number(lastData?.totalImages || all.length || 0);
   const votedOverall = Number(lastData?.votedImagesCount || 0);
   const remainingOverall = Number(lastData?.remainingImagesCount || 0);
+  const serverDomainTotal = Number(lastData?.domainTotalImages || 0);
+  const serverDomainVoted = Number(lastData?.domainVotedImagesCount || 0);
+  const serverDomainRemaining = Number(lastData?.domainRemainingImagesCount || 0);
+  const hasServerDomainCounts = hasActiveFeedFilters()
+    && Number.isFinite(serverDomainTotal)
+    && serverDomainTotal > 0
+    && Number.isFinite(serverDomainRemaining);
   const domainRemaining = queue.length;
+  let displayTotal = totalInDomain;
   let votedInDomain = Math.max(totalInDomain - domainRemaining, 0);
+  let displayRemaining = domainRemaining;
+
+  if (hasServerDomainCounts) {
+    displayTotal = serverDomainTotal;
+    votedInDomain = Number.isFinite(serverDomainVoted)
+      ? serverDomainVoted
+      : Math.max(serverDomainTotal - serverDomainRemaining, 0);
+    displayRemaining = serverDomainRemaining;
+  }
 
   if (!selectedType && !selectedCatalog && !filterByAuthor && !filterByBook && totalInDomain === totalImages) {
+    displayTotal = totalInDomain;
     votedInDomain = votedOverall;
+    displayRemaining = remainingOverall;
   }
 
   let counter = $('#domain-counter');
@@ -2764,10 +2783,7 @@ function renderCounter() {
     const bar = $('#counters-bar'); if (bar) { const span = document.createElement('span'); span.appendChild(counter); bar.appendChild(span); }
   }
   if (counter) {
-    const remainingText = (!selectedType && !selectedCatalog && !filterByAuthor && !filterByBook && totalInDomain === totalImages)
-      ? remainingOverall
-      : domainRemaining;
-    counter.textContent = `Voted on ${votedInDomain} of ${totalInDomain} — ${remainingText} remaining.`;
+    counter.textContent = `Voted on ${votedInDomain} of ${displayTotal} — ${displayRemaining} remaining.`;
   }
   refreshCountsModalIfOpen();
 }
