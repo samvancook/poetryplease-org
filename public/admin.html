@@ -3028,7 +3028,25 @@
 
       const pending = flags.filter((flag) => flag.status === 'pending');
       statusEl.textContent = `Showing ${flags.length} flag${flags.length === 1 ? '' : 's'} · ${pending.length} pending.`;
+      const authorFeedback = flags.filter((flag) => String(flag.note || '').includes('Author review note'));
+      const groupedAuthorFeedback = Array.from(authorFeedback.reduce((map, flag) => {
+        const match = String(flag.note || '').match(/Author profile:\s*(.+)/);
+        const author = match?.[1]?.split('\n')?.[0]?.trim() || flag.author || 'Unknown author';
+        const rows = map.get(author) || [];
+        rows.push(flag);
+        map.set(author, rows);
+        return map;
+      }, new Map()).entries()).sort((a, b) => b[1].length - a[1].length);
+      const feedbackSummary = groupedAuthorFeedback.length ? `
+        <div class="controls" style="margin-bottom:12px;align-items:stretch;">
+          ${groupedAuthorFeedback.map(([author, rows]) => {
+            const pendingRows = rows.filter((flag) => (flag.status || 'pending') === 'pending');
+            return `<span class="chip">${escapeHtml(author)}: ${rows.length} note${rows.length === 1 ? '' : 's'}${pendingRows.length ? ` · ${pendingRows.length} pending` : ''}</span>`;
+          }).join('')}
+        </div>
+      ` : '';
       container.innerHTML = `
+        ${feedbackSummary}
         <table>
           <thead>
             <tr>
@@ -3507,14 +3525,21 @@
           console.error(err);
         }
 
-        if (!state.me?.roles?.includes("admin")) {
-          setStatus("This account does not have admin access.", true);
-          document.getElementById("results").innerHTML = '<div class="empty">Admin access is required for this page.</div>';
+        const isAdmin = state.me?.roles?.includes("admin");
+        const isTeam = state.me?.roles?.includes("team");
+        if (!isAdmin && !isTeam) {
+          setStatus("This account does not have admin or team access.", true);
+          document.getElementById("results").innerHTML = '<div class="empty">Admin or team access is required for this page.</div>';
           renderAdminPreviewToggle();
           return;
         }
 
         renderAdminPreviewToggle();
+        if (!isAdmin && isTeam) {
+          setStatus("Team access loaded. Flagged author feedback is available for review.", false);
+          await loadFlags();
+          return;
+        }
         await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
       });
 

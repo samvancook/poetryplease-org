@@ -70,6 +70,9 @@
     .content-card p { margin: 6px 0; color: var(--muted); font-size: 14px; }
     .featured-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
     .featured-pill { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: var(--accent-warm); color: #7a4d20; font-size: 13px; }
+    .review-note { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+    .review-note select, .review-note textarea { width: 100%; }
+    .review-note textarea { min-height: 72px; }
     .empty { border: 1px dashed var(--line); border-radius: 16px; padding: 16px; color: var(--muted); }
     .review-toggle {
       display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 2px solid var(--accent);
@@ -266,6 +269,15 @@
       const el = document.getElementById("status");
       el.textContent = message;
       el.className = `status${kind ? ` ${kind}` : ""}`;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
     }
 
     function setPhotoStatus(message, kind = "") {
@@ -488,15 +500,32 @@
       }
       container.innerHTML = state.authoredContent.map((item) => {
         const isFeatured = state.featuredIds.includes(item.imageId);
+        const itemId = escapeHtml(item.imageId || "");
         return `
           <article class="content-card">
-            <span class="chip">${item.imageType || 'Content'}</span>
-            <h3>${item.title || 'Untitled'}</h3>
-            <p>${item.author || ''}</p>
-            <p>${item.releaseCatalog || ''}</p>
+            <span class="chip">${escapeHtml(item.imageType || 'Content')}</span>
+            <h3>${escapeHtml(item.title || 'Untitled')}</h3>
+            <p>${escapeHtml(item.author || '')}</p>
+            <p>${escapeHtml(item.releaseCatalog || '')}</p>
             <div class="actions" style="margin-top:12px;">
-              <button type="button" class="${isFeatured ? 'active-feature' : 'ghost'}" data-feature-id="${item.imageId}">${isFeatured ? 'Featured' : 'Add to featured'}</button>
+              <button type="button" class="${isFeatured ? 'active-feature' : 'ghost'}" data-feature-id="${itemId}">${isFeatured ? 'Featured' : 'Add to featured'}</button>
               <a class="preview" href="${reviewItemUrl(item)}" target="_blank" rel="noopener">Open in Poetry Please</a>
+            </div>
+            <div class="review-note">
+              <select data-feedback-reason="${itemId}">
+                <option value="">Correction type</option>
+                <option value="Not mine">Not mine</option>
+                <option value="Typo or text issue">Typo or text issue</option>
+                <option value="Wrong book or catalog">Wrong book or catalog</option>
+                <option value="Do not feature publicly">Do not feature publicly</option>
+                <option value="Missing related work">Missing related work</option>
+                <option value="Other note">Other note</option>
+              </select>
+              <textarea data-feedback-note="${itemId}" placeholder="Optional note for the Poetry Please team"></textarea>
+              <div class="actions" style="margin-top:0;">
+                <button type="button" class="secondary" data-feedback-submit="${itemId}">Send note</button>
+                <span class="hint" data-feedback-status="${itemId}"></span>
+              </div>
             </div>
           </article>
         `;
@@ -504,6 +533,40 @@
       container.querySelectorAll('[data-feature-id]').forEach((button) => {
         button.addEventListener('click', () => toggleFeatured(button.getAttribute('data-feature-id')));
       });
+      container.querySelectorAll('[data-feedback-submit]').forEach((button) => {
+        button.addEventListener('click', () => submitAuthorFeedback(button.getAttribute('data-feedback-submit')));
+      });
+    }
+
+    async function submitAuthorFeedback(imageId) {
+      const reasonEl = document.querySelector(`[data-feedback-reason="${CSS.escape(imageId)}"]`);
+      const noteEl = document.querySelector(`[data-feedback-note="${CSS.escape(imageId)}"]`);
+      const statusEl = document.querySelector(`[data-feedback-status="${CSS.escape(imageId)}"]`);
+      const reason = reasonEl?.value || "";
+      const note = noteEl?.value?.trim?.() || "";
+      if (!reason && !note) {
+        if (statusEl) statusEl.textContent = "Choose a correction type or add a note.";
+        return;
+      }
+      const item = state.authoredContent.find((entry) => entry.imageId === imageId);
+      const authorName = state.workingProfile?.displayName || state.reviewAuthor || item?.author || "";
+      const message = [
+        "Author review note",
+        authorName ? `Author profile: ${authorName}` : "",
+        reason ? `Type: ${reason}` : "",
+        note ? `Note: ${note}` : "",
+      ].filter(Boolean).join("\n");
+      try {
+        if (statusEl) statusEl.textContent = "Sending…";
+        await api("contentFlags", { method: "POST", body: { imageId, note: message } });
+        if (statusEl) statusEl.textContent = "Sent to the Poetry Please team.";
+        if (reasonEl) reasonEl.value = "";
+        if (noteEl) noteEl.value = "";
+      } catch (err) {
+        if (statusEl) statusEl.textContent = String(err?.message || "").includes("content_already_flagged")
+          ? "This item already has a pending team note."
+          : "Could not send this note.";
+      }
     }
 
     function reviewItemUrl(item) {

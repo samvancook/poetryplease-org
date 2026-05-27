@@ -177,6 +177,7 @@
 
     <section class="section">
       <h2>Featured Work</h2>
+      <div id="featured-note" class="empty" style="display:none;margin-bottom:16px;"></div>
       <div id="featured" class="grid"></div>
     </section>
 
@@ -234,6 +235,7 @@
 
       const payload = await response.json();
       const profile = payload.profile || {};
+      const stats = payload.stats || {};
       const featured = payload.featuredContent || [];
       const authored = payload.authoredContent || [];
 
@@ -269,6 +271,15 @@
         }
       });
       document.getElementById("links").innerHTML = links.length ? links.join("") : '<div class="empty">No external links have been added yet.</div>';
+
+      const featuredNote = document.getElementById("featured-note");
+      if (stats.featuredFallback && featured.length) {
+        featuredNote.style.display = "block";
+        featuredNote.textContent = "Featured work has not been manually selected yet, so this page is showing top associated content.";
+      } else {
+        featuredNote.style.display = "none";
+        featuredNote.textContent = "";
+      }
 
       document.getElementById("featured").innerHTML = featured.length
         ? featured.map(makeCard).join("")

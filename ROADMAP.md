@@ -35,6 +35,7 @@
   - add automated checks for logged-out load, logged-in load, filtered queue, scoreboard, and admin
   - avoid mixing data repair, UI work, and unrelated deploys in one pass when possible
   - keep lightweight deploy notes so we know what changed and why
+  - retire stale Poetry Please entrypoints such as `buttonpoetry.com/poetryplease` so old builds cannot create false bug reports
 
 ## Near-Term Build Order
 - Establish a low-friction safety rail before larger product changes:
@@ -57,6 +58,7 @@
 - Add feed dedupe protection so sibling duplicate records do not re-serve after a recent vote
 - Add a first-pass social ingest path for post metrics (views, likes, comments, saves, shares) tied to Poetry Please content ids
 - Add published-post history so Poetry Please knows what assets have already gone out on social and where
+- Take down or redirect the old Poetry Please version at `buttonpoetry.com/poetryplease` to the current app at `https://poetryplease.org/app`, and verify no team-facing docs or bookmarks still point at the stale build
 - Follow up on the newly imported `INT` sets:
   - normalize `DBAT` title spelling/cleanup where the source filenames currently say things like `Promt`, `Statment`, `Assult`, and `Curce`
   - decide whether `WTF - INT - hi-05.jpg` and `WTF - INT - hi-06.jpg` should remain distinct variants

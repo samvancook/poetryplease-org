@@ -3403,6 +3403,7 @@ app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {
     stats: {
       authoredCount: authored.length,
       featuredCount: featured.length,
+      featuredFallback: !(profile.featuredContentIds || []).length,
     },
     featuredContent: featured,
     authoredContent: authored,
@@ -3935,7 +3936,7 @@ app.post(getBoth("/admin/contentFlags/batch"), async (req, res) => {
 });
 
 app.get(getBoth("/admin/contentFlags"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
 
   const allContent = await getAllContent();
@@ -4483,7 +4484,7 @@ app.post(getBoth("/admin/contentLibrary/deleteByDate"), async (req, res) => {
 });
 
 app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
 
   const flagId = normalizeText(req.params.flagId);
