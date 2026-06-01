@@ -942,11 +942,12 @@ async function handleRegistration(e) {
 }
 
 // ===== API Mappings (to your Cloud Functions) =====
-const STARTUP_BATCH_SIZE = 120;
-const FULL_HYDRATION_BATCH_SIZE = 5000;
-const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
-const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: !IS_EMBED_UI } });
-const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: { limit: FULL_HYDRATION_BATCH_SIZE, ...filters } });
+const STARTUP_BATCH_SIZE = 40;
+const FULL_HYDRATION_BATCH_SIZE = 1000;
+const FILTERED_REVIEW_BATCH_SIZE = 5000;
+const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: false } });
+const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: false } });
+const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: { limit: FILTERED_REVIEW_BATCH_SIZE, ...filters } });
 const fetchFullDataWrapped        = () => api('fetchData',        { body: { limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchFullDataAnonWrapped    = (anonId) => api('fetchDataAnon', { body: { anonId, limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchContentByIdWrapped     = (id) => api(`contentById?id=${encodeURIComponent(id)}`, { method: 'GET' });
@@ -3214,7 +3215,9 @@ firebase.auth().onAuthStateChanged(async (user) => {
   }
 
   if (visibleUser) {
-    await mergeAnonymousVotesIntoAccount();
+    mergeAnonymousVotesIntoAccount().catch((err) => {
+      console.warn('Deferred anonymous vote merge failed', err);
+    });
   }
 
   try {

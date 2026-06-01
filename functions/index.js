@@ -76,13 +76,19 @@ const appAdmin = initializeApp({ storageBucket: "poetry-please.firebasestorage.a
 const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
-const CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
+const CONTENT_CACHE_TTL_MS = 15 * 60 * 1000;
+const RATINGS_CACHE_TTL_MS = 2 * 60 * 1000;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
 const SCOREBOARD_SNAPSHOT_VERSION = 3;
 let contentCache = {
+  builtAt: 0,
+  payload: null,
+  inFlight: null,
+};
+let ratingsCache = {
   builtAt: 0,
   payload: null,
   inFlight: null,
@@ -1040,6 +1046,27 @@ function aggregateRatings(voteDocs) {
     out[id] = { score, total, rating: total ? score / total : 0, likes, dislikes, meh, movedMe };
   });
   return out;
+}
+
+async function getRatingsSummaryCached() {
+  const now = Date.now();
+  if (ratingsCache.payload && (now - ratingsCache.builtAt) < RATINGS_CACHE_TTL_MS) {
+    return ratingsCache.payload;
+  }
+  if (ratingsCache.inFlight) return ratingsCache.inFlight;
+  ratingsCache.inFlight = getAllVotes()
+    .then((votes) => aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType }))))
+    .then((payload) => {
+      ratingsCache.payload = payload;
+      ratingsCache.builtAt = Date.now();
+      ratingsCache.inFlight = null;
+      return payload;
+    })
+    .catch((err) => {
+      ratingsCache.inFlight = null;
+      throw err;
+    });
+  return ratingsCache.inFlight;
 }
 
 function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null }) {
@@ -2962,9 +2989,7 @@ app.get(getBoth("/books"), async (_req, res) => {
 
 // ratingsSummary
 app.get(getBoth("/ratingsSummary"), async (_req, res) => {
-  const votesSnap = await getAllVotes();
-  const compact = votesSnap.map((v) => ({ imageId: v.imageId, voteType: v.voteType }));
-  res.json(aggregateRatings(compact));
+  res.json(await getRatingsSummaryCached());
 });
 
 app.post(getBoth("/bootstrap"), async (req, res) => {
@@ -2983,11 +3008,7 @@ app.post(getBoth("/bootstrap"), async (req, res) => {
   ];
 
   if (includeRatingsSummary) {
-    tasks.push(
-      getAllVotes().then((votes) =>
-        aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })))
-      )
-    );
+    tasks.push(getRatingsSummaryCached());
   }
 
   const [allContent, flaggedIds, votedIds, ratingsSummary = null] = await Promise.all(tasks);
