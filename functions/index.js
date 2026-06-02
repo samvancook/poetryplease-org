@@ -934,6 +934,11 @@ function timestampToMs(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeTimestamp(value) {
+  const timestamp = timestampToMs(value);
+  return timestamp ? new Date(timestamp) : null;
+}
+
 function mapToArr(o) {
   const mediaUrl = (o.imageType || "") === "YT"
     ? (o.youtubeUrl || o.url || o.imageUrl || "")
