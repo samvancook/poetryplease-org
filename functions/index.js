@@ -4304,15 +4304,80 @@ function isWeaverExcerptImportType(value = "") {
   return normalized === "exc" || normalized === "excerpt" || normalized === "excerpts";
 }
 
+function isWeaverFullPoemImportType(value = "") {
+  const normalized = normalizeKey(value);
+  return normalized === "fp" || normalized === "fullpoem" || normalized === "fullpoems";
+}
+
 function looksLikeDirectWeaverExcerptPayload(body = {}) {
   if (!body || typeof body !== "object" || Array.isArray(body)) return false;
   return !!(
     body.excerpt
     || body.excerptText
+    || body.text
     || body.normalizedExcerpt
     || body.excerptHash
     || body.poemTitle
   );
+}
+
+function buildWeaverFullPoemImportItem(record = {}) {
+  const sourceRecordId = normalizeText(record.sourceRecordId || record.recordId || record.id || record.ledgerId);
+  return {
+    imageType: "FP",
+    sourceSystem: normalizeText(record.sourceSystem || "weaver"),
+    sourceRecordId,
+    sourceUrl: normalizeText(record.sourceUrl || record.weaverUrl || record.url),
+    sourceContentId: normalizeText(record.sourceContentId || record.relatedGraphicId || ""),
+    author: normalizeText(record.author),
+    book: normalizeText(record.book || record.bookTitle),
+    title: normalizeText(record.poem || record.poemTitle || record.title),
+    excerpt: normalizeText(record.excerpt || record.excerptText || record.text),
+    pageNumber: normalizeText(record.pageNumber),
+    bookShortener: normalizeText(record.bookShortener),
+    bookLink: normalizeText(record.bookLink),
+    releaseCatalog: normalizeText(record.releaseCatalog),
+    driveLink: normalizeText(record.driveLink),
+    approvedAt: normalizeText(record.approvedAt),
+    sourceUpdatedAt: normalizeText(record.updatedAt),
+  };
+}
+
+async function assignPersistentWeaverFullPoemIds(items = []) {
+  const usedIds = new Set();
+  for (const item of items) {
+    const bookShortener = resolveExcerptBookShortener(item);
+    if (!bookShortener || !item.title) continue;
+    item.bookShortener = bookShortener;
+
+    const sourceRecordId = normalizeText(item.sourceRecordId);
+    if (sourceRecordId) {
+      const existingBySource = await db.collection(COLLECTIONS.fullPoems)
+        .where("sourceRecordId", "==", sourceRecordId)
+        .limit(1)
+        .get();
+      if (!existingBySource.empty) {
+        item.docId = existingBySource.docs[0].id;
+        item.imageId = item.docId;
+        item.imageID = item.docId;
+        usedIds.add(item.docId);
+        continue;
+      }
+    }
+
+    const baseId = `${sanitizeDocIdSegment(bookShortener)}-FP-${slugify(item.title)}`.toUpperCase();
+    let nextId = baseId;
+    let index = 1;
+    while (usedIds.has(nextId) || (await db.collection(COLLECTIONS.fullPoems).doc(nextId).get()).exists) {
+      index += 1;
+      nextId = `${baseId}-${index}`;
+    }
+    item.docId = nextId;
+    item.imageId = nextId;
+    item.imageID = nextId;
+    usedIds.add(nextId);
+  }
+  return items;
 }
 
 async function assignPersistentWeaverExcerptIds(items = []) {
@@ -4401,6 +4466,50 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   };
 }
 
+async function importWeaverFullPoemsPayload(rawPayload, actor = {}) {
+  const sourceRecords = flattenWeaverExcerptRecords(rawPayload);
+  const mappedItems = await assignPersistentWeaverFullPoemIds(sourceRecords.map(buildWeaverFullPoemImportItem));
+  const importableItems = mappedItems.filter((item) => item.docId && item.author && item.book && item.title && item.excerpt);
+  if (!importableItems.length) {
+    const err = new Error("no_importable_weaver_full_poem_records");
+    err.status = 400;
+    throw err;
+  }
+
+  const results = [];
+  for (const item of importableItems.slice(0, 500)) {
+    try {
+      const result = await upsertContentLibraryItem("fullpoems", item, actor);
+      results.push({ ok: true, id: result.item?.id || item.docId, created: !!result.created });
+    } catch (err) {
+      results.push({
+        ok: false,
+        id: deriveContentDocId("fullpoems", item) || item.docId || "",
+        error: err.message || "import_failed",
+      });
+    }
+  }
+
+  const createdCount = results.filter((row) => row.ok && row.created).length;
+  const updatedCount = results.filter((row) => row.ok && !row.created).length;
+  const errorCount = results.filter((row) => !row.ok).length;
+  if (createdCount || updatedCount) {
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot("content_weaver_import:fullpoems");
+  }
+
+  return {
+    ok: true,
+    sourceCount: sourceRecords.length,
+    eligibleCount: importableItems.length,
+    mappedCount: importableItems.length,
+    createdCount,
+    updatedCount,
+    errorCount,
+    results,
+  };
+}
+
 app.post(getBoth("/admin/contentLibrary/weaverImport"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -4431,7 +4540,8 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
       || req.body?.items
       || req.body?.excerpts
       || (normalizeText(req.body?.sourceUrl) ? await fetchRemoteJson(req.body.sourceUrl) : null);
-    const payload = rawPayload || (isWeaverExcerptImportType(defaultImageType) && looksLikeDirectWeaverExcerptPayload(req.body) ? req.body : null);
+    const isTextImport = isWeaverExcerptImportType(defaultImageType) || isWeaverFullPoemImportType(defaultImageType);
+    const payload = rawPayload || (isTextImport && looksLikeDirectWeaverExcerptPayload(req.body) ? req.body : null);
     if (!payload) {
       return res.status(400).json({ error: "missing_weaver_payload" });
     }
@@ -4442,7 +4552,9 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
     };
     const result = isWeaverExcerptImportType(defaultImageType)
       ? await importWeaverExcerptsPayload(payload, actor)
-      : await importWeaverGraphicsPayload(payload, defaultImageType, actor);
+      : isWeaverFullPoemImportType(defaultImageType)
+        ? await importWeaverFullPoemsPayload(payload, actor)
+        : await importWeaverGraphicsPayload(payload, defaultImageType, actor);
     res.json(result);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "weaver_import_failed" });
