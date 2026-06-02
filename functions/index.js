@@ -5204,7 +5204,7 @@ app.get(getBoth("/admin/authorInvites"), async (req, res) => {
   if (!ctx) return;
 
   const snap = await db.collection(COLLECTIONS.authorInvites).limit(250).get();
-  const invites = snap.docs
+  const rawInvites = snap.docs
     .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
     .map((invite) => {
       const expiresAt = invite.expiresAt?.toDate ? invite.expiresAt.toDate() : (invite.expiresAt || null);
@@ -5219,6 +5219,32 @@ app.get(getBoth("/admin/authorInvites"), async (req, res) => {
         expiresAt: expiresAt ? expiresAt.toISOString() : null,
         claimedAt: claimedAt ? claimedAt.toISOString() : null,
         claimedByUserId: invite.claimedByUserId || '',
+      };
+    });
+  const claimedUserIds = uniq(rawInvites.map((invite) => invite.claimedByUserId).filter(Boolean));
+  const claimedUsers = new Map(await Promise.all(claimedUserIds.map(async (userId) => {
+    const userSnap = await db.collection(COLLECTIONS.users).doc(userId).get();
+    return [userId, userSnap.data() || {}];
+  })));
+  const profileIds = uniq(rawInvites.map((invite) => {
+    const user = claimedUsers.get(invite.claimedByUserId) || {};
+    return user.authorProfileId || invite.claimedByUserId || '';
+  }).filter(Boolean));
+  const claimedProfiles = new Map(await Promise.all(profileIds.map(async (profileId) => {
+    const profileSnap = await db.collection(COLLECTIONS.authorProfiles).doc(profileId).get();
+    return [profileId, profileSnap.exists ? mapProfileDoc(profileSnap.id, profileSnap.data()) : null];
+  })));
+  const invites = rawInvites
+    .map((invite) => {
+      const user = claimedUsers.get(invite.claimedByUserId) || {};
+      const profileId = user.authorProfileId || invite.claimedByUserId || '';
+      const profile = claimedProfiles.get(profileId) || null;
+      return {
+        ...invite,
+        claimedByEmail: user.email || '',
+        profileId,
+        profileName: profile?.displayName || '',
+        profileSlug: profile?.slug || '',
       };
     })
     .sort((a, b) => {

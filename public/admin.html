@@ -1440,6 +1440,7 @@
               <th>Created</th>
               <th>Expires</th>
               <th>Claimed</th>
+              <th>Author account</th>
             </tr>
           </thead>
           <tbody>
@@ -1450,6 +1451,9 @@
                 <td>${formatLastActive(invite.createdAt)}</td>
                 <td>${invite.expiresAt ? formatLastActive(invite.expiresAt) : '—'}</td>
                 <td>${invite.claimedAt ? formatLastActive(invite.claimedAt) : 'Not yet'}</td>
+                <td>${invite.profileSlug
+                  ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(invite.profileName || invite.profileSlug)}" target="_blank" rel="noopener">${invite.profileName || invite.claimedByEmail || 'Open profile'}</a>`
+                  : (invite.claimedByEmail || (invite.status === 'claimed' ? 'Claimed account needs profile review' : '—'))}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1674,6 +1678,7 @@
               <th>Name</th>
               <th>Slug</th>
               <th>Email</th>
+              <th>Account</th>
               <th>Published</th>
               <th>Open</th>
             </tr>
@@ -1684,8 +1689,9 @@
                 <td>${profile.displayName || '—'}</td>
                 <td>${profile.slug || '—'}</td>
                 <td>${profile.email || '—'}</td>
+                <td>${profile.userId ? 'Claimed' : 'Preview only'}</td>
                 <td>${profile.published ? 'Yes' : 'No'}</td>
-                <td>${profile.slug ? `<a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">View page</a>` : '—'}</td>
+                <td>${profile.slug ? `<a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">View page</a> · ` : ''}<a href="/author/edit?reviewAuthor=${encodeURIComponent(profile.displayName || profile.slug || '')}" target="_blank" rel="noopener">Review</a></td>
               </tr>
             `).join('')}
           </tbody>

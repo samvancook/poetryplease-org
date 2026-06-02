@@ -246,7 +246,8 @@
               <th data-column="missingCatalog">Missing Catalog</th>
               <th data-column="missingBucketUrl">Missing Bucket URL</th>
               <th data-column="flagged">Flagged</th>
-              <th data-column="missing">Missing Baseline</th>
+              <th data-column="contentNeeded">Content Needed</th>
+              <th data-column="missing">Needed Breakdown</th>
               <th data-column="votes">Votes</th>
               <th data-column="total">Total</th>
               <th data-column="percent">Progress</th>
@@ -880,6 +881,7 @@
           case 'missingCatalog': va = a.missingCatalog || 0; vb = b.missingCatalog || 0; break;
           case 'missingBucketUrl': va = a.missingBucketUrl || 0; vb = b.missingBucketUrl || 0; break;
           case 'flagged': va = a.flagged || 0; vb = b.flagged || 0; break;
+          case 'contentNeeded': va = a.missingBaseline; vb = b.missingBaseline; break;
           case 'missing': va = a.missingBaseline; vb = b.missingBaseline; break;
           case 'votes': va = a.voted; vb = b.voted; break;
           case 'total': va = a.total; vb = b.total; break;
@@ -895,7 +897,7 @@
       const tbody = document.getElementById('progressBarsBody');
       tbody.innerHTML = '';
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="16"><div class="empty">No progress rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="17"><div class="empty">No progress rows match the current filters.</div></td></tr>';
         return;
       }
 
@@ -915,6 +917,7 @@
           <td>${row.missingCatalog || 0}</td>
           <td>${row.missingBucketUrl || 0}</td>
           <td>${row.flagged || 0}</td>
+          <td>${row.missingBaseline || 0}</td>
           <td>${escapeHtml(row.missingBaselineLabel || 'Complete')}</td>
           <td>${row.voted}</td>
           <td>${row.total}</td>
