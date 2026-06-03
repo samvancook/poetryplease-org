@@ -102,6 +102,14 @@
 - Keep improving author accounts:
   - better admin diagnostics for invites, claims, and linked profiles
   - clearer review of what authored content and submissions are tied to each profile
+- Build the Author Account Command Center:
+  - create an Admin dashboard for author onboarding, claimed accounts, associated work, feedback, and public profile readiness
+  - show author profile statuses: `not invited`, `invited`, `claimed`, `profile incomplete`, `ready for review`, and `published`
+  - add a per-author detail panel with invite status, claimed user, email mismatch warnings, associated content count, featured picks, unresolved author notes, and public/private state
+  - send author invites directly from the tool, including email entry, message/template support, send status, resend, copy-link fallback, expiration, and claimed-state visibility
+  - consolidate author feedback workflow: `not mine`, `typo`, `wrong book`, `don't feature`, and `missing work`, grouped by author with resolve buttons
+  - add content association cleanup controls showing whether content is tied by author name, claimed ids, or manual association, with remove/add association actions
+  - add a public profile readiness checklist covering bio, social links, featured work or fallback, profile published state, and review queue link readiness
 - Clean up remaining ambiguous YouTube-derived book-title oddities:
   - investigate author-only labels where the author has multiple possible books, including `Ebonystewart`, `Neilhilborn`, `Rachelwiley`, and `Sierrademulder`
   - use item-level YouTube titles, authors, source URLs, and catalog metadata before assigning canonical book titles
