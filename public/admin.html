@@ -376,6 +376,16 @@
 
     <section class="card">
       <div class="section-head">
+        <h2>Author Command Center</h2>
+        <button id="refresh-author-command-center" class="secondary" type="button">Refresh</button>
+      </div>
+      <p class="lede" style="margin-bottom:16px;max-width:none;">Track author onboarding, claimed accounts, review readiness, associated work, and unresolved author notes in one place.</p>
+      <div id="author-command-center-status" class="status">Loading author command center…</div>
+      <div id="author-command-center-list"></div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
         <h2>Users</h2>
         <button id="users-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="users-section-body">
           <span class="chevron">▾</span>
@@ -876,6 +886,7 @@
       userSort: "name-asc",
       syncedCount: 0,
       invites: [],
+      authorCommandCenter: null,
       claims: [],
       duplicates: [],
       weaverExcHealth: null,
@@ -1472,6 +1483,103 @@
         console.error(err);
         document.getElementById('invite-list').innerHTML = '<div class="empty">Could not load invites.</div>';
         statusEl.textContent = err.message || 'Could not load invites.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    function readinessChips(readiness = {}) {
+      const chips = [
+        ['Account', readiness.hasClaimedAccount],
+        ['Bio', readiness.hasBio],
+        ['Links', readiness.hasLinks],
+        ['Work', readiness.hasFeaturedOrFallback],
+        ['Published', readiness.published],
+      ];
+      return chips.map(([label, ok]) => `<span class="pill" style="${ok ? '' : 'background:#f7e1dc;color:#8b3528;'}">${ok ? '✓' : 'Needs'} ${label}</span>`).join(' ');
+    }
+
+    function renderAuthorCommandCenter() {
+      const payload = state.authorCommandCenter;
+      const container = document.getElementById('author-command-center-list');
+      const statusEl = document.getElementById('author-command-center-status');
+      if (!payload) {
+        container.innerHTML = '<div class="empty">No author command center data loaded yet.</div>';
+        return;
+      }
+      const summary = payload.summary || {};
+      const rows = payload.rows || [];
+      statusEl.textContent = `${summary.total || 0} author lanes · ${summary.claimed || 0} claimed · ${summary.published || 0} published · ${summary.unresolvedFeedback || 0} unresolved author notes.`;
+      container.innerHTML = `
+        <div class="controls" style="margin-bottom:12px;">
+          <span class="chip">Invited: ${summary.invited || 0}</span>
+          <span class="chip">Claimed: ${summary.claimed || 0}</span>
+          <span class="chip">Ready review: ${summary.readyForReview || 0}</span>
+          <span class="chip">Published: ${summary.published || 0}</span>
+          <span class="chip">Author notes: ${summary.unresolvedFeedback || 0}</span>
+        </div>
+        ${rows.length ? `
+          <table>
+            <thead>
+              <tr>
+                <th>Author</th>
+                <th>Status</th>
+                <th>Invite</th>
+                <th>Work</th>
+                <th>Readiness</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map((row) => {
+                const profile = row.profile || {};
+                const invite = row.invite || {};
+                const name = profile.displayName || invite.email || 'Unknown author';
+                const reviewAuthor = profile.displayName || profile.slug || name;
+                const inviteLabel = invite.email
+                  ? `${invite.status || 'active'}${invite.claimedAt ? ` · claimed ${formatLastActive(invite.claimedAt)}` : ''}`
+                  : 'No invite';
+                const feedbackCount = row.readiness?.unresolvedFeedbackCount || 0;
+                return `
+                  <tr>
+                    <td>
+                      <strong>${escapeHtml(name)}</strong>
+                      <div class="meta">${escapeHtml(profile.email || invite.email || '')}</div>
+                    </td>
+                    <td>${escapeHtml(row.status || 'not invited')}</td>
+                    <td>${escapeHtml(inviteLabel)}</td>
+                    <td>${row.associatedCount || 0}${feedbackCount ? `<div class="meta">${feedbackCount} pending note${feedbackCount === 1 ? '' : 's'}</div>` : ''}</td>
+                    <td>${readinessChips(row.readiness || {})}</td>
+                    <td>
+                      ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ''}
+                      ${profile.slug ? ` · <a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ''}
+                      ${invite.email ? ` · <button type="button" class="secondary copy-author-invite-email" data-email="${escapeHtml(invite.email)}">Copy email</button>` : ''}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        ` : '<div class="empty">No author lanes yet.</div>'}
+      `;
+      container.querySelectorAll('.copy-author-invite-email').forEach((button) => {
+        button.addEventListener('click', async () => {
+          await navigator.clipboard.writeText(button.dataset.email || '');
+          button.textContent = 'Copied';
+        });
+      });
+    }
+
+    async function loadAuthorCommandCenter() {
+      const statusEl = document.getElementById('author-command-center-status');
+      statusEl.textContent = 'Loading author command center…';
+      try {
+        const payload = await api('admin/authorCommandCenter', { method: 'GET' });
+        state.authorCommandCenter = payload;
+        renderAuthorCommandCenter();
+      } catch (err) {
+        console.error(err);
+        document.getElementById('author-command-center-list').innerHTML = '<div class="empty">Could not load author command center.</div>';
+        statusEl.textContent = err.message || 'Could not load author command center.';
         statusEl.className = 'status error';
       }
     }
@@ -3546,7 +3654,7 @@
           await loadFlags();
           return;
         }
-        await Promise.all([loadUsers(), loadInvites(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
+        await Promise.all([loadUsers(), loadAuthorCommandCenter(), loadInvites(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -3567,6 +3675,7 @@
       });
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
+      document.getElementById("refresh-author-command-center").addEventListener("click", () => loadAuthorCommandCenter());
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
       document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
       document.getElementById("run-import-assistant-graphics").addEventListener("click", () => runImportAssistantGraphics());

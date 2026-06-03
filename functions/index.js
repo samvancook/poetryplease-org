@@ -5031,6 +5031,138 @@ app.get(getBoth("/admin/authorProfiles"), async (req, res) => {
   res.json({ profiles });
 });
 
+function authorProfileStatus(profile = {}, invite = null, feedbackCount = 0) {
+  if (!profile?.id && invite?.status === "claimed") return "claimed";
+  if (!profile?.id && invite) return invite.status === "expired" ? "invite expired" : "invited";
+  if (!profile?.id) return "not invited";
+  if (!profile.userId) return "profile incomplete";
+  if (!profile.published) return "ready for review";
+  if (feedbackCount > 0) return "needs feedback review";
+  return "published";
+}
+
+function profileReadiness(profile = {}, associatedCount = 0, feedbackCount = 0) {
+  profile = profile || {};
+  return {
+    hasClaimedAccount: !!profile.userId,
+    hasBio: !!normalizeText(profile.bio || profile.shortBio),
+    hasLinks: [profile.websiteUrl, profile.instagramUrl, profile.tiktokUrl, profile.youtubeUrl, profile.newsletterUrl, profile.bookstoreUrl]
+      .some(normalizeText) || (Array.isArray(profile.customLinks) && profile.customLinks.length > 0),
+    hasFeaturedOrFallback: (profile.featuredContentIds || []).length > 0 || associatedCount > 0,
+    published: !!profile.published,
+    unresolvedFeedbackCount: feedbackCount,
+  };
+}
+
+app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const [profileSnap, inviteSnap, flagSnap, allContent] = await Promise.all([
+    db.collection(COLLECTIONS.authorProfiles).limit(250).get(),
+    db.collection(COLLECTIONS.authorInvites).limit(250).get(),
+    db.collection(COLLECTIONS.contentFlags).limit(250).get(),
+    getAllContentCached(),
+  ]);
+
+  const profiles = profileSnap.docs.map((doc) => mapProfileDoc(doc.id, doc.data()));
+  const invites = inviteSnap.docs.map((doc) => {
+    const data = doc.data() || {};
+    const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : (data.expiresAt || null);
+    const claimedAt = data.claimedAt?.toDate ? data.claimedAt.toDate() : (data.claimedAt || null);
+    const status = data.status || ((expiresAt && expiresAt < new Date()) ? "expired" : "active");
+    return {
+      id: doc.id,
+      email: data.email || "",
+      status,
+      createdAt: data.createdAt || null,
+      expiresAt: expiresAt ? expiresAt.toISOString() : null,
+      claimedAt: claimedAt ? claimedAt.toISOString() : null,
+      claimedByUserId: data.claimedByUserId || "",
+    };
+  });
+
+  const claimedUserIds = uniq(invites.map((invite) => invite.claimedByUserId).filter(Boolean));
+  const claimedUsers = new Map(await Promise.all(claimedUserIds.map(async (userId) => {
+    const userSnap = await db.collection(COLLECTIONS.users).doc(userId).get();
+    return [userId, userSnap.data() || {}];
+  })));
+  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const profileByEmail = new Map(profiles.filter((profile) => normalizeKey(profile.email)).map((profile) => [normalizeKey(profile.email), profile]));
+  const inviteByEmail = new Map(invites.filter((invite) => normalizeKey(invite.email)).map((invite) => [normalizeKey(invite.email), invite]));
+  const inviteByProfileId = new Map();
+  invites.forEach((invite) => {
+    const user = claimedUsers.get(invite.claimedByUserId) || {};
+    const profileId = user.authorProfileId || invite.claimedByUserId || "";
+    if (profileId) inviteByProfileId.set(profileId, { ...invite, claimedByEmail: user.email || "" });
+  });
+
+  const feedbackByAuthor = new Map();
+  flagSnap.docs.forEach((doc) => {
+    const flag = doc.data() || {};
+    if ((flag.status || "pending") !== "pending") return;
+    if (!String(flag.note || "").includes("Author review note")) return;
+    const match = String(flag.note || "").match(/Author profile:\s*(.+)/);
+    const author = normalizeText(match?.[1]?.split("\n")?.[0] || flag.author || "Unknown author");
+    const key = normalizeKey(author);
+    feedbackByAuthor.set(key, (feedbackByAuthor.get(key) || 0) + 1);
+  });
+
+  const associatedCounts = new Map();
+  profiles.forEach((profile) => {
+    const authorKeys = new Set([profile.displayName, ...(profile.authorNameVariants || [])].map(normalizeKey).filter(Boolean));
+    const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
+    const count = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)) || claimedKeys.has(normalizeKey(item.imageId || item.contentId))).length;
+    associatedCounts.set(profile.id, count);
+  });
+
+  const rowsByKey = new Map();
+  profiles.forEach((profile) => {
+    const invite = inviteByProfileId.get(profile.id) || inviteByEmail.get(normalizeKey(profile.email)) || null;
+    const associatedCount = associatedCounts.get(profile.id) || 0;
+    const feedbackCount = (profile.authorNameVariants || [profile.displayName]).reduce((sum, name) => sum + (feedbackByAuthor.get(normalizeKey(name)) || 0), 0);
+    rowsByKey.set(`profile:${profile.id}`, {
+      profile,
+      invite,
+      status: authorProfileStatus(profile, invite, feedbackCount),
+      associatedCount,
+      readiness: profileReadiness(profile, associatedCount, feedbackCount),
+    });
+  });
+
+  invites.forEach((invite) => {
+    const user = claimedUsers.get(invite.claimedByUserId) || {};
+    const profile = profileById.get(user.authorProfileId || invite.claimedByUserId || "") || profileByEmail.get(normalizeKey(invite.email)) || null;
+    if (profile) return;
+    rowsByKey.set(`invite:${invite.id}`, {
+      profile: null,
+      invite: { ...invite, claimedByEmail: user.email || "" },
+      status: authorProfileStatus(null, invite),
+      associatedCount: 0,
+      readiness: profileReadiness(null, 0, 0),
+    });
+  });
+
+  const rows = Array.from(rowsByKey.values()).sort((a, b) => {
+    const aName = a.profile?.displayName || a.invite?.email || "";
+    const bName = b.profile?.displayName || b.invite?.email || "";
+    return aName.localeCompare(bName, undefined, { sensitivity: "base" });
+  });
+
+  res.json({
+    ok: true,
+    summary: {
+      total: rows.length,
+      invited: rows.filter((row) => row.status === "invited").length,
+      claimed: rows.filter((row) => row.readiness.hasClaimedAccount).length,
+      readyForReview: rows.filter((row) => row.status === "ready for review").length,
+      published: rows.filter((row) => row.status === "published").length,
+      unresolvedFeedback: rows.reduce((sum, row) => sum + (row.readiness.unresolvedFeedbackCount || 0), 0),
+    },
+    rows,
+  });
+});
+
 app.get(getBoth("/admin/contentSubmissions"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
