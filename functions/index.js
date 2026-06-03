@@ -5387,5 +5387,6 @@ app.use((req, res) => {
 export const api = onRequest({
   region: "us-central1",
   memory: "1GiB",
+  minInstances: 1,
   timeoutSeconds: 540,
 }, app);

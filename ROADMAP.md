@@ -49,11 +49,11 @@
 - Continue the normal-user load-time stability pass:
   - keep the optimized fast path: small startup bootstrap, deferred ratings summary, moderate background hydration, and larger filtered review queues only where needed
   - monitor the remaining cold backend case: a fresh function instance can still take roughly 10 seconds while rebuilding the in-memory content cache from `20k+` Firestore records
-  - near-term reversible option: evaluate `minInstances: 1` for the Firebase 2nd-gen `api` function so one container stays warm; deploy separately and confirm the idle-cost estimate before keeping it enabled
-  - durable follow-up: create a compact persistent feed/content snapshot in Storage or Firestore so a fresh function instance can load one artifact instead of rescanning all content collections
-  - rebuild or invalidate the persistent snapshot after imports, edits, deletes, moderation/flag changes, and other content mutations
-  - preserve the current Firestore scan as a fallback when the snapshot is absent or stale
-  - consider using both `minInstances: 1` and the persistent snapshot after measuring the single-instance warm path
+  - trial `minInstances: 1` for the Firebase 2nd-gen `api` function so one container stays warm; confirm the reserved-instance estimate during deploy and watch real user timing for a few days
+  - next stability project: create a compact persistent feed/content snapshot in Storage or Firestore so a fresh function instance can load one artifact instead of rescanning all content collections
+  - rebuild or invalidate the persistent feed snapshot after imports, edits, deletes, moderation/flag changes, and other content mutations
+  - preserve the current Firestore scan as a fallback when the persistent snapshot is absent or stale
+  - decide whether to keep both `minInstances: 1` and the persistent snapshot after measuring the single-instance warm path
 - Schedule the Firebase runtime maintenance separately from feature work:
   - upgrade the deprecated Node.js 20 Cloud Functions runtime before its October 31, 2026 decommission date
   - upgrade the outdated `firebase-functions` package carefully, with a dedicated smoke-test pass for breaking changes
