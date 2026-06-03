@@ -102,6 +102,10 @@
 - Keep improving author accounts:
   - better admin diagnostics for invites, claims, and linked profiles
   - clearer review of what authored content and submissions are tied to each profile
+- Clean up remaining ambiguous YouTube-derived book-title oddities:
+  - investigate author-only labels where the author has multiple possible books, including `Ebonystewart`, `Neilhilborn`, `Rachelwiley`, and `Sierrademulder`
+  - use item-level YouTube titles, authors, source URLs, and catalog metadata before assigning canonical book titles
+  - keep these out of automated cleanup until the intended book can be confirmed
 
 ## Parked For Return
 ### Long Full Poems (`FP`)
