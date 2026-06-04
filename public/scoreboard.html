@@ -943,7 +943,8 @@
       btn.disabled = true;
       btn.textContent = 'Creating sheet...';
       try {
-        const url = await createGoogleSheetFromRows(rows, isUserView);
+        const payload = await api('scoreboard/exportSheet', { method: 'POST', body: { rows, isUserView } });
+        const url = payload.url;
         const win = window.open(url, '_blank', 'noopener,noreferrer');
         if (!win) showSheetLinkModal(url);
       } catch (err) {
