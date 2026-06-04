@@ -419,10 +419,12 @@
 
     async function getGoogleSheetsAccessToken() {
       const client = ensureGoogleTokenClient();
-      return new Promise((resolve, reject) => {
+      const requestToken = (prompt) => new Promise((resolve, reject) => {
         client.callback = (resp) => {
           if (resp?.error) {
-            reject(new Error(resp.error));
+            const err = new Error(resp.error);
+            err.code = resp.error;
+            reject(err);
             return;
           }
           googleAccessToken = resp.access_token || '';
@@ -432,8 +434,14 @@
           }
           resolve(googleAccessToken);
         };
-        client.requestAccessToken({ prompt: googleAccessToken ? '' : 'consent' });
+        client.requestAccessToken({ prompt });
       });
+      try {
+        return await requestToken('');
+      } catch (err) {
+        if (!['consent_required', 'interaction_required', 'login_required'].includes(err.code || err.message)) throw err;
+        return requestToken('consent');
+      }
     }
 
     const CONTENT_TYPE_LABELS = {
