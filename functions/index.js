@@ -4947,6 +4947,40 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
   });
 });
 
+app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const inviteId = normalizeText(req.params.inviteId);
+  if (!inviteId) return res.status(400).json({ error: "missing_invite_id" });
+  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc(inviteId);
+  const inviteSnap = await inviteRef.get();
+  if (!inviteSnap.exists) return res.status(404).json({ error: "invite_not_found" });
+  const invite = inviteSnap.data() || {};
+  if (invite.status === "claimed" || normalizeText(invite.claimedByUserId)) {
+    return res.status(409).json({ error: "invite_already_claimed" });
+  }
+
+  const token = randomBytes(24).toString("hex");
+  const expiresInDays = Math.max(1, Number(req.body?.expiresInDays || 14));
+  const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
+  await inviteRef.set({
+    tokenHash: sha256(token),
+    expiresAt,
+    status: "active",
+    regeneratedAt: FieldValue.serverTimestamp(),
+    regeneratedBy: ctx.decoded.uid,
+  }, { merge: true });
+
+  res.json({
+    ok: true,
+    inviteId,
+    email: invite.email || "",
+    expiresAt: expiresAt.toISOString(),
+    inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
+  });
+});
+
 app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
   const ctx = await requireDecodedUser(req, res);
   if (!ctx) return;
@@ -5070,7 +5104,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     const data = doc.data() || {};
     const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : (data.expiresAt || null);
     const claimedAt = data.claimedAt?.toDate ? data.claimedAt.toDate() : (data.claimedAt || null);
-    const status = data.status || ((expiresAt && expiresAt < new Date()) ? "expired" : "active");
+    const status = data.status === "claimed" ? "claimed" : ((expiresAt && expiresAt < new Date()) ? "expired" : (data.status || "active"));
     return {
       id: doc.id,
       email: data.email || "",
@@ -5346,7 +5380,7 @@ app.get(getBoth("/admin/authorInvites"), async (req, res) => {
     .map((invite) => {
       const expiresAt = invite.expiresAt?.toDate ? invite.expiresAt.toDate() : (invite.expiresAt || null);
       const claimedAt = invite.claimedAt?.toDate ? invite.claimedAt.toDate() : (invite.claimedAt || null);
-      const status = invite.status || ((expiresAt && expiresAt < new Date()) ? 'expired' : 'active');
+      const status = invite.status === "claimed" ? "claimed" : ((expiresAt && expiresAt < new Date()) ? 'expired' : (invite.status || 'active'));
       return {
         id: invite.id,
         email: invite.email || '',

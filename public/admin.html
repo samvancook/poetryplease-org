@@ -380,6 +380,18 @@
         <button id="refresh-author-command-center" class="secondary" type="button">Refresh</button>
       </div>
       <p class="lede" style="margin-bottom:16px;max-width:none;">Track author onboarding, claimed accounts, review readiness, associated work, and unresolved author notes in one place.</p>
+      <div class="controls" style="margin-bottom:12px;">
+        <input id="author-command-search" type="search" placeholder="Search author or email" />
+        <select id="author-command-status-filter">
+          <option value="all">All author lanes</option>
+          <option value="invited">Invited</option>
+          <option value="claimed">Claimed</option>
+          <option value="profile incomplete">Profile incomplete</option>
+          <option value="ready for review">Ready for review</option>
+          <option value="needs feedback review">Needs feedback review</option>
+          <option value="published">Published</option>
+        </select>
+      </div>
       <div id="author-command-center-status" class="status">Loading author command center…</div>
       <div id="author-command-center-list"></div>
     </section>
@@ -887,6 +899,8 @@
       syncedCount: 0,
       invites: [],
       authorCommandCenter: null,
+      authorCommandQuery: "",
+      authorCommandStatusFilter: "all",
       claims: [],
       duplicates: [],
       weaverExcHealth: null,
@@ -1049,6 +1063,10 @@
         .replace(/>/g, "&gt;")
         .replace(/\"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    function normalizeForFilter(value) {
+      return String(value || "").trim().toLowerCase();
     }
 
     function relativeTimeFromNow(date) {
@@ -1507,8 +1525,20 @@
         return;
       }
       const summary = payload.summary || {};
-      const rows = payload.rows || [];
-      statusEl.textContent = `${summary.total || 0} author lanes · ${summary.claimed || 0} claimed · ${summary.published || 0} published · ${summary.unresolvedFeedback || 0} unresolved author notes.`;
+      const query = normalizeForFilter(state.authorCommandQuery || "");
+      const statusFilter = state.authorCommandStatusFilter || "all";
+      const rows = (payload.rows || []).filter((row) => {
+        const profile = row.profile || {};
+        const invite = row.invite || {};
+        const haystack = normalizeForFilter([profile.displayName, profile.email, profile.slug, invite.email, invite.claimedByEmail, row.status].filter(Boolean).join(" "));
+        if (query && !haystack.includes(query)) return false;
+        if (statusFilter !== "all") {
+          if (statusFilter === "claimed") return !!row.readiness?.hasClaimedAccount;
+          return String(row.status || "") === statusFilter;
+        }
+        return true;
+      });
+      statusEl.textContent = `Showing ${rows.length} of ${summary.total || 0} author lanes · ${summary.claimed || 0} claimed · ${summary.published || 0} published · ${summary.unresolvedFeedback || 0} unresolved author notes.`;
       container.innerHTML = `
         <div class="controls" style="margin-bottom:12px;">
           <span class="chip">Invited: ${summary.invited || 0}</span>
@@ -1539,6 +1569,7 @@
                   ? `${invite.status || 'active'}${invite.claimedAt ? ` · claimed ${formatLastActive(invite.claimedAt)}` : ''}`
                   : 'No invite';
                 const feedbackCount = row.readiness?.unresolvedFeedbackCount || 0;
+                const canGenerateInvite = invite.id && invite.status !== 'claimed' && !invite.claimedByUserId;
                 return `
                   <tr>
                     <td>
@@ -1553,6 +1584,7 @@
                       ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ''}
                       ${profile.slug ? ` · <a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ''}
                       ${invite.email ? ` · <button type="button" class="secondary copy-author-invite-email" data-email="${escapeHtml(invite.email)}">Copy email</button>` : ''}
+                      ${canGenerateInvite ? ` · <button type="button" class="secondary regenerate-author-invite" data-invite-id="${escapeHtml(invite.id)}">Generate link</button>` : ''}
                     </td>
                   </tr>
                 `;
@@ -1565,6 +1597,24 @@
         button.addEventListener('click', async () => {
           await navigator.clipboard.writeText(button.dataset.email || '');
           button.textContent = 'Copied';
+        });
+      });
+      container.querySelectorAll('.regenerate-author-invite').forEach((button) => {
+        button.addEventListener('click', async () => {
+          button.disabled = true;
+          button.textContent = 'Generating…';
+          try {
+            const payload = await api(`admin/authorInvites/${encodeURIComponent(button.dataset.inviteId || '')}/regenerate`, { method: 'POST', body: { expiresInDays: 14 } });
+            await navigator.clipboard.writeText(payload.inviteUrl || '');
+            button.textContent = 'Copied new link';
+            await Promise.all([loadAuthorCommandCenter(), loadInvites()]);
+          } catch (err) {
+            console.error(err);
+            button.disabled = false;
+            button.textContent = 'Try again';
+            document.getElementById('author-command-center-status').textContent = err.message || 'Could not generate invite link.';
+            document.getElementById('author-command-center-status').className = 'status error';
+          }
         });
       });
     }
@@ -3676,6 +3726,14 @@
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
       document.getElementById("refresh-author-command-center").addEventListener("click", () => loadAuthorCommandCenter());
+      document.getElementById("author-command-search").addEventListener("input", (event) => {
+        state.authorCommandQuery = event.target.value || "";
+        renderAuthorCommandCenter();
+      });
+      document.getElementById("author-command-status-filter").addEventListener("change", (event) => {
+        state.authorCommandStatusFilter = event.target.value || "all";
+        renderAuthorCommandCenter();
+      });
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
       document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
       document.getElementById("run-import-assistant-graphics").addEventListener("click", () => runImportAssistantGraphics());
