@@ -3197,41 +3197,31 @@ app.post(getBoth("/scoreboard/exportSheet"), async (req, res) => {
     keys.forEach((key) => freshMetaById.set(key, freshMeta));
   });
 
-  const headers = isUserView
-    ? ["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "vote"]
-    : ["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score", "scorePerVote", "likeRate", "movedMeRate", "mehRate", "dislikeRate"];
-  const typeLabels = { QI: "Quote Images", INT: "Interior Images", GP: "Graphics", EXC: "Excerpts", FP: "Full Poems", VV: "Video", YT: "YouTube" };
-
-  const normalizedRows = rows.map((row) => {
-    const likes = Number(row?.likes || 0);
-    const dislikes = Number(row?.dislikes || 0);
-    const meh = Number(row?.meh || 0);
-    const movedMe = Number(row?.movedMe || 0);
-    const totalVotes = Number(row?.totalVotes || 0);
-    const rawScore = Number(row?.score || (likes + (movedMe * 2) - dislikes) || 0);
+  const enrichedRows = rows.map((row) => {
     const freshMeta = freshMetaById.get(normalizeKey(row?.imageId)) || {};
-    const enrichedRow = {
+    return {
       ...row,
       cloudLink: row?.cloudLink || freshMeta.cloudLink || "",
       driveLink: row?.driveLink || freshMeta.driveLink || "",
       sourceFolderLink: row?.sourceFolderLink || freshMeta.sourceFolderLink || "",
       sourceFileName: row?.sourceFileName || freshMeta.sourceFileName || "",
       fileLink: row?.fileLink || freshMeta.fileLink || "",
-      score: rawScore,
-      scorePerVote: totalVotes ? rawScore / totalVotes : 0,
-      likeRate: totalVotes ? likes / totalVotes : 0,
-      movedMeRate: totalVotes ? movedMe / totalVotes : 0,
-      mehRate: totalVotes ? meh / totalVotes : 0,
-      dislikeRate: totalVotes ? dislikes / totalVotes : 0,
     };
-    return (
+  });
+  if (req.body?.enrichOnly) {
+    return res.json({ ok: true, rows: enrichedRows });
+  }
+
+  const headers = isUserView
+    ? ["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "vote"]
+    : ["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score"];
+
+  const normalizedRows = enrichedRows.map((row) =>
     headers.map((key) => {
-      const rawValue = key === "fileLink" ? (enrichedRow.driveLink || enrichedRow.fileLink || enrichedRow.cloudLink) : enrichedRow?.[key];
-      if (key === "type") return typeLabels[rawValue] || rawValue || "";
+      const rawValue = key === "fileLink" ? (row?.driveLink || row?.fileLink || row?.cloudLink) : row?.[key];
       return typeof rawValue === "string" ? rawValue : rawValue == null ? "" : String(rawValue);
     })
-    );
-  });
+  );
 
   const titleDate = new Date().toISOString().slice(0, 10);
   const title = `Poetry Please Scoreboard ${titleDate}`;
