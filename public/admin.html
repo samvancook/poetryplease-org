@@ -274,6 +274,35 @@
       font-size: 13px;
       line-height: 1.4;
     }
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(24, 19, 12, 0.38);
+      display: none;
+      align-items: stretch;
+      justify-content: flex-end;
+      z-index: 100;
+    }
+    .drawer-backdrop.open {
+      display: flex;
+    }
+    .drawer-panel {
+      width: min(760px, 100%);
+      height: 100%;
+      overflow: auto;
+      background: var(--card);
+      border-left: 1px solid var(--line);
+      padding: 22px;
+      box-shadow: -16px 0 42px rgba(24, 19, 12, 0.18);
+    }
+    .drawer-section {
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+      margin-top: 16px;
+    }
+    .drawer-section h3 {
+      margin: 0 0 10px;
+    }
     .preview-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -854,6 +883,16 @@
       </div>
     </section>
   </main>
+
+  <div id="author-detail-drawer" class="drawer-backdrop" hidden>
+    <section class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="author-detail-title">
+      <div class="section-head">
+        <h2 id="author-detail-title">Author detail</h2>
+        <button id="close-author-detail" class="secondary" type="button">Close</button>
+      </div>
+      <div id="author-detail-body"></div>
+    </section>
+  </div>
 
   <script>
     const FIREBASE_CONFIG = {
@@ -1516,6 +1555,95 @@
       return chips.map(([label, ok]) => `<span class="pill" style="${ok ? '' : 'background:#f7e1dc;color:#8b3528;'}">${ok ? '✓' : 'Needs'} ${label}</span>`).join(' ');
     }
 
+    function renderCompactItems(rows = [], emptyText = 'No rows yet.') {
+      if (!rows.length) return `<div class="empty">${emptyText}</div>`;
+      return `
+        <table>
+          <thead><tr><th>ID</th><th>Title</th><th>Book</th><th>Type</th></tr></thead>
+          <tbody>${rows.map((item) => `
+            <tr>
+              <td>${item.id ? `<a href="/?item=${encodeURIComponent(item.id)}" target="_blank" rel="noopener">${escapeHtml(item.id)}</a>` : '—'}</td>
+              <td>${escapeHtml(item.title || '—')}</td>
+              <td>${escapeHtml(item.book || '—')}</td>
+              <td>${escapeHtml(item.type || '—')}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      `;
+    }
+
+    function openAuthorDetail(rowIndex) {
+      const row = state.authorCommandCenter?.rows?.[rowIndex];
+      if (!row) return;
+      const profile = row.profile || {};
+      const invite = row.invite || {};
+      const name = profile.displayName || invite.email || 'Unknown author';
+      const reviewAuthor = profile.displayName || profile.slug || name;
+      const feedbackRows = row.feedbackNotes || [];
+      const drawer = document.getElementById('author-detail-drawer');
+      document.getElementById('author-detail-title').textContent = name;
+      document.getElementById('author-detail-body').innerHTML = `
+        <div class="controls">
+          <span class="chip">${escapeHtml(row.status || 'not invited')}</span>
+          <span class="chip">${row.associatedCount || 0} associated work</span>
+          <span class="chip">${feedbackRows.length} note${feedbackRows.length === 1 ? '' : 's'}</span>
+        </div>
+        <div class="drawer-section">
+          <h3>Account</h3>
+          <div><strong>Email:</strong> ${escapeHtml(profile.email || invite.email || '—')}</div>
+          <div class="meta">Claimed user: ${escapeHtml(profile.userId || invite.claimedByUserId || 'Not claimed')}</div>
+          <div class="meta">Invite: ${escapeHtml(invite.email ? `${invite.status || 'active'}${invite.expiresAt ? ` · expires ${formatLastActive(invite.expiresAt)}` : ''}` : 'No invite')}</div>
+        </div>
+        <div class="drawer-section">
+          <h3>Readiness</h3>
+          <div>${readinessChips(row.readiness || {})}</div>
+          <div class="meta">${profile.featuredContentIds?.length || 0} featured pick${(profile.featuredContentIds?.length || 0) === 1 ? '' : 's'} selected.</div>
+        </div>
+        <div class="drawer-section">
+          <h3>Actions</h3>
+          <div class="controls">
+            ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review profile</a>` : ''}
+            ${profile.slug ? `<a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public page</a>` : ''}
+            ${invite.email ? `<button type="button" class="secondary" id="copy-author-detail-email">Copy email</button>` : ''}
+          </div>
+        </div>
+        <div class="drawer-section">
+          <h3>Associated Work Sample</h3>
+          ${renderCompactItems(row.associatedSample || [], 'No associated work sample found.')}
+        </div>
+        <div class="drawer-section">
+          <h3>Featured Picks</h3>
+          ${renderCompactItems(row.featuredSample || [], 'No featured picks selected yet.')}
+        </div>
+        <div class="drawer-section">
+          <h3>Unresolved Author Notes</h3>
+          ${feedbackRows.length ? `
+            <table>
+              <thead><tr><th>Content</th><th>Reason</th><th>Note</th></tr></thead>
+              <tbody>${feedbackRows.map((flag) => `
+                <tr>
+                  <td>${flag.imageId ? `<a href="/?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener">${escapeHtml(flag.imageId)}</a>` : '—'}</td>
+                  <td>${escapeHtml(flag.reason || '—')}</td>
+                  <td>${escapeHtml(String(flag.note || '').replace(/^Author review note:\s*/i, '').slice(0, 260))}</td>
+                </tr>
+              `).join('')}</tbody>
+            </table>
+          ` : '<div class="empty">No unresolved author notes.</div>'}
+        </div>
+      `;
+      drawer.hidden = false;
+      drawer.classList.add('open');
+      document.getElementById('copy-author-detail-email')?.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(profile.email || invite.email || '');
+      });
+    }
+
+    function closeAuthorDetail() {
+      const drawer = document.getElementById('author-detail-drawer');
+      drawer.classList.remove('open');
+      drawer.hidden = true;
+    }
+
     function renderAuthorCommandCenter() {
       const payload = state.authorCommandCenter;
       const container = document.getElementById('author-command-center-list');
@@ -1565,6 +1693,7 @@
                 const invite = row.invite || {};
                 const name = profile.displayName || invite.email || 'Unknown author';
                 const reviewAuthor = profile.displayName || profile.slug || name;
+                const rowIndex = (payload.rows || []).indexOf(row);
                 const inviteLabel = invite.email
                   ? `${invite.status || 'active'}${invite.claimedAt ? ` · claimed ${formatLastActive(invite.claimedAt)}` : ''}`
                   : 'No invite';
@@ -1581,6 +1710,7 @@
                     <td>${row.associatedCount || 0}${feedbackCount ? `<div class="meta">${feedbackCount} pending note${feedbackCount === 1 ? '' : 's'}</div>` : ''}</td>
                     <td>${readinessChips(row.readiness || {})}</td>
                     <td>
+                      <button type="button" class="secondary author-detail-button" data-author-row-index="${rowIndex}">Details</button>
                       ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ''}
                       ${profile.slug ? ` · <a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ''}
                       ${invite.email ? ` · <button type="button" class="secondary copy-author-invite-email" data-email="${escapeHtml(invite.email)}">Copy email</button>` : ''}
@@ -1598,6 +1728,9 @@
           await navigator.clipboard.writeText(button.dataset.email || '');
           button.textContent = 'Copied';
         });
+      });
+      container.querySelectorAll('.author-detail-button').forEach((button) => {
+        button.addEventListener('click', () => openAuthorDetail(Number(button.dataset.authorRowIndex || -1)));
       });
       container.querySelectorAll('.regenerate-author-invite').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -3726,6 +3859,10 @@
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
       document.getElementById("refresh-author-command-center").addEventListener("click", () => loadAuthorCommandCenter());
+      document.getElementById("close-author-detail").addEventListener("click", () => closeAuthorDetail());
+      document.getElementById("author-detail-drawer").addEventListener("click", (event) => {
+        if (event.target.id === "author-detail-drawer") closeAuthorDetail();
+      });
       document.getElementById("author-command-search").addEventListener("input", (event) => {
         state.authorCommandQuery = event.target.value || "";
         renderAuthorCommandCenter();

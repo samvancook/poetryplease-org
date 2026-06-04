@@ -5131,6 +5131,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     if (profileId) inviteByProfileId.set(profileId, { ...invite, claimedByEmail: user.email || "" });
   });
 
+  const contentById = new Map(allContent.map((item) => [normalizeKey(item.imageId || item.contentId || ""), item]));
   const feedbackByAuthor = new Map();
   flagSnap.docs.forEach((doc) => {
     const flag = doc.data() || {};
@@ -5139,27 +5140,58 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     const match = String(flag.note || "").match(/Author profile:\s*(.+)/);
     const author = normalizeText(match?.[1]?.split("\n")?.[0] || flag.author || "Unknown author");
     const key = normalizeKey(author);
-    feedbackByAuthor.set(key, (feedbackByAuthor.get(key) || 0) + 1);
+    const rows = feedbackByAuthor.get(key) || [];
+    rows.push({
+      id: doc.id,
+      imageId: flag.imageId || "",
+      reason: flag.reason || "",
+      note: flag.note || "",
+      createdAt: flag.createdAt || null,
+      title: flag.title || flag.currentTitle || "",
+      author: flag.author || "",
+    });
+    feedbackByAuthor.set(key, rows);
   });
 
   const associatedCounts = new Map();
+  const associatedSamples = new Map();
   profiles.forEach((profile) => {
     const authorKeys = new Set([profile.displayName, ...(profile.authorNameVariants || [])].map(normalizeKey).filter(Boolean));
     const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
-    const count = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)) || claimedKeys.has(normalizeKey(item.imageId || item.contentId))).length;
-    associatedCounts.set(profile.id, count);
+    const matches = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)) || claimedKeys.has(normalizeKey(item.imageId || item.contentId)));
+    associatedCounts.set(profile.id, matches.length);
+    associatedSamples.set(profile.id, matches.slice(0, 8).map((item) => ({
+      id: item.imageId || item.contentId || "",
+      title: item.title || item.poem || "",
+      book: item.book || "",
+      type: item.imageType || "",
+      catalog: item.releaseCatalog || "",
+    })));
   });
 
   const rowsByKey = new Map();
   profiles.forEach((profile) => {
     const invite = inviteByProfileId.get(profile.id) || inviteByEmail.get(normalizeKey(profile.email)) || null;
     const associatedCount = associatedCounts.get(profile.id) || 0;
-    const feedbackCount = (profile.authorNameVariants || [profile.displayName]).reduce((sum, name) => sum + (feedbackByAuthor.get(normalizeKey(name)) || 0), 0);
+    const feedbackRows = (profile.authorNameVariants || [profile.displayName]).flatMap((name) => feedbackByAuthor.get(normalizeKey(name)) || []);
+    const feedbackCount = feedbackRows.length;
+    const featuredSample = (profile.featuredContentIds || []).slice(0, 8).map((id) => {
+      const item = contentById.get(normalizeKey(id)) || {};
+      return {
+        id,
+        title: item.title || item.poem || "",
+        book: item.book || "",
+        type: item.imageType || "",
+      };
+    });
     rowsByKey.set(`profile:${profile.id}`, {
       profile,
       invite,
       status: authorProfileStatus(profile, invite, feedbackCount),
       associatedCount,
+      associatedSample: associatedSamples.get(profile.id) || [],
+      featuredSample,
+      feedbackNotes: feedbackRows.slice(0, 8),
       readiness: profileReadiness(profile, associatedCount, feedbackCount),
     });
   });
@@ -5173,6 +5205,9 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
       invite: { ...invite, claimedByEmail: user.email || "" },
       status: authorProfileStatus(null, invite),
       associatedCount: 0,
+      associatedSample: [],
+      featuredSample: [],
+      feedbackNotes: [],
       readiness: profileReadiness(null, 0, 0),
     });
   });
