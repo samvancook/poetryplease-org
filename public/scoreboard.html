@@ -456,7 +456,6 @@
     const CONTENT_BASELINE_TARGETS = {
       QI: 25,
       INT: 25,
-      GP: 25,
       EXC: 1,
       VV: 5,
       YT: 5,
@@ -809,6 +808,7 @@
       const userVal = document.getElementById('userDropdown').value;
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
       const catalogVal = document.getElementById('catalogDropdown').value.trim().toLowerCase();
+      const showMissingCatalogColumn = !catalogVal;
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
       const showCompleted = document.getElementById('filterCompletedBooks').checked;
@@ -901,8 +901,9 @@
 
       const tbody = document.getElementById('progressBarsBody');
       tbody.innerHTML = '';
+      document.querySelector('#progressBars th[data-column="missingCatalog"]').style.display = showMissingCatalogColumn ? '' : 'none';
       if (!rows.length) {
-        tbody.innerHTML = '<tr><td colspan="17"><div class="empty">No progress rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = `<tr><td colspan="${showMissingCatalogColumn ? 17 : 16}"><div class="empty">No progress rows match the current filters.</div></td></tr>`;
         return;
       }
 
@@ -919,7 +920,7 @@
           <td>${row.counts.FP || 0}</td>
           <td>${row.counts.VV || 0}</td>
           <td>${row.counts.YT || 0}</td>
-          <td>${row.missingCatalog || 0}</td>
+          ${showMissingCatalogColumn ? `<td>${row.missingCatalog || 0}</td>` : ''}
           <td>${row.missingBucketUrl || 0}</td>
           <td>${row.flagged || 0}</td>
           <td>${row.missingBaseline || 0}</td>
