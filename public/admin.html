@@ -406,28 +406,6 @@
 
     <section class="card">
       <div class="section-head">
-        <h2>Author Command Center</h2>
-        <button id="refresh-author-command-center" class="secondary" type="button">Refresh</button>
-      </div>
-      <p class="lede" style="margin-bottom:16px;max-width:none;">Track author onboarding, claimed accounts, review readiness, associated work, and unresolved author notes in one place.</p>
-      <div class="controls" style="margin-bottom:12px;">
-        <input id="author-command-search" type="search" placeholder="Search author or email" />
-        <select id="author-command-status-filter">
-          <option value="all">All author lanes</option>
-          <option value="invited">Invited</option>
-          <option value="claimed">Claimed</option>
-          <option value="profile incomplete">Profile incomplete</option>
-          <option value="ready for review">Ready for review</option>
-          <option value="needs feedback review">Needs feedback review</option>
-          <option value="published">Published</option>
-        </select>
-      </div>
-      <div id="author-command-center-status" class="status">Loading author command center…</div>
-      <div id="author-command-center-list"></div>
-    </section>
-
-    <section class="card">
-      <div class="section-head">
         <h2>Users</h2>
         <button id="users-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="users-section-body">
           <span class="chevron">▾</span>
@@ -465,31 +443,6 @@
       </div>
         <div id="status" class="status">Loading account…</div>
         <div id="results"></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-top:20px;">
-      <div class="section-head">
-        <h2 style="margin-top:0;">Author Invites</h2>
-        <button id="author-invites-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="author-invites-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
-        </button>
-      </div>
-      <div id="author-invites-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Create invite links for authors. The invited email must match the Google account they use to redeem the link.</p>
-        <div class="controls">
-          <input id="invite-email" type="email" placeholder="author@example.com" />
-          <label style="display:inline-flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted);">
-            Expires in days
-            <input id="invite-days" type="number" min="1" max="90" value="14" style="width:180px;" aria-label="Invite expiration in days" title="Invite expiration in days" />
-          </label>
-          <button id="create-invite" type="button">Create invite</button>
-        </div>
-        <div id="invite-status" class="status">No invite created yet.</div>
-        <div id="invite-result" class="empty">New invite links will appear here.</div>
-        <div id="invite-list-status" class="status" style="margin-top:16px;">Loading invites…</div>
-        <div id="invite-list"></div>
       </div>
     </section>
 
@@ -975,7 +928,6 @@
       batchFlagIdentifiers: [],
       usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') !== 'false',
       contentLibraryCollapsed: localStorage.getItem('pp_admin_content_library_collapsed') !== 'false',
-      authorInvitesCollapsed: localStorage.getItem('pp_admin_author_invites_collapsed') !== 'false',
       contentClaimsCollapsed: localStorage.getItem('pp_admin_content_claims_collapsed') !== 'false',
       duplicateReviewCollapsed: localStorage.getItem('pp_admin_duplicate_review_collapsed') !== 'false',
       authorProfilesCollapsed: localStorage.getItem('pp_admin_author_profiles_collapsed') !== 'false',
@@ -1019,10 +971,6 @@
       body.hidden = !!collapsed;
       const label = button.querySelector('span:last-child');
       if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
-    }
-
-    function applyAuthorInvitesCollapseState() {
-      applySectionCollapseState('author-invites-toggle', 'author-invites-section-body', state.authorInvitesCollapsed);
     }
 
     function applyContentClaimsCollapseState() {
@@ -3818,7 +3766,6 @@
     async function init() {
       applyUsersCollapseState();
       applyContentLibraryCollapseState();
-      applyAuthorInvitesCollapseState();
       applyContentClaimsCollapseState();
       applyDuplicateReviewCollapseState();
       applyAuthorProfilesCollapseState();
@@ -3856,7 +3803,7 @@
           await loadFlags();
           return;
         }
-        await Promise.all([loadUsers(), loadAuthorCommandCenter(), loadInvites(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
+        await Promise.all([loadUsers(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -3877,18 +3824,9 @@
       });
 
       document.getElementById("refresh").addEventListener("click", () => loadUsers());
-      document.getElementById("refresh-author-command-center").addEventListener("click", () => loadAuthorCommandCenter());
       document.getElementById("close-author-detail").addEventListener("click", () => closeAuthorDetail());
       document.getElementById("author-detail-drawer").addEventListener("click", (event) => {
         if (event.target.id === "author-detail-drawer") closeAuthorDetail();
-      });
-      document.getElementById("author-command-search").addEventListener("input", (event) => {
-        state.authorCommandQuery = event.target.value || "";
-        renderAuthorCommandCenter();
-      });
-      document.getElementById("author-command-status-filter").addEventListener("change", (event) => {
-        state.authorCommandStatusFilter = event.target.value || "all";
-        renderAuthorCommandCenter();
       });
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
       document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
@@ -3904,11 +3842,6 @@
         state.contentLibraryCollapsed = !state.contentLibraryCollapsed;
         localStorage.setItem('pp_admin_content_library_collapsed', state.contentLibraryCollapsed ? 'true' : 'false');
         applyContentLibraryCollapseState();
-      });
-      document.getElementById("author-invites-toggle").addEventListener("click", () => {
-        state.authorInvitesCollapsed = !state.authorInvitesCollapsed;
-        localStorage.setItem('pp_admin_author_invites_collapsed', state.authorInvitesCollapsed ? 'true' : 'false');
-        applyAuthorInvitesCollapseState();
       });
       document.getElementById("content-claims-toggle").addEventListener("click", () => {
         state.contentClaimsCollapsed = !state.contentClaimsCollapsed;
@@ -3960,7 +3893,6 @@
       document.getElementById("login-google").addEventListener("click", async () => {
         await signInWithGoogle();
       });
-      document.getElementById("create-invite").addEventListener("click", () => createInvite());
       document.getElementById("content-type").addEventListener("change", (event) => {
         state.contentType = event.target.value || "graphics";
         updateContentFormVisibility();
