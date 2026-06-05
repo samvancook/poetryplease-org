@@ -273,6 +273,7 @@
     const GOOGLE_SHEETS_SCOPES = 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
 
     let aggregatedData = [], rawVotes = [], allGraphics = [], filteredData = [];
+    let scoreboardFilterOptions = {};
     let currentProgressSortKey = 'book';
     let currentProgressSortDir = 1;
     let currentSortKey = 'bookTitle';
@@ -657,7 +658,10 @@
     function buildBookDropdown(books = null) {
       const sel = document.getElementById('bookDropdown');
       const selected = sel.value;
-      const rawList = books || allGraphics.map((row) => row.bookTitle || '');
+      const catalogKey = document.getElementById('catalogDropdown').value.trim().toLowerCase();
+      const rawList = catalogKey
+        ? (scoreboardFilterOptions.booksByCatalog || {})[catalogKey] || []
+        : books || allGraphics.map((row) => row.bookTitle || '');
       const normalized = Array.from(new Map(rawList.map((title) => [String(title).trim().toLowerCase(), String(title).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
@@ -1022,10 +1026,11 @@
         totalFilteredRows = Number(payload.totalRows || filteredData.length);
         scoreboardSnapshotMeta = payload.snapshotMeta || null;
         const options = payload.filterOptions || {};
+        scoreboardFilterOptions = options;
         buildUserDropdown(options.users || []);
         buildTypeDropdown(options.types || []);
-        buildBookDropdown(options.books || []);
         buildCatalogDropdown(options.catalogs || []);
+        buildBookDropdown(options.books || []);
         setControlsDisabled(false);
         scoreboardBtn.classList.add('active');
         progressBarsBtn.classList.remove('active');
@@ -1068,7 +1073,10 @@
         filterData();
       });
       document.getElementById('bookDropdown').addEventListener('change', filterData);
-      document.getElementById('catalogDropdown').addEventListener('change', filterData);
+      document.getElementById('catalogDropdown').addEventListener('change', () => {
+        buildBookDropdown(scoreboardFilterOptions.books || []);
+        filterData();
+      });
       document.getElementById('characterCountMin').addEventListener('input', filterData);
       document.getElementById('characterCountMax').addEventListener('input', filterData);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);

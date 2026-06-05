@@ -2067,10 +2067,22 @@ function buildScoreboardFilterOptions(payload = {}) {
     .filter(Boolean)
     .map((value) => [value.toLowerCase(), value])).values())
     .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  const booksByCatalog = {};
+  allGraphics.forEach((row) => {
+    const catalog = normalizeText(row.releaseCatalog).toLowerCase();
+    const book = normalizeText(row.bookTitle);
+    if (!catalog || !book) return;
+    if (!booksByCatalog[catalog]) booksByCatalog[catalog] = [];
+    booksByCatalog[catalog].push(book);
+  });
+  Object.keys(booksByCatalog).forEach((catalog) => {
+    booksByCatalog[catalog] = uniqueSorted(booksByCatalog[catalog]);
+  });
   return {
     users: uniqueSorted(rawVotes.map((row) => row.user)),
     books: uniqueSorted(allGraphics.map((row) => row.bookTitle)),
     catalogs: uniqueSorted(allGraphics.map((row) => row.releaseCatalog)),
+    booksByCatalog,
     types: uniqueSorted(allGraphics.map((row) => row.type)),
   };
 }
