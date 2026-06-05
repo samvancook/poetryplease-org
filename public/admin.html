@@ -2091,8 +2091,21 @@
         resultsEl.innerHTML = 'No results yet.';
         return;
       }
+      const displayRows = rows.slice().sort((a, b) => {
+        const aInvalid = a.validation && !a.validation.ok;
+        const bInvalid = b.validation && !b.validation.ok;
+        if (aInvalid !== bInvalid) return aInvalid ? -1 : 1;
+        return Number(a.index || 0) - Number(b.index || 0);
+      });
+      const invalidRows = rows.filter((row) => row.validation && !row.validation.ok);
       resultsEl.className = '';
       resultsEl.innerHTML = `
+        ${invalidRows.length ? `
+          <div class="empty" style="border-color:#9a3f2d;color:#9a3f2d;margin-bottom:12px;">
+            ${invalidRows.length} invalid row${invalidRows.length === 1 ? '' : 's'}:
+            ${invalidRows.map((row) => `#${Number(row.index || 0) + 1} ${escapeHtml(row.fileName || row.title || row.driveLink || 'untitled')} (${escapeHtml(row.validation?.error || 'invalid')})`).join('; ')}
+          </div>
+        ` : ''}
         <table>
           <thead>
             <tr>
@@ -2105,9 +2118,12 @@
             </tr>
           </thead>
           <tbody>
-            ${rows.map((row) => `
-              <tr>
-                <td>${escapeHtml(row.fileName || '—')}</td>
+            ${displayRows.map((row) => `
+              <tr${row.validation && !row.validation.ok ? ' style="background:#fff5f1;"' : ''}>
+                <td>
+                  <div>${row.validation && !row.validation.ok ? '<strong style="color:#9a3f2d;">Invalid</strong><br>' : ''}${escapeHtml(row.fileName || '—')}</div>
+                  <div class="meta">Row ${Number(row.index || 0) + 1}</div>
+                </td>
                 <td>
                   <div>${escapeHtml(row.author || '—')}</div>
                   <div>${escapeHtml(row.book || '—')}</div>
