@@ -238,7 +238,6 @@
               <th data-column="catalog">Catalog</th>
               <th data-column="QI">QI</th>
               <th data-column="INT">INT</th>
-              <th data-column="GP">GP</th>
               <th data-column="EXC">EXC</th>
               <th data-column="FP">FP</th>
               <th data-column="VV">VV</th>
@@ -447,7 +446,6 @@
     const CONTENT_TYPE_LABELS = {
       QI: 'Quote Images',
       INT: 'Interior Images',
-      GP: 'Graphics',
       EXC: 'Excerpts',
       FP: 'Full Poems',
       VV: 'Video',
@@ -460,7 +458,7 @@
       VV: 5,
       YT: 5,
     };
-    const PROGRESS_COUNT_TYPES = ['QI', 'INT', 'GP', 'EXC', 'FP', 'VV', 'YT'];
+    const PROGRESS_COUNT_TYPES = ['QI', 'INT', 'EXC', 'FP', 'VV', 'YT'];
 
     function formatContentTypeLabel(value) {
       const code = String(value || '').trim();
@@ -877,7 +875,6 @@
           case 'catalog': va = a.catalog.toLowerCase(); vb = b.catalog.toLowerCase(); break;
           case 'QI':
           case 'INT':
-          case 'GP':
           case 'EXC':
           case 'FP':
           case 'VV':
@@ -903,7 +900,7 @@
       tbody.innerHTML = '';
       document.querySelector('#progressBars th[data-column="missingCatalog"]').style.display = showMissingCatalogColumn ? '' : 'none';
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="${showMissingCatalogColumn ? 17 : 16}"><div class="empty">No progress rows match the current filters.</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${showMissingCatalogColumn ? 16 : 15}"><div class="empty">No progress rows match the current filters.</div></td></tr>`;
         return;
       }
 
@@ -915,7 +912,6 @@
           <td>${escapeHtml(row.catalog || '')}</td>
           <td>${row.counts.QI || 0}</td>
           <td>${row.counts.INT || 0}</td>
-          <td>${row.counts.GP || 0}</td>
           <td>${row.counts.EXC || 0}</td>
           <td>${row.counts.FP || 0}</td>
           <td>${row.counts.VV || 0}</td>
