@@ -807,7 +807,6 @@
 
     function renderProgressBars() {
       const userVal = document.getElementById('userDropdown').value;
-      const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
       const catalogVal = document.getElementById('catalogDropdown').value.trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
@@ -825,7 +824,6 @@
         if (bookVal && bookKey !== bookVal) return;
         if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
         const graphicType = String(graphic.type || '').trim().toUpperCase();
-        if (typeVal && normalizeTypeForFilter(graphicType) !== typeVal) return;
         if (!bookMap[key]) bookMap[key] = { title, catalog, total: 0, voted: 0, counts: Object.fromEntries(PROGRESS_COUNT_TYPES.map((type) => [type, 0])), missingBaseline: 0, missingBaselineLabel: '', missingCatalog: 0, missingBucketUrl: 0, flagged: 0 };
         bookMap[key].total += 1;
         if (bookMap[key].counts[graphicType] != null) bookMap[key].counts[graphicType] += 1;
@@ -846,7 +844,6 @@
         const key = `${bookKey}|${catalog.toLowerCase()}`;
         if (bookVal && bookKey !== bookVal) return;
         if (catalogVal && String(row.releaseCatalog || '').trim().toLowerCase() !== catalogVal) return;
-        if (typeVal && normalizeTypeForFilter(row.type) !== typeVal) return;
         if (bookMap[key]) bookMap[key].voted += 1;
       });
 
