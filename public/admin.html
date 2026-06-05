@@ -2150,6 +2150,7 @@
         const payload = await api('admin/importAssistant/previewGraphics', {
           method: 'POST',
           body: {
+            imageType: document.getElementById('import-assistant-image-type').value,
             rows,
             defaults: importAssistantDefaults(),
           },

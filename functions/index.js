@@ -5414,7 +5414,8 @@ app.post(getBoth("/admin/importAssistant/previewGraphics"), async (req, res) => 
   if (!ctx) return;
 
   const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
-  const resolved = resolveImportAssistantRows(rows, req.body?.defaults || {}, "QI");
+  const imageType = normalizeText(req.body?.imageType || "QI") || "QI";
+  const resolved = resolveImportAssistantRows(rows, req.body?.defaults || {}, imageType);
   const results = [];
   for (const row of resolved) {
     let resolvedRow = finalizeImportAssistantGraphicRow(row);
