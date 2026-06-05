@@ -495,21 +495,6 @@
 
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
-        <h2 style="margin-top:0;">Author Profiles</h2>
-        <button id="author-profiles-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="author-profiles-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
-        </button>
-      </div>
-      <div id="author-profiles-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Inspect author profiles, publishing state, and linked account data without leaving admin.</p>
-        <div id="author-profiles-status" class="status">Loading author profiles…</div>
-        <div id="author-profiles-list"></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-top:20px;">
-      <div class="section-head">
         <h2 style="margin-top:0;">User Submissions</h2>
         <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="user-submissions-section-body">
           <span class="chevron">▾</span>
@@ -904,7 +889,6 @@
       claims: [],
       duplicates: [],
       weaverExcHealth: null,
-      authorProfiles: [],
       submissions: [],
       submissionQuery: "",
       submissionStatusFilter: "all",
@@ -930,7 +914,6 @@
       contentLibraryCollapsed: localStorage.getItem('pp_admin_content_library_collapsed') !== 'false',
       contentClaimsCollapsed: localStorage.getItem('pp_admin_content_claims_collapsed') !== 'false',
       duplicateReviewCollapsed: localStorage.getItem('pp_admin_duplicate_review_collapsed') !== 'false',
-      authorProfilesCollapsed: localStorage.getItem('pp_admin_author_profiles_collapsed') !== 'false',
       userSubmissionsCollapsed: localStorage.getItem('pp_admin_user_submissions_collapsed') !== 'false',
       legacyImportCollapsed: localStorage.getItem('pp_admin_legacy_import_collapsed') !== 'false',
       flaggedContentCollapsed: localStorage.getItem('pp_admin_flagged_content_collapsed') !== 'false',
@@ -979,10 +962,6 @@
 
     function applyDuplicateReviewCollapseState() {
       applySectionCollapseState('duplicate-review-toggle', 'duplicate-review-section-body', state.duplicateReviewCollapsed);
-    }
-
-    function applyAuthorProfilesCollapseState() {
-      applySectionCollapseState('author-profiles-toggle', 'author-profiles-section-body', state.authorProfilesCollapsed);
     }
 
     function applyUserSubmissionsCollapseState() {
@@ -1914,59 +1893,6 @@
         console.error(err);
         document.getElementById('weaver-exc-health-list').innerHTML = '<div class="empty">Could not load Weaver EXC health.</div>';
         statusEl.textContent = err.message || 'Could not load Weaver EXC health.';
-        statusEl.className = 'status error';
-      }
-    }
-
-    function renderAuthorProfiles() {
-      const container = document.getElementById("author-profiles-list");
-      const statusEl = document.getElementById("author-profiles-status");
-      if (!state.authorProfiles.length) {
-        container.innerHTML = '<div class="empty">No author profiles yet.</div>';
-        statusEl.textContent = 'No author profiles found.';
-        return;
-      }
-      const published = state.authorProfiles.filter((profile) => profile.published);
-      statusEl.textContent = `${state.authorProfiles.length} profiles loaded, ${published.length} published.`;
-      container.innerHTML = `
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Slug</th>
-              <th>Email</th>
-              <th>Account</th>
-              <th>Published</th>
-              <th>Open</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.authorProfiles.map((profile) => `
-              <tr>
-                <td>${profile.displayName || '—'}</td>
-                <td>${profile.slug || '—'}</td>
-                <td>${profile.email || '—'}</td>
-                <td>${profile.userId ? 'Claimed' : 'Preview only'}</td>
-                <td>${profile.published ? 'Yes' : 'No'}</td>
-                <td>${profile.slug ? `<a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">View page</a> · ` : ''}<a href="/author/edit?reviewAuthor=${encodeURIComponent(profile.displayName || profile.slug || '')}" target="_blank" rel="noopener">Review</a></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    }
-
-    async function loadAuthorProfiles() {
-      const statusEl = document.getElementById('author-profiles-status');
-      statusEl.textContent = 'Loading author profiles…';
-      try {
-        const payload = await api('admin/authorProfiles', { method: 'GET' });
-        state.authorProfiles = payload.profiles || [];
-        renderAuthorProfiles();
-      } catch (err) {
-        console.error(err);
-        document.getElementById('author-profiles-list').innerHTML = '<div class="empty">Could not load author profiles.</div>';
-        statusEl.textContent = err.message || 'Could not load author profiles.';
         statusEl.className = 'status error';
       }
     }
@@ -3768,7 +3694,6 @@
       applyContentLibraryCollapseState();
       applyContentClaimsCollapseState();
       applyDuplicateReviewCollapseState();
-      applyAuthorProfilesCollapseState();
       applyUserSubmissionsCollapseState();
       applyLegacyImportCollapseState();
       applyFlaggedContentCollapseState();
@@ -3803,7 +3728,7 @@
           await loadFlags();
           return;
         }
-        await Promise.all([loadUsers(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadAuthorProfiles(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
+        await Promise.all([loadUsers(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -3852,11 +3777,6 @@
         state.duplicateReviewCollapsed = !state.duplicateReviewCollapsed;
         localStorage.setItem('pp_admin_duplicate_review_collapsed', state.duplicateReviewCollapsed ? 'true' : 'false');
         applyDuplicateReviewCollapseState();
-      });
-      document.getElementById("author-profiles-toggle").addEventListener("click", () => {
-        state.authorProfilesCollapsed = !state.authorProfilesCollapsed;
-        localStorage.setItem('pp_admin_author_profiles_collapsed', state.authorProfilesCollapsed ? 'true' : 'false');
-        applyAuthorProfilesCollapseState();
       });
       document.getElementById("user-submissions-toggle").addEventListener("click", () => {
         state.userSubmissionsCollapsed = !state.userSubmissionsCollapsed;
