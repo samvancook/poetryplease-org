@@ -393,6 +393,7 @@
       <a href="/">Back to app</a>
       <div class="topbar-actions">
         <a href="/scoreboard">Scoreboard</a>
+        <a href="/author-command-center">Author Command Center</a>
         <div id="admin-view-toggle-slot"></div>
         <div id="auth-note" class="auth-note">Checking sign-in…</div>
         <button id="login-google" class="secondary" type="button" hidden>Log in with Google</button>
@@ -1498,7 +1499,7 @@
       const activeInvites = state.invites.filter((invite) => invite.status === 'active');
       const claimedInvites = state.invites.filter((invite) => invite.status === 'claimed');
       const expiredInvites = state.invites.filter((invite) => invite.status === 'expired');
-      statusEl.textContent = `${activeInvites.length} active, ${claimedInvites.length} claimed, ${expiredInvites.length} expired.`;
+      statusEl.textContent = `${activeInvites.length} invite open, ${claimedInvites.length} claimed, ${expiredInvites.length} expired.`;
       container.innerHTML = `
         <table>
           <thead>
@@ -1515,7 +1516,7 @@
             ${state.invites.map((invite) => `
               <tr>
                 <td>${invite.email || '—'}</td>
-                <td>${invite.status || 'active'}</td>
+                <td>${escapeHtml(inviteStatusLabel(invite))}</td>
                 <td>${formatLastActive(invite.createdAt)}</td>
                 <td>${invite.expiresAt ? formatLastActive(invite.expiresAt) : '—'}</td>
                 <td>${invite.claimedAt ? formatLastActive(invite.claimedAt) : 'Not yet'}</td>
@@ -1592,7 +1593,7 @@
           <h3>Account</h3>
           <div><strong>Email:</strong> ${escapeHtml(profile.email || invite.email || '—')}</div>
           <div class="meta">Claimed user: ${escapeHtml(profile.userId || invite.claimedByUserId || 'Not claimed')}</div>
-          <div class="meta">Invite: ${escapeHtml(invite.email ? `${invite.status || 'active'}${invite.expiresAt ? ` · expires ${formatLastActive(invite.expiresAt)}` : ''}` : 'No invite')}</div>
+          <div class="meta">Invite: ${escapeHtml(invite.email ? inviteStatusLabel(invite) : 'No invite')}</div>
         </div>
         <div class="drawer-section">
           <h3>Readiness</h3>
@@ -1642,6 +1643,13 @@
       const drawer = document.getElementById('author-detail-drawer');
       drawer.classList.remove('open');
       drawer.hidden = true;
+    }
+
+    function inviteStatusLabel(invite = {}) {
+      const status = String(invite.status || 'active').toLowerCase();
+      if (status === 'claimed') return invite.claimedAt ? `Claimed ${formatLastActive(invite.claimedAt)}` : 'Claimed';
+      if (status === 'expired') return 'Invite expired';
+      return invite.expiresAt ? `Invite open · expires ${formatLastActive(invite.expiresAt)}` : 'Invite open';
     }
 
     function renderAuthorCommandCenter() {
@@ -1694,9 +1702,7 @@
                 const name = profile.displayName || invite.email || 'Unknown author';
                 const reviewAuthor = profile.displayName || profile.slug || name;
                 const rowIndex = (payload.rows || []).indexOf(row);
-                const inviteLabel = invite.email
-                  ? `${invite.status || 'active'}${invite.claimedAt ? ` · claimed ${formatLastActive(invite.claimedAt)}` : ''}`
-                  : 'No invite';
+                const inviteLabel = invite.email ? inviteStatusLabel(invite) : 'No invite';
                 const feedbackCount = row.readiness?.unresolvedFeedbackCount || 0;
                 const canGenerateInvite = invite.id && invite.status !== 'claimed' && !invite.claimedByUserId;
                 return `

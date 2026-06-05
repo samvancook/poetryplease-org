@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Author Command Center | Poetry, Please</title>
+  <link rel="icon" type="image/png" href="/pp-loader-logo.png" />
+  <link rel="apple-touch-icon" href="/pp-loader-logo.png" />
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <style>
+    :root {
+      --paper: #f7f3ea;
+      --ink: #1e1a15;
+      --muted: #6c6558;
+      --line: #dad0c1;
+      --card: rgba(255, 253, 248, 0.9);
+      --accent: #2f5d62;
+      --accent-soft: #d7e7e9;
+      --warn: #8a3b2f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: linear-gradient(180deg, #faf7f0 0%, var(--paper) 100%);
+    }
+    .shell { max-width: 1240px; margin: 0 auto; padding: 28px 20px 56px; }
+    .topbar, .section-head, .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .topbar { justify-content: space-between; }
+    .topbar-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    h1 { margin: 22px 0 8px; font-size: clamp(36px, 5vw, 58px); line-height: 0.95; letter-spacing: -0.04em; }
+    h2, h3 { margin: 0; }
+    a { color: var(--accent); font-weight: 700; text-decoration: none; }
+    .lede, .meta, .status { color: var(--muted); }
+    .lede { margin: 0 0 22px; line-height: 1.55; max-width: 72ch; }
+    .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 18px 48px rgba(24, 19, 12, 0.08);
+    }
+    .section-head { justify-content: space-between; margin-bottom: 14px; }
+    input, select {
+      min-width: min(260px, 100%);
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+    button, .button {
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+    }
+    button.secondary, .button.secondary {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .status { margin: 10px 0; }
+    .status.error { color: var(--warn); }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .chip.warn { background: #f2dfd9; color: var(--warn); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 980px; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+    th { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; }
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      color: var(--muted);
+      background: rgba(255,255,255,0.5);
+    }
+    .invite-form { display: grid; grid-template-columns: minmax(240px, 1fr) 160px auto; gap: 10px; align-items: end; }
+    .drawer {
+      position: fixed;
+      inset: 0;
+      background: rgba(30, 26, 21, 0.28);
+      display: none;
+      justify-content: flex-end;
+      z-index: 10;
+    }
+    .drawer.open { display: flex; }
+    .drawer-panel {
+      width: min(560px, 100%);
+      height: 100%;
+      overflow: auto;
+      background: #fffdf8;
+      border-left: 1px solid var(--line);
+      padding: 22px;
+      box-shadow: -18px 0 50px rgba(24, 19, 12, 0.16);
+    }
+    .drawer-section { margin-top: 20px; }
+    @media (max-width: 760px) {
+      .invite-form { grid-template-columns: 1fr; }
+      table { min-width: 820px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <a href="/admin">Back to Admin</a>
+      <div class="topbar-actions">
+        <a href="/scoreboard">Scoreboard</a>
+        <div id="auth-note" class="status">Checking sign-in...</div>
+        <button id="login-google" class="secondary" type="button" hidden>Log in with Google</button>
+        <button id="logout" class="secondary" type="button" hidden>Log out</button>
+      </div>
+    </div>
+
+    <h1>Author Command Center</h1>
+    <p class="lede">Track author onboarding, invites, claimed accounts, profile readiness, associated work, and author notes in one place.</p>
+
+    <div class="grid">
+      <section class="card">
+        <div class="section-head">
+          <h2>Author Lanes</h2>
+          <button id="refresh-command" class="secondary" type="button">Refresh</button>
+        </div>
+        <div class="controls">
+          <input id="command-search" type="search" placeholder="Search author or email" />
+          <select id="command-status">
+            <option value="all">All author lanes</option>
+            <option value="invited">Invited</option>
+            <option value="claimed">Claimed account</option>
+            <option value="profile incomplete">Profile incomplete</option>
+            <option value="ready for review">Ready for review</option>
+            <option value="published">Published</option>
+            <option value="needs feedback review">Needs feedback review</option>
+          </select>
+        </div>
+        <div id="command-status-line" class="status">Loading author command center...</div>
+        <div id="command-summary" class="chips"></div>
+        <div id="command-list" class="table-wrap" style="margin-top:14px;"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <h2>Author Invites</h2>
+          <button id="refresh-invites" class="secondary" type="button">Refresh</button>
+        </div>
+        <form id="invite-form" class="invite-form">
+          <input id="invite-email" type="email" placeholder="author@example.com" required />
+          <input id="invite-days" type="number" min="1" max="90" value="14" aria-label="Invite expiration in days" />
+          <button type="submit">Create invite</button>
+        </form>
+        <div id="invite-status" class="status">No invite created yet.</div>
+        <div id="invite-result" class="empty">New invite links will appear here.</div>
+        <div id="invite-list-status" class="status" style="margin-top:14px;">Loading invites...</div>
+        <div id="invite-list" class="table-wrap"></div>
+      </section>
+    </div>
+  </main>
+
+  <div id="drawer" class="drawer">
+    <aside class="drawer-panel">
+      <div class="section-head">
+        <h2 id="drawer-title">Author</h2>
+        <button id="close-drawer" class="secondary" type="button">Close</button>
+      </div>
+      <div id="drawer-body"></div>
+    </aside>
+  </div>
+
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.firebasestorage.app",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    firebase.initializeApp(FIREBASE_CONFIG);
+
+    const state = {
+      me: null,
+      command: null,
+      invites: [],
+      query: "",
+      status: "all",
+    };
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;",
+      }[char]));
+    }
+
+    function normalize(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function formatDate(value) {
+      if (!value) return "-";
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "-";
+      return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    }
+
+    function inviteStatusLabel(invite = {}) {
+      const status = normalize(invite.status || "active");
+      if (status === "claimed") return invite.claimedAt ? `Claimed ${formatDate(invite.claimedAt)}` : "Claimed";
+      if (status === "expired") return "Invite expired";
+      return invite.expiresAt ? `Invite open - expires ${formatDate(invite.expiresAt)}` : "Invite open";
+    }
+
+    function readinessChips(readiness = {}) {
+      const items = [
+        ["Account", readiness.hasClaimedAccount],
+        ["Bio", readiness.hasBio],
+        ["Links", readiness.hasLinks],
+        ["Work", readiness.hasFeaturedOrFallback],
+        ["Published", readiness.published],
+      ];
+      return `<div class="chips">${items.map(([label, ok]) => `<span class="chip${ok ? "" : " warn"}">${label}: ${ok ? "yes" : "no"}</span>`).join("")}</div>`;
+    }
+
+    async function getIdTokenOrNull() {
+      const user = firebase.auth().currentUser;
+      return user ? await user.getIdToken(false) : null;
+    }
+
+    async function api(path, { method = "GET", body } = {}) {
+      const token = await getIdTokenOrNull();
+      const res = await fetch(`/api/${path.replace(/^\//, "")}`, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        throw new Error(`API ${method} /api/${path} failed: ${res.status} ${text}`);
+      }
+      return res.json();
+    }
+
+    async function signInWithGoogle() {
+      await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    }
+
+    function updateAuthUI(user) {
+      document.getElementById("auth-note").textContent = user ? `Signed in as ${user.email}` : "Not signed in";
+      document.getElementById("login-google").hidden = !!user;
+      document.getElementById("logout").hidden = !user;
+    }
+
+    function renderCommandCenter() {
+      const payload = state.command;
+      const container = document.getElementById("command-list");
+      const statusEl = document.getElementById("command-status-line");
+      const summaryEl = document.getElementById("command-summary");
+      if (!payload) return;
+      const summary = payload.summary || {};
+      const rows = (payload.rows || []).filter((row) => {
+        const profile = row.profile || {};
+        const invite = row.invite || {};
+        const haystack = normalize([profile.displayName, profile.email, profile.slug, invite.email, invite.claimedByEmail, row.status].filter(Boolean).join(" "));
+        if (state.query && !haystack.includes(state.query)) return false;
+        if (state.status === "claimed") return !!row.readiness?.hasClaimedAccount;
+        if (state.status !== "all") return String(row.status || "") === state.status;
+        return true;
+      });
+
+      statusEl.textContent = `Showing ${rows.length} of ${summary.total || 0} author lanes.`;
+      summaryEl.innerHTML = `
+        <span class="chip">Invited: ${summary.invited || 0}</span>
+        <span class="chip">Claimed: ${summary.claimed || 0}</span>
+        <span class="chip">Ready review: ${summary.readyForReview || 0}</span>
+        <span class="chip">Published: ${summary.published || 0}</span>
+        <span class="chip${summary.unresolvedFeedback ? " warn" : ""}">Author notes: ${summary.unresolvedFeedback || 0}</span>
+      `;
+
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty">No author lanes match the current filters.</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr><th>Author</th><th>Profile Status</th><th>Invite Status</th><th>Work</th><th>Readiness</th><th>Actions</th></tr>
+          </thead>
+          <tbody>${rows.map((row) => {
+            const profile = row.profile || {};
+            const invite = row.invite || {};
+            const name = profile.displayName || invite.email || "Unknown author";
+            const reviewAuthor = profile.displayName || profile.slug || name;
+            const rowIndex = (payload.rows || []).indexOf(row);
+            const feedbackCount = row.readiness?.unresolvedFeedbackCount || 0;
+            const canGenerateInvite = invite.id && invite.status !== "claimed" && !invite.claimedByUserId;
+            return `
+              <tr>
+                <td><strong>${escapeHtml(name)}</strong><div class="meta">${escapeHtml(profile.email || invite.email || "")}</div></td>
+                <td>${escapeHtml(row.status || "not invited")}</td>
+                <td>${escapeHtml(invite.email ? inviteStatusLabel(invite) : "No invite")}</td>
+                <td>${row.associatedCount || 0}${feedbackCount ? `<div class="meta">${feedbackCount} pending note${feedbackCount === 1 ? "" : "s"}</div>` : ""}</td>
+                <td>${readinessChips(row.readiness || {})}</td>
+                <td>
+                  <button type="button" class="secondary detail-button" data-row="${rowIndex}">Details</button>
+                  ${reviewAuthor ? `<a class="button secondary" href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ""}
+                  ${profile.slug ? `<a class="button secondary" href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ""}
+                  ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Generate link</button>` : ""}
+                </td>
+              </tr>
+            `;
+          }).join("")}</tbody>
+        </table>
+      `;
+
+      container.querySelectorAll(".detail-button").forEach((button) => {
+        button.addEventListener("click", () => openDetail(Number(button.dataset.row)));
+      });
+      container.querySelectorAll(".generate-button").forEach((button) => {
+        button.addEventListener("click", () => regenerateInvite(button.dataset.inviteId));
+      });
+    }
+
+    function renderCompactItems(items = [], emptyText) {
+      if (!items.length) return `<div class="empty">${escapeHtml(emptyText)}</div>`;
+      return `
+        <table>
+          <thead><tr><th>ID</th><th>Title</th><th>Book</th><th>Type</th></tr></thead>
+          <tbody>${items.map((item) => `
+            <tr>
+              <td>${escapeHtml(item.id || "-")}</td>
+              <td>${escapeHtml(item.title || "-")}</td>
+              <td>${escapeHtml(item.book || "-")}</td>
+              <td>${escapeHtml(item.type || "-")}</td>
+            </tr>
+          `).join("")}</tbody>
+        </table>
+      `;
+    }
+
+    function openDetail(rowIndex) {
+      const row = state.command?.rows?.[rowIndex];
+      if (!row) return;
+      const profile = row.profile || {};
+      const invite = row.invite || {};
+      const feedbackRows = row.feedbackNotes || [];
+      const name = profile.displayName || invite.email || "Unknown author";
+      document.getElementById("drawer-title").textContent = name;
+      document.getElementById("drawer-body").innerHTML = `
+        <div class="chips">
+          <span class="chip">${escapeHtml(row.status || "not invited")}</span>
+          <span class="chip">${row.associatedCount || 0} associated work</span>
+          <span class="chip${feedbackRows.length ? " warn" : ""}">${feedbackRows.length} note${feedbackRows.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="drawer-section">
+          <h3>Account</h3>
+          <p><strong>Email:</strong> ${escapeHtml(profile.email || invite.email || "-")}</p>
+          <p class="meta">Claimed user: ${escapeHtml(profile.userId || invite.claimedByUserId || "Not claimed")}</p>
+          <p class="meta">Invite status: ${escapeHtml(invite.email ? inviteStatusLabel(invite) : "No invite")}</p>
+        </div>
+        <div class="drawer-section">
+          <h3>Readiness</h3>
+          ${readinessChips(row.readiness || {})}
+        </div>
+        <div class="drawer-section">
+          <h3>Associated Work Sample</h3>
+          ${renderCompactItems(row.associatedSample || [], "No associated work sample found.")}
+        </div>
+        <div class="drawer-section">
+          <h3>Featured Picks</h3>
+          ${renderCompactItems(row.featuredSample || [], "No featured picks selected yet.")}
+        </div>
+        <div class="drawer-section">
+          <h3>Unresolved Author Notes</h3>
+          ${feedbackRows.length ? `
+            <table>
+              <thead><tr><th>Content</th><th>Reason</th><th>Note</th></tr></thead>
+              <tbody>${feedbackRows.map((flag) => `
+                <tr>
+                  <td>${flag.imageId ? `<a href="/app?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener">${escapeHtml(flag.imageId)}</a>` : "-"}</td>
+                  <td>${escapeHtml(flag.reason || "-")}</td>
+                  <td>${escapeHtml(String(flag.note || "").replace(/^Author review note:\s*/i, "").slice(0, 260))}</td>
+                </tr>
+              `).join("")}</tbody>
+            </table>
+          ` : '<div class="empty">No unresolved author notes.</div>'}
+        </div>
+      `;
+      document.getElementById("drawer").classList.add("open");
+    }
+
+    function renderInvites() {
+      const container = document.getElementById("invite-list");
+      const statusEl = document.getElementById("invite-list-status");
+      const openInvites = state.invites.filter((invite) => normalize(invite.status || "active") === "active");
+      const claimedInvites = state.invites.filter((invite) => normalize(invite.status) === "claimed");
+      const expiredInvites = state.invites.filter((invite) => normalize(invite.status) === "expired");
+      statusEl.textContent = `${openInvites.length} invite open, ${claimedInvites.length} claimed, ${expiredInvites.length} expired.`;
+      if (!state.invites.length) {
+        container.innerHTML = '<div class="empty">No invites yet.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <table>
+          <thead><tr><th>Email</th><th>Invite Status</th><th>Created</th><th>Expires</th><th>Claimed</th><th>Profile</th></tr></thead>
+          <tbody>${state.invites.map((invite) => `
+            <tr>
+              <td>${escapeHtml(invite.email || "-")}</td>
+              <td>${escapeHtml(inviteStatusLabel(invite))}</td>
+              <td>${formatDate(invite.createdAt)}</td>
+              <td>${formatDate(invite.expiresAt)}</td>
+              <td>${invite.claimedAt ? formatDate(invite.claimedAt) : "Not yet"}</td>
+              <td>${invite.profileSlug
+                ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(invite.profileName || invite.profileSlug)}" target="_blank" rel="noopener">${escapeHtml(invite.profileName || invite.claimedByEmail || "Open profile")}</a>`
+                : escapeHtml(invite.claimedByEmail || "-")}</td>
+            </tr>
+          `).join("")}</tbody>
+        </table>
+      `;
+    }
+
+    async function loadCommandCenter() {
+      document.getElementById("command-status-line").textContent = "Loading author command center...";
+      const payload = await api("admin/authorCommandCenter", { method: "GET" });
+      state.command = payload;
+      renderCommandCenter();
+    }
+
+    async function loadInvites() {
+      document.getElementById("invite-list-status").textContent = "Loading invites...";
+      const payload = await api("admin/authorInvites", { method: "GET" });
+      state.invites = payload.invites || [];
+      renderInvites();
+    }
+
+    async function createInvite(event) {
+      event.preventDefault();
+      const email = document.getElementById("invite-email").value.trim();
+      const expiresInDays = Number(document.getElementById("invite-days").value || 14);
+      const statusEl = document.getElementById("invite-status");
+      const resultEl = document.getElementById("invite-result");
+      statusEl.textContent = "Creating invite...";
+      try {
+        const payload = await api("authorInvites/create", { method: "POST", body: { email, expiresInDays } });
+        resultEl.innerHTML = `
+          <div><strong>Invite link</strong></div>
+          <code id="latest-invite-link">${escapeHtml(payload.inviteUrl || "")}</code>
+          <div style="margin-top:10px;"><button id="copy-invite-link" type="button" class="secondary">Copy link</button></div>
+        `;
+        document.getElementById("copy-invite-link").addEventListener("click", async () => {
+          await navigator.clipboard.writeText(payload.inviteUrl || "");
+          statusEl.textContent = "Invite link copied.";
+        });
+        statusEl.textContent = "Invite created.";
+        await Promise.all([loadInvites(), loadCommandCenter()]);
+      } catch (err) {
+        statusEl.textContent = err.message || "Failed to create invite.";
+        statusEl.className = "status error";
+      }
+    }
+
+    async function regenerateInvite(inviteId) {
+      if (!inviteId) return;
+      const payload = await api(`admin/authorInvites/${encodeURIComponent(inviteId)}/regenerate`, { method: "POST", body: { expiresInDays: 14 } });
+      await navigator.clipboard.writeText(payload.inviteUrl || "");
+      document.getElementById("command-status-line").textContent = "Invite link generated and copied.";
+      await Promise.all([loadInvites(), loadCommandCenter()]);
+    }
+
+    async function loadAll() {
+      try {
+        await Promise.all([loadCommandCenter(), loadInvites()]);
+      } catch (err) {
+        console.error(err);
+        document.getElementById("command-status-line").textContent = err.message || "Could not load author command center.";
+        document.getElementById("command-status-line").className = "status error";
+      }
+    }
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      updateAuthUI(user);
+      if (!user) {
+        document.getElementById("command-list").innerHTML = '<div class="empty">Please sign in with your admin account first.</div>';
+        return;
+      }
+      try {
+        state.me = await api("me", { method: "GET" });
+        if (!state.me?.roles?.includes("admin")) {
+          document.getElementById("command-list").innerHTML = '<div class="empty">Admin access is required for this page.</div>';
+          return;
+        }
+        await loadAll();
+      } catch (err) {
+        console.error(err);
+        document.getElementById("command-list").innerHTML = `<div class="empty">${escapeHtml(err.message || "Could not load author tools.")}</div>`;
+      }
+    });
+
+    document.getElementById("login-google").addEventListener("click", signInWithGoogle);
+    document.getElementById("logout").addEventListener("click", async () => {
+      await firebase.auth().signOut();
+      location.href = "/author-command-center";
+    });
+    document.getElementById("refresh-command").addEventListener("click", loadCommandCenter);
+    document.getElementById("refresh-invites").addEventListener("click", loadInvites);
+    document.getElementById("invite-form").addEventListener("submit", createInvite);
+    document.getElementById("command-search").addEventListener("input", (event) => {
+      state.query = normalize(event.target.value);
+      renderCommandCenter();
+    });
+    document.getElementById("command-status").addEventListener("change", (event) => {
+      state.status = event.target.value || "all";
+      renderCommandCenter();
+    });
+    document.getElementById("close-drawer").addEventListener("click", () => document.getElementById("drawer").classList.remove("open"));
+    document.getElementById("drawer").addEventListener("click", (event) => {
+      if (event.target.id === "drawer") document.getElementById("drawer").classList.remove("open");
+    });
+  </script>
+</body>
+</html>

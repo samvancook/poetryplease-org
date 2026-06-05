@@ -76,6 +76,14 @@
         "destination": "/scoreboard.html"
       },
       {
+        "source": "/author-command-center",
+        "destination": "/author-command-center.html"
+      },
+      {
+        "source": "/author-command-center/**",
+        "destination": "/author-command-center.html"
+      },
+      {
         "source": "/embed",
         "destination": "/embed.html"
       },
