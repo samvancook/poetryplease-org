@@ -1968,11 +1968,38 @@
     }
 
     function parseImportAssistantRows(raw) {
-      return String(raw || '')
+      const lines = String(raw || '')
         .split(/\r?\n/)
         .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => {
+        .filter(Boolean);
+      if (!lines.length) return [];
+      const headerCols = lines[0].split('\t').map((col) => normalizeForFilter(col));
+      const hasStructuredHeader = headerCols.includes('poem title') && headerCols.includes('file name') && headerCols.includes('drive link');
+      if (hasStructuredHeader) {
+        const columnIndex = (name) => headerCols.indexOf(name);
+        const bookIndex = columnIndex('book');
+        const authorIndex = columnIndex('author');
+        const titleIndex = columnIndex('poem title');
+        const lineIndex = columnIndex('first line/last line');
+        const scopeIndex = columnIndex('full page or excerpt');
+        const pageIndex = columnIndex('page number');
+        const fileIndex = columnIndex('file name');
+        const driveIndex = columnIndex('drive link');
+        return lines.slice(1).map((line) => {
+          const cols = line.split('\t');
+          return {
+            bookShortener: String(cols[bookIndex] || '').trim(),
+            author: String(cols[authorIndex] || '').trim(),
+            title: String(cols[titleIndex] || '').trim(),
+            lineNote: String(cols[lineIndex] || '').trim(),
+            pageScope: String(cols[scopeIndex] || '').trim(),
+            pageNumber: String(cols[pageIndex] || '').trim(),
+            fileName: String(cols[fileIndex] || '').trim(),
+            driveLink: String(cols[driveIndex] || '').trim(),
+          };
+        }).filter((row) => row.fileName || row.driveLink || row.title);
+      }
+      return lines.map((line) => {
           const cols = line.split('\t');
           const first = String(cols[0] || '').trim();
           return {
@@ -1999,6 +2026,11 @@
     function buildImportAssistantContentItem(row) {
       const imageType = String(document.getElementById('import-assistant-image-type').value || 'QI').trim().toUpperCase();
       const collection = imageType === 'EXC' ? 'excerpts' : imageType === 'FP' ? 'fullpoems' : 'graphics';
+      const miscParts = [
+        row.fileName ? `Import Assistant source file: ${row.fileName}` : '',
+        row.pageScope ? `pageScope=${row.pageScope}` : '',
+        row.lineNote ? `lineNote=${row.lineNote}` : '',
+      ].filter(Boolean);
       return {
         collection,
         contentId: row.suggestedDocId || '',
@@ -2012,8 +2044,9 @@
         bookLink: row.bookLink || '',
         releaseCatalog: row.releaseCatalog || '',
         bookShortener: row.bookShortener || '',
+        pageNumber: row.pageNumber || '',
         excerpt: '',
-        misc: row.fileName ? `Import Assistant source file: ${row.fileName}` : '',
+        misc: miscParts.join(' · '),
       };
     }
 
@@ -2078,6 +2111,8 @@
                 <td>
                   <div>${escapeHtml(row.author || '—')}</div>
                   <div>${escapeHtml(row.book || '—')}</div>
+                  <div>${escapeHtml(row.title || '—')}${row.pageNumber ? ` · p. ${escapeHtml(row.pageNumber)}` : ''}${row.pageScope ? ` · ${escapeHtml(row.pageScope)}` : ''}</div>
+                  ${row.lineNote ? `<div class="meta">${escapeHtml(row.lineNote)}</div>` : ''}
                   <div>${escapeHtml(row.releaseCatalog || '—')} · ${escapeHtml(row.bookShortener || '—')}</div>
                   ${row.matched ? '' : '<div class="meta">No catalog match.</div>'}
                 </td>

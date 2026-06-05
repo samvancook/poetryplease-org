@@ -5357,9 +5357,18 @@ function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") 
       releaseCatalog: normalizeText(row?.releaseCatalog || defaults?.releaseCatalog || matched?.releaseCatalog || ""),
       bookShortener,
       title: resolvedTitle,
+      lineNote: normalizeText(row?.lineNote || ""),
+      pageScope: normalizeText(row?.pageScope || ""),
+      pageNumber: normalizeText(row?.pageNumber || ""),
       suggestedDocId: bookShortener && resolvedTitle ? `${bookShortener}-${imageType}-${slugify(resolvedTitle)}`.toUpperCase() : "",
       folderLink: normalizeText(defaults?.driveFolderLink || ""),
     };
+    const miscParts = [
+      resolvedRow.fileName ? `Import Assistant source file: ${resolvedRow.fileName}` : "",
+      resolvedRow.folderLink ? `Import Assistant folder: ${resolvedRow.folderLink}` : "",
+      resolvedRow.pageScope ? `pageScope=${resolvedRow.pageScope}` : "",
+      resolvedRow.lineNote ? `lineNote=${resolvedRow.lineNote}` : "",
+    ].filter(Boolean);
     resolvedRow.contentItem = {
       docId: resolvedRow.suggestedDocId,
       imageId: resolvedRow.suggestedDocId,
@@ -5371,7 +5380,9 @@ function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") 
       driveLink: resolvedRow.driveLink,
       bookLink: resolvedRow.bookLink,
       releaseCatalog: resolvedRow.releaseCatalog,
-      misc: [resolvedRow.fileName ? `Import Assistant source file: ${resolvedRow.fileName}` : "", resolvedRow.folderLink ? `Import Assistant folder: ${resolvedRow.folderLink}` : ""].filter(Boolean).join(" · "),
+      pageNumber: resolvedRow.pageNumber,
+      bookShortener: resolvedRow.bookShortener,
+      misc: miscParts.join(" · "),
     };
     return resolvedRow;
   });
@@ -5383,6 +5394,12 @@ function finalizeImportAssistantGraphicRow(row, remoteMedia = null) {
   const effectiveDocId = row?.bookShortener && effectiveTitle
     ? `${row.bookShortener}-${row.imageType}-${slugify(effectiveTitle)}`.toUpperCase()
     : normalizeText(row?.suggestedDocId || "");
+  const miscParts = [
+    effectiveFileName ? `Import Assistant source file: ${effectiveFileName}` : "",
+    row?.folderLink ? `Import Assistant folder: ${row.folderLink}` : "",
+    row?.pageScope ? `pageScope=${row.pageScope}` : "",
+    row?.lineNote ? `lineNote=${row.lineNote}` : "",
+  ].filter(Boolean);
   return {
     ...row,
     fileName: effectiveFileName,
@@ -5394,7 +5411,9 @@ function finalizeImportAssistantGraphicRow(row, remoteMedia = null) {
       imageId: effectiveDocId,
       title: effectiveTitle,
       driveLink: normalizeText(row?.driveLink || ""),
-      misc: [effectiveFileName ? `Import Assistant source file: ${effectiveFileName}` : "", row?.folderLink ? `Import Assistant folder: ${row.folderLink}` : ""].filter(Boolean).join(" · "),
+      pageNumber: normalizeText(row?.pageNumber || ""),
+      bookShortener: normalizeText(row?.bookShortener || ""),
+      misc: miscParts.join(" · "),
     },
   };
 }
