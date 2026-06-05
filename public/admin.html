@@ -526,11 +526,18 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Weaver EXC Health</h2>
-        <button id="refresh-weaver-exc-health" class="secondary" type="button">Refresh</button>
+        <div class="controls" style="margin-bottom:0;">
+          <button id="refresh-weaver-exc-health" class="secondary" type="button">Refresh</button>
+          <button id="weaver-exc-health-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="weaver-exc-health-section-body">
+            <span class="chevron">▾</span><span>Collapse</span>
+          </button>
+        </div>
       </div>
-      <p class="lede" style="margin-bottom:16px;max-width:none;">Quick check for Weaver-approved excerpts landing in Poetry Please, with missing catalog and duplicate-risk warnings.</p>
-      <div id="weaver-exc-health-status" class="status">Loading Weaver EXC health…</div>
-      <div id="weaver-exc-health-list"></div>
+      <div id="weaver-exc-health-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Quick check for Weaver-approved excerpts landing in Poetry Please, with missing catalog and duplicate-risk warnings.</p>
+        <div id="weaver-exc-health-status" class="status">Loading Weaver EXC health…</div>
+        <div id="weaver-exc-health-list"></div>
+      </div>
     </section>
 
     <section class="card" style="margin-top:20px;">
@@ -975,6 +982,7 @@
       userSubmissionsCollapsed: localStorage.getItem('pp_admin_user_submissions_collapsed') !== 'false',
       legacyImportCollapsed: localStorage.getItem('pp_admin_legacy_import_collapsed') !== 'false',
       flaggedContentCollapsed: localStorage.getItem('pp_admin_flagged_content_collapsed') !== 'false',
+      weaverExcHealthCollapsed: localStorage.getItem('pp_admin_weaver_exc_health_collapsed') === 'true',
     };
 
     function setStatus(message, isError = false) {
@@ -1039,6 +1047,10 @@
 
     function applyFlaggedContentCollapseState() {
       applySectionCollapseState('flagged-content-toggle', 'flagged-content-section-body', state.flaggedContentCollapsed);
+    }
+
+    function applyWeaverExcHealthCollapseState() {
+      applySectionCollapseState('weaver-exc-health-toggle', 'weaver-exc-health-section-body', state.weaverExcHealthCollapsed);
     }
 
     function compareStrings(a, b) {
@@ -3813,6 +3825,7 @@
       applyUserSubmissionsCollapseState();
       applyLegacyImportCollapseState();
       applyFlaggedContentCollapseState();
+      applyWeaverExcHealthCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
         updateAuthUI(user);
@@ -3938,6 +3951,11 @@
         state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
         localStorage.setItem('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed ? 'true' : 'false');
         applyFlaggedContentCollapseState();
+      });
+      document.getElementById("weaver-exc-health-toggle").addEventListener("click", () => {
+        state.weaverExcHealthCollapsed = !state.weaverExcHealthCollapsed;
+        localStorage.setItem('pp_admin_weaver_exc_health_collapsed', state.weaverExcHealthCollapsed ? 'true' : 'false');
+        applyWeaverExcHealthCollapseState();
       });
       document.getElementById("login-google").addEventListener("click", async () => {
         await signInWithGoogle();

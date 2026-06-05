@@ -4878,7 +4878,20 @@ app.get(getBoth("/admin/weaverExcHealth"), async (req, res) => {
 
   const snap = await db.collection(COLLECTIONS.excerpts).limit(1000).get();
   const excerpts = snap.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
-  const weaverRows = excerpts.filter((row) => normalizeKey(row.sourceSystem) === "weaver" || normalizeText(row.sourceRecordId || row.excerptHash));
+  const weaverRows = excerpts
+    .filter((row) => normalizeKey(row.sourceSystem) === "weaver" || normalizeText(row.sourceRecordId || row.excerptHash))
+    .map((row) => {
+      const idShortener = sanitizeDocIdSegment(String(row.imageId || row.id || "").split("-")[0] || "");
+      const catalogRecord = resolveCatalogBookRecord({
+        author: row.author || "",
+        book: row.book || "",
+        bookShortener: row.bookShortener || idShortener,
+      });
+      return {
+        ...row,
+        releaseCatalog: normalizeText(row.releaseCatalog || catalogRecord?.releaseCatalog || ""),
+      };
+    });
   const missingCatalog = weaverRows.filter((row) => !normalizeText(row.releaseCatalog));
   const duplicateGroups = new Map();
   weaverRows.forEach((row) => {
