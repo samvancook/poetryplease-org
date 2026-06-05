@@ -2000,12 +2000,43 @@
       return rows;
     }
 
+    function cleanStructuredImportCell(value) {
+      return String(value || '').trim().replace(/^"+|"+$/g, '').replace(/""/g, '"').trim();
+    }
+
+    function parseStructuredImportRows(raw) {
+      const text = String(raw || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const firstBreak = text.indexOf('\n');
+      const body = firstBreak >= 0 ? text.slice(firstBreak + 1) : '';
+      const rows = [];
+      const recordPattern = /([\s\S]*?https:\/\/drive\.google\.com\/file\/d\/[^\s\t"]+\/view\?[^\s\t"]+)/g;
+      let match;
+      while ((match = recordPattern.exec(body)) !== null) {
+        const record = String(match[1] || '').trim();
+        const cols = record.split('\t').map(cleanStructuredImportCell);
+        if (cols.length < 8) continue;
+        rows.push({
+          bookShortener: cols[0] || '',
+          author: cols[1] || '',
+          title: cols[2] || '',
+          lineNote: cols.slice(3, cols.length - 4).join(' ').trim(),
+          pageScope: cols[cols.length - 4] || '',
+          pageNumber: cols[cols.length - 3] || '',
+          fileName: cols[cols.length - 2] || '',
+          driveLink: cols[cols.length - 1] || '',
+        });
+      }
+      return rows.filter((row) => row.fileName || row.driveLink || row.title);
+    }
+
     function parseImportAssistantRows(raw) {
       const parsedRows = parseTsvRows(raw);
       if (!parsedRows.length) return [];
       const headerCols = parsedRows[0].map((col) => normalizeForFilter(col));
       const hasStructuredHeader = headerCols.includes('poem title') && headerCols.includes('file name') && headerCols.includes('drive link');
       if (hasStructuredHeader) {
+        const structuredRows = parseStructuredImportRows(raw);
+        if (structuredRows.length) return structuredRows;
         const columnIndex = (name) => headerCols.indexOf(name);
         const bookIndex = columnIndex('book');
         const authorIndex = columnIndex('author');
