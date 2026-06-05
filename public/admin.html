@@ -669,8 +669,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Import Assistant</h2>
+        <button id="import-assistant-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="import-assistant-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
       </div>
-      <div>
+      <div id="import-assistant-section-body">
         <p class="lede" style="margin-bottom:16px;max-width:none;">Paste filenames or tab-separated rows to get a first-pass catalog match before import.</p>
         <div class="form-grid" style="margin-bottom:14px;">
           <label>
@@ -874,6 +878,14 @@
       return res.json();
     }
 
+    function collapsedByDefault(storageKey) {
+      return localStorage.getItem(storageKey) !== 'open';
+    }
+
+    function saveCollapseState(storageKey, collapsed) {
+      localStorage.setItem(storageKey, collapsed ? 'closed' : 'open');
+    }
+
     const state = {
       me: null,
       users: [],
@@ -910,14 +922,15 @@
       flagQualityLaneFilter: "all",
       flagSort: "newest",
       batchFlagIdentifiers: [],
-      usersCollapsed: localStorage.getItem('pp_admin_users_collapsed') !== 'false',
-      contentLibraryCollapsed: localStorage.getItem('pp_admin_content_library_collapsed') !== 'false',
-      contentClaimsCollapsed: localStorage.getItem('pp_admin_content_claims_collapsed') !== 'false',
-      duplicateReviewCollapsed: localStorage.getItem('pp_admin_duplicate_review_collapsed') !== 'false',
-      userSubmissionsCollapsed: localStorage.getItem('pp_admin_user_submissions_collapsed') !== 'false',
-      legacyImportCollapsed: localStorage.getItem('pp_admin_legacy_import_collapsed') !== 'false',
-      flaggedContentCollapsed: localStorage.getItem('pp_admin_flagged_content_collapsed') !== 'false',
-      weaverExcHealthCollapsed: localStorage.getItem('pp_admin_weaver_exc_health_collapsed') === 'true',
+      usersCollapsed: collapsedByDefault('pp_admin_users_collapsed'),
+      contentLibraryCollapsed: collapsedByDefault('pp_admin_content_library_collapsed'),
+      contentClaimsCollapsed: collapsedByDefault('pp_admin_content_claims_collapsed'),
+      duplicateReviewCollapsed: collapsedByDefault('pp_admin_duplicate_review_collapsed'),
+      weaverExcHealthCollapsed: collapsedByDefault('pp_admin_weaver_exc_health_collapsed'),
+      userSubmissionsCollapsed: collapsedByDefault('pp_admin_user_submissions_collapsed'),
+      importAssistantCollapsed: collapsedByDefault('pp_admin_import_assistant_collapsed'),
+      legacyImportCollapsed: collapsedByDefault('pp_admin_legacy_import_collapsed'),
+      flaggedContentCollapsed: collapsedByDefault('pp_admin_flagged_content_collapsed'),
     };
 
     function setStatus(message, isError = false) {
@@ -927,23 +940,11 @@
     }
 
     function applyUsersCollapseState() {
-      const button = document.getElementById('users-toggle');
-      const body = document.getElementById('users-section-body');
-      if (!button || !body) return;
-      button.setAttribute('aria-expanded', state.usersCollapsed ? 'false' : 'true');
-      body.hidden = !!state.usersCollapsed;
-      const label = button.querySelector('span:last-child');
-      if (label) label.textContent = state.usersCollapsed ? 'Expand' : 'Collapse';
+      applySectionCollapseState('users-toggle', 'users-section-body', state.usersCollapsed);
     }
 
     function applyContentLibraryCollapseState() {
-      const button = document.getElementById('content-library-toggle');
-      const body = document.getElementById('content-library-section-body');
-      if (!button || !body) return;
-      button.setAttribute('aria-expanded', state.contentLibraryCollapsed ? 'false' : 'true');
-      body.hidden = !!state.contentLibraryCollapsed;
-      const label = button.querySelector('span:last-child');
-      if (label) label.textContent = state.contentLibraryCollapsed ? 'Expand' : 'Collapse';
+      applySectionCollapseState('content-library-toggle', 'content-library-section-body', state.contentLibraryCollapsed);
     }
 
     function applySectionCollapseState(buttonId, bodyId, collapsed) {
@@ -966,6 +967,10 @@
 
     function applyUserSubmissionsCollapseState() {
       applySectionCollapseState('user-submissions-toggle', 'user-submissions-section-body', state.userSubmissionsCollapsed);
+    }
+
+    function applyImportAssistantCollapseState() {
+      applySectionCollapseState('import-assistant-toggle', 'import-assistant-section-body', state.importAssistantCollapsed);
     }
 
     function applyLegacyImportCollapseState() {
@@ -3695,6 +3700,7 @@
       applyContentClaimsCollapseState();
       applyDuplicateReviewCollapseState();
       applyUserSubmissionsCollapseState();
+      applyImportAssistantCollapseState();
       applyLegacyImportCollapseState();
       applyFlaggedContentCollapseState();
       applyWeaverExcHealthCollapseState();
@@ -3760,27 +3766,27 @@
       document.getElementById("import-assistant-load-first").addEventListener("click", () => loadFirstImportAssistantRowIntoForm());
       document.getElementById("users-toggle").addEventListener("click", () => {
         state.usersCollapsed = !state.usersCollapsed;
-        localStorage.setItem('pp_admin_users_collapsed', state.usersCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_users_collapsed', state.usersCollapsed);
         applyUsersCollapseState();
       });
       document.getElementById("content-library-toggle").addEventListener("click", () => {
         state.contentLibraryCollapsed = !state.contentLibraryCollapsed;
-        localStorage.setItem('pp_admin_content_library_collapsed', state.contentLibraryCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_content_library_collapsed', state.contentLibraryCollapsed);
         applyContentLibraryCollapseState();
       });
       document.getElementById("content-claims-toggle").addEventListener("click", () => {
         state.contentClaimsCollapsed = !state.contentClaimsCollapsed;
-        localStorage.setItem('pp_admin_content_claims_collapsed', state.contentClaimsCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_content_claims_collapsed', state.contentClaimsCollapsed);
         applyContentClaimsCollapseState();
       });
       document.getElementById("duplicate-review-toggle").addEventListener("click", () => {
         state.duplicateReviewCollapsed = !state.duplicateReviewCollapsed;
-        localStorage.setItem('pp_admin_duplicate_review_collapsed', state.duplicateReviewCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_duplicate_review_collapsed', state.duplicateReviewCollapsed);
         applyDuplicateReviewCollapseState();
       });
       document.getElementById("user-submissions-toggle").addEventListener("click", () => {
         state.userSubmissionsCollapsed = !state.userSubmissionsCollapsed;
-        localStorage.setItem('pp_admin_user_submissions_collapsed', state.userSubmissionsCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_user_submissions_collapsed', state.userSubmissionsCollapsed);
         applyUserSubmissionsCollapseState();
       });
       document.getElementById("user-submissions-query").addEventListener("input", (event) => {
@@ -3795,19 +3801,24 @@
         state.submissionTypeFilter = event.target.value || "all";
         renderUserSubmissions();
       });
+      document.getElementById("import-assistant-toggle").addEventListener("click", () => {
+        state.importAssistantCollapsed = !state.importAssistantCollapsed;
+        saveCollapseState('pp_admin_import_assistant_collapsed', state.importAssistantCollapsed);
+        applyImportAssistantCollapseState();
+      });
       document.getElementById("legacy-import-toggle").addEventListener("click", () => {
         state.legacyImportCollapsed = !state.legacyImportCollapsed;
-        localStorage.setItem('pp_admin_legacy_import_collapsed', state.legacyImportCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_legacy_import_collapsed', state.legacyImportCollapsed);
         applyLegacyImportCollapseState();
       });
       document.getElementById("flagged-content-toggle").addEventListener("click", () => {
         state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
-        localStorage.setItem('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed);
         applyFlaggedContentCollapseState();
       });
       document.getElementById("weaver-exc-health-toggle").addEventListener("click", () => {
         state.weaverExcHealthCollapsed = !state.weaverExcHealthCollapsed;
-        localStorage.setItem('pp_admin_weaver_exc_health_collapsed', state.weaverExcHealthCollapsed ? 'true' : 'false');
+        saveCollapseState('pp_admin_weaver_exc_health_collapsed', state.weaverExcHealthCollapsed);
         applyWeaverExcHealthCollapseState();
       });
       document.getElementById("login-google").addEventListener("click", async () => {
