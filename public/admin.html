@@ -2180,6 +2180,26 @@
       });
     }
 
+    function fillImportAssistantDefaultsFromResolved(rows) {
+      const fillable = [
+        ['import-assistant-author', 'author'],
+        ['import-assistant-book', 'book'],
+        ['import-assistant-book-link', 'bookLink'],
+        ['import-assistant-release-catalog', 'releaseCatalog'],
+        ['import-assistant-book-shortener', 'bookShortener'],
+      ];
+      let filled = 0;
+      fillable.forEach(([elementId, rowKey]) => {
+        const input = document.getElementById(elementId);
+        if (!input || input.value.trim()) return;
+        const values = [...new Set(rows.map((row) => String(row[rowKey] || '').trim()).filter(Boolean))];
+        if (values.length !== 1) return;
+        input.value = values[0];
+        filled += 1;
+      });
+      return filled;
+    }
+
     async function runImportAssistant() {
       const statusEl = document.getElementById('import-assistant-status');
       const rows = parseImportAssistantRows(document.getElementById('import-assistant-text').value);
@@ -2204,8 +2224,9 @@
         state.importAssistantResults = resolved;
         state.importAssistantPreviewRows = [];
         renderImportAssistantResults(resolved);
+        const filledCount = fillImportAssistantDefaultsFromResolved(resolved);
         const matchedCount = resolved.filter((row) => row.matched).length;
-        statusEl.textContent = `Resolved ${resolved.length} rows. ${matchedCount} matched catalog metadata.`;
+        statusEl.textContent = `Resolved ${resolved.length} rows. ${matchedCount} matched catalog metadata.${filledCount ? ` Filled ${filledCount} default field${filledCount === 1 ? '' : 's'}.` : ''}`;
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not resolve metadata.';
