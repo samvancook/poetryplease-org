@@ -593,6 +593,36 @@
         .replaceAll("'", '&#39;');
     }
 
+    function normalizeBookTitleKey(value) {
+      return String(value || '').trim().toLowerCase();
+    }
+
+    function buildCanonicalBookTitleLookup(items = allGraphics) {
+      const byCatalog = new Set();
+      const global = new Set();
+      items.forEach((item) => {
+        const titleKey = normalizeBookTitleKey(item.bookTitle || item);
+        const catalogKey = normalizeBookTitleKey(item.releaseCatalog || '');
+        if (!titleKey) return;
+        global.add(titleKey);
+        byCatalog.add(`${catalogKey}|${titleKey}`);
+      });
+      return { byCatalog, global };
+    }
+
+    function canonicalBookTitle(title, catalog = '', lookup = buildCanonicalBookTitleLookup()) {
+      const rawTitle = String(title || '').trim();
+      const titleKey = normalizeBookTitleKey(rawTitle);
+      if (!titleKey.includes(':')) return rawTitle;
+      const baseTitle = rawTitle.split(':')[0].trim();
+      const baseKey = normalizeBookTitleKey(baseTitle);
+      const catalogKey = normalizeBookTitleKey(catalog);
+      if (baseKey && (lookup.byCatalog.has(`${catalogKey}|${baseKey}`) || lookup.global.has(baseKey))) {
+        return baseTitle;
+      }
+      return rawTitle;
+    }
+
     function switchView(view) {
       if (!scoreboardLoaded) return;
       const isScoreboard = view === 'scoreboard';
@@ -659,10 +689,14 @@
       const sel = document.getElementById('bookDropdown');
       const selected = sel.value;
       const catalogKey = document.getElementById('catalogDropdown').value.trim().toLowerCase();
+      const canonicalLookup = buildCanonicalBookTitleLookup();
       const rawList = catalogKey
         ? (scoreboardFilterOptions.booksByCatalog || {})[catalogKey] || []
         : books || allGraphics.map((row) => row.bookTitle || '');
-      const normalized = Array.from(new Map(rawList.map((title) => [String(title).trim().toLowerCase(), String(title).trim()])).values())
+      const normalized = Array.from(new Map(rawList.map((title) => {
+        const canonical = canonicalBookTitle(title, catalogKey, canonicalLookup);
+        return [normalizeBookTitleKey(canonical), canonical];
+      })).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = '<option value="">All Books</option>' + normalized.map((book) => `<option>${escapeHtml(book)}</option>`).join('');
@@ -815,13 +849,14 @@
       updateCharacterCountControlsVisibility();
       const showCompleted = document.getElementById('filterCompletedBooks').checked;
       const showMissingBaseline = document.getElementById('filterMissingBaseline').checked;
+      const canonicalLookup = buildCanonicalBookTitleLookup();
 
       const bookMap = {};
       allGraphics.forEach((graphic) => {
-        const title = String(graphic.bookTitle || '').trim();
-        if (!title) return;
         const catalog = String(graphic.releaseCatalog || '').trim();
-        const bookKey = title.toLowerCase();
+        const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
+        if (!title) return;
+        const bookKey = normalizeBookTitleKey(title);
         const key = `${bookKey}|${catalog.toLowerCase()}`;
         if (bookVal && bookKey !== bookVal) return;
         if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
@@ -840,9 +875,9 @@
         : aggregatedData.filter((row) => row.totalVotes > 0);
 
       source.forEach((row) => {
-        const title = String(row.bookTitle || '').trim();
         const catalog = String(row.releaseCatalog || '').trim();
-        const bookKey = title.toLowerCase();
+        const title = canonicalBookTitle(row.bookTitle, catalog, canonicalLookup);
+        const bookKey = normalizeBookTitleKey(title);
         const key = `${bookKey}|${catalog.toLowerCase()}`;
         if (bookVal && bookKey !== bookVal) return;
         if (catalogVal && String(row.releaseCatalog || '').trim().toLowerCase() !== catalogVal) return;
@@ -850,9 +885,9 @@
       });
 
       allGraphics.forEach((graphic) => {
-        const title = String(graphic.bookTitle || '').trim();
         const catalog = String(graphic.releaseCatalog || '').trim();
-        const key = `${title.toLowerCase()}|${catalog.toLowerCase()}`;
+        const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
+        const key = `${normalizeBookTitleKey(title)}|${catalog.toLowerCase()}`;
         if (!bookMap[key]) return;
         if (graphic.missingCatalog) bookMap[key].missingCatalog += 1;
         if (graphic.missingBucketUrl) bookMap[key].missingBucketUrl += 1;
