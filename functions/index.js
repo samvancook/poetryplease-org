@@ -1462,9 +1462,9 @@ function resolveScoreboardBookTitle(item = {}) {
 }
 
 function resolvePigIdHygieneOverride(data = {}) {
-  const authorKey = normalizeKey(data.author || "");
-  const titleKey = normalizeKey(data.title || data.poem || "");
-  const bookKey = normalizeKey(data.book || "");
+  const authorKey = normalizeCatalogLookupKey(data.author || "");
+  const titleKey = normalizeCatalogLookupKey(data.title || data.poem || "");
+  const bookKey = normalizeCatalogLookupKey(data.book || "");
   if (bookKey === "short form contest may 2026" || bookKey === "short form 2026") {
     return {
       book: "Short Form 2026",
