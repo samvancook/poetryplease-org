@@ -148,13 +148,45 @@ function resolveCatalogBookRecord({ author = "", book = "", bookShortener = "", 
   if (normalizedShortener && BOOK_CATALOG_SHORTENER_LOOKUP.has(normalizedShortener)) {
     return BOOK_CATALOG_SHORTENER_LOOKUP.get(normalizedShortener);
   }
-  const titleKey = normalizeKey(book);
+  const titleKey = normalizeCatalogLookupKey(book);
   if (!titleKey) return null;
   const bucket = BOOK_CATALOG_TITLE_BUCKETS.get(titleKey) || [];
   if (!bucket.length) return null;
-  const authorKey = normalizeKey(author);
+  const authorKey = normalizeCatalogLookupKey(author);
   if (!authorKey) return bucket[0];
-  return bucket.find((row) => normalizeKey(row.author) === authorKey || normalizeKey(row.authorKey) === authorKey) || bucket[0];
+  return bucket.find((row) => normalizeCatalogLookupKey(row.author) === authorKey || normalizeCatalogLookupKey(row.authorKey) === authorKey) || bucket[0];
+}
+
+function resolveCanonicalCatalogMetadata(item = {}) {
+  const match = resolveCatalogBookRecord({
+    author: item.author || "",
+    book: item.book || item.bookTitle || "",
+    bookShortener: item.bookShortener || "",
+    fileName: item.fileName || item.sourceFileName || item.updatedFileName || item.imageId || item.contentId || "",
+  });
+  const originalBook = normalizeText(item.book || item.bookTitle || "");
+  const originalCatalog = normalizeText(item.releaseCatalog || "");
+  const originalShortener = sanitizeDocIdSegment(item.bookShortener || "");
+  const book = normalizeText(match?.title || originalBook);
+  const releaseCatalog = normalizeText(item.releaseCatalog || match?.releaseCatalog || "");
+  const bookShortener = sanitizeDocIdSegment(item.bookShortener || match?.bookShortener || "");
+  const changedFields = [];
+  if (book && normalizeCatalogLookupKey(book) !== normalizeCatalogLookupKey(originalBook)) changedFields.push("book");
+  if (releaseCatalog && normalizeCatalogLookupKey(releaseCatalog) !== normalizeCatalogLookupKey(originalCatalog)) changedFields.push("releaseCatalog");
+  if (bookShortener && bookShortener !== originalShortener) changedFields.push("bookShortener");
+  return {
+    matched: !!match,
+    match,
+    book,
+    releaseCatalog,
+    bookShortener,
+    bookLink: normalizeText(item.bookLink || match?.bookLink || ""),
+    author: normalizeText(item.author || match?.author || ""),
+    changedFields,
+    matchReason: match
+      ? (sanitizeDocIdSegment(item.bookShortener || inferBookShortenerFromFilename(item.fileName || item.sourceFileName || item.updatedFileName || item.imageId || item.contentId || "")) ? "matched_by_shortener" : "matched_by_author_title")
+      : "unmatched",
+  };
 }
 
 /** ====== EXPRESS / CORS ====== */
@@ -1451,14 +1483,7 @@ function countCharacters(parts = []) {
 }
 
 function resolveScoreboardBookTitle(item = {}) {
-  const originalTitle = normalizeText(item.book || item.bookTitle || "");
-  const match = resolveCatalogBookRecord({
-    author: item.author || "",
-    book: originalTitle,
-    bookShortener: item.bookShortener || "",
-    fileName: item.sourceFileName || item.imageId || item.contentId || "",
-  });
-  return normalizeText(match?.title || originalTitle);
+  return resolveCanonicalCatalogMetadata(item).book;
 }
 
 function resolvePigIdHygieneOverride(data = {}) {
@@ -1523,17 +1548,18 @@ function buildPigIdHygieneCandidate(doc, existingIds = new Set(), existingById =
   const currentId = normalizeText(data.imageId || data.contentId || doc.id);
   const currentKey = normalizeKey(currentId);
   const imageType = normalizeText(data.imageType || "").toUpperCase();
-  const matched = resolveCatalogBookRecord({
-    author: data.author || "",
+  const canonical = resolveCanonicalCatalogMetadata({
+    ...data,
     book: override.book || data.book || "",
     bookShortener: override.bookShortener || data.bookShortener || "",
-    fileName: data.sourceFileName || data.updatedFileName || currentId,
+    releaseCatalog: override.releaseCatalog || data.releaseCatalog || "",
   });
-  const bookShortener = sanitizeDocIdSegment(override.bookShortener || data.bookShortener || matched?.bookShortener || "");
+  const matched = canonical.match;
+  const bookShortener = sanitizeDocIdSegment(override.bookShortener || data.bookShortener || canonical.bookShortener || "");
   const title = normalizeText(data.title || data.poem || "");
-  const canonicalBook = normalizeText(override.book || matched?.title || data.book || "");
-  const canonicalShortener = sanitizeDocIdSegment(matched?.bookShortener || bookShortener);
-  const canonicalCatalog = normalizeText(override.releaseCatalog || matched?.releaseCatalog || data.releaseCatalog || "");
+  const canonicalBook = normalizeText(canonical.book || override.book || data.book || "");
+  const canonicalShortener = sanitizeDocIdSegment(canonical.bookShortener || bookShortener);
+  const canonicalCatalog = normalizeText(canonical.releaseCatalog || override.releaseCatalog || data.releaseCatalog || "");
   const proposedId = bookShortener && imageType && title
     ? `${bookShortener}-${imageType}-${slugify(title)}`.toUpperCase()
     : "";
@@ -4670,8 +4696,7 @@ function flattenWeaverExcerptRecords(rawPayload) {
 function resolveExcerptBookShortener(item = {}) {
   const explicit = sanitizeDocIdSegment(item.bookShortener);
   if (explicit) return explicit.toUpperCase();
-  const match = resolveCatalogBookRecord({ author: item.author, book: item.book });
-  return sanitizeDocIdSegment(match?.bookShortener || "").toUpperCase();
+  return sanitizeDocIdSegment(resolveCanonicalCatalogMetadata(item).bookShortener || "").toUpperCase();
 }
 
 function buildWeaverExcerptImportItem(record = {}) {
@@ -5253,14 +5278,16 @@ app.get(getBoth("/admin/weaverExcHealth"), async (req, res) => {
     .filter((row) => normalizeKey(row.sourceSystem) === "weaver" || normalizeText(row.sourceRecordId || row.excerptHash))
     .map((row) => {
       const idShortener = sanitizeDocIdSegment(String(row.imageId || row.id || "").split("-")[0] || "");
-      const catalogRecord = resolveCatalogBookRecord({
+      const catalog = resolveCanonicalCatalogMetadata({
         author: row.author || "",
         book: row.book || "",
         bookShortener: row.bookShortener || idShortener,
       });
       return {
         ...row,
-        releaseCatalog: normalizeText(row.releaseCatalog || catalogRecord?.releaseCatalog || ""),
+        book: catalog.book || row.book || "",
+        bookShortener: catalog.bookShortener || row.bookShortener || idShortener,
+        releaseCatalog: normalizeText(row.releaseCatalog || catalog.releaseCatalog || ""),
       };
     });
   const missingCatalog = weaverRows.filter((row) => !normalizeText(row.releaseCatalog));
@@ -5708,13 +5735,14 @@ function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") 
     const book = normalizeText(row?.book || defaults?.book || "");
     const title = normalizeText(row?.title || "");
     const driveLink = normalizeText(row?.driveLink || defaults?.driveFolderLink || "");
-    const matched = resolveCatalogBookRecord({
+    const catalog = resolveCanonicalCatalogMetadata({
       author,
       book,
       bookShortener: row?.bookShortener || defaults?.bookShortener || "",
       fileName,
     });
-    const bookShortener = sanitizeDocIdSegment(row?.bookShortener || defaults?.bookShortener || matched?.bookShortener || inferBookShortenerFromFilename(fileName));
+    const matched = catalog.match;
+    const bookShortener = sanitizeDocIdSegment(row?.bookShortener || defaults?.bookShortener || catalog.bookShortener || inferBookShortenerFromFilename(fileName));
     const resolvedTitle = title || fileName.replace(/\.[a-z0-9]+$/i, "").trim();
     const resolvedRow = {
       index,
@@ -5722,11 +5750,13 @@ function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") 
       driveLink,
       imageType,
       matched: !!matched,
-      author: author || matched?.author || "",
-      book: matched?.title || book || "",
-      bookLink: normalizeText(row?.bookLink || defaults?.bookLink || matched?.bookLink || ""),
-      releaseCatalog: normalizeText(row?.releaseCatalog || defaults?.releaseCatalog || matched?.releaseCatalog || ""),
+      author: author || catalog.author || "",
+      book: catalog.book || book || "",
+      bookLink: normalizeText(row?.bookLink || defaults?.bookLink || catalog.bookLink || ""),
+      releaseCatalog: normalizeText(row?.releaseCatalog || defaults?.releaseCatalog || catalog.releaseCatalog || ""),
       bookShortener,
+      catalogMatchReason: catalog.matchReason || "",
+      catalogChangedFields: catalog.changedFields || [],
       title: resolvedTitle,
       lineNote: normalizeText(row?.lineNote || ""),
       pageScope: normalizeText(row?.pageScope || ""),
