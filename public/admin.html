@@ -478,23 +478,6 @@
 
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
-        <h2 style="margin-top:0;">Weaver EXC Health</h2>
-        <div class="controls" style="margin-bottom:0;">
-          <button id="refresh-weaver-exc-health" class="secondary" type="button">Refresh</button>
-          <button id="weaver-exc-health-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="weaver-exc-health-section-body">
-            <span class="chevron">▾</span><span>Collapse</span>
-          </button>
-        </div>
-      </div>
-      <div id="weaver-exc-health-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Quick check for Weaver-approved excerpts landing in Poetry Please, with missing catalog and duplicate-risk warnings.</p>
-        <div id="weaver-exc-health-status" class="status">Loading Weaver EXC health…</div>
-        <div id="weaver-exc-health-list"></div>
-      </div>
-    </section>
-
-    <section class="card" style="margin-top:20px;">
-      <div class="section-head">
         <h2 style="margin-top:0;">User Submissions</h2>
         <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="user-submissions-section-body">
           <span class="chevron">▾</span>
@@ -764,20 +747,33 @@
 
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
-        <h2 style="margin-top:0;">ID Hygiene</h2>
+        <h2 style="margin-top:0;">Content Health</h2>
         <button id="id-hygiene-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="id-hygiene-section-body">
           <span class="chevron">▾</span>
           <span>Collapse</span>
         </button>
       </div>
       <div id="id-hygiene-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Find temporary P.I.G. content IDs and preview safe canonical renames before applying them.</p>
-        <div class="actions">
-          <button id="preview-pig-id-hygiene" type="button" class="secondary">Preview P.I.G. IDs</button>
-          <button id="apply-pig-id-hygiene" type="button">Apply eligible cleanup</button>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review source-specific import health, catalog consistency, temporary IDs, duplicate risks, and safe cleanup actions in one place.</p>
+
+        <div class="section-head" style="margin-top:8px;">
+          <h3 style="margin:0;">Weaver Imports</h3>
+          <button id="refresh-weaver-exc-health" class="secondary" type="button">Refresh Weaver EXC</button>
         </div>
-        <div id="id-hygiene-status" class="status">No ID hygiene preview yet.</div>
-        <div id="id-hygiene-results" class="empty">No results yet.</div>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Quick check for Weaver-approved excerpts landing in Poetry Please, with missing catalog and duplicate-risk warnings.</p>
+        <div id="weaver-exc-health-status" class="status">Loading Weaver EXC health…</div>
+        <div id="weaver-exc-health-list"></div>
+
+        <div class="section-head" style="margin-top:28px;">
+          <h3 style="margin:0;">Temporary ID Cleanup</h3>
+          <div class="actions" style="margin:0;">
+            <button id="preview-pig-id-hygiene" type="button" class="secondary">Preview P.I.G. IDs</button>
+            <button id="apply-pig-id-hygiene" type="button">Apply eligible cleanup</button>
+          </div>
+        </div>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Find temporary content IDs and preview safe canonical renames, metadata fixes, and duplicate-name suffixes before applying them.</p>
+        <div id="id-hygiene-status" class="status">No temporary ID cleanup preview yet.</div>
+        <div id="id-hygiene-results" class="empty">No temporary ID cleanup results yet.</div>
       </div>
     </section>
 
@@ -946,7 +942,6 @@
       contentLibraryCollapsed: collapsedByDefault('pp_admin_content_library_collapsed'),
       contentClaimsCollapsed: collapsedByDefault('pp_admin_content_claims_collapsed'),
       duplicateReviewCollapsed: collapsedByDefault('pp_admin_duplicate_review_collapsed'),
-      weaverExcHealthCollapsed: collapsedByDefault('pp_admin_weaver_exc_health_collapsed'),
       userSubmissionsCollapsed: collapsedByDefault('pp_admin_user_submissions_collapsed'),
       importAssistantCollapsed: collapsedByDefault('pp_admin_import_assistant_collapsed'),
       legacyImportCollapsed: collapsedByDefault('pp_admin_legacy_import_collapsed'),
@@ -1004,10 +999,6 @@
 
     function applyFlaggedContentCollapseState() {
       applySectionCollapseState('flagged-content-toggle', 'flagged-content-section-body', state.flaggedContentCollapsed);
-    }
-
-    function applyWeaverExcHealthCollapseState() {
-      applySectionCollapseState('weaver-exc-health-toggle', 'weaver-exc-health-section-body', state.weaverExcHealthCollapsed);
     }
 
     function compareStrings(a, b) {
@@ -2393,7 +2384,7 @@
         renderIdHygiene();
       } catch (err) {
         console.error(err);
-        statusEl.textContent = err.message || 'Could not preview P.I.G. ID hygiene.';
+        statusEl.textContent = err.message || 'Could not preview temporary ID cleanup.';
         statusEl.className = 'status error';
       }
     }
@@ -2416,7 +2407,7 @@
         await previewPigIdHygiene();
       } catch (err) {
         console.error(err);
-        statusEl.textContent = err.message || 'Could not apply P.I.G. ID hygiene.';
+        statusEl.textContent = err.message || 'Could not apply temporary ID cleanup.';
         statusEl.className = 'status error';
       }
     }
@@ -3936,7 +3927,6 @@
       applyLegacyImportCollapseState();
       applyIdHygieneCollapseState();
       applyFlaggedContentCollapseState();
-      applyWeaverExcHealthCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
         updateAuthUI(user);
@@ -4055,11 +4045,6 @@
         state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
         saveCollapseState('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed);
         applyFlaggedContentCollapseState();
-      });
-      document.getElementById("weaver-exc-health-toggle").addEventListener("click", () => {
-        state.weaverExcHealthCollapsed = !state.weaverExcHealthCollapsed;
-        saveCollapseState('pp_admin_weaver_exc_health_collapsed', state.weaverExcHealthCollapsed);
-        applyWeaverExcHealthCollapseState();
       });
       document.getElementById("login-google").addEventListener("click", async () => {
         await signInWithGoogle();
