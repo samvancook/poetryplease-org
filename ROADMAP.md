@@ -86,6 +86,7 @@
   - first pass: resolve filenames/rows against catalog metadata inside admin before import
   - add Drive service account support so the tool can enumerate shared folder contents without depending on an interactive browser session
   - add true folder import automation so a pasted Drive folder link can list candidate assets directly in admin
+  - add Canva folder/subfolder inventory support for Poetry Please imports once the Canva connector is reauthenticated, including image/design separation, original-export needs, metadata preview, and blocked-row review before import
   - infer metadata from Drive folder hierarchy, filenames, EPUB/catalog context, and handle sheets
   - produce a ready-import file plus a follow-up review file instead of relying on one-off manual reshaping
 - Surface YouTube social signal data more clearly in admin/content-library views, not only in Feed Signals

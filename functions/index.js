@@ -1475,9 +1475,14 @@ function buildPigIdHygieneCandidate(doc, existingIds = new Set()) {
   const bookShortener = sanitizeDocIdSegment(data.bookShortener || matched?.bookShortener || "");
   const title = normalizeText(data.title || data.poem || "");
   const canonicalBook = normalizeText(matched?.title || data.book || "");
+  const canonicalShortener = sanitizeDocIdSegment(matched?.bookShortener || bookShortener);
   const proposedId = bookShortener && imageType && title
     ? `${bookShortener}-${imageType}-${slugify(title)}`.toUpperCase()
     : "";
+  const metadataFixEligible = !!matched && (
+    (canonicalBook && normalizeKey(canonicalBook) !== normalizeKey(data.book || ""))
+    || (canonicalShortener && sanitizeDocIdSegment(data.bookShortener || "") !== canonicalShortener)
+  );
   const reasons = [];
   if (!currentKey.startsWith("pig-")) reasons.push("not_pig_id");
   if (imageType !== "QI") reasons.push("not_qi");
@@ -1492,6 +1497,7 @@ function buildPigIdHygieneCandidate(doc, existingIds = new Set()) {
     currentId,
     proposedId,
     eligible: reasons.length === 0,
+    metadataFixEligible,
     reasons,
     author: normalizeText(data.author || ""),
     title,
@@ -1499,7 +1505,7 @@ function buildPigIdHygieneCandidate(doc, existingIds = new Set()) {
     canonicalBook,
     releaseCatalog: normalizeText(data.releaseCatalog || ""),
     imageType,
-    bookShortener,
+    bookShortener: canonicalShortener || bookShortener,
     imageUrl: normalizeText(data.imageUrl || data.url || ""),
   };
 }
@@ -1541,6 +1547,7 @@ async function buildPigIdHygienePlan() {
 
 async function applyPigIdHygieneRows(rows = [], actor = {}) {
   const eligibleRows = rows.filter((row) => row.eligible).slice(0, 100);
+  const metadataRows = rows.filter((row) => !row.eligible && row.metadataFixEligible).slice(0, 250);
   const results = [];
   for (const row of eligibleRows) {
     const oldRef = db.collection(COLLECTIONS.graphics).doc(row.docId);
@@ -1593,9 +1600,34 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
     }
     results.push({
       ok: true,
+      action: "rename",
       currentId: row.currentId,
       proposedId: row.proposedId,
       updatedReferences: refs.length,
+    });
+  }
+  for (const row of metadataRows) {
+    const ref = db.collection(COLLECTIONS.graphics).doc(row.docId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      results.push({ ok: false, action: "metadata", currentId: row.currentId, error: "source_missing" });
+      continue;
+    }
+    const existing = snap.data() || {};
+    await ref.set({
+      book: row.canonicalBook || existing.book || "",
+      bookShortener: row.bookShortener || existing.bookShortener || "",
+      metadataHygieneAt: FieldValue.serverTimestamp(),
+      metadataHygieneBy: normalizeText(actor.email || actor.uid || ""),
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: normalizeText(actor.email || actor.uid || ""),
+    }, { merge: true });
+    results.push({
+      ok: true,
+      action: "metadata",
+      currentId: row.currentId,
+      proposedId: "",
+      updatedReferences: 0,
     });
   }
   if (results.some((row) => row.ok)) {
@@ -4396,6 +4428,7 @@ app.get(getBoth("/admin/idHygiene/pigPreview"), async (req, res) => {
       ok: true,
       total: rows.length,
       eligibleCount: rows.filter((row) => row.eligible).length,
+      metadataFixCount: rows.filter((row) => !row.eligible && row.metadataFixEligible).length,
       blockedCount: rows.filter((row) => !row.eligible).length,
       rows,
     });
@@ -4418,6 +4451,8 @@ app.post(getBoth("/admin/idHygiene/applyPig"), async (req, res) => {
       ok: true,
       attemptedCount: results.length,
       updatedCount: results.filter((row) => row.ok).length,
+      renamedCount: results.filter((row) => row.ok && row.action === "rename").length,
+      metadataFixedCount: results.filter((row) => row.ok && row.action === "metadata").length,
       errorCount: results.filter((row) => !row.ok).length,
       results,
     });

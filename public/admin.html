@@ -774,7 +774,7 @@
         <p class="lede" style="margin-bottom:16px;max-width:none;">Find temporary P.I.G. content IDs and preview safe canonical renames before applying them.</p>
         <div class="actions">
           <button id="preview-pig-id-hygiene" type="button" class="secondary">Preview P.I.G. IDs</button>
-          <button id="apply-pig-id-hygiene" type="button">Apply eligible renames</button>
+          <button id="apply-pig-id-hygiene" type="button">Apply eligible cleanup</button>
         </div>
         <div id="id-hygiene-status" class="status">No ID hygiene preview yet.</div>
         <div id="id-hygiene-results" class="empty">No results yet.</div>
@@ -2355,7 +2355,7 @@
         return;
       }
       const rows = payload.rows || [];
-      statusEl.textContent = `${payload.total || rows.length} P.I.G. IDs found. ${payload.eligibleCount || 0} eligible, ${payload.blockedCount || 0} blocked.`;
+      statusEl.textContent = `${payload.total || rows.length} P.I.G. IDs found. ${payload.eligibleCount || 0} rename-ready, ${payload.metadataFixCount || 0} metadata-fixable, ${payload.blockedCount || 0} blocked.`;
       if (!rows.length) {
         container.innerHTML = '<div class="empty">No P.I.G. IDs found.</div>';
         return;
@@ -2368,7 +2368,7 @@
           <tbody>
             ${rows.slice(0, 80).map((row) => `
               <tr>
-                <td>${row.eligible ? 'Eligible' : 'Blocked'}</td>
+                <td>${row.eligible ? 'Rename' : row.metadataFixEligible ? 'Metadata fix' : 'Blocked'}</td>
                 <td>${escapeHtml(row.currentId || '—')}</td>
                 <td>${escapeHtml(row.proposedId || '—')}</td>
                 <td>${escapeHtml(row.title || '—')}</td>
@@ -2400,18 +2400,19 @@
 
     async function applyPigIdHygiene() {
       const eligibleCount = Number(state.idHygiene?.eligibleCount || 0);
+      const metadataFixCount = Number(state.idHygiene?.metadataFixCount || 0);
       const statusEl = document.getElementById('id-hygiene-status');
-      if (!eligibleCount) {
-        statusEl.textContent = 'Preview first. No eligible P.I.G. ID renames are currently loaded.';
+      if (!eligibleCount && !metadataFixCount) {
+        statusEl.textContent = 'Preview first. No eligible P.I.G. ID renames or metadata fixes are currently loaded.';
         statusEl.className = 'status error';
         return;
       }
-      if (!confirm(`Rename ${eligibleCount} eligible P.I.G. IDs? Blocked rows will be skipped.`)) return;
-      statusEl.textContent = 'Applying eligible P.I.G. ID renames…';
+      if (!confirm(`Apply ${eligibleCount} P.I.G. ID rename(s) and ${metadataFixCount} metadata-only fix(es)? Fully blocked rows will be skipped.`)) return;
+      statusEl.textContent = 'Applying eligible P.I.G. ID cleanup…';
       statusEl.className = 'status';
       try {
         const payload = await api('admin/idHygiene/applyPig', { method: 'POST', body: {} });
-        statusEl.textContent = `Applied ${payload.updatedCount || 0} renames. ${payload.errorCount || 0} failed. Refreshing preview…`;
+        statusEl.textContent = `Applied ${payload.renamedCount || 0} renames and ${payload.metadataFixedCount || 0} metadata fixes. ${payload.errorCount || 0} failed. Refreshing preview…`;
         await previewPigIdHygiene();
       } catch (err) {
         console.error(err);
