@@ -82,7 +82,7 @@ const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
-const SCOREBOARD_SNAPSHOT_VERSION = 3;
+const SCOREBOARD_SNAPSHOT_VERSION = 4;
 let contentCache = {
   builtAt: 0,
   payload: null,
@@ -1450,6 +1450,17 @@ function countCharacters(parts = []) {
   return normalizeTextBody(parts.join(" ")).length;
 }
 
+function resolveScoreboardBookTitle(item = {}) {
+  const originalTitle = normalizeText(item.book || item.bookTitle || "");
+  const match = resolveCatalogBookRecord({
+    author: item.author || "",
+    book: originalTitle,
+    bookShortener: item.bookShortener || "",
+    fileName: item.sourceFileName || item.imageId || item.contentId || "",
+  });
+  return normalizeText(match?.title || originalTitle);
+}
+
 async function buildScoreboardPayload() {
   const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds] = await Promise.all([
     getAllVotes(),
@@ -1491,11 +1502,14 @@ async function buildScoreboardPayload() {
     const driveLink = normalizeText(item.driveLink || "");
     const sourceFolderLink = normalizeText(item.sourceFolderLink || readMiscValue(item.misc, "sourceFolderLink"));
     const sourceFileName = normalizeText(item.sourceFileName || readMiscValue(item.misc, "sourceFileName"));
+    const bookTitle = resolveScoreboardBookTitle({ ...item, sourceFileName });
     const payload = {
       imageId: imageId || contentId,
       author: item.author || "",
       poemTitle: item.title || item.poem || "",
-      bookTitle: item.book || "",
+      bookTitle,
+      originalBookTitle: item.book || "",
+      bookShortener: item.bookShortener || "",
       fileLink: cloudLink || item.bookLink || "",
       cloudLink,
       driveLink,
@@ -1529,6 +1543,8 @@ async function buildScoreboardPayload() {
       author: meta.author || "‹no author›",
       poemTitle: meta.poemTitle || "‹no title›",
       bookTitle: meta.bookTitle || "‹no book›",
+      originalBookTitle: meta.originalBookTitle || "",
+      bookShortener: meta.bookShortener || "",
       fileLink: meta.fileLink || "",
       cloudLink: meta.cloudLink || "",
       driveLink: meta.driveLink || "",
@@ -1549,6 +1565,8 @@ async function buildScoreboardPayload() {
         author: vote.author,
         poemTitle: vote.poemTitle,
         bookTitle: vote.bookTitle,
+        originalBookTitle: vote.originalBookTitle || "",
+        bookShortener: vote.bookShortener || "",
         fileLink: vote.fileLink,
         cloudLink: vote.cloudLink || "",
         driveLink: vote.driveLink || "",
@@ -1581,6 +1599,8 @@ async function buildScoreboardPayload() {
       author: meta.author || "‹no author›",
       poemTitle: meta.poemTitle || "‹no title›",
       bookTitle: meta.bookTitle || "‹no book›",
+      originalBookTitle: meta.originalBookTitle || "",
+      bookShortener: meta.bookShortener || "",
       fileLink: meta.fileLink || "",
       cloudLink: meta.cloudLink || "",
       driveLink: meta.driveLink || "",
@@ -1607,7 +1627,9 @@ async function buildScoreboardPayload() {
   const allGraphics = [...metaObjs, ...excerptObjs, ...fullPoemObjs, ...videoObjs]
     .map((item) => ({
       imageId: item.imageId || "",
-      bookTitle: item.book || "‹no book›",
+      bookTitle: resolveScoreboardBookTitle(item) || "‹no book›",
+      originalBookTitle: item.book || "",
+      bookShortener: item.bookShortener || "",
       type: item.imageType || "",
       releaseCatalog: item.releaseCatalog || "",
       missingCatalog: !normalizeText(item.releaseCatalog),
@@ -5352,7 +5374,7 @@ function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") 
       imageType,
       matched: !!matched,
       author: author || matched?.author || "",
-      book: book || matched?.title || "",
+      book: matched?.title || book || "",
       bookLink: normalizeText(row?.bookLink || defaults?.bookLink || matched?.bookLink || ""),
       releaseCatalog: normalizeText(row?.releaseCatalog || defaults?.releaseCatalog || matched?.releaseCatalog || ""),
       bookShortener,
