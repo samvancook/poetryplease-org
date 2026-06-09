@@ -1461,6 +1461,150 @@ function resolveScoreboardBookTitle(item = {}) {
   return normalizeText(match?.title || originalTitle);
 }
 
+function buildPigIdHygieneCandidate(doc, existingIds = new Set()) {
+  const data = doc.data() || {};
+  const currentId = normalizeText(data.imageId || data.contentId || doc.id);
+  const currentKey = normalizeKey(currentId);
+  const imageType = normalizeText(data.imageType || "").toUpperCase();
+  const matched = resolveCatalogBookRecord({
+    author: data.author || "",
+    book: data.book || "",
+    bookShortener: data.bookShortener || "",
+    fileName: data.sourceFileName || data.updatedFileName || currentId,
+  });
+  const bookShortener = sanitizeDocIdSegment(data.bookShortener || matched?.bookShortener || "");
+  const title = normalizeText(data.title || data.poem || "");
+  const canonicalBook = normalizeText(matched?.title || data.book || "");
+  const proposedId = bookShortener && imageType && title
+    ? `${bookShortener}-${imageType}-${slugify(title)}`.toUpperCase()
+    : "";
+  const reasons = [];
+  if (!currentKey.startsWith("pig-")) reasons.push("not_pig_id");
+  if (imageType !== "QI") reasons.push("not_qi");
+  if (!bookShortener) reasons.push("missing_book_shortener");
+  if (!title) reasons.push("missing_title");
+  if (!canonicalBook) reasons.push("missing_book");
+  if (!proposedId) reasons.push("missing_proposed_id");
+  if (normalizeKey(proposedId) === currentKey) reasons.push("already_canonical");
+  if (proposedId && existingIds.has(normalizeKey(proposedId))) reasons.push("id_collision");
+  return {
+    docId: doc.id,
+    currentId,
+    proposedId,
+    eligible: reasons.length === 0,
+    reasons,
+    author: normalizeText(data.author || ""),
+    title,
+    book: normalizeText(data.book || ""),
+    canonicalBook,
+    releaseCatalog: normalizeText(data.releaseCatalog || ""),
+    imageType,
+    bookShortener,
+    imageUrl: normalizeText(data.imageUrl || data.url || ""),
+  };
+}
+
+async function buildPigIdHygienePlan() {
+  const snap = await db.collection(COLLECTIONS.graphics).get();
+  const existingIds = new Set();
+  snap.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    [doc.id, data.imageId, data.contentId].forEach((value) => {
+      const key = normalizeKey(value || "");
+      if (key) existingIds.add(key);
+    });
+  });
+  const rows = snap.docs
+    .map((doc) => buildPigIdHygieneCandidate(doc, existingIds))
+    .filter((row) => normalizeKey(row.currentId).startsWith("pig-"));
+  const proposedCounts = new Map();
+  rows.forEach((row) => {
+    const key = normalizeKey(row.proposedId);
+    if (!key) return;
+    proposedCounts.set(key, (proposedCounts.get(key) || 0) + 1);
+  });
+  rows.forEach((row) => {
+    const key = normalizeKey(row.proposedId);
+    if (key && proposedCounts.get(key) > 1) {
+      row.eligible = false;
+      row.reasons = uniq([...row.reasons, "duplicate_proposed_id"]);
+    }
+  });
+  rows.sort((a, b) => (
+    Number(b.eligible) - Number(a.eligible)
+    || normalizeText(a.releaseCatalog).localeCompare(normalizeText(b.releaseCatalog))
+    || normalizeText(a.canonicalBook || a.book).localeCompare(normalizeText(b.canonicalBook || b.book))
+    || normalizeText(a.currentId).localeCompare(normalizeText(b.currentId))
+  ));
+  return rows;
+}
+
+async function applyPigIdHygieneRows(rows = [], actor = {}) {
+  const eligibleRows = rows.filter((row) => row.eligible).slice(0, 100);
+  const results = [];
+  for (const row of eligibleRows) {
+    const oldRef = db.collection(COLLECTIONS.graphics).doc(row.docId);
+    const oldSnap = await oldRef.get();
+    if (!oldSnap.exists) {
+      results.push({ ok: false, currentId: row.currentId, proposedId: row.proposedId, error: "source_missing" });
+      continue;
+    }
+    const targetRef = db.collection(COLLECTIONS.graphics).doc(row.proposedId);
+    const targetSnap = await targetRef.get();
+    if (targetSnap.exists) {
+      results.push({ ok: false, currentId: row.currentId, proposedId: row.proposedId, error: "target_exists" });
+      continue;
+    }
+    const existing = oldSnap.data() || {};
+    const next = {
+      ...existing,
+      imageId: row.proposedId,
+      contentId: row.proposedId,
+      book: row.canonicalBook || existing.book || "",
+      bookShortener: row.bookShortener || existing.bookShortener || "",
+      previousImageIds: uniq([...(Array.isArray(existing.previousImageIds) ? existing.previousImageIds : []), row.currentId].filter(Boolean)),
+      renamedFrom: row.currentId,
+      renamedAt: FieldValue.serverTimestamp(),
+      renamedBy: normalizeText(actor.email || actor.uid || ""),
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: normalizeText(actor.email || actor.uid || ""),
+    };
+    await db.runTransaction(async (tx) => {
+      const freshTarget = await tx.get(targetRef);
+      if (freshTarget.exists) throw new Error("target_exists");
+      tx.set(targetRef, next);
+      tx.delete(oldRef);
+    });
+
+    const votesSnap = await db.collection(COLLECTIONS.votes).where("imageId", "==", row.currentId).get();
+    const flagsSnap = await db.collection(COLLECTIONS.contentFlags).where("imageId", "==", row.currentId).get();
+    const claimsSnap = await db.collection(COLLECTIONS.contentClaims).where("imageId", "==", row.currentId).get();
+    const refs = [...votesSnap.docs, ...flagsSnap.docs, ...claimsSnap.docs];
+    for (let i = 0; i < refs.length; i += 400) {
+      const batch = db.batch();
+      refs.slice(i, i + 400).forEach((doc) => {
+        batch.set(doc.ref, {
+          imageId: row.proposedId,
+          previousImageId: row.currentId,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      });
+      await batch.commit();
+    }
+    results.push({
+      ok: true,
+      currentId: row.currentId,
+      proposedId: row.proposedId,
+      updatedReferences: refs.length,
+    });
+  }
+  if (results.some((row) => row.ok)) {
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot("pig_id_hygiene");
+  }
+  return results;
+}
+
 async function buildScoreboardPayload() {
   const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds] = await Promise.all([
     getAllVotes(),
@@ -4240,6 +4384,46 @@ app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
     await invalidateScoreboardSnapshot(`content_bulk_upsert:${type}`);
   }
   res.json({ ok: true, createdCount, updatedCount, errorCount, results });
+});
+
+app.get(getBoth("/admin/idHygiene/pigPreview"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  try {
+    const rows = await buildPigIdHygienePlan();
+    res.json({
+      ok: true,
+      total: rows.length,
+      eligibleCount: rows.filter((row) => row.eligible).length,
+      blockedCount: rows.filter((row) => !row.eligible).length,
+      rows,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "pig_preview_failed" });
+  }
+});
+
+app.post(getBoth("/admin/idHygiene/applyPig"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  try {
+    const rows = await buildPigIdHygienePlan();
+    const results = await applyPigIdHygieneRows(rows, {
+      uid: ctx.decoded.uid,
+      email: ctx.decoded.email,
+    });
+    res.json({
+      ok: true,
+      attemptedCount: results.length,
+      updatedCount: results.filter((row) => row.ok).length,
+      errorCount: results.filter((row) => !row.ok).length,
+      results,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "pig_apply_failed" });
+  }
 });
 
 async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor = {}) {

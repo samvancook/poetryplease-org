@@ -764,6 +764,25 @@
 
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
+        <h2 style="margin-top:0;">ID Hygiene</h2>
+        <button id="id-hygiene-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="id-hygiene-section-body">
+          <span class="chevron">▾</span>
+          <span>Collapse</span>
+        </button>
+      </div>
+      <div id="id-hygiene-section-body">
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Find temporary P.I.G. content IDs and preview safe canonical renames before applying them.</p>
+        <div class="actions">
+          <button id="preview-pig-id-hygiene" type="button" class="secondary">Preview P.I.G. IDs</button>
+          <button id="apply-pig-id-hygiene" type="button">Apply eligible renames</button>
+        </div>
+        <div id="id-hygiene-status" class="status">No ID hygiene preview yet.</div>
+        <div id="id-hygiene-results" class="empty">No results yet.</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:20px;">
+      <div class="section-head">
         <h2 style="margin-top:0;">Flagged Content</h2>
         <button id="flagged-content-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="flagged-content-section-body">
           <span class="chevron">▾</span>
@@ -915,6 +934,7 @@
       weaverSourceUrl: localStorage.getItem('pp_admin_weaver_source_url') || '',
       legacyImportPreview: null,
       legacyImportFingerprint: "",
+      idHygiene: null,
       flags: [],
       flagQuery: "",
       flagStatusFilter: "all",
@@ -930,6 +950,7 @@
       userSubmissionsCollapsed: collapsedByDefault('pp_admin_user_submissions_collapsed'),
       importAssistantCollapsed: collapsedByDefault('pp_admin_import_assistant_collapsed'),
       legacyImportCollapsed: collapsedByDefault('pp_admin_legacy_import_collapsed'),
+      idHygieneCollapsed: collapsedByDefault('pp_admin_id_hygiene_collapsed'),
       flaggedContentCollapsed: collapsedByDefault('pp_admin_flagged_content_collapsed'),
     };
 
@@ -975,6 +996,10 @@
 
     function applyLegacyImportCollapseState() {
       applySectionCollapseState('legacy-import-toggle', 'legacy-import-section-body', state.legacyImportCollapsed);
+    }
+
+    function applyIdHygieneCollapseState() {
+      applySectionCollapseState('id-hygiene-toggle', 'id-hygiene-section-body', state.idHygieneCollapsed);
     }
 
     function applyFlaggedContentCollapseState() {
@@ -2317,6 +2342,80 @@
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not import valid graphics.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    function renderIdHygiene() {
+      const payload = state.idHygiene;
+      const statusEl = document.getElementById('id-hygiene-status');
+      const container = document.getElementById('id-hygiene-results');
+      if (!payload) {
+        container.innerHTML = '<div class="empty">No results yet.</div>';
+        return;
+      }
+      const rows = payload.rows || [];
+      statusEl.textContent = `${payload.total || rows.length} P.I.G. IDs found. ${payload.eligibleCount || 0} eligible, ${payload.blockedCount || 0} blocked.`;
+      if (!rows.length) {
+        container.innerHTML = '<div class="empty">No P.I.G. IDs found.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <table>
+          <thead>
+            <tr><th>Status</th><th>Current ID</th><th>Proposed ID</th><th>Title</th><th>Book</th><th>Catalog</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            ${rows.slice(0, 80).map((row) => `
+              <tr>
+                <td>${row.eligible ? 'Eligible' : 'Blocked'}</td>
+                <td>${escapeHtml(row.currentId || '—')}</td>
+                <td>${escapeHtml(row.proposedId || '—')}</td>
+                <td>${escapeHtml(row.title || '—')}</td>
+                <td>${escapeHtml(row.canonicalBook || row.book || '—')}</td>
+                <td>${escapeHtml(row.releaseCatalog || '—')}</td>
+                <td>${escapeHtml((row.reasons || []).join(', ') || '—')}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        ${rows.length > 80 ? `<div class="hint">Showing first 80 of ${rows.length} rows.</div>` : ''}
+      `;
+    }
+
+    async function previewPigIdHygiene() {
+      const statusEl = document.getElementById('id-hygiene-status');
+      statusEl.textContent = 'Scanning P.I.G. IDs…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/idHygiene/pigPreview', { method: 'GET' });
+        state.idHygiene = payload;
+        renderIdHygiene();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not preview P.I.G. ID hygiene.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function applyPigIdHygiene() {
+      const eligibleCount = Number(state.idHygiene?.eligibleCount || 0);
+      const statusEl = document.getElementById('id-hygiene-status');
+      if (!eligibleCount) {
+        statusEl.textContent = 'Preview first. No eligible P.I.G. ID renames are currently loaded.';
+        statusEl.className = 'status error';
+        return;
+      }
+      if (!confirm(`Rename ${eligibleCount} eligible P.I.G. IDs? Blocked rows will be skipped.`)) return;
+      statusEl.textContent = 'Applying eligible P.I.G. ID renames…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/idHygiene/applyPig', { method: 'POST', body: {} });
+        statusEl.textContent = `Applied ${payload.updatedCount || 0} renames. ${payload.errorCount || 0} failed. Refreshing preview…`;
+        await previewPigIdHygiene();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not apply P.I.G. ID hygiene.';
         statusEl.className = 'status error';
       }
     }
@@ -3834,6 +3933,7 @@
       applyUserSubmissionsCollapseState();
       applyImportAssistantCollapseState();
       applyLegacyImportCollapseState();
+      applyIdHygieneCollapseState();
       applyFlaggedContentCollapseState();
       applyWeaverExcHealthCollapseState();
 
@@ -3943,6 +4043,13 @@
         saveCollapseState('pp_admin_legacy_import_collapsed', state.legacyImportCollapsed);
         applyLegacyImportCollapseState();
       });
+      document.getElementById("id-hygiene-toggle").addEventListener("click", () => {
+        state.idHygieneCollapsed = !state.idHygieneCollapsed;
+        saveCollapseState('pp_admin_id_hygiene_collapsed', state.idHygieneCollapsed);
+        applyIdHygieneCollapseState();
+      });
+      document.getElementById("preview-pig-id-hygiene").addEventListener("click", () => previewPigIdHygiene());
+      document.getElementById("apply-pig-id-hygiene").addEventListener("click", () => applyPigIdHygiene());
       document.getElementById("flagged-content-toggle").addEventListener("click", () => {
         state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
         saveCollapseState('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed);
