@@ -1461,7 +1461,7 @@ function resolveScoreboardBookTitle(item = {}) {
   return normalizeText(match?.title || originalTitle);
 }
 
-function buildPigIdHygieneCandidate(doc, existingIds = new Set()) {
+function buildPigIdHygieneCandidate(doc, existingIds = new Set(), existingById = new Map()) {
   const data = doc.data() || {};
   const currentId = normalizeText(data.imageId || data.contentId || doc.id);
   const currentKey = normalizeKey(currentId);
@@ -1491,7 +1491,8 @@ function buildPigIdHygieneCandidate(doc, existingIds = new Set()) {
   if (!canonicalBook) reasons.push("missing_book");
   if (!proposedId) reasons.push("missing_proposed_id");
   if (normalizeKey(proposedId) === currentKey) reasons.push("already_canonical");
-  if (proposedId && existingIds.has(normalizeKey(proposedId))) reasons.push("id_collision");
+  const existingCollision = proposedId ? existingById.get(normalizeKey(proposedId)) : null;
+  if (existingCollision) reasons.push("id_collision");
   return {
     docId: doc.id,
     currentId,
@@ -1507,22 +1508,65 @@ function buildPigIdHygieneCandidate(doc, existingIds = new Set()) {
     imageType,
     bookShortener: canonicalShortener || bookShortener,
     imageUrl: normalizeText(data.imageUrl || data.url || ""),
+    collisionImageUrl: normalizeText(existingCollision?.imageUrl || existingCollision?.url || ""),
   };
 }
 
 async function buildPigIdHygienePlan() {
   const snap = await db.collection(COLLECTIONS.graphics).get();
   const existingIds = new Set();
+  const existingById = new Map();
   snap.docs.forEach((doc) => {
     const data = doc.data() || {};
     [doc.id, data.imageId, data.contentId].forEach((value) => {
       const key = normalizeKey(value || "");
       if (key) existingIds.add(key);
+      if (key) existingById.set(key, { id: doc.id, ...data });
     });
   });
   const rows = snap.docs
-    .map((doc) => buildPigIdHygieneCandidate(doc, existingIds))
+    .map((doc) => buildPigIdHygieneCandidate(doc, existingIds, existingById))
     .filter((row) => normalizeKey(row.currentId).startsWith("pig-"));
+  const reserveProposedId = (baseId, currentImageUrl = "") => {
+    const baseKey = normalizeKey(baseId);
+    const currentAssetKey = normalizeKey(currentImageUrl || "");
+    const existing = existingById.get(baseKey);
+    if (existing) {
+      const existingAssetKey = normalizeKey(existing.imageUrl || existing.url || "");
+      if (currentAssetKey && existingAssetKey && currentAssetKey === existingAssetKey) {
+        return { proposedId: baseId, blockedReason: "duplicate_graphic_review" };
+      }
+    }
+    for (let suffix = existing ? 2 : 1; suffix <= 50; suffix += 1) {
+      const candidate = suffix === 1 ? baseId : `${baseId}-${suffix}`;
+      const key = normalizeKey(candidate);
+      if (!existingIds.has(key)) {
+        existingIds.add(key);
+        return { proposedId: candidate, suffix };
+      }
+      const candidateExisting = existingById.get(key);
+      const candidateAssetKey = normalizeKey(candidateExisting?.imageUrl || candidateExisting?.url || "");
+      if (currentAssetKey && candidateAssetKey && currentAssetKey === candidateAssetKey) {
+        return { proposedId: candidate, blockedReason: "duplicate_graphic_review" };
+      }
+    }
+    return { proposedId: baseId, blockedReason: "suffix_exhausted" };
+  };
+  rows.forEach((row) => {
+    if (!row.proposedId || !row.reasons.includes("id_collision")) return;
+    const collision = reserveProposedId(row.proposedId, row.imageUrl);
+    row.duplicateBaseId = row.proposedId;
+    row.proposedId = collision.proposedId;
+    row.reasons = row.reasons.filter((reason) => reason !== "id_collision");
+    if (collision.blockedReason) {
+      row.eligible = false;
+      row.reasons = uniq([...row.reasons, collision.blockedReason]);
+      return;
+    }
+    row.eligible = row.reasons.length === 0;
+    row.uniqueGraphicWithDuplicateName = Number(collision.suffix || 1) > 1;
+    row.collisionResolvedWithSuffix = row.uniqueGraphicWithDuplicateName;
+  });
   const proposedGroups = new Map();
   rows.forEach((row) => {
     const key = normalizeKey(row.proposedId);
@@ -4451,6 +4495,7 @@ app.get(getBoth("/admin/idHygiene/pigPreview"), async (req, res) => {
       eligibleCount: rows.filter((row) => row.eligible).length,
       metadataFixCount: rows.filter((row) => !row.eligible && row.metadataFixEligible).length,
       duplicateNameCount: rows.filter((row) => row.uniqueGraphicWithDuplicateName).length,
+      collisionSuffixCount: rows.filter((row) => row.collisionResolvedWithSuffix).length,
       duplicateGraphicReviewCount: rows.filter((row) => (row.reasons || []).includes("duplicate_graphic_review")).length,
       blockedCount: rows.filter((row) => !row.eligible).length,
       rows,
