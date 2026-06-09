@@ -2355,7 +2355,7 @@
         return;
       }
       const rows = payload.rows || [];
-      statusEl.textContent = `${payload.total || rows.length} P.I.G. IDs found. ${payload.eligibleCount || 0} rename-ready, ${payload.metadataFixCount || 0} metadata-fixable, ${payload.blockedCount || 0} blocked.`;
+      statusEl.textContent = `${payload.total || rows.length} P.I.G. IDs found. ${payload.eligibleCount || 0} rename-ready, ${payload.duplicateNameCount || 0} duplicate-name unique graphics, ${payload.metadataFixCount || 0} metadata-fixable, ${payload.duplicateGraphicReviewCount || 0} duplicate-asset review, ${payload.blockedCount || 0} blocked.`;
       if (!rows.length) {
         container.innerHTML = '<div class="empty">No P.I.G. IDs found.</div>';
         return;
@@ -2368,9 +2368,9 @@
           <tbody>
             ${rows.slice(0, 80).map((row) => `
               <tr>
-                <td>${row.eligible ? 'Rename' : row.metadataFixEligible ? 'Metadata fix' : 'Blocked'}</td>
+                <td>${row.eligible ? (row.uniqueGraphicWithDuplicateName ? 'Rename + suffix' : 'Rename') : row.metadataFixEligible ? 'Metadata fix' : (row.reasons || []).includes('duplicate_graphic_review') ? 'Duplicate review' : 'Blocked'}</td>
                 <td>${escapeHtml(row.currentId || '—')}</td>
-                <td>${escapeHtml(row.proposedId || '—')}</td>
+                <td>${escapeHtml(row.proposedId || '—')}${row.duplicateGroupSize ? `<div class="hint">Group of ${row.duplicateGroupSize}</div>` : ''}</td>
                 <td>${escapeHtml(row.title || '—')}</td>
                 <td>${escapeHtml(row.canonicalBook || row.book || '—')}</td>
                 <td>${escapeHtml(row.releaseCatalog || '—')}</td>

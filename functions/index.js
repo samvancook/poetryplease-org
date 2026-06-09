@@ -1523,18 +1523,36 @@ async function buildPigIdHygienePlan() {
   const rows = snap.docs
     .map((doc) => buildPigIdHygieneCandidate(doc, existingIds))
     .filter((row) => normalizeKey(row.currentId).startsWith("pig-"));
-  const proposedCounts = new Map();
+  const proposedGroups = new Map();
   rows.forEach((row) => {
     const key = normalizeKey(row.proposedId);
     if (!key) return;
-    proposedCounts.set(key, (proposedCounts.get(key) || 0) + 1);
+    proposedGroups.set(key, [...(proposedGroups.get(key) || []), row]);
   });
-  rows.forEach((row) => {
-    const key = normalizeKey(row.proposedId);
-    if (key && proposedCounts.get(key) > 1) {
-      row.eligible = false;
-      row.reasons = uniq([...row.reasons, "duplicate_proposed_id"]);
-    }
+  proposedGroups.forEach((group, key) => {
+    if (group.length <= 1) return;
+    const seenAssetUrls = new Set();
+    group
+      .sort((a, b) => normalizeText(a.currentId).localeCompare(normalizeText(b.currentId)))
+      .forEach((row, index) => {
+        const assetKey = normalizeKey(row.imageUrl || "");
+        row.duplicateGroupSize = group.length;
+        row.duplicateBaseId = row.proposedId;
+        if (assetKey && seenAssetUrls.has(assetKey)) {
+          row.eligible = false;
+          row.reasons = uniq([...row.reasons.filter((reason) => reason !== "duplicate_proposed_id"), "duplicate_graphic_review"]);
+          return;
+        }
+        if (assetKey) seenAssetUrls.add(assetKey);
+        if (row.reasons.length) return;
+        const suffix = index + 1;
+        row.proposedId = suffix === 1 ? row.proposedId : `${row.proposedId}-${suffix}`;
+        row.uniqueGraphicWithDuplicateName = suffix > 1;
+        if (existingIds.has(normalizeKey(row.proposedId))) {
+          row.eligible = false;
+          row.reasons = uniq([...row.reasons, "id_collision_after_suffix"]);
+        }
+      });
   });
   rows.sort((a, b) => (
     Number(b.eligible) - Number(a.eligible)
@@ -1570,6 +1588,9 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
       book: row.canonicalBook || existing.book || "",
       bookShortener: row.bookShortener || existing.bookShortener || "",
       previousImageIds: uniq([...(Array.isArray(existing.previousImageIds) ? existing.previousImageIds : []), row.currentId].filter(Boolean)),
+      duplicateBaseId: row.duplicateBaseId || "",
+      duplicateGroupSize: row.duplicateGroupSize || 0,
+      uniqueGraphicWithDuplicateName: !!row.uniqueGraphicWithDuplicateName,
       renamedFrom: row.currentId,
       renamedAt: FieldValue.serverTimestamp(),
       renamedBy: normalizeText(actor.email || actor.uid || ""),
@@ -4429,6 +4450,8 @@ app.get(getBoth("/admin/idHygiene/pigPreview"), async (req, res) => {
       total: rows.length,
       eligibleCount: rows.filter((row) => row.eligible).length,
       metadataFixCount: rows.filter((row) => !row.eligible && row.metadataFixEligible).length,
+      duplicateNameCount: rows.filter((row) => row.uniqueGraphicWithDuplicateName).length,
+      duplicateGraphicReviewCount: rows.filter((row) => (row.reasons || []).includes("duplicate_graphic_review")).length,
       blockedCount: rows.filter((row) => !row.eligible).length,
       rows,
     });
