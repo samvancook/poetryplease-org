@@ -1461,27 +1461,51 @@ function resolveScoreboardBookTitle(item = {}) {
   return normalizeText(match?.title || originalTitle);
 }
 
+function resolvePigIdHygieneOverride(data = {}) {
+  const authorKey = normalizeKey(data.author || "");
+  const titleKey = normalizeKey(data.title || data.poem || "");
+  const bookKey = normalizeKey(data.book || "");
+  if (bookKey === "short form contest may 2026" || bookKey === "short form 2026") {
+    return {
+      book: "Short Form 2026",
+      releaseCatalog: "Contest",
+      bookShortener: "SFC",
+    };
+  }
+  if (authorKey === "neil hilborn" && titleKey === "audiobook") {
+    return {
+      book: "The Future",
+      releaseCatalog: "Spring 2018",
+      bookShortener: "TF",
+    };
+  }
+  return {};
+}
+
 function buildPigIdHygieneCandidate(doc, existingIds = new Set(), existingById = new Map()) {
   const data = doc.data() || {};
+  const override = resolvePigIdHygieneOverride(data);
   const currentId = normalizeText(data.imageId || data.contentId || doc.id);
   const currentKey = normalizeKey(currentId);
   const imageType = normalizeText(data.imageType || "").toUpperCase();
   const matched = resolveCatalogBookRecord({
     author: data.author || "",
-    book: data.book || "",
-    bookShortener: data.bookShortener || "",
+    book: override.book || data.book || "",
+    bookShortener: override.bookShortener || data.bookShortener || "",
     fileName: data.sourceFileName || data.updatedFileName || currentId,
   });
-  const bookShortener = sanitizeDocIdSegment(data.bookShortener || matched?.bookShortener || "");
+  const bookShortener = sanitizeDocIdSegment(override.bookShortener || data.bookShortener || matched?.bookShortener || "");
   const title = normalizeText(data.title || data.poem || "");
-  const canonicalBook = normalizeText(matched?.title || data.book || "");
+  const canonicalBook = normalizeText(override.book || matched?.title || data.book || "");
   const canonicalShortener = sanitizeDocIdSegment(matched?.bookShortener || bookShortener);
+  const canonicalCatalog = normalizeText(override.releaseCatalog || matched?.releaseCatalog || data.releaseCatalog || "");
   const proposedId = bookShortener && imageType && title
     ? `${bookShortener}-${imageType}-${slugify(title)}`.toUpperCase()
     : "";
   const metadataFixEligible = !!matched && (
     (canonicalBook && normalizeKey(canonicalBook) !== normalizeKey(data.book || ""))
     || (canonicalShortener && sanitizeDocIdSegment(data.bookShortener || "") !== canonicalShortener)
+    || (canonicalCatalog && normalizeKey(canonicalCatalog) !== normalizeKey(data.releaseCatalog || ""))
   );
   const reasons = [];
   if (!currentKey.startsWith("pig-")) reasons.push("not_pig_id");
@@ -1504,7 +1528,8 @@ function buildPigIdHygieneCandidate(doc, existingIds = new Set(), existingById =
     title,
     book: normalizeText(data.book || ""),
     canonicalBook,
-    releaseCatalog: normalizeText(data.releaseCatalog || ""),
+    releaseCatalog: canonicalCatalog,
+    originalReleaseCatalog: normalizeText(data.releaseCatalog || ""),
     imageType,
     bookShortener: canonicalShortener || bookShortener,
     imageUrl: normalizeText(data.imageUrl || data.url || ""),
@@ -1631,6 +1656,7 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
       contentId: row.proposedId,
       book: row.canonicalBook || existing.book || "",
       bookShortener: row.bookShortener || existing.bookShortener || "",
+      releaseCatalog: row.releaseCatalog || existing.releaseCatalog || "",
       previousImageIds: uniq([...(Array.isArray(existing.previousImageIds) ? existing.previousImageIds : []), row.currentId].filter(Boolean)),
       duplicateBaseId: row.duplicateBaseId || "",
       duplicateGroupSize: row.duplicateGroupSize || 0,
@@ -1682,6 +1708,7 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
     await ref.set({
       book: row.canonicalBook || existing.book || "",
       bookShortener: row.bookShortener || existing.bookShortener || "",
+      releaseCatalog: row.releaseCatalog || existing.releaseCatalog || "",
       metadataHygieneAt: FieldValue.serverTimestamp(),
       metadataHygieneBy: normalizeText(actor.email || actor.uid || ""),
       updatedAt: FieldValue.serverTimestamp(),
