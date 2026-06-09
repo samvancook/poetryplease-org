@@ -81,6 +81,10 @@
     - `TF-QI-GET-UP-EARLY-GET-TO-THE-DOCK`
   - spot-check repaired `QI` records in the live app and confirm no lingering broken-image examples remain
   - make bucket-backed asset URLs the enforced default for future `QI` and `INT` imports so we do not regress to Drive thumbnails
+- Expand Content Health into an audit-ready cleanup workflow:
+  - show recent cleanup actions, including ID renames, metadata-only fixes, old ID -> new ID, book/catalog/shortener changes, actor, and timestamp
+  - group remaining blockers by reason, such as missing title, duplicate graphic review, missing shortener, suffix exhausted, and unresolved catalog ambiguity
+  - add a clear re-preview-after-cleanup state so admins can confirm counts dropped after applying fixes
 - Build the next-generation import assistant:
   - centralize book/catalog metadata lookup
   - first pass: resolve filenames/rows against catalog metadata inside admin before import
