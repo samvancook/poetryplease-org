@@ -1479,6 +1479,41 @@ function resolvePigIdHygieneOverride(data = {}) {
       bookShortener: "TF",
     };
   }
+  if (bookKey === "i ll fly away") {
+    return {
+      book: "I'll Fly Away",
+      releaseCatalog: "Fall 2020",
+      bookShortener: "IFA",
+    };
+  }
+  if (bookKey === "a love song a death rattle a battle cry") {
+    return {
+      book: "A Love Song, A Death Rattle, A Battle Cry",
+      releaseCatalog: "Spring 2018",
+      bookShortener: "ALSA",
+    };
+  }
+  if (bookKey === "so stranger") {
+    return {
+      book: "So, Stranger",
+      releaseCatalog: "Spring 2022",
+      bookShortener: "SS",
+    };
+  }
+  if (bookKey === "don t be afraid to be bad a big book of button poetry writing prompts") {
+    return {
+      book: "DON’T BE AFRAID TO BE BAD",
+      releaseCatalog: "Spring 2026",
+      bookShortener: "DBAT",
+    };
+  }
+  if (bookKey === "stunt water the work of buddy wakefield") {
+    return {
+      book: "Stunt Water",
+      releaseCatalog: "Spring 2026",
+      bookShortener: "SW",
+    };
+  }
   return {};
 }
 
