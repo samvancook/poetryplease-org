@@ -63,6 +63,7 @@
 - Resolve and visibly preview `releaseCatalog` during Weaver imports before commit
 - Strengthen `bookLink` on handoff so imported assets carry a more complete catalog connection
 - Reuse or port the Weaver excerpt/viewer module into Poetry Please so text previews behave consistently across tools
+- Replace the separate `Title:` metadata row for text excerpts with a title displayed above or integrated into the poem text itself
 - Move Drive service-account-backed folder import automation earlier in the import-assistant roadmap because it should reduce repeated manual recovery/import work long-term
 - Move from preview/import to direct ingest once the handoff contract is stable
 - Expose Poetry Please ranked texts as a P.I.G.-friendly source feed with stable text identity and duplication guard rails
