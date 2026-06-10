@@ -168,7 +168,7 @@ function resolveCanonicalCatalogMetadata(item = {}) {
   const originalCatalog = normalizeText(item.releaseCatalog || "");
   const originalShortener = sanitizeDocIdSegment(item.bookShortener || "");
   const book = normalizeText(match?.title || originalBook);
-  const releaseCatalog = normalizeText(item.releaseCatalog || match?.releaseCatalog || "");
+  const releaseCatalog = normalizeText(match?.releaseCatalog || item.releaseCatalog || "");
   const bookShortener = sanitizeDocIdSegment(item.bookShortener || match?.bookShortener || "");
   const changedFields = [];
   if (book && normalizeCatalogLookupKey(book) !== normalizeCatalogLookupKey(originalBook)) changedFields.push("book");
