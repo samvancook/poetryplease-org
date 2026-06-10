@@ -479,6 +479,11 @@
       return raw;
     }
 
+    function canonicalCatalogFilterValue(value) {
+      const trimmed = String(value || '').trim();
+      return trimmed.toLowerCase() === 'short form contest' ? 'Contest' : trimmed;
+    }
+
     function formatRate(value) {
       const num = Number(value || 0);
       return `${Math.round(num * 100)}%`;
@@ -688,11 +693,16 @@
     function buildBookDropdown(books = null) {
       const sel = document.getElementById('bookDropdown');
       const selected = sel.value;
-      const catalogKey = document.getElementById('catalogDropdown').value.trim().toLowerCase();
+      const catalogKey = canonicalCatalogFilterValue(document.getElementById('catalogDropdown').value).trim().toLowerCase();
       const canonicalLookup = buildCanonicalBookTitleLookup();
-      const rawList = catalogKey
+      let rawList = catalogKey
         ? (scoreboardFilterOptions.booksByCatalog || {})[catalogKey] || []
         : books || allGraphics.map((row) => row.bookTitle || '');
+      if (catalogKey && !rawList.length) {
+        rawList = allGraphics
+          .filter((row) => canonicalCatalogFilterValue(row.releaseCatalog).trim().toLowerCase() === catalogKey)
+          .map((row) => row.bookTitle || '');
+      }
       const normalized = Array.from(new Map(rawList.map((title) => {
         const canonical = canonicalBookTitle(title, catalogKey, canonicalLookup);
         return [normalizeBookTitleKey(canonical), canonical];
@@ -705,9 +715,11 @@
 
     function buildCatalogDropdown(catalogs = null) {
       const sel = document.getElementById('catalogDropdown');
-      const selected = sel.value;
+      const selected = canonicalCatalogFilterValue(sel.value);
       const rawList = catalogs || allGraphics.map((row) => row.releaseCatalog || '');
-      const normalized = Array.from(new Map(rawList.map((catalog) => [String(catalog).trim().toLowerCase(), String(catalog).trim()])).values())
+      const normalized = Array.from(new Map(rawList
+        .map(canonicalCatalogFilterValue)
+        .map((catalog) => [String(catalog).trim().toLowerCase(), String(catalog).trim()])).values())
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = '<option value="">All Catalogs</option>' + normalized.map((catalog) => `<option>${escapeHtml(catalog)}</option>`).join('');
@@ -754,7 +766,7 @@
       const userVal = document.getElementById('userDropdown').value.trim().toLowerCase();
       const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
-      const catalogVal = document.getElementById('catalogDropdown').value.trim().toLowerCase();
+      const catalogVal = canonicalCatalogFilterValue(document.getElementById('catalogDropdown').value).trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
       const charCountMinRaw = document.getElementById('characterCountMin').value.trim();
@@ -775,7 +787,7 @@
       if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
       if (typeVal) data = data.filter((row) => normalizeTypeForFilter(row.type) === typeVal);
       if (bookVal) data = data.filter((row) => String(row.bookTitle || '').trim().toLowerCase() === bookVal);
-      if (catalogVal) data = data.filter((row) => String(row.releaseCatalog || '').trim().toLowerCase() === catalogVal);
+      if (catalogVal) data = data.filter((row) => canonicalCatalogFilterValue(row.releaseCatalog).trim().toLowerCase() === catalogVal);
       if (hasCharCountFilter) {
         data = data.filter((row) => {
           const rowType = normalizeTypeForFilter(row.type);
@@ -843,7 +855,7 @@
     function renderProgressBars() {
       const userVal = document.getElementById('userDropdown').value;
       const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
-      const catalogVal = document.getElementById('catalogDropdown').value.trim().toLowerCase();
+      const catalogVal = canonicalCatalogFilterValue(document.getElementById('catalogDropdown').value).trim().toLowerCase();
       const showMissingCatalogColumn = !catalogVal;
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
@@ -853,7 +865,7 @@
 
       const bookMap = {};
       allGraphics.forEach((graphic) => {
-        const catalog = String(graphic.releaseCatalog || '').trim();
+        const catalog = canonicalCatalogFilterValue(graphic.releaseCatalog);
         const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
         if (!title) return;
         const bookKey = normalizeBookTitleKey(title);
@@ -875,17 +887,17 @@
         : aggregatedData.filter((row) => row.totalVotes > 0);
 
       source.forEach((row) => {
-        const catalog = String(row.releaseCatalog || '').trim();
+        const catalog = canonicalCatalogFilterValue(row.releaseCatalog);
         const title = canonicalBookTitle(row.bookTitle, catalog, canonicalLookup);
         const bookKey = normalizeBookTitleKey(title);
         const key = `${bookKey}|${catalog.toLowerCase()}`;
         if (bookVal && bookKey !== bookVal) return;
-        if (catalogVal && String(row.releaseCatalog || '').trim().toLowerCase() !== catalogVal) return;
+        if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
         if (bookMap[key]) bookMap[key].voted += 1;
       });
 
       allGraphics.forEach((graphic) => {
-        const catalog = String(graphic.releaseCatalog || '').trim();
+        const catalog = canonicalCatalogFilterValue(graphic.releaseCatalog);
         const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
         const key = `${normalizeBookTitleKey(title)}|${catalog.toLowerCase()}`;
         if (!bookMap[key]) return;

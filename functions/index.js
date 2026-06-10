@@ -1114,7 +1114,7 @@ async function getRatingsSummaryCached() {
 function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null }) {
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const batch = sampleItems(newObjs, limit);
-  const releaseCatalogs = [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort();
+  const releaseCatalogs = uniqueReleaseCatalogs(all);
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
 
   return {
@@ -1134,6 +1134,20 @@ function matchesFilterValue(actual, expected) {
   return normalizeKey(actual) === normalizeKey(expected);
 }
 
+function normalizeCatalogFilterValue(value = "") {
+  const text = normalizeText(value);
+  return normalizeKey(text) === "shortformcontest" ? "Contest" : text;
+}
+
+function uniqueReleaseCatalogs(items = []) {
+  return [...new Set(items.map((item) => normalizeCatalogFilterValue(item.releaseCatalog)).filter(Boolean))].sort();
+}
+
+function matchesCatalogFilterValue(actual, expected) {
+  if (!normalizeText(expected)) return true;
+  return normalizeKey(normalizeCatalogFilterValue(actual)) === normalizeKey(normalizeCatalogFilterValue(expected));
+}
+
 function matchesRequestedType(item, requestedType) {
   const type = normalizeText(requestedType).toUpperCase();
   if (!type) return true;
@@ -1145,7 +1159,7 @@ function matchesRequestedType(item, requestedType) {
 function filterContentByFeedFilters(items, filters = {}) {
   return (items || []).filter((item) => {
     if (!matchesRequestedType(item, filters.type)) return false;
-    if (!matchesFilterValue(item?.releaseCatalog, filters.catalog)) return false;
+    if (!matchesCatalogFilterValue(item?.releaseCatalog, filters.catalog)) return false;
     if (!matchesFilterValue(item?.author, filters.author)) return false;
     if (!matchesFilterValue(item?.book, filters.book)) return false;
     return true;
@@ -3431,7 +3445,7 @@ app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
     getFlaggedContentIds(),
   ]);
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
-  const cats = [...new Set(all.map((i) => i.releaseCatalog).filter(Boolean))].sort();
+  const cats = uniqueReleaseCatalogs(all);
   res.json(cats);
 });
 
@@ -3507,7 +3521,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     domainTotalImages: filteredAll.length,
     domainVotedImagesCount: Math.max(filteredAll.length - filteredNew.length, 0),
     domainRemainingImagesCount: filteredNew.length,
-    releaseCatalogs: [...new Set(all.map((o) => o.releaseCatalog).filter(Boolean))].sort(),
+    releaseCatalogs: uniqueReleaseCatalogs(all),
     imageTypes: [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort(),
   });
 });

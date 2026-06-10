@@ -1619,6 +1619,11 @@ function valuesMatch(a, b) {
   return normalizeFilterValue(a) === normalizeFilterValue(b);
 }
 
+function canonicalCatalogFilterValue(value) {
+  const trimmed = String(value || '').trim();
+  return normalizeFilterValue(trimmed) === 'short form contest' ? 'Contest' : trimmed;
+}
+
 function readRouteState() {
   const params = new URLSearchParams(window.location.search);
   return {
@@ -1673,7 +1678,7 @@ function initializeRouteState() {
   selectedItemRecord = null;
   routeItemConsumed = false;
   selectedType = route.type.trim();
-  selectedCatalog = route.catalog.trim();
+  selectedCatalog = canonicalCatalogFilterValue(route.catalog);
   selectedAuthor = route.author.trim();
   selectedBook = route.book.trim();
   lockedLane = ['1', 'true', 'yes', 'locked'].includes(String(route.locked || '').trim().toLowerCase());
@@ -1699,7 +1704,7 @@ function setCatalogFilter(value) {
     flashMessage('Finish this set first, then choose new settings.');
     return;
   }
-  selectedCatalog = String(value || '').trim();
+  selectedCatalog = canonicalCatalogFilterValue(value);
   syncFilterControls();
   writeRouteState();
   ensureFilterReadyThenRebuild();
@@ -2390,8 +2395,12 @@ async function populateCatalogsSelect(cats) {
   const sel = $('#catalog-filter');
   if (!sel) return;
   sel.querySelectorAll('option:not(:first-child)').forEach(o=>o.remove());
-  (cats || []).forEach(c => {
-    if (!c) return;
+  const normalized = Array.from(new Map((cats || [])
+    .map(canonicalCatalogFilterValue)
+    .filter(Boolean)
+    .map((catalog) => [normalizeFilterValue(catalog), catalog])).values())
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+  normalized.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c;
     opt.textContent = c;
@@ -2432,7 +2441,7 @@ function buildFilteredList(data) {
   // Dropdown filters
   list = list.filter(g => {
     if (!matchesSelectedType(g, selectedType)) return false;
-    if (selectedCatalog && g.releaseCatalog !== selectedCatalog) return false;
+    if (selectedCatalog && canonicalCatalogFilterValue(g.releaseCatalog) !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
     return true;
@@ -2808,7 +2817,7 @@ function renderCounter() {
   const all = Array.isArray(lastData?.allGraphics) ? lastData.allGraphics.map(mapGraphic) : [];
   let domainAll = all.filter(g => {
     if (!matchesSelectedType(g, selectedType)) return false;
-    if (selectedCatalog && g.releaseCatalog !== selectedCatalog) return false;
+    if (selectedCatalog && canonicalCatalogFilterValue(g.releaseCatalog) !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook   && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
     return true;
