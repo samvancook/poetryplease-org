@@ -2207,7 +2207,10 @@
                   <div>${escapeHtml(row.releaseCatalog || '—')} · ${escapeHtml(row.bookShortener || '—')}</div>
                   ${row.matched ? '' : '<div class="meta">No catalog match.</div>'}
                 </td>
-                <td>${escapeHtml(row.suggestedDocId || '—')}</td>
+                <td>
+                  ${escapeHtml(row.suggestedDocId || '—')}
+                  ${row.collisionSuffixApplied ? `<div class="meta">Distinct graphic; avoided ${escapeHtml(row.collisionBaseDocId || 'base ID')}</div>` : ''}
+                </td>
                 <td>${escapeHtml(row.action || '—')}</td>
                 <td>${row.validation ? (row.validation.ok
                   ? `${escapeHtml(row.validation.fileName || row.fileName || 'image')} · ${escapeHtml(row.validation.mimeType || 'image')} · ${escapeHtml(String(row.validation.width || '?'))}×${escapeHtml(String(row.validation.height || '?'))}`
@@ -2305,7 +2308,7 @@
         state.importAssistantResults = payload.rows || [];
         state.importAssistantPreviewRows = payload.rows || [];
         renderImportAssistantResults(state.importAssistantResults);
-        statusEl.textContent = `Validated ${payload.rows.length} rows. ${payload.validCount} valid, ${payload.invalidCount} invalid. ${payload.createCount} create / ${payload.updateCount} update. Drive links can now populate filenames during validation.`;
+        statusEl.textContent = `Validated ${payload.rows.length} rows. ${payload.validCount} valid, ${payload.invalidCount} invalid. ${payload.createCount} create / ${payload.updateCount} update.${payload.suffixCount ? ` ${payload.suffixCount} distinct graphic${payload.suffixCount === 1 ? '' : 's'} assigned suffix IDs.` : ''} Drive links can now populate filenames during validation.`;
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not validate graphics.';

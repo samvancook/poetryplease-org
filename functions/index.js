@@ -3132,6 +3132,90 @@ async function previewContentLibraryItem(type, body = {}) {
   };
 }
 
+function importAssistantGraphicSourceKey(item = {}) {
+  const candidates = [
+    item.driveLink,
+    item.assetLinkUrl,
+    item.sourceUrl,
+    item.imageUrl,
+    item.url,
+  ].map(normalizeText).filter(Boolean);
+  for (const candidate of candidates) {
+    const driveId = extractGoogleDriveFileId(candidate);
+    if (driveId) return `drive:${driveId}`;
+  }
+  return candidates[0] ? `url:${normalizeKey(candidates[0])}` : "";
+}
+
+function importAssistantGraphicSourcesMatch(existing = {}, incoming = {}) {
+  const existingKeys = [
+    existing.driveLink,
+    existing.sourceUrl,
+    existing.assetLinkUrl,
+    existing.imageUrl,
+    existing.url,
+  ].map((value) => importAssistantGraphicSourceKey({ driveLink: value })).filter(Boolean);
+  const incomingKey = importAssistantGraphicSourceKey(incoming);
+  return !!incomingKey && existingKeys.includes(incomingKey);
+}
+
+async function assignImportAssistantGraphicDocId(row = {}, usedIds = new Set()) {
+  const item = row.contentItem || {};
+  const baseId = sanitizeDocIdSegment(item.docId || row.suggestedDocId || "");
+  if (!baseId) return { row, action: "error" };
+
+  let suffix = 1;
+  while (suffix <= 200) {
+    const candidateId = suffix === 1 ? baseId : `${baseId}-${suffix}`;
+    const candidateKey = normalizeKey(candidateId);
+    if (usedIds.has(candidateKey)) {
+      suffix += 1;
+      continue;
+    }
+
+    const snap = await db.collection(COLLECTIONS.graphics).doc(candidateId).get();
+    if (!snap.exists) {
+      usedIds.add(candidateKey);
+      return {
+        row: finalizeImportAssistantGraphicRow({
+          ...row,
+          collisionBaseDocId: suffix === 1 ? "" : baseId,
+          collisionSuffixApplied: suffix === 1 ? 0 : suffix,
+          suggestedDocId: candidateId,
+          contentItem: {
+            ...item,
+            docId: candidateId,
+            imageId: candidateId,
+          },
+        }),
+        action: "create",
+      };
+    }
+
+    if (importAssistantGraphicSourcesMatch(snap.data() || {}, item)) {
+      usedIds.add(candidateKey);
+      return {
+        row: finalizeImportAssistantGraphicRow({
+          ...row,
+          collisionBaseDocId: suffix === 1 ? "" : baseId,
+          collisionSuffixApplied: suffix === 1 ? 0 : suffix,
+          suggestedDocId: candidateId,
+          contentItem: {
+            ...item,
+            docId: candidateId,
+            imageId: candidateId,
+          },
+        }),
+        action: "update",
+      };
+    }
+
+    suffix += 1;
+  }
+
+  return { row, action: "error", error: "suffix_exhausted" };
+}
+
 function pickProfileContent(profile, allContent, ratings) {
   const authorKeys = new Set(
     uniq([profile.displayName, ...(profile.authorNameVariants || [])]).map(normalizeKey)
@@ -5793,9 +5877,10 @@ function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") 
 function finalizeImportAssistantGraphicRow(row, remoteMedia = null) {
   const effectiveFileName = normalizeText(row?.fileName || remoteMedia?.fileName || "");
   const effectiveTitle = normalizeText(row?.title || effectiveFileName.replace(/\.[a-z0-9]+$/i, "").trim());
-  const effectiveDocId = row?.bookShortener && effectiveTitle
+  const explicitDocId = normalizeText(row?.suggestedDocId || "");
+  const effectiveDocId = explicitDocId || (row?.bookShortener && effectiveTitle
     ? `${row.bookShortener}-${row.imageType}-${slugify(effectiveTitle)}`.toUpperCase()
-    : normalizeText(row?.suggestedDocId || "");
+    : "");
   const miscParts = [
     effectiveFileName ? `Import Assistant source file: ${effectiveFileName}` : "",
     row?.folderLink ? `Import Assistant folder: ${row.folderLink}` : "",
@@ -5838,36 +5923,31 @@ app.post(getBoth("/admin/importAssistant/previewGraphics"), async (req, res) => 
   const imageType = normalizeText(req.body?.imageType || "QI") || "QI";
   const resolved = resolveImportAssistantRows(rows, req.body?.defaults || {}, imageType);
   const results = [];
+  const usedDocIds = new Set();
   for (const row of resolved) {
     let resolvedRow = finalizeImportAssistantGraphicRow(row);
     let item = resolvedRow.contentItem || {};
-    let action = "error";
+    let action = "create";
     let validation = { ok: false, error: "missing_drive_link" };
-    try {
-      const preview = await previewContentLibraryItem("graphics", item);
-      action = preview.action || "create";
-    } catch (err) {
-      action = "error";
-    }
     if (item.driveLink) {
       try {
         const remote = await fetchRemoteMediaResponse(item.driveLink, UPLOAD_RULES.libraryGraphic, item);
         resolvedRow = finalizeImportAssistantGraphicRow(resolvedRow, remote);
         item = resolvedRow.contentItem || item;
-        if (action === "error") {
-          try {
-            const preview = await previewContentLibraryItem("graphics", item);
-            action = preview.action || "create";
-          } catch (err) {}
-        }
-        validation = {
-          ok: true,
-          mimeType: remote.mimeType,
-          fileName: remote.fileName,
-          width: remote.width,
-          height: remote.height,
-          fileSize: remote.fileSize,
-        };
+        const assigned = await assignImportAssistantGraphicDocId(resolvedRow, usedDocIds);
+        resolvedRow = assigned.row;
+        item = resolvedRow.contentItem || item;
+        action = assigned.action || "create";
+        validation = assigned.error
+          ? { ok: false, error: assigned.error }
+          : {
+              ok: true,
+              mimeType: remote.mimeType,
+              fileName: remote.fileName,
+              width: remote.width,
+              height: remote.height,
+              fileSize: remote.fileSize,
+            };
       } catch (err) {
         validation = { ok: false, error: err.message || "validation_failed" };
       }
@@ -5883,7 +5963,8 @@ app.post(getBoth("/admin/importAssistant/previewGraphics"), async (req, res) => 
   const updateCount = results.filter((row) => row.action === "update").length;
   const validCount = results.filter((row) => row.validation?.ok).length;
   const invalidCount = results.length - validCount;
-  res.json({ ok: true, rows: results, createCount, updateCount, validCount, invalidCount });
+  const suffixCount = results.filter((row) => Number(row.collisionSuffixApplied || 0) > 1).length;
+  res.json({ ok: true, rows: results, createCount, updateCount, validCount, invalidCount, suffixCount });
 });
 
 
