@@ -1582,6 +1582,7 @@ let selectedItemId = '';
 let embedLockedItemId = '';
 let selectedItemRecord = null;
 let routeItemConsumed = false;
+let lockedLane = false;
 
 // Ratings + heuristics state
 let ratingsMap = {};                // { imageId: {score,total,rating} }
@@ -1625,7 +1626,8 @@ function readRouteState() {
     type: params.get('type') || '',
     catalog: params.get('catalog') || '',
     author: params.get('author') || '',
-    book: params.get('book') || ''
+    book: params.get('book') || '',
+    locked: params.get('locked') || params.get('laneLocked') || ''
   };
 }
 
@@ -1636,7 +1638,8 @@ function writeRouteState() {
     type: selectedType,
     catalog: selectedCatalog,
     author: filterByAuthor ? selectedAuthor : '',
-    book: filterByBook ? selectedBook : ''
+    book: filterByBook ? selectedBook : '',
+    locked: lockedLane ? '1' : ''
   };
 
   Object.entries(nextState).forEach(([key, value]) => {
@@ -1659,6 +1662,9 @@ function syncFilterControls() {
   if (catalogSel) catalogSel.value = selectedCatalog;
   if (bookSel) bookSel.value = filterByBook ? selectedBook : '';
   if (queueModeSel) queueModeSel.value = selectedQueueMode;
+  [typeSel, catalogSel, bookSel, queueModeSel].forEach((control) => {
+    if (control) control.disabled = !!lockedLane;
+  });
 }
 
 function initializeRouteState() {
@@ -1670,11 +1676,17 @@ function initializeRouteState() {
   selectedCatalog = route.catalog.trim();
   selectedAuthor = route.author.trim();
   selectedBook = route.book.trim();
+  lockedLane = ['1', 'true', 'yes', 'locked'].includes(String(route.locked || '').trim().toLowerCase());
   filterByAuthor = !!selectedAuthor;
   filterByBook = !!selectedBook;
 }
 
 function setTypeFilter(value) {
+  if (lockedLane) {
+    syncFilterControls();
+    flashMessage('Finish this set first, then choose new settings.');
+    return;
+  }
   selectedType = String(value || '').trim();
   syncFilterControls();
   writeRouteState();
@@ -1682,6 +1694,11 @@ function setTypeFilter(value) {
 }
 
 function setCatalogFilter(value) {
+  if (lockedLane) {
+    syncFilterControls();
+    flashMessage('Finish this set first, then choose new settings.');
+    return;
+  }
   selectedCatalog = String(value || '').trim();
   syncFilterControls();
   writeRouteState();
@@ -1689,6 +1706,11 @@ function setCatalogFilter(value) {
 }
 
 function setAuthorFilter(active, author = currentItem?.author || selectedAuthor) {
+  if (lockedLane) {
+    syncFilterControls();
+    flashMessage('Finish this set first, then choose new settings.');
+    return;
+  }
   const nextAuthor = String(author || '').trim();
   filterByAuthor = !!active && !!nextAuthor;
   selectedAuthor = filterByAuthor ? nextAuthor : '';
@@ -1697,6 +1719,11 @@ function setAuthorFilter(active, author = currentItem?.author || selectedAuthor)
 }
 
 function setBookFilter(active, book = currentItem?.book || selectedBook) {
+  if (lockedLane) {
+    syncFilterControls();
+    flashMessage('Finish this set first, then choose new settings.');
+    return;
+  }
   const nextBook = String(book || '').trim();
   filterByBook = !!active && !!nextBook;
   selectedBook = filterByBook ? nextBook : '';
@@ -1709,7 +1736,27 @@ function setBookDropdownFilter(value) {
   setBookFilter(!!String(value || '').trim(), value);
 }
 
+function exitLockedLane() {
+  lockedLane = false;
+  selectedItemId = '';
+  selectedItemRecord = null;
+  selectedType = '';
+  selectedCatalog = '';
+  selectedAuthor = '';
+  selectedBook = '';
+  filterByAuthor = false;
+  filterByBook = false;
+  syncFilterControls();
+  writeRouteState();
+  ensureFilterReadyThenRebuild();
+}
+
 function setQueueMode(value) {
+  if (lockedLane) {
+    syncFilterControls();
+    flashMessage('Finish this set first, then choose new settings.');
+    return;
+  }
   selectedQueueMode = String(value || 'ranked').trim() || 'ranked';
   syncFilterControls();
   rebuildQueueAfterFilter();
@@ -2500,6 +2547,9 @@ function adjustViewportFit() {
 }
 
 function getEmptyFilterMessage() {
+  if (lockedLane) {
+    return 'You’ve seen all of this set.';
+  }
   if (hasActiveFeedFilters()) {
     return 'No more items are available in this filter right now. Try Poetry, Please again or change filters.';
   }
@@ -2520,7 +2570,17 @@ function renderEmptyFilterState(message = getEmptyFilterMessage()) {
   currentItem = null;
   window.currentItem = null;
   const gal = $('#gallery');
-  if (gal) gal.innerHTML = `<p>${message}</p>`;
+  if (gal) {
+    gal.innerHTML = lockedLane
+      ? `<div style="text-align:center;max-width:520px;margin:32px auto;">
+          <p style="font-size:22px;font-weight:700;margin:0 0 10px;">${message}</p>
+          <p style="margin:0 0 18px;color:#6c6558;">Want to keep going?</p>
+          <button id="btn-show-more-poems" type="button" style="font-size:18px;font-weight:700;padding:12px 18px;border-radius:14px;border:1px solid #d9cfbe;background:#dceff1;color:#345f64;cursor:pointer;">Show me more poems!</button>
+        </div>`
+      : `<p>${message}</p>`;
+    const showMore = $('#btn-show-more-poems');
+    if (showMore) showMore.addEventListener('click', exitLockedLane);
+  }
   const mediaWrap = ensureMediaWrap();
   mediaWrap.querySelectorAll('.meta-row').forEach((n) => n.remove());
   const mediaBox = mediaWrap.querySelector('.media-box');
@@ -2683,7 +2743,7 @@ function renderMetaRows(item) {
   const row = (text, checkboxId, checked, label, onToggle) => {
     const r = document.createElement('div'); r.className='meta-row';
     const p = document.createElement('p'); p.textContent = text || ''; r.appendChild(p);
-    if (checkboxId) { const wrap=document.createElement('div'); const cb=document.createElement('input'); cb.type='checkbox'; cb.id=checkboxId; cb.checked=!!checked; cb.onchange=onToggle;
+    if (checkboxId) { const wrap=document.createElement('div'); const cb=document.createElement('input'); cb.type='checkbox'; cb.id=checkboxId; cb.checked=!!checked; cb.disabled=!!lockedLane; cb.onchange=onToggle;
       const lb=document.createElement('label'); lb.htmlFor=checkboxId; lb.textContent=label; wrap.append(cb,lb); r.appendChild(wrap); }
     return r;
   };
