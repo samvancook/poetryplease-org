@@ -101,6 +101,10 @@
   - make summary/progress views avoid loading/rendering the full item table
   - lazy-render expensive cells such as links and long IDs only for visible rows
   - make zero-vote inclusion an intentional heavier mode where useful
+- Add visible book-disambiguation diagnostics to Scoreboard:
+  - show possible duplicate book records caused by punctuation, case, spacing, or subtitle variants such as `The Willies` / `Thewillies`
+  - flag subtitle-style splits where one canonical book is being counted as two scoreboard books
+  - provide an admin review path before automated cleanup touches ambiguous book/catalog records
 - Keep improving user submissions:
   - stronger admin review tools (filters, search, status visibility)
   - later convert approved submissions into regular Poetry Please content when that workflow is ready
