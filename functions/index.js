@@ -1832,13 +1832,14 @@ async function buildScoreboardPayload() {
     const sourceFolderLink = normalizeText(item.sourceFolderLink || readMiscValue(item.misc, "sourceFolderLink"));
     const sourceFileName = normalizeText(item.sourceFileName || readMiscValue(item.misc, "sourceFileName"));
     const bookTitle = resolveScoreboardBookTitle({ ...item, sourceFileName });
+    const canonicalCatalog = resolveCanonicalCatalogMetadata({ ...item, book: bookTitle, sourceFileName });
     const payload = {
       imageId: imageId || contentId,
       author: item.author || "",
       poemTitle: item.title || item.poem || "",
       bookTitle,
       originalBookTitle: item.book || "",
-      bookShortener: item.bookShortener || "",
+      bookShortener: canonicalCatalog.bookShortener || item.bookShortener || "",
       fileLink: cloudLink || item.bookLink || "",
       cloudLink,
       driveLink,
@@ -1846,7 +1847,7 @@ async function buildScoreboardPayload() {
       sourceFileName,
       type: item.imageType || "",
       excerpt: item.excerpt || "",
-      releaseCatalog: item.releaseCatalog || "",
+      releaseCatalog: canonicalCatalog.releaseCatalog || item.releaseCatalog || "",
       charCount: countCharacters([item.author || "", item.title || item.poem || "", item.excerpt || ""]),
     };
     keys.forEach((key) => metaMap.set(key, payload));
