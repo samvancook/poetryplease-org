@@ -2717,13 +2717,14 @@ function renderMetaRows(item) {
     return; // prevent the three mediaWrap.prepend(...) lines from running
   }
   if (IS_EMBED_UI) {
-    mediaWrap.prepend(row(`From their book: ${item.book || ''}`));
     mediaWrap.prepend(row(`Title: ${item.title || ''}`));
+    mediaWrap.prepend(row(`From their book: ${item.book || ''}`));
     mediaWrap.prepend(row(`Author: ${item.author || ''}`));
     return;
   }
 
   // On mobile we still show the metadata, but the checkboxes still work
+  mediaWrap.prepend(row(`Title: ${item.title || ''}`));
   mediaWrap.prepend(row(
     `From their book: ${item.book || ''}`,
     'bookCheckbox',
@@ -2731,7 +2732,6 @@ function renderMetaRows(item) {
     'More from this book',
     () => setBookFilter(!(filterByBook && valuesMatch(selectedBook, item.book)), item.book)
   ));
-  mediaWrap.prepend(row(`Title: ${item.title || ''}`));
   mediaWrap.prepend(row(
     `Author: ${item.author || ''}`,
     'authorCheckbox',
