@@ -546,6 +546,8 @@
           return headers.map((key) => {
             const rawValue = key === 'fileLink'
               ? (row.driveLink || row.fileLink || row.cloudLink)
+              : key === 'bookTitle'
+                ? canonicalBookTitle(row.bookTitle, row.releaseCatalog)
               : (key in derived ? derived[key] : row[key]);
             const value = key === 'type' ? formatContentTypeLabel(rawValue) : rawValue;
             return typeof value === 'number' ? value : (value ?? '');
@@ -599,18 +601,42 @@
     }
 
     function normalizeBookTitleKey(value) {
-      return String(value || '').trim().toLowerCase();
+      return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/&/g, ' and ')
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function punctuationScore(value) {
+      return (String(value || '').match(/[.,:;'"!?-]/g) || []).length;
+    }
+
+    function displayTitleScore(value) {
+      const text = String(value || '').trim();
+      if (!text) return -1;
+      const hasLowercase = /[a-z]/.test(text);
+      const hasSpace = /\s/.test(text);
+      return (hasLowercase ? 4 : 0) + (hasSpace ? 2 : 0) + Math.min(punctuationScore(text), 2);
+    }
+
+    function chooseCanonicalDisplayTitle(current, candidate) {
+      if (!current) return candidate;
+      return displayTitleScore(candidate) > displayTitleScore(current) ? candidate : current;
     }
 
     function buildCanonicalBookTitleLookup(items = allGraphics) {
-      const byCatalog = new Set();
-      const global = new Set();
+      const byCatalog = new Map();
+      const global = new Map();
       items.forEach((item) => {
-        const titleKey = normalizeBookTitleKey(item.bookTitle || item);
+        const rawTitle = String(item.bookTitle || item || '').trim();
+        const titleKey = normalizeBookTitleKey(rawTitle);
         const catalogKey = normalizeBookTitleKey(item.releaseCatalog || '');
         if (!titleKey) return;
-        global.add(titleKey);
-        byCatalog.add(`${catalogKey}|${titleKey}`);
+        global.set(titleKey, chooseCanonicalDisplayTitle(global.get(titleKey), rawTitle));
+        byCatalog.set(`${catalogKey}|${titleKey}`, chooseCanonicalDisplayTitle(byCatalog.get(`${catalogKey}|${titleKey}`), rawTitle));
       });
       return { byCatalog, global };
     }
@@ -618,12 +644,15 @@
     function canonicalBookTitle(title, catalog = '', lookup = buildCanonicalBookTitleLookup()) {
       const rawTitle = String(title || '').trim();
       const titleKey = normalizeBookTitleKey(rawTitle);
-      if (!titleKey.includes(':')) return rawTitle;
+      const catalogKey = normalizeBookTitleKey(catalog);
+      const canonical = lookup.byCatalog.get(`${catalogKey}|${titleKey}`) || lookup.global.get(titleKey);
+      if (canonical) return canonical;
+      if (!rawTitle.includes(':')) return rawTitle;
       const baseTitle = rawTitle.split(':')[0].trim();
       const baseKey = normalizeBookTitleKey(baseTitle);
-      const catalogKey = normalizeBookTitleKey(catalog);
-      if (baseKey && (lookup.byCatalog.has(`${catalogKey}|${baseKey}`) || lookup.global.has(baseKey))) {
-        return baseTitle;
+      const canonicalBase = lookup.byCatalog.get(`${catalogKey}|${baseKey}`) || lookup.global.get(baseKey);
+      if (baseKey && canonicalBase) {
+        return canonicalBase;
       }
       return rawTitle;
     }
@@ -765,7 +794,7 @@
       }
       const userVal = document.getElementById('userDropdown').value.trim().toLowerCase();
       const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
-      const bookVal = document.getElementById('bookDropdown').value.trim().toLowerCase();
+      const bookVal = normalizeBookTitleKey(document.getElementById('bookDropdown').value);
       const catalogVal = canonicalCatalogFilterValue(document.getElementById('catalogDropdown').value).trim().toLowerCase();
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
@@ -786,7 +815,7 @@
 
       if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
       if (typeVal) data = data.filter((row) => normalizeTypeForFilter(row.type) === typeVal);
-      if (bookVal) data = data.filter((row) => String(row.bookTitle || '').trim().toLowerCase() === bookVal);
+      if (bookVal) data = data.filter((row) => normalizeBookTitleKey(canonicalBookTitle(row.bookTitle, row.releaseCatalog)) === bookVal);
       if (catalogVal) data = data.filter((row) => canonicalCatalogFilterValue(row.releaseCatalog).trim().toLowerCase() === catalogVal);
       if (hasCharCountFilter) {
         data = data.filter((row) => {
@@ -845,9 +874,10 @@
           : row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" target="_blank" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
         const typeLabel = formatContentTypeLabel(row.type);
         const charCount = Number(row.charCount || 0) || 0;
+        const displayBookTitle = canonicalBookTitle(row.bookTitle, row.releaseCatalog);
         const html = isUserView
-          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
-          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(row.bookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
+          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
+          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
         tbody.insertAdjacentHTML('beforeend', html);
       });
     }
