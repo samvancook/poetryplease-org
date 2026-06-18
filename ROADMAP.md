@@ -44,6 +44,7 @@
   - keep this process lightweight enough that it does not add meaningful manual work
 - Then improve the public entry experience:
   - polish the first screen and login/anonymous choice
+  - document and preserve the Short Form 2026 locked-lane share link: `https://poetryplease.org/app?catalog=Contest&book=Short%20Form%202026&locked=1`, ending with `Show me more poems!`
   - measure first content load timing
   - investigate non-Google account creation path after the entry flow is stable
 - Continue the normal-user load-time stability pass:
