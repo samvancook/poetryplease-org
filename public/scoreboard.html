@@ -631,6 +631,7 @@
       const rawTitle = String(title || '').trim();
       const key = normalizeBookTitleKey(rawTitle);
       if (key === 'st trigger here') return 'St. Trigger';
+      if (key === 'thewillies') return 'The Willies';
       return rawTitle;
     }
 
