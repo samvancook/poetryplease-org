@@ -627,11 +627,18 @@
       return displayTitleScore(candidate) > displayTitleScore(current) ? candidate : current;
     }
 
+    function knownBookTitleAlias(title) {
+      const rawTitle = String(title || '').trim();
+      const key = normalizeBookTitleKey(rawTitle);
+      if (key === 'st trigger here') return 'St. Trigger';
+      return rawTitle;
+    }
+
     function buildCanonicalBookTitleLookup(items = allGraphics) {
       const byCatalog = new Map();
       const global = new Map();
       items.forEach((item) => {
-        const rawTitle = String(item.bookTitle || item || '').trim();
+        const rawTitle = knownBookTitleAlias(item.bookTitle || item);
         const titleKey = normalizeBookTitleKey(rawTitle);
         const catalogKey = normalizeBookTitleKey(item.releaseCatalog || '');
         if (!titleKey) return;
@@ -642,7 +649,7 @@
     }
 
     function canonicalBookTitle(title, catalog = '', lookup = buildCanonicalBookTitleLookup()) {
-      const rawTitle = String(title || '').trim();
+      const rawTitle = knownBookTitleAlias(title);
       const titleKey = normalizeBookTitleKey(rawTitle);
       const catalogKey = normalizeBookTitleKey(catalog);
       const canonical = lookup.byCatalog.get(`${catalogKey}|${titleKey}`) || lookup.global.get(titleKey);
