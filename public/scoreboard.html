@@ -635,6 +635,12 @@
       return rawTitle;
     }
 
+    function isKnownWrongBookCatalogPair(bookTitle, catalog) {
+      const bookKey = normalizeBookTitleKey(knownBookTitleAlias(bookTitle));
+      const catalogKey = normalizeBookTitleKey(canonicalCatalogFilterValue(catalog));
+      return bookKey === 'about time' && catalogKey === 'fall 2026';
+    }
+
     function buildCanonicalBookTitleLookup(items = allGraphics) {
       const byCatalog = new Map();
       const global = new Map();
@@ -740,6 +746,7 @@
           .filter((row) => canonicalCatalogFilterValue(row.releaseCatalog).trim().toLowerCase() === catalogKey)
           .map((row) => row.bookTitle || '');
       }
+      if (catalogKey) rawList = rawList.filter((title) => !isKnownWrongBookCatalogPair(title, catalogKey));
       const normalized = Array.from(new Map(rawList.map((title) => {
         const canonical = canonicalBookTitle(title, catalogKey, canonicalLookup);
         return [normalizeBookTitleKey(canonical), canonical];
@@ -821,6 +828,7 @@
           ))
         : aggregatedData.slice();
 
+      data = data.filter((row) => !isKnownWrongBookCatalogPair(row.bookTitle, row.releaseCatalog));
       if (!userVal && hideZero) data = data.filter((row) => row.totalVotes > 0);
       if (typeVal) data = data.filter((row) => normalizeTypeForFilter(row.type) === typeVal);
       if (bookVal) data = data.filter((row) => normalizeBookTitleKey(canonicalBookTitle(row.bookTitle, row.releaseCatalog)) === bookVal);
@@ -903,6 +911,7 @@
 
       const bookMap = {};
       allGraphics.forEach((graphic) => {
+        if (isKnownWrongBookCatalogPair(graphic.bookTitle, graphic.releaseCatalog)) return;
         const catalog = canonicalCatalogFilterValue(graphic.releaseCatalog);
         const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
         if (!title) return;
@@ -925,6 +934,7 @@
         : aggregatedData.filter((row) => row.totalVotes > 0);
 
       source.forEach((row) => {
+        if (isKnownWrongBookCatalogPair(row.bookTitle, row.releaseCatalog)) return;
         const catalog = canonicalCatalogFilterValue(row.releaseCatalog);
         const title = canonicalBookTitle(row.bookTitle, catalog, canonicalLookup);
         const bookKey = normalizeBookTitleKey(title);
@@ -935,6 +945,7 @@
       });
 
       allGraphics.forEach((graphic) => {
+        if (isKnownWrongBookCatalogPair(graphic.bookTitle, graphic.releaseCatalog)) return;
         const catalog = canonicalCatalogFilterValue(graphic.releaseCatalog);
         const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
         const key = `${normalizeBookTitleKey(title)}|${catalog.toLowerCase()}`;
