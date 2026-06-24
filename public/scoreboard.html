@@ -1001,6 +1001,8 @@
       document.querySelector('#progressBars th[data-column="missingCatalog"]').style.display = showMissingCatalogColumn ? '' : 'none';
       if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="${showMissingCatalogColumn ? 16 : 15}"><div class="empty">No progress rows match the current filters.</div></td></tr>`;
+        const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
+        setStatus(`Loaded 0 progress rows.${metaText ? ` ${metaText}` : ''}`);
         return;
       }
 
@@ -1030,6 +1032,9 @@
         `;
         tbody.appendChild(tr);
       });
+
+      const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
+      setStatus(`Loaded ${rows.length} progress row${rows.length === 1 ? '' : 's'} from ${allGraphics.length} content item${allGraphics.length === 1 ? '' : 's'}.${metaText ? ` ${metaText}` : ''}`);
     }
 
     async function exportVisibleSheet() {
@@ -1147,13 +1152,16 @@
       if (fullScoreboardLoaded) return;
       setControlsDisabled(true);
       setStatus('Loading progress data…');
-      const payload = await api('scoreboard', { method: 'GET' });
-      aggregatedData = (payload.aggregated || []).map(enrichScoreMetrics);
-      rawVotes = payload.rawVotes || [];
-      allGraphics = payload.allGraphics || [];
-      scoreboardSnapshotMeta = payload.snapshotMeta || null;
-      fullScoreboardLoaded = true;
-      setControlsDisabled(false);
+      try {
+        const payload = await api('scoreboard', { method: 'GET' });
+        aggregatedData = (payload.aggregated || []).map(enrichScoreMetrics);
+        rawVotes = payload.rawVotes || [];
+        allGraphics = payload.allGraphics || [];
+        scoreboardSnapshotMeta = payload.snapshotMeta || null;
+        fullScoreboardLoaded = true;
+      } finally {
+        setControlsDisabled(false);
+      }
     }
 
     async function loadScoreboard() {
