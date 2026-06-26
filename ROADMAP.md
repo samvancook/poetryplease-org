@@ -103,6 +103,10 @@
   - make summary/progress views avoid loading/rendering the full item table
   - lazy-render expensive cells such as links and long IDs only for visible rows
   - make zero-vote inclusion an intentional heavier mode where useful
+- Expand full-poem scoring after the first derivative-content point pass:
+  - evaluate whether all or some fraction of derivative content scores should roll back into the source `FP`
+  - preserve direct `FP` vote score separately enough that we can explain whether a poem is winning because the poem itself works or because its excerpts/images/videos work
+  - decide whether score-back should apply equally across `EXC`, `QI`, `INT`, `VV`, and `YT`, or use different weights by content type
 - Add visible book-disambiguation diagnostics to Scoreboard:
   - show possible duplicate book records caused by punctuation, case, spacing, or subtitle variants such as `The Willies` / `Thewillies`
   - flag subtitle-style splits where one canonical book is being counted as two scoreboard books

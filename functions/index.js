@@ -1871,6 +1871,36 @@ async function buildScoreboardPayload() {
   fullPoemObjs.forEach(upsertMeta);
   videoObjs.forEach(upsertMeta);
 
+  const contentRows = Array.from(new Map(
+    Array.from(metaMap.values()).map((meta) => [normalizeKey(meta.imageId), meta])
+  ).values());
+  const poemKeyForScore = (item = {}) => {
+    const author = normalizeKey(item.author || "");
+    const book = normalizeKey(item.bookTitle || item.book || "");
+    const title = normalizeKey(item.poemTitle || item.title || item.poem || "");
+    if (!author || !book || !title) return "";
+    return `${author}|${book}|${title}`;
+  };
+  const fpDerivativePointsByImageId = new Map();
+  const fpImageIdsByPoemKey = new Map();
+  contentRows.forEach((item) => {
+    if (normalizeKey(item.type) !== "fp") return;
+    const poemKey = poemKeyForScore(item);
+    const imageId = normalizeText(item.imageId);
+    if (!poemKey || !imageId) return;
+    fpImageIdsByPoemKey.set(poemKey, [...(fpImageIdsByPoemKey.get(poemKey) || []), imageId]);
+    fpDerivativePointsByImageId.set(imageId, 0);
+  });
+  contentRows.forEach((item) => {
+    const type = normalizeKey(item.type);
+    if (!["exc", "qi", "int", "vv", "yt"].includes(type)) return;
+    const poemKey = poemKeyForScore(item);
+    const matchingFpIds = fpImageIdsByPoemKey.get(poemKey) || [];
+    matchingFpIds.forEach((imageId) => {
+      fpDerivativePointsByImageId.set(imageId, (fpDerivativePointsByImageId.get(imageId) || 0) + 1);
+    });
+  });
+
   const enrichedVotes = rawVotes.map((vote) => {
     const meta = metaMap.get(vote.imageId) || {};
     const normalizedImageId = normalizeKey(vote.imageId);
@@ -1922,6 +1952,7 @@ async function buildScoreboardPayload() {
         meh: 0,
         movedMe: 0,
         totalVotes: 0,
+        fpDerivativePoints: 0,
         type: vote.type || "",
         releaseCatalog: vote.releaseCatalog || "",
         charCount: Number(vote.charCount || 0) || 0,
@@ -1956,6 +1987,7 @@ async function buildScoreboardPayload() {
       meh: 0,
       movedMe: 0,
       totalVotes: 0,
+      fpDerivativePoints: 0,
       type: meta.type || "",
       releaseCatalog: meta.releaseCatalog || "",
       charCount: Number(meta.charCount || 0) || 0,
@@ -1964,7 +1996,8 @@ async function buildScoreboardPayload() {
 
   const aggregated = Array.from(board.values()).map((entry) => ({
     ...entry,
-    score: entry.likes + (entry.movedMe * 2) - entry.dislikes,
+    fpDerivativePoints: normalizeKey(entry.type) === "fp" ? Number(fpDerivativePointsByImageId.get(entry.imageId) || 0) : 0,
+    score: entry.likes + (entry.movedMe * 2) - entry.dislikes + (normalizeKey(entry.type) === "fp" ? Number(fpDerivativePointsByImageId.get(entry.imageId) || 0) : 0),
   }));
 
   const flaggedKeySet = flaggedIds;
@@ -3681,7 +3714,7 @@ app.post(getBoth("/scoreboard/exportSheet"), async (req, res) => {
 
   const headers = isUserView
     ? ["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "vote"]
-    : ["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score"];
+    : ["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "fileLink", "cloudLink", "driveLink", "sourceFolderLink", "sourceFileName", "excerpt", "likes", "dislikes", "meh", "movedMe", "totalVotes", "fpDerivativePoints", "score"];
 
   const normalizedRows = enrichedRows.map((row) =>
     headers.map((key) => {

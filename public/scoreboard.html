@@ -538,7 +538,7 @@
       };
       const headers = isUserView
         ? ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'cloudLink', 'driveLink', 'sourceFolderLink', 'sourceFileName', 'excerpt', 'vote']
-        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'cloudLink', 'driveLink', 'sourceFolderLink', 'sourceFileName', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'score', 'scorePerVote', 'likeRate', 'movedMeRate', 'mehRate', 'dislikeRate'];
+        : ['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'cloudLink', 'driveLink', 'sourceFolderLink', 'sourceFileName', 'excerpt', 'likes', 'dislikes', 'meh', 'movedMe', 'totalVotes', 'fpDerivativePoints', 'score', 'scorePerVote', 'likeRate', 'movedMeRate', 'mehRate', 'dislikeRate'];
       const values = [
         headers,
         ...rows.map((row) => {

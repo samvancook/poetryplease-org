@@ -13,6 +13,22 @@ Raw score is:
 
 `score = likes + (movedMe * 2) - dislikes`
 
+For `FP` full-poem records, Poetry Please also adds one derivative-content point for each matching derivative content item tied to the same author, book, and poem title:
+
+- `EXC` excerpt
+- `QI` quote image
+- `INT` interior/photo item
+- `VV` uploaded/native video
+- `YT` YouTube video
+
+So for full poems:
+
+`score = likes + (movedMe * 2) - dislikes + fpDerivativePoints`
+
+For all other content types, raw score remains:
+
+`score = likes + (movedMe * 2) - dislikes`
+
 This is useful for measuring total accumulated positive response, but it has an important weakness:
 
 - `meh` adds no score
@@ -32,6 +48,8 @@ For exports, keep the current raw score and add quality metrics beside it.
 ### 1. Raw Score
 
 `rawScore = likes + (movedMe * 2) - dislikes`
+
+For `FP`, raw score includes `fpDerivativePoints`, one point per matching derivative content item.
 
 Use for:
 
