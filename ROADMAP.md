@@ -16,6 +16,7 @@
 - Social performance signals ingestion for Poetry Please content
 - Published social asset history ingestion tied back to Poetry Please items
 - Catalog-consistent `INT` import workflow for new Drive folders so incoming assets match existing catalog metadata and conventions
+- Shared Drive migration for durable Poetry Please handoff docs, imports, exports, and operating notes
 
 ## Top Product Priorities
 - Smooth the general user experience:
@@ -58,6 +59,15 @@
 - Schedule the Firebase runtime maintenance separately from feature work:
   - upgrade the deprecated Node.js 20 Cloud Functions runtime before its October 31, 2026 decommission date
   - upgrade the outdated `firebase-functions` package carefully, with a dedicated smoke-test pass for breaking changes
+- Build out the shared Drive migration:
+  - maintain `MIGRATION_MANIFEST.md` as the local and Drive-facing map of what moved, where it lives, and whether Drive or GitHub is canonical
+  - keep GitHub canonical for app code, functions, hosting assets, and deployable source
+  - use Shared Drive for team-facing handoff files, import/export artifacts, production seed files, operating notes, and workflow documentation
+  - migrate the next documentation batch: `SCORING_REFERENCE.md`, `APP_FUNCTION.md`, `LINK_GUIDE.md`, import/export templates, deploy notes, and smoke-test checklists
+  - decide whether important Markdown files should remain raw `.md` snapshots or become Google Docs for easier team editing
+  - decide how long to preserve older production import/export versions, and whether to add a `Deprecated / Do Not Use` folder
+  - split large local workspaces such as `Social Media Dev` into code, source catalog data, exports, and generated media before moving anything bulky
+  - avoid bulk-uploading whole repos, `.git`, `node_modules`, caches, generated build output, or unreviewed scratch folders
 - Use the existing Poetry Please admin/content-library area as the first-pass Weaver intake surface
 - Reuse the current JSON-style preview/import flow for Weaver-fed `QI`
 - Preserve per-item metadata even when Weaver groups requests upstream
