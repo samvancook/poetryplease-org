@@ -127,13 +127,15 @@ for (const record of BOOK_CATALOG_LOOKUP_ROWS) {
   }
   const titleKeys = Array.isArray(record?.titleKeys) ? record.titleKeys.filter(Boolean) : [];
   titleKeys.forEach((titleKey) => {
-    BOOK_CATALOG_TITLE_BUCKETS.set(titleKey, [
-      ...(BOOK_CATALOG_TITLE_BUCKETS.get(titleKey) || []),
-      record,
-    ]);
-    if (authorKey) {
-      BOOK_CATALOG_LOOKUP.set(`${authorKey}|${titleKey}`, record);
-    }
+    [titleKey, titleKey.replace(/\s+/g, "")].filter(Boolean).forEach((key) => {
+      BOOK_CATALOG_TITLE_BUCKETS.set(key, [
+        ...(BOOK_CATALOG_TITLE_BUCKETS.get(key) || []),
+        record,
+      ]);
+      if (authorKey) {
+        BOOK_CATALOG_LOOKUP.set(`${authorKey}|${key}`, record);
+      }
+    });
   });
 }
 
@@ -148,13 +150,14 @@ function resolveCatalogBookRecord({ author = "", book = "", bookShortener = "", 
   if (normalizedShortener && BOOK_CATALOG_SHORTENER_LOOKUP.has(normalizedShortener)) {
     return BOOK_CATALOG_SHORTENER_LOOKUP.get(normalizedShortener);
   }
-  const titleKey = normalizeCatalogLookupKey(book);
-  if (!titleKey) return null;
-  const bucket = BOOK_CATALOG_TITLE_BUCKETS.get(titleKey) || [];
-  if (!bucket.length) return null;
   const authorKey = normalizeCatalogLookupKey(author);
-  if (!authorKey) return bucket[0];
-  return bucket.find((row) => normalizeCatalogLookupKey(row.author) === authorKey || normalizeCatalogLookupKey(row.authorKey) === authorKey) || bucket[0];
+  for (const titleKey of buildCatalogTitleLookupKeys(book)) {
+    const bucket = BOOK_CATALOG_TITLE_BUCKETS.get(titleKey) || [];
+    if (!bucket.length) continue;
+    if (!authorKey) return bucket[0];
+    return bucket.find((row) => normalizeCatalogLookupKey(row.author) === authorKey || normalizeCatalogLookupKey(row.authorKey) === authorKey) || bucket[0];
+  }
+  return null;
 }
 
 function resolveCanonicalCatalogMetadata(item = {}) {
@@ -186,6 +189,18 @@ function resolveCanonicalCatalogMetadata(item = {}) {
     matchReason: match
       ? (sanitizeDocIdSegment(item.bookShortener || inferBookShortenerFromFilename(item.fileName || item.sourceFileName || item.updatedFileName || item.imageId || item.contentId || "")) ? "matched_by_shortener" : "matched_by_author_title")
       : "unmatched",
+  };
+}
+
+function canonicalizeContentRecord(item = {}) {
+  const canonical = resolveCanonicalCatalogMetadata(item);
+  if (!canonical.matched) return item;
+  return {
+    ...item,
+    book: canonical.book || item.book || item.bookTitle || "",
+    releaseCatalog: canonical.releaseCatalog || item.releaseCatalog || "",
+    bookShortener: canonical.bookShortener || item.bookShortener || "",
+    bookLink: item.bookLink || canonical.bookLink || "",
   };
 }
 
@@ -304,10 +319,10 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
   }
   contentCache.inFlight = getAllContent()
     .then((payload) => {
-      contentCache.payload = payload;
+      contentCache.payload = payload.map(canonicalizeContentRecord);
       contentCache.builtAt = Date.now();
       contentCache.inFlight = null;
-      return payload;
+      return contentCache.payload;
     })
     .catch((err) => {
       contentCache.inFlight = null;
@@ -2686,6 +2701,8 @@ function buildCatalogTitleLookupKeys(value) {
   const pushKey = (candidate) => {
     const key = normalizeCatalogLookupKey(candidate);
     if (key && !keys.includes(key)) keys.push(key);
+    const compactKey = key.replace(/\s+/g, "");
+    if (compactKey && !keys.includes(compactKey)) keys.push(compactKey);
   };
   pushKey(raw);
   [":", " — ", " – ", " - "].forEach((separator) => {
