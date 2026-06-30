@@ -3948,7 +3948,7 @@ app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllFrom(COLLECTIONS.votes),
+    getAllVotes(),
   ]);
   const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
   const allContent = [...g, ...e, ...fp, ...v];
@@ -4178,7 +4178,7 @@ app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllFrom(COLLECTIONS.votes),
+    getAllVotes(),
   ]);
   const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
   const allContent = [...g, ...e, ...fp, ...v];
@@ -4216,7 +4216,7 @@ app.get(getBoth("/admin/authorReviewPreview"), async (req, res) => {
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllFrom(COLLECTIONS.votes),
+    getAllVotes(),
   ]);
   const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
   const allContent = [...g, ...e, ...fp, ...v];

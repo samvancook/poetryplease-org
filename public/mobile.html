@@ -249,7 +249,8 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
     /* Floating "i" button */
     .info-btn{position:absolute;left:8px;top:8px;width:32px;height:32px;border-radius:50%;
-      border:1px solid #e6e6e6;background:#fff;box-shadow:var(--shadow);font-weight:700}
+      border:1px solid #e6e6e6;background:#fff;box-shadow:var(--shadow);font-weight:700;
+      pointer-events:auto!important;z-index:999999!important}
 
     /* Sticky bottom controls */
     .sticky-controls{position:fixed;left:0;right:0;bottom:0;z-index:9999;
