@@ -2272,8 +2272,29 @@ function getActiveFilterPayload(extra = {}) {
   };
 }
 
+function waitForAuthReadyForFeed() {
+  if (window.__pp_authResolved) return Promise.resolve(firebase.auth().currentUser || null);
+  return new Promise((resolve) => {
+    let done = false;
+    let timer = null;
+    let unsubscribe = () => {};
+    const finish = (user) => {
+      if (done) return;
+      done = true;
+      if (timer) clearTimeout(timer);
+      unsubscribe();
+      resolve(user || firebase.auth().currentUser || null);
+    };
+    unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+      window.__pp_authResolved = true;
+      finish(user);
+    });
+    timer = window.setTimeout(() => finish(firebase.auth().currentUser || null), 2500);
+  });
+}
+
 async function fetchFilteredFeedData() {
-  const user = firebase.auth().currentUser;
+  const user = await waitForAuthReadyForFeed();
   if (user && !user.isAnonymous) return fetchFilteredWrapped(getActiveFilterPayload());
 
   const anonId = await getOrCreateAnonId();
@@ -2281,7 +2302,7 @@ async function fetchFilteredFeedData() {
 }
 
 async function fetchFullFeedData() {
-  const user = firebase.auth().currentUser;
+  const user = await waitForAuthReadyForFeed();
   if (user && !user.isAnonymous) return fetchFullDataWrapped();
 
   const anonId = await getOrCreateAnonId();
@@ -3298,7 +3319,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
   const nextFeedIdentityKey = getFeedIdentityKey();
   if (lastFeedIdentityKey !== nextFeedIdentityKey) {
     lastFeedIdentityKey = nextFeedIdentityKey;
-    if (!currentItem) resetFeedForIdentityChange();
+    if (!currentItem || visibleUser) resetFeedForIdentityChange();
     else LoadTiming.mark('identityReady', 'kept rendered item');
   }
 
