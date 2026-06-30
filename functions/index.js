@@ -2705,7 +2705,7 @@ function buildCatalogTitleLookupKeys(value) {
     if (compactKey && !keys.includes(compactKey)) keys.push(compactKey);
   };
   pushKey(raw);
-  [":", " — ", " – ", " - "].forEach((separator) => {
+  [":", ",", " — ", " – ", " - "].forEach((separator) => {
     if (raw.includes(separator)) {
       pushKey(raw.split(separator, 1)[0]);
     }
