@@ -2276,8 +2276,45 @@ async function getCachedScoreboardPayload() {
     .catch((err) => {
       scoreboardCache.inFlight = null;
       throw err;
-    });
+  });
   return scoreboardCache.inFlight;
+}
+
+async function buildInternalCoverageCountsPayload(contentType = "QI") {
+  const normalizedType = normalizeText(contentType || "QI").toUpperCase();
+  const result = await getScoreboardPayloadFromSnapshot();
+  const countsByBookKey = {};
+  (result?.payload?.aggregated || []).forEach((row) => {
+    if (normalizeText(row?.type).toUpperCase() !== normalizedType) return;
+    const canonical = resolveCanonicalCatalogMetadata({
+      author: row?.author || "",
+      book: row?.bookTitle || row?.book || "",
+      bookShortener: row?.bookShortener || "",
+      sourceFileName: row?.sourceFileName || row?.imageId || "",
+    });
+    const bookTitle = normalizeText(canonical.book || row?.bookTitle || row?.book || "");
+    const bookKey = normalizeCatalogLookupKey(bookTitle);
+    if (!bookKey) return;
+    const current = countsByBookKey[bookKey] || {
+      bookKey,
+      bookTitle,
+      count: 0,
+      contentType: normalizedType,
+    };
+    current.count += 1;
+    current.bookTitle = current.bookTitle || bookTitle;
+    countsByBookKey[bookKey] = current;
+  });
+  return {
+    ok: true,
+    contentType: normalizedType,
+    counts: Object.values(countsByBookKey),
+    snapshotMeta: {
+      source: result.source,
+      builtAtMs: result.builtAtMs,
+      ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+    },
+  };
 }
 
 async function readScoreboardSnapshot() {
@@ -5138,6 +5175,19 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "weaver_import_failed" });
+  }
+});
+
+app.get(getBoth("/internal/coverageCounts"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  try {
+    const result = await buildInternalCoverageCountsPayload(req.query?.type || "QI");
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "coverage_counts_failed" });
   }
 });
 
