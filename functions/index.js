@@ -5002,7 +5002,7 @@ async function assignPersistentWeaverFullPoemIds(items = []) {
     const baseId = `${sanitizeDocIdSegment(bookShortener)}-FP-${slugify(item.title)}`.toUpperCase();
     let nextId = baseId;
     let index = 1;
-    while (usedIds.has(nextId) || (await db.collection(COLLECTIONS.fullPoems).doc(nextId).get()).exists) {
+    while (usedIds.has(nextId)) {
       index += 1;
       nextId = `${baseId}-${index}`;
     }
