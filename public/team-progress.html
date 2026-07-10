@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Button Team Progress | Poetry, Please</title>
+  <link rel="icon" type="image/png" href="/pp-loader-logo.png" />
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <style>
+    :root { --paper:#f7f3ea; --ink:#1e1a15; --muted:#6c6558; --line:#dad0c1; --card:rgba(255,253,248,.9); --accent:#2f5d62; --accent-soft:#d7e7e9; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:radial-gradient(circle at top right,rgba(47,93,98,.14),transparent 35%),linear-gradient(180deg,#faf7f0 0%,var(--paper) 100%); }
+    .shell { max-width:1280px; margin:0 auto; padding:28px 20px 56px; }
+    .topbar,.topbar-actions,.controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .topbar { justify-content:space-between; }
+    a { color:var(--accent); font-weight:600; }
+    h1 { margin:18px 0 8px; font-size:clamp(36px,5vw,58px); line-height:.95; letter-spacing:-.04em; }
+    .lede,.status,.meta { color:var(--muted); }
+    .lede { margin:0 0 24px; max-width:70ch; line-height:1.6; }
+    .card { background:var(--card); border:1px solid var(--line); border-radius:22px; padding:18px; box-shadow:0 22px 60px rgba(24,19,12,.08); backdrop-filter:blur(8px); }
+    .controls { margin-bottom:16px; }
+    .controls label { display:inline-flex; align-items:center; gap:8px; color:var(--muted); font-size:14px; }
+    input,select,button { border-radius:16px; border:1px solid var(--line); background:rgba(255,255,255,.76); color:var(--ink); font:inherit; padding:11px 14px; }
+    select,input { min-width:180px; }
+    button { cursor:pointer; font-weight:600; }
+    button.primary { background:var(--accent); color:white; border-color:transparent; }
+    .status { margin-bottom:12px; }
+    .status.error { color:#8a3b2f; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; }
+    th,td { border-bottom:1px solid #e9e0d2; padding:10px 8px; text-align:left; vertical-align:top; }
+    th { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.12em; position:sticky; top:0; z-index:3; background:rgba(255,253,248,.98); cursor:pointer; }
+    tr[data-user] { cursor:pointer; }
+    tr:hover td { background:rgba(47,93,98,.05); }
+    .progress { width:100%; background-color:#eee4d3; border-radius:999px; overflow:hidden; height:1rem; }
+    .progress-fill { height:100%; background:linear-gradient(90deg,#2f5d62,#6aa6ab); width:0; transition:width .4s ease; }
+    .empty { padding:24px; text-align:center; color:var(--muted); border:1px dashed var(--line); border-radius:18px; }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar">
+      <div class="topbar-actions">
+        <a href="/scoreboard">Scoreboard</a>
+        <a href="/admin">Admin</a>
+      </div>
+      <div class="topbar-actions">
+        <span id="auth-note" class="meta">Checking access...</span>
+        <button id="login-google" type="button" class="primary" style="display:none;">Log in with Google</button>
+        <button id="logout" type="button" style="display:none;">Log out</button>
+      </div>
+    </div>
+
+    <h1>Button Team Progress</h1>
+    <p class="lede">Admin-only progress view for users signed in with an @buttonpoetry.com address.</p>
+
+    <section class="card">
+      <div class="controls">
+        <label>Date
+          <select id="window">
+            <option value="all">All time</option>
+            <option value="today">Today</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label>Start <input id="startDate" type="date" /></label>
+        <label>End <input id="endDate" type="date" /></label>
+        <label>Type <select id="type"></select></label>
+        <label>Catalog <select id="catalog"></select></label>
+        <label>Book <select id="book"></select></label>
+        <button id="exportCsv" type="button">Export CSV</button>
+      </div>
+      <div id="status" class="status">Loading...</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Unique Items Voted</th>
+              <th>Total Votes</th>
+              <th>Available Items</th>
+              <th>Progress</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.firebasestorage.app",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    firebase.initializeApp(FIREBASE_CONFIG);
+
+    let currentPayload = null;
+    let expandedUser = '';
+
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (value) => String(value || '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
+    const pct = (value) => `${Math.round(Number(value || 0) * 100)}%`;
+
+    async function token() {
+      const user = firebase.auth().currentUser;
+      return user ? user.getIdToken(false) : null;
+    }
+
+    async function api(path) {
+      const idToken = await token();
+      const res = await fetch(`/api/${path.replace(/^\//, '')}`, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
+      });
+      if (!res.ok) throw new Error(await res.text().catch(() => `HTTP ${res.status}`));
+      return res.json();
+    }
+
+    function setStatus(message, error = false) {
+      $('status').textContent = message;
+      $('status').className = error ? 'status error' : 'status';
+    }
+
+    function fillSelect(id, values, allLabel) {
+      const sel = $(id);
+      const selected = sel.value;
+      sel.innerHTML = `<option value="">${allLabel}</option>` + (values || []).map((value) => `<option>${escapeHtml(value)}</option>`).join('');
+      if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
+    }
+
+    function queryString() {
+      const params = new URLSearchParams();
+      ['window', 'startDate', 'endDate', 'type', 'catalog', 'book'].forEach((id) => {
+        const value = $(id).value.trim();
+        if (value) params.set(id, value);
+      });
+      return params.toString();
+    }
+
+    async function loadProgress() {
+      setStatus('Loading team progress...');
+      const payload = await api(`admin/teamProgress?${queryString()}`);
+      currentPayload = payload;
+      fillSelect('type', payload.filterOptions?.types || [], 'All Types');
+      fillSelect('catalog', payload.filterOptions?.catalogs || [], 'All Catalogs');
+      fillSelect('book', payload.filterOptions?.books || [], 'All Books');
+      renderRows();
+    }
+
+    function renderRows() {
+      const tbody = $('rows');
+      const rows = currentPayload?.rows || [];
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty">No Button team progress rows match these filters.</div></td></tr>';
+        setStatus(`Loaded 0 rows against ${currentPayload?.availableCount || 0} available items.`);
+        return;
+      }
+      rows.forEach((row) => {
+        const tr = document.createElement('tr');
+        tr.dataset.user = row.user;
+        tr.innerHTML = `
+          <td>${escapeHtml(row.user)}</td>
+          <td>${row.votedCount}</td>
+          <td>${row.totalVotes}</td>
+          <td>${row.availableCount}</td>
+          <td><div class="progress"><div class="progress-fill" style="width:${pct(row.percent)}"></div></div><div class="meta" style="margin-top:6px;">${pct(row.percent)}</div></td>
+        `;
+        tbody.appendChild(tr);
+        if (expandedUser === row.user) {
+          const details = (row.details || []).map((detail) => `
+            <tr>
+              <td>${escapeHtml(detail.releaseCatalog)}</td>
+              <td>${escapeHtml(detail.bookTitle)}</td>
+              <td>${detail.votedCount}</td>
+              <td>${detail.availableCount}</td>
+              <td><div class="progress"><div class="progress-fill" style="width:${pct(detail.percent)}"></div></div><div class="meta" style="margin-top:6px;">${pct(detail.percent)}</div></td>
+            </tr>
+          `).join('');
+          const detailTr = document.createElement('tr');
+          detailTr.innerHTML = `<td colspan="5"><div class="empty" style="text-align:left;"><strong>${escapeHtml(row.user)} by catalog/book</strong><div class="table-wrap" style="margin-top:12px;"><table><thead><tr><th>Catalog</th><th>Book</th><th>Unique Items Voted</th><th>Available Items</th><th>Progress</th></tr></thead><tbody>${details}</tbody></table></div></div></td>`;
+          tbody.appendChild(detailTr);
+        }
+      });
+      setStatus(`Loaded ${rows.length} team progress rows against ${currentPayload.availableCount || 0} available items. Date window: ${currentPayload.dateRange?.label || 'All time'}.`);
+    }
+
+    function exportCsv() {
+      const rows = currentPayload?.rows || [];
+      const csvRows = [['user','releaseCatalog','bookTitle','uniqueItemsVoted','totalVotes','availableItems','percent']];
+      rows.forEach((row) => {
+        csvRows.push([row.user,'','All matching content',row.votedCount,row.totalVotes,row.availableCount,Math.round(row.percent * 100)]);
+        (row.details || []).forEach((detail) => {
+          csvRows.push([row.user,detail.releaseCatalog,detail.bookTitle,detail.votedCount,'',detail.availableCount,Math.round(detail.percent * 100)]);
+        });
+      });
+      const csv = csvRows.map((row) => row.map((cell) => `"${String(cell ?? '').replaceAll('"','""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `poetry-please-team-progress-${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function signIn() {
+      firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(() => setStatus('Google sign-in failed.', true));
+    }
+
+    $('login-google').addEventListener('click', signIn);
+    $('logout').addEventListener('click', async () => { await firebase.auth().signOut(); location.reload(); });
+    $('rows').addEventListener('click', (event) => {
+      const row = event.target.closest('tr[data-user]');
+      if (!row) return;
+      expandedUser = expandedUser === row.dataset.user ? '' : row.dataset.user;
+      renderRows();
+    });
+    ['window', 'startDate', 'endDate', 'type', 'catalog', 'book'].forEach((id) => $(id).addEventListener('change', loadProgress));
+    $('exportCsv').addEventListener('click', exportCsv);
+
+    firebase.auth().onAuthStateChanged(async (user) => {
+      $('auth-note').textContent = user ? `Signed in as ${user.email || user.uid}` : 'Sign in with an admin account.';
+      $('login-google').style.display = user ? 'none' : '';
+      $('logout').style.display = user ? '' : 'none';
+      if (!user) return setStatus('Sign in with an admin account to view team progress.', true);
+      try {
+        const me = await api('me');
+        if (!(me.roles || []).includes('admin')) return setStatus('This page is admin-only.', true);
+        await loadProgress();
+      } catch (err) {
+        setStatus(err.message || 'Could not load team progress.', true);
+      }
+    });
+  </script>
+</body>
+</html>

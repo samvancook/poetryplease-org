@@ -978,6 +978,23 @@ async function getAllVotes() {
   return list;
 }
 
+async function getAuthorVoteUserIds() {
+  const ids = new Set();
+  let page = await db.collection(COLLECTIONS.users).limit(1000).get();
+  while (!page.empty) {
+    page.forEach((doc) => {
+      const data = doc.data() || {};
+      const roles = Array.isArray(data.roles) ? data.roles.map(normalizeKey) : [];
+      if (!roles.includes("author")) return;
+      ids.add(normalizeKey(doc.id));
+      if (data.email) ids.add(normalizeKey(data.email));
+    });
+    const last = page.docs[page.docs.length - 1];
+    page = await db.collection(COLLECTIONS.users).startAfter(last).limit(1000).get();
+  }
+  return ids;
+}
+
 function timestampToMs(value) {
   if (!value) return 0;
   if (typeof value?.toMillis === "function") return value.toMillis();
@@ -1078,29 +1095,45 @@ function mapToCounterArr(o) {
   ];
 }
 
-function aggregateRatings(voteDocs) {
+function authorVoteWeight(voteType) {
+  const t = normalizeKey(voteType);
+  if (t === "dislike") return -100;
+  if (t === "like") return 10;
+  if (t === "movedme" || t === "moved_me") return 25;
+  return 0;
+}
+
+function aggregateRatings(voteDocs, options = {}) {
+  const authorVoteUserIds = options.authorVoteUserIds || new Set();
   const agg = {};
   for (const v of voteDocs) {
     const id = (v.imageId || "").trim();
     if (!id) continue;
     const t = (v.voteType || "").toLowerCase();
+    const isAuthorVote = authorVoteUserIds.has(normalizeKey(v.userId || v.user || ""));
     let w = 0;
-    if (t === "dislike") w = -1;
+    if (isAuthorVote) w = authorVoteWeight(t);
+    else if (t === "dislike") w = -1;
     else if (t === "meh") w = 0;
     else if (t === "like") w = 1;
     else if (t === "moved me" || t === "movedme" || t === "moved_me") w = 2;
-    if (!agg[id]) agg[id] = { score: 0, total: 0, likes: 0, dislikes: 0, meh: 0, movedMe: 0 };
+    if (!agg[id]) agg[id] = { score: 0, total: 0, likes: 0, dislikes: 0, meh: 0, movedMe: 0, authorLikes: 0, authorDislikes: 0, authorMovedMe: 0 };
     agg[id].score += w;
     agg[id].total += 1;
     if (t === "like") agg[id].likes += 1;
     else if (t === "dislike") agg[id].dislikes += 1;
     else if (t === "meh") agg[id].meh += 1;
     else if (t === "moved me" || t === "movedme" || t === "moved_me") agg[id].movedMe += 1;
+    if (isAuthorVote) {
+      if (t === "like") agg[id].authorLikes += 1;
+      else if (t === "dislike") agg[id].authorDislikes += 1;
+      else if (t === "moved me" || t === "movedme" || t === "moved_me") agg[id].authorMovedMe += 1;
+    }
   }
   const out = {};
   Object.keys(agg).forEach((id) => {
-    const { score, total, likes, dislikes, meh, movedMe } = agg[id];
-    out[id] = { score, total, rating: total ? score / total : 0, likes, dislikes, meh, movedMe };
+    const { score, total, likes, dislikes, meh, movedMe, authorLikes, authorDislikes, authorMovedMe } = agg[id];
+    out[id] = { score, total, rating: total ? score / total : 0, likes, dislikes, meh, movedMe, authorLikes, authorDislikes, authorMovedMe, authorExcluded: authorDislikes > 0 };
   });
   return out;
 }
@@ -1111,8 +1144,8 @@ async function getRatingsSummaryCached() {
     return ratingsCache.payload;
   }
   if (ratingsCache.inFlight) return ratingsCache.inFlight;
-  ratingsCache.inFlight = getAllVotes()
-    .then((votes) => aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType }))))
+  ratingsCache.inFlight = Promise.all([getAllVotes(), getAuthorVoteUserIds()])
+    .then(([votes, authorVoteUserIds]) => aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds }))
     .then((payload) => {
       ratingsCache.payload = payload;
       ratingsCache.builtAt = Date.now();
@@ -1229,10 +1262,12 @@ function flattenWeaverGraphicsRecords(payload) {
 
 function deriveWeaverGraphicsDocId(record, defaultImageType = "QI") {
   const parent = record?.__weaverParentRecord || {};
+  const normalizedType = normalizeText(record?.contentType || record?.imageType || defaultImageType).toUpperCase();
   const explicit = sanitizeDocIdSegment(firstNonEmpty(
     record.docId,
     record.imageId,
     record.contentId,
+    normalizedType === "FPI" ? record.sourceRecordId : "",
     record.sourceCompletionId,
     record.graphicId,
     record.completedGraphicId,
@@ -1288,10 +1323,21 @@ function mapWeaverGraphicRecord(record, options = {}) {
   const author = firstNonEmpty(record.author, parent.author, firstExcerpt.author);
   const book = firstNonEmpty(record.book, parent.book, firstExcerpt.book);
   const catalogBookMetadata = lookupCatalogBookMetadata(book, author);
+  const bookShortener = sanitizeDocIdSegment(firstNonEmpty(
+    record.bookShortener,
+    parent.bookShortener,
+    firstExcerpt.bookShortener,
+    record.bookCode,
+    parent.bookCode,
+    catalogBookMetadata?.bookShortener
+  ));
   const docId = deriveWeaverGraphicsDocId(record, defaultImageType);
   const assetLinkUrl = firstNonEmpty(
     record.assetLinkUrl,
     record.assetUrl,
+    record.driveLink,
+    record.sourceDriveLink,
+    record.assetDriveLink,
     record.publicUrl,
     record.storageUrl,
     record.outputUrl,
@@ -1341,6 +1387,16 @@ function mapWeaverGraphicRecord(record, options = {}) {
     sourceCompletionId: firstNonEmpty(record.sourceCompletionId, parent.sourceCompletionId, record.pigCompletionId, parent.pigCompletionId),
     sourceRequestId: firstNonEmpty(record.sourceRequestId, parent.sourceRequestId, record.graphicsRequestId, parent.graphicsRequestId),
     sourceTool: firstNonEmpty(record.sourceTool, parent.sourceTool),
+    sourceRecordId: firstNonEmpty(record.sourceRecordId, parent.sourceRecordId, record.id, parent.id),
+    sourceSystem: firstNonEmpty(record.sourceSystem, parent.sourceSystem, "weaver"),
+    bookShortener: sanitizeDocIdSegment(firstNonEmpty(
+      record.bookShortener,
+      parent.bookShortener,
+      firstExcerpt.bookShortener,
+      record.bookCode,
+      parent.bookCode,
+      catalogBookMetadata?.bookShortener
+    )),
     author,
     book,
     title: firstNonEmpty(
@@ -1376,11 +1432,19 @@ function mapWeaverGraphicRecord(record, options = {}) {
       firstExcerpt.releaseCatalog,
       catalogBookMetadata?.releaseCatalog
     ),
+    pageNumber: firstNonEmpty(record.pageNumber, parent.pageNumber, firstExcerpt.pageNumber),
+    ocrText: firstNonEmpty(record.ocrText, record.extractedText, record.transcription, parent.ocrText),
+    reviewStatus: firstNonEmpty(record.reviewStatus, parent.reviewStatus, defaultImageType === "FPI" ? "needs_ocr" : ""),
     misc: miscParts,
   };
 }
 
-function shouldImportWeaverGraphicRecord(record) {
+function shouldImportWeaverGraphicRecord(record, options = {}) {
+  const defaultImageType = normalizeText(options.defaultImageType || "QI").toUpperCase();
+  const isFullPoemImage = defaultImageType === "FPI";
+  if (isFullPoemImage && firstNonEmpty(record?.driveLink, record?.assetLinkUrl, record?.assetUrl, record?.publicUrl, record?.storageUrl, record?.imageUrl, record?.url)) {
+    return true;
+  }
   if (firstNonEmpty(record?.sourceCompletionId, record?.__weaverParentRecord?.sourceCompletionId)) {
     return !!firstNonEmpty(record?.driveLink, record?.assetLinkUrl, record?.assetUrl, record?.publicUrl, record?.storageUrl);
   }
@@ -1399,9 +1463,11 @@ async function buildWeaverGraphicsDuplicatePlan(mappedItems = []) {
       if (!existingByDuplicateKey.has(entry.value)) {
         existingByDuplicateKey.set(entry.value, {
           imageId: item.imageId || item.id || "",
+          imageType: item.imageType || "",
           title: item.title || "",
           author: item.author || "",
           book: item.book || "",
+          imageUrl: item.imageUrl || "",
           driveLink: item.driveLink || "",
           duplicateMatchType: entry.type,
         });
@@ -1439,9 +1505,11 @@ async function buildWeaverGraphicsDuplicatePlan(mappedItems = []) {
         duplicateMatchType: matchedKey.type,
         duplicateFingerprint: matchedKey.value,
         primaryImageId: primary.imageId || "",
+        primaryImageType: primary.imageType || "",
         primaryTitle: primary.title || "",
         primaryAuthor: primary.author || "",
         primaryBook: primary.book || "",
+        primaryImageUrl: primary.imageUrl || "",
         primaryDriveLink: primary.driveLink || "",
       });
       return;
@@ -1452,9 +1520,11 @@ async function buildWeaverGraphicsDuplicatePlan(mappedItems = []) {
       if (!acceptedByDuplicateKey.has(entry.value)) {
         acceptedByDuplicateKey.set(entry.value, {
           imageId: item.imageId || "",
+          imageType: item.imageType || "",
           title: item.title || "",
           author: item.author || "",
           book: item.book || "",
+          imageUrl: item.imageUrl || "",
           driveLink: item.driveLink || "",
           duplicateMatchType: entry.type,
         });
@@ -1502,7 +1572,7 @@ async function fetchRemoteJson(sourceUrl) {
 function buildWeaverGraphicsImportItems(rawPayload, options = {}) {
   const defaultImageType = normalizeText(options.defaultImageType || "QI").toUpperCase();
   return flattenWeaverGraphicsRecords(rawPayload)
-    .filter((record) => shouldImportWeaverGraphicRecord(record))
+    .filter((record) => shouldImportWeaverGraphicRecord(record, { defaultImageType }))
     .map((record) => mapWeaverGraphicRecord(record, { defaultImageType }))
     .filter((item) => item.docId && item.imageUrl);
 }
@@ -1820,13 +1890,14 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
 }
 
 async function buildScoreboardPayload() {
-  const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds] = await Promise.all([
+  const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds, authorVoteUserIds] = await Promise.all([
     getAllVotes(),
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getFlaggedContentIds(),
+    getAuthorVoteUserIds(),
   ]);
 
   const latestByUserImage = new Map();
@@ -1929,6 +2000,7 @@ async function buildScoreboardPayload() {
       imageId: vote.imageId,
       vote: vote.vote,
       user: vote.user,
+      time: vote.time || 0,
       author: meta.author || "‹no author›",
       poemTitle: meta.poemTitle || "‹no title›",
       bookTitle: meta.bookTitle || "‹no book›",
@@ -1966,6 +2038,9 @@ async function buildScoreboardPayload() {
         dislikes: 0,
         meh: 0,
         movedMe: 0,
+        authorLikes: 0,
+        authorDislikes: 0,
+        authorMovedMe: 0,
         totalVotes: 0,
         fpDerivativePoints: 0,
         type: vote.type || "",
@@ -1974,10 +2049,16 @@ async function buildScoreboardPayload() {
       });
     }
     const entry = board.get(vote.imageId);
+    const isAuthorVote = authorVoteUserIds.has(normalizeKey(vote.user || ""));
     if (vote.vote === "like") entry.likes += 1;
     else if (vote.vote === "dislike") entry.dislikes += 1;
     else if (vote.vote === "meh") entry.meh += 1;
     else if (vote.vote === "moved me") entry.movedMe += 1;
+    if (isAuthorVote) {
+      if (vote.vote === "like") entry.authorLikes += 1;
+      else if (vote.vote === "dislike") entry.authorDislikes += 1;
+      else if (vote.vote === "moved me") entry.authorMovedMe += 1;
+    }
     entry.totalVotes += 1;
   });
 
@@ -2001,6 +2082,9 @@ async function buildScoreboardPayload() {
       dislikes: 0,
       meh: 0,
       movedMe: 0,
+      authorLikes: 0,
+      authorDislikes: 0,
+      authorMovedMe: 0,
       totalVotes: 0,
       fpDerivativePoints: 0,
       type: meta.type || "",
@@ -2012,7 +2096,14 @@ async function buildScoreboardPayload() {
   const aggregated = Array.from(board.values()).map((entry) => ({
     ...entry,
     fpDerivativePoints: normalizeKey(entry.type) === "fp" ? Number(fpDerivativePointsByImageId.get(entry.imageId) || 0) : 0,
-    score: entry.likes + (entry.movedMe * 2) - entry.dislikes + (normalizeKey(entry.type) === "fp" ? Number(fpDerivativePointsByImageId.get(entry.imageId) || 0) : 0),
+    authorExcluded: Number(entry.authorDislikes || 0) > 0,
+    score: entry.likes
+      + (entry.movedMe * 2)
+      - entry.dislikes
+      + (entry.authorLikes * 9)
+      + (entry.authorMovedMe * 23)
+      - (entry.authorDislikes * 99)
+      + (normalizeKey(entry.type) === "fp" ? Number(fpDerivativePointsByImageId.get(entry.imageId) || 0) : 0),
   }));
 
   const flaggedKeySet = flaggedIds;
@@ -2332,6 +2423,70 @@ async function buildInternalCoverageCountsPayload(contentType = "QI") {
   };
 }
 
+async function buildInternalContentScoresPayload(contentType = "FPI") {
+  const normalizedType = normalizeText(contentType || "FPI").toUpperCase();
+  const [result, sourceItems] = await Promise.all([
+    getScoreboardPayloadFromSnapshot(),
+    normalizedType === "FP"
+      ? getAllFrom(COLLECTIONS.fullPoems)
+      : getAllFrom(COLLECTIONS.graphics),
+  ]);
+  const scoreById = new Map();
+  (result?.payload?.aggregated || []).forEach((row) => {
+    const keys = [row?.imageId, row?.contentId].map((value) => normalizeKey(value)).filter(Boolean);
+    keys.forEach((key) => scoreById.set(key, row));
+  });
+  const rows = (sourceItems || [])
+    .filter((item) => normalizeText(item?.imageType).toUpperCase() === normalizedType)
+    .map((item) => {
+      const contentId = item.contentId || item.imageId || item.id || "";
+      const imageId = item.imageId || item.contentId || item.id || "";
+      const scoreRow = scoreById.get(normalizeKey(imageId)) || scoreById.get(normalizeKey(contentId)) || {};
+      return {
+        contentId,
+        imageId,
+        imageType: normalizedType,
+        author: item.author || scoreRow.author || "",
+        title: item.title || scoreRow.poemTitle || "",
+        book: item.book || scoreRow.bookTitle || "",
+        originalBook: scoreRow.originalBookTitle || item.originalBookTitle || "",
+        bookShortener: item.bookShortener || scoreRow.bookShortener || "",
+        releaseCatalog: item.releaseCatalog || scoreRow.releaseCatalog || "",
+        fileLink: item.fileLink || scoreRow.fileLink || "",
+        cloudLink: item.cloudLink || scoreRow.cloudLink || "",
+        driveLink: item.driveLink || scoreRow.driveLink || "",
+        score: Number(scoreRow.score || 0),
+        likes: Number(scoreRow.likes || 0),
+        dislikes: Number(scoreRow.dislikes || 0),
+        meh: Number(scoreRow.meh || 0),
+        movedMe: Number(scoreRow.movedMe || 0),
+        totalVotes: Number(scoreRow.totalVotes || 0),
+      };
+    })
+    .sort((a, b) => (
+      (Number(b.score || 0) - Number(a.score || 0))
+      || (Number(b.movedMe || 0) - Number(a.movedMe || 0))
+      || (Number(b.totalVotes || 0) - Number(a.totalVotes || 0))
+      || String(a.author || "").localeCompare(String(b.author || ""))
+      || String(a.title || "").localeCompare(String(b.title || ""))
+    ))
+    .map((row, index) => ({
+      rank: index + 1,
+      ...row,
+    }));
+  return {
+    ok: true,
+    contentType: normalizedType,
+    count: rows.length,
+    rows,
+    snapshotMeta: {
+      source: result.source,
+      builtAtMs: result.builtAtMs,
+      ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+    },
+  };
+}
+
 async function readScoreboardSnapshot() {
   const metaRef = db.collection(COLLECTIONS.systemState).doc(SCOREBOARD_SNAPSHOT_DOC_ID);
   const metaSnap = await metaRef.get();
@@ -2600,6 +2755,145 @@ function sortScoreboardRows(rows = [], sortKey = "bookTitle", sortDir = 1) {
   });
 }
 
+function resolveTeamProgressDateRange(query = {}, nowMs = Date.now()) {
+  const windowValue = normalizeKey(query.window || "all");
+  const parseDateStart = (value) => {
+    const raw = normalizeText(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const ms = new Date(`${raw}T00:00:00.000Z`).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+  const parseDateEnd = (value) => {
+    const raw = normalizeText(value);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+    const ms = new Date(`${raw}T23:59:59.999Z`).getTime();
+    return Number.isFinite(ms) ? ms : null;
+  };
+  if (windowValue === "today") {
+    const chicagoParts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Chicago",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(new Date(nowMs));
+    const part = (type) => chicagoParts.find((entry) => entry.type === type)?.value || "";
+    const start = new Date(`${part("year")}-${part("month")}-${part("day")}T00:00:00-05:00`).getTime();
+    return { startMs: start, endMs: nowMs, label: "Today" };
+  }
+  if (windowValue === "7d") return { startMs: nowMs - (7 * 24 * 60 * 60 * 1000), endMs: nowMs, label: "Last 7 days" };
+  if (windowValue === "30d") return { startMs: nowMs - (30 * 24 * 60 * 60 * 1000), endMs: nowMs, label: "Last 30 days" };
+  if (windowValue === "custom") {
+    return {
+      startMs: parseDateStart(query.startDate),
+      endMs: parseDateEnd(query.endDate),
+      label: "Custom",
+    };
+  }
+  return { startMs: null, endMs: null, label: "All time" };
+}
+
+function buildAdminTeamProgressPayload(payload = {}, query = {}) {
+  const dateRange = resolveTeamProgressDateRange(query);
+  const allGraphics = Array.isArray(payload.allGraphics) ? payload.allGraphics : [];
+  const rawVotes = Array.isArray(payload.rawVotes) ? payload.rawVotes : [];
+  const type = normalizeScoreboardType(query.type);
+  const book = normalizeText(query.book).toLowerCase();
+  const catalog = normalizeText(query.catalog).toLowerCase();
+  const availableById = new Map();
+  const totalsByBook = new Map();
+
+  allGraphics.forEach((item) => {
+    const imageId = normalizeText(item.imageId);
+    if (!imageId) return;
+    if (type && normalizeScoreboardType(item.type) !== type) return;
+    if (book && normalizeText(item.bookTitle).toLowerCase() !== book) return;
+    if (catalog && normalizeText(item.releaseCatalog).toLowerCase() !== catalog) return;
+    const detailKey = `${normalizeText(item.releaseCatalog).toLowerCase()}|${normalizeText(item.bookTitle).toLowerCase()}`;
+    availableById.set(imageId, {
+      imageId,
+      bookTitle: normalizeText(item.bookTitle),
+      releaseCatalog: normalizeText(item.releaseCatalog),
+      type: normalizeText(item.type),
+      detailKey,
+    });
+    if (!totalsByBook.has(detailKey)) {
+      totalsByBook.set(detailKey, {
+        key: detailKey,
+        bookTitle: normalizeText(item.bookTitle),
+        releaseCatalog: normalizeText(item.releaseCatalog),
+        availableCount: 0,
+      });
+    }
+    totalsByBook.get(detailKey).availableCount += 1;
+  });
+
+  const users = new Map();
+  rawVotes.forEach((vote) => {
+    const user = normalizeText(vote.user).toLowerCase();
+    const imageId = normalizeText(vote.imageId);
+    const time = Number(vote.time || 0);
+    if (!user.endsWith("@buttonpoetry.com")) return;
+    if (!availableById.has(imageId)) return;
+    if (dateRange.startMs && (!time || time < dateRange.startMs)) return;
+    if (dateRange.endMs && (!time || time > dateRange.endMs)) return;
+    if (!users.has(user)) {
+      users.set(user, {
+        user,
+        votedIds: new Set(),
+        totalVotes: 0,
+        details: new Map(),
+      });
+    }
+    const entry = users.get(user);
+    const item = availableById.get(imageId);
+    entry.votedIds.add(item.imageId);
+    entry.totalVotes += 1;
+    if (!entry.details.has(item.detailKey)) entry.details.set(item.detailKey, new Set());
+    entry.details.get(item.detailKey).add(item.imageId);
+  });
+
+  const availableCount = availableById.size;
+  const rows = Array.from(users.values()).map((entry) => {
+    const details = Array.from(totalsByBook.values()).map((totalRow) => {
+      const votedCount = entry.details.get(totalRow.key)?.size || 0;
+      return {
+        releaseCatalog: totalRow.releaseCatalog,
+        bookTitle: totalRow.bookTitle,
+        votedCount,
+        availableCount: totalRow.availableCount,
+        percent: totalRow.availableCount ? votedCount / totalRow.availableCount : 0,
+      };
+    }).sort((a, b) => (
+      a.releaseCatalog.toLowerCase().localeCompare(b.releaseCatalog.toLowerCase())
+      || a.bookTitle.toLowerCase().localeCompare(b.bookTitle.toLowerCase())
+    ));
+    return {
+      user: entry.user,
+      votedCount: entry.votedIds.size,
+      totalVotes: entry.totalVotes,
+      availableCount,
+      percent: availableCount ? entry.votedIds.size / availableCount : 0,
+      details,
+    };
+  }).sort((a, b) => (b.percent - a.percent) || (b.votedCount - a.votedCount) || a.user.localeCompare(b.user));
+
+  return {
+    ok: true,
+    rows,
+    availableCount,
+    filters: {
+      type: normalizeText(query.type),
+      book: normalizeText(query.book),
+      catalog: normalizeText(query.catalog),
+      window: normalizeText(query.window || "all"),
+      startDate: normalizeText(query.startDate),
+      endDate: normalizeText(query.endDate),
+    },
+    dateRange,
+    filterOptions: buildScoreboardFilterOptions(payload),
+  };
+}
+
 async function verifyIdTokenFromHeader(req) {
   const h = req.headers.authorization || "";
   const m = h.match(/^Bearer (.+)$/i);
@@ -2632,6 +2926,13 @@ function hasValidPoetryPleaseApiKey(req) {
 
 function normalizeText(value) {
   return String(value || "").trim();
+}
+
+function buildExcerptFingerprint(value) {
+  return normalizeText(value)
+    .normalize("NFKC")
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 function normalizeMetricValue(value) {
@@ -2789,7 +3090,9 @@ function resolveRoles(existingRoles = [], email = "") {
       .filter(Boolean)
   );
   roles.add("user");
-  if (ADMIN_EMAILS.has(normalizeKey(email))) roles.add("admin");
+  const normalizedEmail = normalizeKey(email);
+  if (normalizedEmail.endsWith("@buttonpoetry.com")) roles.add("team");
+  if (ADMIN_EMAILS.has(normalizedEmail)) roles.add("admin");
   return [...roles];
 }
 
@@ -2966,9 +3269,14 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.imageId = docId;
     payload.imageUrl = normalizeText(options.imageUrl || body.imageUrl);
     payload.misc = normalizeText(body.misc);
+    if (normalizeText(body.pageNumber)) payload.pageNumber = normalizeText(body.pageNumber);
+    if (normalizeText(body.bookShortener)) payload.bookShortener = normalizeText(body.bookShortener);
+    if (normalizeText(body.ocrText)) payload.ocrText = normalizeText(body.ocrText);
+    if (normalizeText(body.reviewStatus)) payload.reviewStatus = normalizeText(body.reviewStatus);
   } else if (type === "excerpts") {
     payload.poem = normalizeText(body.poem || body.title);
     payload.excerpt = normalizeText(body.excerpt);
+    payload.excerptFingerprint = buildExcerptFingerprint(body.excerpt);
     payload.pageNumber = normalizeText(body.pageNumber);
     payload.bookShortener = normalizeText(body.bookShortener);
     payload.imageID = docId;
@@ -3074,9 +3382,19 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
     throw err;
   }
 
+  const originalDocId = sanitizeDocIdSegment(body.originalDocId || body.originalContentId || body.previousDocId || "");
+  const isRename = !!originalDocId && originalDocId !== pendingDocId;
   const ref = db.collection(collection).doc(pendingDocId);
   const snap = await ref.get();
-  const existing = snap.exists ? (snap.data() || {}) : {};
+  const originalRef = isRename ? db.collection(collection).doc(originalDocId) : null;
+  const originalSnap = originalRef ? await originalRef.get() : null;
+  if (isRename && snap.exists) {
+    const err = new Error("content_id_already_exists");
+    err.status = 409;
+    throw err;
+  }
+  const sourceSnap = isRename && originalSnap?.exists ? originalSnap : snap;
+  const existing = sourceSnap.exists ? (sourceSnap.data() || {}) : {};
 
   let uploadImageUrl = "";
   if (normalizeKey(type) === "graphics" && normalizeText(body?.base64Data)) {
@@ -3110,7 +3428,12 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
   if (normalizeKey(type) === "graphics" && !uploadImageUrl) {
     const sourceUrl = normalizeText(body?.driveLink || body?.assetLinkUrl || body?.imageUrl || body?.url);
     const currentImageUrl = normalizeText(existing.imageUrl || "");
-    const shouldIngestRemoteGraphic = !!sourceUrl && (!currentImageUrl || isGoogleDriveFileUrl(currentImageUrl));
+    const preserveProvidedImageUrl = normalizeKey(body?.remoteIngestMode) === "preserve_image_url"
+      && !!normalizeText(body?.imageUrl)
+      && !isGoogleDriveFileUrl(body.imageUrl);
+    const shouldIngestRemoteGraphic = !!sourceUrl
+      && !preserveProvidedImageUrl
+      && (!currentImageUrl || isGoogleDriveFileUrl(currentImageUrl));
     if (shouldIngestRemoteGraphic) {
       const remoteUpload = await fetchRemoteMediaResponse(sourceUrl, UPLOAD_RULES.libraryGraphic, body);
       const storagePath = `content-library/graphics/${normalizeKey(pendingDocId)}/${Date.now()}.${remoteUpload.extension}`;
@@ -3197,17 +3520,62 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
     mediaUrl: uploadMediaUrl,
     updatedBy: actor.uid || "",
   });
+  if (normalizeKey(type) === "excerpts" && built.payload.excerptFingerprint) {
+    const allowedExistingIds = new Set([pendingDocId, originalDocId].filter(Boolean));
+    let duplicateSnap = await db.collection(COLLECTIONS.excerpts)
+      .where("excerptFingerprint", "==", built.payload.excerptFingerprint)
+      .limit(2)
+      .get();
+    let duplicateDoc = duplicateSnap.docs.find((doc) => !allowedExistingIds.has(doc.id));
+
+    // Legacy EXC rows predate excerptFingerprint. Keep writes safe until an admin scan backfills them.
+    if (!duplicateDoc) {
+      duplicateSnap = await db.collection(COLLECTIONS.excerpts).get();
+      duplicateDoc = duplicateSnap.docs.find((doc) => (
+        !allowedExistingIds.has(doc.id)
+        && buildExcerptFingerprint(doc.data()?.excerpt) === built.payload.excerptFingerprint
+      ));
+    }
+
+    if (duplicateDoc) {
+      const primary = { id: duplicateDoc.id, ...(duplicateDoc.data() || {}) };
+      await createContentDuplicateForItem({
+        ...built.payload,
+        imageId: pendingDocId,
+        title: built.payload.poem,
+      }, {
+        imageId: primary.imageId || primary.imageID || primary.id,
+        title: primary.poem || primary.title || "",
+        author: primary.author || "",
+        book: primary.book || "",
+        driveLink: primary.driveLink || "",
+      }, actor, {
+        duplicateMatchType: "exactExcerptText",
+        duplicateFingerprint: built.payload.excerptFingerprint,
+        note: "Blocked before write because another EXC has the same normalized excerpt text.",
+        source: "content_write_guardrail",
+      });
+      const err = new Error("duplicate_excerpt_text");
+      err.status = 409;
+      err.duplicateOfImageId = primary.imageId || primary.imageID || primary.id;
+      throw err;
+    }
+  }
   await ref.set({
     ...existing,
     ...built.payload,
     createdAt: existing.createdAt || FieldValue.serverTimestamp(),
   }, { merge: true });
+  if (isRename && originalSnap?.exists) {
+    await originalRef.delete();
+  }
 
   const saved = await ref.get();
   return {
     ok: true,
     item: mapAdminContentDoc(collection, saved),
-    created: !snap.exists,
+    created: !sourceSnap.exists,
+    renamed: isRename && originalSnap?.exists,
   };
 }
 
@@ -3463,6 +3831,34 @@ async function getFlaggedContentIds() {
     const last = page.docs[page.docs.length - 1];
     page = await db.collection(COLLECTIONS.contentFlags).where("status", "==", "pending").startAfter(last).limit(1000).get();
   }
+  const authorVoteUserIds = await getAuthorVoteUserIds();
+  if (authorVoteUserIds.size) {
+    const latestAuthorVotes = new Map();
+    let votePage = await db.collection(COLLECTIONS.votes).limit(1000).get();
+    while (!votePage.empty) {
+      votePage.forEach((doc) => {
+        const data = doc.data() || {};
+        const userId = normalizeKey(data.userId || "");
+        const imageId = normalizeKey(data.imageId || "");
+        if (!authorVoteUserIds.has(userId) || !imageId) return;
+        const key = `${userId}|${imageId}`;
+        const time = timestampToMs(data.timestamp);
+        const current = latestAuthorVotes.get(key);
+        if (!current || time >= current.time) {
+          latestAuthorVotes.set(key, {
+            imageId,
+            voteType: normalizeKey(data.voteType || ""),
+            time,
+          });
+        }
+      });
+      const last = votePage.docs[votePage.docs.length - 1];
+      votePage = await db.collection(COLLECTIONS.votes).startAfter(last).limit(1000).get();
+    }
+    latestAuthorVotes.forEach((vote) => {
+      if (vote.voteType === "dislike") ids.add(vote.imageId);
+    });
+  }
   return ids;
 }
 
@@ -3701,6 +4097,24 @@ app.get(getBoth("/scoreboard/bootstrap"), async (req, res) => {
   res.json(payload);
 });
 
+app.get(getBoth("/admin/teamProgress"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  let result = await getScoreboardPayloadFromSnapshot();
+  const needsTimestampedVotes = (result.payload?.rawVotes || []).some((row) => row && row.time === undefined);
+  if (needsTimestampedVotes) {
+    result = await getScoreboardPayloadFromSnapshot({ forceRefresh: true });
+  }
+  res.json({
+    ...buildAdminTeamProgressPayload(result.payload, req.query || {}),
+    snapshotMeta: {
+      source: result.source,
+      builtAtMs: result.builtAtMs,
+      ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+    },
+  });
+});
+
 app.get(getBoth("/pig/ranked-texts"), async (req, res) => {
   const ctx = await requirePigReadAccess(req, res);
   if (!ctx) return;
@@ -3869,6 +4283,10 @@ app.post(getBoth("/vote"), async (req, res) => {
     };
 
     await db.collection(COLLECTIONS.votes).add(vote);
+    ratingsCache.builtAt = 0;
+    ratingsCache.payload = null;
+    ratingsCache.inFlight = null;
+    await invalidateScoreboardSnapshot(`vote_created:${imageId}`);
     res.status(204).end(); // success
   } catch (err) {
     console.error("Vote error:", err);
@@ -3997,15 +4415,17 @@ app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {
   const profile = mapProfileDoc(snap.docs[0].id, snap.docs[0].data());
   if (!profile.published) return res.status(404).json({ error: "not_found" });
 
-  const [g, e, fp, v, votes] = await Promise.all([
+  const [g, e, fp, v, votes, flaggedIds, authorVoteUserIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getAllVotes(),
+    getFlaggedContentIds(),
+    getAuthorVoteUserIds(),
   ]);
-  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
-  const allContent = [...g, ...e, ...fp, ...v];
+  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds });
+  const allContent = excludeFlaggedContent([...g, ...e, ...fp, ...v], flaggedIds);
   const { authored, featured } = pickProfileContent(profile, allContent, ratings);
 
   res.json({
@@ -4227,15 +4647,17 @@ app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
     published: false,
   });
 
-  const [g, e, fp, v, votes] = await Promise.all([
+  const [g, e, fp, v, votes, flaggedIds, authorVoteUserIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getAllVotes(),
+    getFlaggedContentIds(),
+    getAuthorVoteUserIds(),
   ]);
-  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
-  const allContent = [...g, ...e, ...fp, ...v];
+  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds });
+  const allContent = excludeFlaggedContent([...g, ...e, ...fp, ...v], flaggedIds);
   const { authored, featured } = pickProfileContent(workingProfile, allContent, ratings);
 
   res.json({
@@ -4265,15 +4687,17 @@ app.get(getBoth("/admin/authorReviewPreview"), async (req, res) => {
     published: false,
   });
 
-  const [g, e, fp, v, votes] = await Promise.all([
+  const [g, e, fp, v, votes, flaggedIds, authorVoteUserIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getAllVotes(),
+    getFlaggedContentIds(),
+    getAuthorVoteUserIds(),
   ]);
-  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType })));
-  const allContent = [...g, ...e, ...fp, ...v];
+  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds });
+  const allContent = excludeFlaggedContent([...g, ...e, ...fp, ...v], flaggedIds);
   const { authored, featured } = pickProfileContent(workingProfile, allContent, ratings);
 
   res.json({
@@ -4805,7 +5229,7 @@ app.post(getBoth("/admin/idHygiene/applyPig"), async (req, res) => {
 
 async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor = {}) {
   const sourceRecords = flattenWeaverGraphicsRecords(rawPayload);
-  const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record));
+  const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record, { defaultImageType }));
   const mappedItems = buildWeaverGraphicsImportItems(rawPayload, { defaultImageType });
   const { acceptedItems, duplicateItems } = await buildWeaverGraphicsDuplicatePlan(mappedItems);
 
@@ -4816,10 +5240,34 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
   }
 
   const results = [];
-  for (const item of acceptedItems.slice(0, 500)) {
+  const promotedDuplicateItems = [];
+  const capturedDuplicateItems = [];
+  duplicateItems.forEach((item) => {
+    const isFpi = normalizeText(item.imageType).toUpperCase() === "FPI";
+    const primaryIsDifferentType = normalizeText(item.primaryImageType).toUpperCase() !== "FPI";
+    const primaryIsTemporaryPigId = normalizeKey(item.primaryImageId).startsWith("pig-");
+    const canPromoteFpiDuplicate = ["driveLink", "imageUrl", "sourceCompletionId"].includes(item.duplicateMatchType);
+    if (isFpi && canPromoteFpiDuplicate && (primaryIsDifferentType || primaryIsTemporaryPigId)) {
+      promotedDuplicateItems.push({
+        ...item,
+        imageUrl: item.primaryImageUrl || item.imageUrl,
+        remoteIngestMode: item.primaryImageUrl ? "preserve_image_url" : "",
+      });
+      return;
+    }
+    capturedDuplicateItems.push(item);
+  });
+
+  for (const item of [...acceptedItems, ...promotedDuplicateItems].slice(0, 500)) {
     try {
       const result = await upsertContentLibraryItem("graphics", item, actor);
-      results.push({ ok: true, id: result.item?.id || "", created: !!result.created });
+      results.push({
+        ok: true,
+        id: result.item?.id || "",
+        created: !!result.created,
+        promotedDuplicate: promotedDuplicateItems.includes(item),
+        duplicateOfImageId: item.primaryImageId || "",
+      });
     } catch (err) {
       results.push({
         ok: false,
@@ -4830,7 +5278,7 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
   }
 
   let capturedDuplicateCount = 0;
-  for (const duplicate of duplicateItems.slice(0, 500)) {
+  for (const duplicate of capturedDuplicateItems.slice(0, 500)) {
     const capture = await createContentDuplicateForItem(duplicate, {
       imageId: duplicate.primaryImageId,
       title: duplicate.primaryTitle,
@@ -4862,12 +5310,18 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
     eligibleCount: eligibleRecords.length,
     mappedCount: mappedItems.length,
     duplicateCount: duplicateItems.length,
+    promotedDuplicateCount: promotedDuplicateItems.length,
     capturedDuplicateCount,
     createdCount,
     updatedCount,
     errorCount,
     results,
-    duplicateItems,
+    duplicateItems: capturedDuplicateItems,
+    promotedDuplicateItems: promotedDuplicateItems.map((item) => ({
+      imageId: item.imageId,
+      duplicateOfImageId: item.primaryImageId,
+      duplicateMatchType: item.duplicateMatchType,
+    })),
   };
 }
 
@@ -4952,6 +5406,19 @@ function looksLikeDirectWeaverExcerptPayload(body = {}) {
     || body.normalizedExcerpt
     || body.excerptHash
     || body.poemTitle
+  );
+}
+
+function looksLikeDirectWeaverGraphicPayload(body = {}) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return false;
+  return !!firstNonEmpty(
+    body.driveLink,
+    body.assetLinkUrl,
+    body.assetUrl,
+    body.publicUrl,
+    body.storageUrl,
+    body.imageUrl,
+    body.url
   );
 }
 
@@ -5168,14 +5635,23 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
   }
 
   try {
-    const defaultImageType = normalizeText(req.body?.contentType || req.body?.imageType || "QI").toUpperCase();
     const rawPayload = req.body?.payload
       || req.body?.records
       || req.body?.items
       || req.body?.excerpts
       || (normalizeText(req.body?.sourceUrl) ? await fetchRemoteJson(req.body.sourceUrl) : null);
+    const firstPayloadRecord = Array.isArray(rawPayload) ? rawPayload[0] : rawPayload;
+    const defaultImageType = normalizeText(
+      req.body?.contentType
+      || req.body?.imageType
+      || firstPayloadRecord?.contentType
+      || firstPayloadRecord?.imageType
+      || "QI"
+    ).toUpperCase();
     const isTextImport = isWeaverExcerptImportType(defaultImageType) || isWeaverFullPoemImportType(defaultImageType);
-    const payload = rawPayload || (isTextImport && looksLikeDirectWeaverExcerptPayload(req.body) ? req.body : null);
+    const payload = rawPayload
+      || (isTextImport && looksLikeDirectWeaverExcerptPayload(req.body) ? req.body : null)
+      || (!isTextImport && looksLikeDirectWeaverGraphicPayload(req.body) ? req.body : null);
     if (!payload) {
       return res.status(400).json({ error: "missing_weaver_payload" });
     }
@@ -5205,6 +5681,19 @@ app.get(getBoth("/internal/coverageCounts"), async (req, res) => {
     res.json(result);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "coverage_counts_failed" });
+  }
+});
+
+app.get(getBoth("/internal/contentScores"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  try {
+    const result = await buildInternalContentScoresPayload(req.query?.type || "FPI");
+    res.json(result);
+  } catch (err) {
+    res.status(err.status || 400).json({ error: err.message || "content_scores_failed" });
   }
 });
 
@@ -5465,6 +5954,75 @@ app.get(getBoth("/admin/contentDuplicates"), async (req, res) => {
     .map(mapContentDuplicateDoc)
     .sort((a, b) => (normalizeTimestamp(b.createdAt)?.getTime() || 0) - (normalizeTimestamp(a.createdAt)?.getTime() || 0));
   res.json({ duplicates });
+});
+
+app.post(getBoth("/admin/contentDuplicates/scanExcerpts"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const snap = await db.collection(COLLECTIONS.excerpts).get();
+  const rows = snap.docs
+    .map((doc) => ({ id: doc.id, ref: doc.ref, ...(doc.data() || {}) }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const groups = new Map();
+  const backfillWrites = [];
+
+  rows.forEach((row) => {
+    const fingerprint = buildExcerptFingerprint(row.excerpt);
+    if (!fingerprint) return;
+    if (row.excerptFingerprint !== fingerprint) {
+      backfillWrites.push({ ref: row.ref, fingerprint });
+    }
+    groups.set(fingerprint, [...(groups.get(fingerprint) || []), row]);
+  });
+
+  for (let offset = 0; offset < backfillWrites.length; offset += 400) {
+    const batch = db.batch();
+    backfillWrites.slice(offset, offset + 400).forEach(({ ref, fingerprint }) => {
+      batch.set(ref, { excerptFingerprint: fingerprint }, { merge: true });
+    });
+    await batch.commit();
+  }
+
+  const duplicateGroups = Array.from(groups.entries()).filter(([, matches]) => matches.length > 1);
+  let capturedCount = 0;
+  let alreadyCapturedCount = 0;
+  for (const [fingerprint, matches] of duplicateGroups) {
+    const primary = matches[0];
+    for (const duplicate of matches.slice(1)) {
+      const capture = await createContentDuplicateForItem({
+        ...duplicate,
+        imageId: duplicate.imageId || duplicate.imageID || duplicate.id,
+        title: duplicate.poem || duplicate.title || "",
+      }, {
+        imageId: primary.imageId || primary.imageID || primary.id,
+        title: primary.poem || primary.title || "",
+        author: primary.author || "",
+        book: primary.book || "",
+        driveLink: primary.driveLink || "",
+      }, {
+        uid: ctx.decoded.uid,
+        email: ctx.decoded.email,
+      }, {
+        duplicateMatchType: "exactExcerptText",
+        duplicateFingerprint: fingerprint,
+        note: "Found during the Admin exact-text EXC duplicate scan.",
+        source: "admin_excerpt_scan",
+      });
+      if (capture.ok) capturedCount += 1;
+      else if (capture.reason === "already_captured") alreadyCapturedCount += 1;
+    }
+  }
+
+  res.json({
+    ok: true,
+    checkedCount: rows.length,
+    duplicateGroupCount: duplicateGroups.length,
+    duplicateItemCount: duplicateGroups.reduce((sum, [, matches]) => sum + matches.length - 1, 0),
+    capturedCount,
+    alreadyCapturedCount,
+    fingerprintBackfillCount: backfillWrites.length,
+  });
 });
 
 app.get(getBoth("/admin/weaverExcHealth"), async (req, res) => {

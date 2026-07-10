@@ -69,6 +69,10 @@
   - split large local workspaces such as `Social Media Dev` into code, source catalog data, exports, and generated media before moving anything bulky
   - avoid bulk-uploading whole repos, `.git`, `node_modules`, caches, generated build output, or unreviewed scratch folders
 - Use the existing Poetry Please admin/content-library area as the first-pass Weaver intake surface
+- Improve admin/content-library item inspection:
+  - add thumbnails where content has an image/thumbnail URL so admins can visually identify records before editing
+  - keep an `Open in Poetry Please` item link available for every row with a content id
+  - mirror the thumbnail affordance in author mode so authors can recognize image-backed work without opening each item
 - Reuse the current JSON-style preview/import flow for Weaver-fed `QI`
 - Preserve per-item metadata even when Weaver groups requests upstream
 - Resolve and visibly preview `releaseCatalog` during Weaver imports before commit
@@ -78,6 +82,18 @@
 - Move Drive service-account-backed folder import automation earlier in the import-assistant roadmap because it should reduce repeated manual recovery/import work long-term
 - Move from preview/import to direct ingest once the handoff contract is stable
 - Expose Poetry Please ranked texts as a P.I.G.-friendly source feed with stable text identity and duplication guard rails
+- Wire the durable `FP`/`FPI` path across Poetry Please, Weaver, and P.I.G.:
+  - keep `FP` as text-backed full poems from the local poetry catalog export
+  - keep `FPI` as image-backed full poem photos/scans/screenshots that may need OCR or manual review
+  - accept Weaver `FPI` imports into Poetry Please as graphics-backed review items with preserved book, author, title, catalog, page, Drive/image URL, OCR text, and review status metadata
+  - keep `FP` and `FPI` distinct in filters, scoring, and downstream handoffs
+  - expose Poetry Please scores for `FP` and `FPI` through an internal P.I.G.-friendly score feed so P.I.G. can isolate highly ranked poems/images for graphics generation
+  - deploy and smoke-test `/api/internal/contentScores?type=FP` and `/api/internal/contentScores?type=FPI` with the Poetry Please API key
+  - send Weaver the final import contract for `contentType: "FPI"` and confirm its payload shape
+  - send P.I.G. the final score-consumer contract and confirm it can rank/select from Poetry Please scores
+  - import a tiny FPI canary from Weaver before allowing bulk FPI imports
+  - confirm `FPI` appears in Poetry Please image-type filters, scoreboard rows, voting, and score export
+  - later decide whether reviewed `FPI` items should convert into canonical `FP`, link to an existing `FP`, or remain separate image evidence
 - Add feed dedupe protection so sibling duplicate records do not re-serve after a recent vote
 - Add a first-pass social ingest path for post metrics (views, likes, comments, saves, shares) tied to Poetry Please content ids
 - Add published-post history so Poetry Please knows what assets have already gone out on social and where
@@ -113,20 +129,44 @@
   - make summary/progress views avoid loading/rendering the full item table
   - lazy-render expensive cells such as links and long IDs only for visible rows
   - make zero-vote inclusion an intentional heavier mode where useful
+- Continue Team Progress as its own admin surface:
+  - keep `/team-progress` backed by `/api/admin/teamProgress` instead of client-side full-scoreboard calculations
+  - add Google Sheet export after the first-pass CSV export proves useful
+  - add richer date presets if staff review cadence needs more than all time, today, 7 days, 30 days, and custom dates
+  - add per-user remaining-work drilldown when admins need exact not-yet-reviewed item lists
+  - decide whether Button team progress should eventually be visible to team leads or remain admin-only
 - Expand full-poem scoring after the first derivative-content point pass:
   - evaluate whether all or some fraction of derivative content scores should roll back into the source `FP`
   - preserve direct `FP` vote score separately enough that we can explain whether a poem is winning because the poem itself works or because its excerpts/images/videos work
   - decide whether score-back should apply equally across `EXC`, `QI`, `INT`, `VV`, and `YT`, or use different weights by content type
+- Finish full-poem import hardening:
+  - preserve the catalog-backed `full-poems-all.json` export as the current FP source for P.I.G.
+  - preserve `full-poems-all-review-needed.json` as the blocked/problem row review file
+  - keep `Flee` excluded from normal poem-backed `FP` imports because it is fiction/chapter-backed
+  - prevent repeated FP imports from creating suffixed sibling duplicates
+  - add an admin cleanup/report for FP duplicate families if future imports regress
+  - keep a short operational note for the July 2026 duplicate cleanup: 526 suffixed FP docs were deleted after the repeated bad import, leaving no suffixed FP docs with matching base IDs
+  - add a preflight/import summary for FP JSON imports showing create/update/delete risk before execution
 - Add visible book-disambiguation diagnostics to Scoreboard:
   - show possible duplicate book records caused by punctuation, case, spacing, or subtitle variants such as `The Willies` / `Thewillies`
   - flag subtitle-style splits where one canonical book is being counted as two scoreboard books
   - provide an admin review path before automated cleanup touches ambiguous book/catalog records
+- Build a unified Poetry Please filter/menu system:
+  - share the same catalog -> book filtering logic across the main app, Scoreboard, Admin, Import Assistant, Author review tools, and future lane-specific surfaces
+  - when a catalog is selected, only show books available in that catalog
+  - when a book is selected first, keep catalog choices consistent with that book where possible
+  - use canonical book/catalog metadata instead of raw content values so subtitle, case, punctuation, and spacing variants do not leak into menus
+  - expose reusable helpers for book, catalog, image type, queue mode, author, locked lane, and deep-link filters
+  - keep existing deep links compatible with unified filter state, including contest, author, FP, and FPI lanes
+  - add fallbacks for legacy URLs and content with missing catalog metadata
 - Keep improving user submissions:
   - stronger admin review tools (filters, search, status visibility)
   - later convert approved submissions into regular Poetry Please content when that workflow is ready
 - Keep improving author accounts:
   - better admin diagnostics for invites, claims, and linked profiles
   - clearer review of what authored content and submissions are tied to each profile
+  - add normal voting/ranking in author mode, or define a clear author-specific up/downrank workflow for content they are reviewing
+  - make the author ranking workflow explicit in the UI so authors know whether they are judging quality, fit, priority, feature-worthiness, or correction needs
 - Build the Author Account Command Center:
   - create an Admin dashboard for author onboarding, claimed accounts, associated work, feedback, and public profile readiness
   - show author profile statuses: `not invited`, `invited`, `claimed`, `profile incomplete`, `ready for review`, and `published`

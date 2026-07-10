@@ -72,15 +72,23 @@ const LoadTiming = (() => {
   const start = performance.now();
   const rows = [];
   let panel = null;
+  function copyTimings() {
+    const lines = rows.map((row) => `${row.ms}ms ${row.label}${row.detail ? ` ${row.detail}` : ''}`);
+    const text = `Load timings\n${lines.join('\n')}`;
+    navigator.clipboard?.writeText(text).catch(() => window.prompt('Copy load timings:', text));
+  }
   function render() {
     if (!enabled || !document.body) return;
     if (!panel) {
       panel = document.createElement('div');
       panel.id = 'pp-load-debug';
       panel.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:30000;max-width:min(420px,calc(100vw - 24px));max-height:48vh;overflow:auto;background:rgba(18,15,12,0.92);color:#fff;border-radius:12px;padding:12px 14px;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;box-shadow:0 18px 48px rgba(0,0,0,0.28);';
+      panel.addEventListener('click', (event) => {
+        if (event.target?.id === 'pp-copy-load-timings') copyTimings();
+      });
       document.body.appendChild(panel);
     }
-    panel.innerHTML = `<div style="font-weight:700;margin-bottom:8px;">Load timings</div>${rows.map((row) => `<div><strong>${row.ms}ms</strong> ${row.label}${row.detail ? ` <span style="opacity:.72">${row.detail}</span>` : ''}</div>`).join('')}`;
+    panel.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-weight:700;margin-bottom:8px;"><span>Load timings</span><button id="pp-copy-load-timings" type="button" style="border:1px solid rgba(255,255,255,.4);border-radius:8px;background:transparent;color:#fff;padding:3px 7px;font:inherit;cursor:pointer;">Copy</button></div>${rows.map((row) => `<div><strong>${row.ms}ms</strong> ${row.label}${row.detail ? ` <span style="opacity:.72">${row.detail}</span>` : ''}</div>`).join('')}`;
   }
   function mark(label, detail = '') {
     if (!enabled) return;
@@ -510,6 +518,9 @@ async function redeemAuthorInviteIfPresent() {
 window.$  = window.$  || ((sel) => document.querySelector(sel));
 window.on = window.on || ((el, evt, fn) => el && el.addEventListener(evt, fn));
 function show(el, yes) { if (el) el.style.display = yes ? 'block' : 'none'; }
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
 
 // ===== Auth UI =====
 function getVisibleUser() {
@@ -525,6 +536,7 @@ function currentUserIsAdmin() {
 }
 
 function currentUserIsTeamOrAdmin() {
+  if (authorPreviewMode) return false;
   return currentUserIsAdmin() || !!currentAccount?.roles?.includes('team');
 }
 
@@ -774,11 +786,11 @@ function updateUserStatusUI() {
     return;
   }
   if (user) {
-    const isAdmin = currentUserIsAdmin();
+    const isAdmin = !authorPreviewMode && currentUserIsAdmin();
     if (div) {
       const label = user.email || user.uid;
-      const isTeam = !!currentAccount?.roles?.includes('team');
-      const canEditAuthorProfile = !!currentAccount?.roles?.some((role) => role === 'author' || role === 'admin') || isAdmin;
+      const isTeam = !authorPreviewMode && !!currentAccount?.roles?.includes('team');
+      const canEditAuthorProfile = authorPreviewMode || !!currentAccount?.roles?.some((role) => role === 'author' || role === 'admin') || isAdmin;
       const canAccessScoreboard = isAdmin || isTeam;
       const roleBadge = isAdmin
         ? ' <a id="admin-badge" href="/admin.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
@@ -786,8 +798,9 @@ function updateUserStatusUI() {
       const teamBadge = isTeam
         ? ' <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#efe3ff;color:#5f3b88;font-size:12px;font-weight:600;">Team</span>'
         : '';
+      const profileHref = authorPreviewMode && selectedAuthor ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
       const profileBadge = canEditAuthorProfile
-        ? ' <a id="author-profile-badge" href="/author/edit" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;text-decoration:none;">Edit profile</a>'
+        ? ` <a id="author-profile-badge" href="${profileHref}" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;text-decoration:none;">Edit profile</a>`
         : '';
       const scoreboardBadge = canAccessScoreboard
         ? ' <a id="scoreboard-badge" href="/scoreboard" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e6efe1;color:#3f5f36;font-size:12px;font-weight:600;text-decoration:none;">Scoreboard</a>'
@@ -807,13 +820,16 @@ function updateUserStatusUI() {
       const buildBadge = canAccessScoreboard
         ? ` <span id="build-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#6c6558;font-size:12px;font-weight:600;">Build ${getCurrentBuildLabel()}</span>`
         : '';
+      const authorPreviewBadge = authorPreviewMode && selectedAuthor
+        ? ` <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;">Author preview: ${escapeHtml(selectedAuthor)}</span>`
+        : '';
       const viewToggle = isAdmin
         ? ` <label style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:4px 10px;border-radius:999px;background:#ffffffcc;border:1px solid #dad0c1;font-size:12px;font-weight:600;color:#2f5d62;">
               <input id="admin-view-toggle" type="checkbox" ${IS_MOBILE_UI ? 'checked' : ''} style="margin:0;accent-color:#2f5d62;" />
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -1583,6 +1599,7 @@ let embedLockedItemId = '';
 let selectedItemRecord = null;
 let routeItemConsumed = false;
 let lockedLane = false;
+let authorPreviewMode = false;
 
 // Ratings + heuristics state
 let ratingsMap = {};                // { imageId: {score,total,rating} }
@@ -1632,7 +1649,8 @@ function readRouteState() {
     catalog: params.get('catalog') || '',
     author: params.get('author') || '',
     book: params.get('book') || '',
-    locked: params.get('locked') || params.get('laneLocked') || ''
+    locked: params.get('locked') || params.get('laneLocked') || '',
+    authorPreview: params.get('authorPreview') || ''
   };
 }
 
@@ -1682,6 +1700,8 @@ function initializeRouteState() {
   selectedAuthor = route.author.trim();
   selectedBook = route.book.trim();
   lockedLane = ['1', 'true', 'yes', 'locked'].includes(String(route.locked || '').trim().toLowerCase());
+  authorPreviewMode = ['1', 'true', 'yes', 'preview'].includes(String(route.authorPreview || '').trim().toLowerCase()) && !!selectedAuthor;
+  if (authorPreviewMode) lockedLane = true;
   filterByAuthor = !!selectedAuthor;
   filterByBook = !!selectedBook;
 }
@@ -1706,8 +1726,10 @@ function setCatalogFilter(value) {
   }
   selectedCatalog = canonicalCatalogFilterValue(value);
   syncFilterControls();
-  writeRouteState();
-  ensureFilterReadyThenRebuild();
+  fetchAndPopulateBooks().finally(() => {
+    writeRouteState();
+    ensureFilterReadyThenRebuild();
+  });
 }
 
 function setAuthorFilter(active, author = currentItem?.author || selectedAuthor) {
@@ -1976,6 +1998,7 @@ const CONTENT_TYPE_LABELS = {
   GP: 'Graphics',
   EXC: 'Excerpts',
   FP: 'Full Poems',
+  FPI: 'Full Poem Images',
   VV: 'Video',
   YT: 'YouTube',
 };
@@ -2380,17 +2403,39 @@ async function hydrateFullFeedInBackground() {
 }
 
 // ===== Filters: population =====
+function buildBookFilterOptions(books = []) {
+  const selectedCatalogKey = normalizeFilterValue(canonicalCatalogFilterValue(selectedCatalog));
+  const contentBooks = Array.isArray(lastData?.newGraphics)
+    ? baseArray(lastData)
+        .map(mapGraphic)
+        .filter((item) => !selectedCatalogKey || normalizeFilterValue(canonicalCatalogFilterValue(item.releaseCatalog)) === selectedCatalogKey)
+        .map((item) => item.book)
+    : [];
+  const sourceBooks = contentBooks.length ? contentBooks : books;
+  return Array.from(new Map((sourceBooks || [])
+    .map((book) => String(book || '').trim())
+    .filter(Boolean)
+    .map((book) => [normalizeFilterValue(book), book])).values())
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+}
+
 async function populateBooksSelect(books) {
   const sel = $('#book-filter');
   if (!sel) return;
+  const filteredBooks = buildBookFilterOptions(books);
+  const selectedBookKey = normalizeFilterValue(selectedBook);
   sel.querySelectorAll('option:not(:first-child)').forEach(o => o.remove());
-  (books || []).forEach(b => {
-    if (!b) return;
+  filteredBooks.forEach(b => {
     const opt = document.createElement('option');
     opt.value = b;
     opt.textContent = b;
     sel.appendChild(opt);
   });
+  if (filterByBook && selectedBookKey && !filteredBooks.some((book) => normalizeFilterValue(book) === selectedBookKey)) {
+    selectedBook = '';
+    filterByBook = false;
+    writeRouteState();
+  }
   syncFilterControls();
 }
 
@@ -2497,8 +2542,8 @@ function buildFilteredList(data) {
     return pinSelectedItem(list.slice().sort((a, b) => {
       const ma = ratingMetaOf(a);
       const mb = ratingMetaOf(b);
-      const scoreA = (ma.total ? 0 : 3) + (a.releaseCatalog ? 0 : 2) + (a.mediaUrl || a.imageType === 'EXC' || a.imageType === 'FP' ? 0 : 2);
-      const scoreB = (mb.total ? 0 : 3) + (b.releaseCatalog ? 0 : 2) + (b.mediaUrl || b.imageType === 'EXC' || b.imageType === 'FP' ? 0 : 2);
+      const scoreA = (ma.total ? 0 : 3) + (a.releaseCatalog ? 0 : 2) + (a.mediaUrl || a.imageType === 'EXC' || a.imageType === 'FP' || a.imageType === 'FPI' ? 0 : 2);
+      const scoreB = (mb.total ? 0 : 3) + (b.releaseCatalog ? 0 : 2) + (b.mediaUrl || b.imageType === 'EXC' || b.imageType === 'FP' || b.imageType === 'FPI' ? 0 : 2);
       return scoreB - scoreA;
     }));
   }

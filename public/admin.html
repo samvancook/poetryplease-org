@@ -393,6 +393,7 @@
       <a href="/">Back to app</a>
       <div class="topbar-actions">
         <a href="/scoreboard">Scoreboard</a>
+        <a href="/team-progress">Team Progress</a>
         <a href="/author-command-center">Author Command Center</a>
         <div id="admin-view-toggle-slot"></div>
         <div id="auth-note" class="auth-note">Checking sign-in…</div>
@@ -470,7 +471,10 @@
         </button>
       </div>
       <div id="duplicate-review-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Review duplicate graphics captured by the Weaver -> Poetry Please pipeline. Confirmed duplicates stay quarantined; dismissed rows are marked safe.</p>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review duplicate media captured during imports and exact-text EXC scans. Confirmed duplicates stay quarantined; dismissed rows are marked safe.</p>
+        <div class="actions" style="margin:0 0 12px;">
+          <button id="scan-excerpt-duplicates" class="secondary" type="button">Scan existing EXC</button>
+        </div>
         <div id="duplicate-review-status" class="status">Loading duplicates…</div>
         <div id="duplicate-review-list"></div>
       </div>
@@ -517,6 +521,7 @@
         <p class="lede" style="margin-bottom:16px;max-width:none;">Create and update graphics, excerpts, and videos directly in the app instead of routing changes through Sheets and Apps Script.</p>
         <div class="controls">
           <select id="content-type">
+            <option value="all">All content types</option>
             <option value="graphics">Graphics</option>
             <option value="excerpts">Excerpts</option>
             <option value="fullpoems">Full Poems</option>
@@ -629,7 +634,7 @@
           </div>
         </label>
         </div>
-        <div class="actions" style="margin-top:14px;">
+        <div id="content-actions" class="actions" style="margin-top:14px;">
           <button id="save-content" type="button">Save content</button>
           <button id="clear-content" type="button" class="secondary">Clear form</button>
           <button id="preview-weaver-import" type="button" class="secondary" data-content-field="graphics">Preview Weaver QI</button>
@@ -924,8 +929,9 @@
       importAssistantPreviewRows: [],
       contentItems: [],
       contentTotalCount: 0,
-      contentType: "graphics",
+      contentType: "all",
       contentQuery: "",
+      contentOriginalDocId: "",
       weaverPreview: null,
       weaverSourceUrl: localStorage.getItem('pp_admin_weaver_source_url') || '',
       legacyImportPreview: null,
@@ -1533,6 +1539,13 @@
       `;
     }
 
+    function authorPreviewAppUrl(authorName) {
+      const author = String(authorName || '').trim();
+      if (!author) return '';
+      const params = new URLSearchParams({ author, locked: '1', authorPreview: '1' });
+      return `/app?${params.toString()}`;
+    }
+
     function openAuthorDetail(rowIndex) {
       const row = state.authorCommandCenter?.rows?.[rowIndex];
       if (!row) return;
@@ -1540,6 +1553,7 @@
       const invite = row.invite || {};
       const name = profile.displayName || invite.email || 'Unknown author';
       const reviewAuthor = profile.displayName || profile.slug || name;
+      const previewUrl = authorPreviewAppUrl(reviewAuthor);
       const feedbackRows = row.feedbackNotes || [];
       const drawer = document.getElementById('author-detail-drawer');
       document.getElementById('author-detail-title').textContent = name;
@@ -1563,6 +1577,7 @@
         <div class="drawer-section">
           <h3>Actions</h3>
           <div class="controls">
+            ${previewUrl ? `<a href="${previewUrl}" target="_blank" rel="noopener">Preview account</a>` : ''}
             ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review profile</a>` : ''}
             ${profile.slug ? `<a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public page</a>` : ''}
             ${invite.email ? `<button type="button" class="secondary" id="copy-author-detail-email">Copy email</button>` : ''}
@@ -1661,6 +1676,7 @@
                 const invite = row.invite || {};
                 const name = profile.displayName || invite.email || 'Unknown author';
                 const reviewAuthor = profile.displayName || profile.slug || name;
+                const previewUrl = authorPreviewAppUrl(reviewAuthor);
                 const rowIndex = (payload.rows || []).indexOf(row);
                 const inviteLabel = invite.email ? inviteStatusLabel(invite) : 'No invite';
                 const feedbackCount = row.readiness?.unresolvedFeedbackCount || 0;
@@ -1677,6 +1693,7 @@
                     <td>${readinessChips(row.readiness || {})}</td>
                     <td>
                       <button type="button" class="secondary author-detail-button" data-author-row-index="${rowIndex}">Details</button>
+                      ${previewUrl ? `<a href="${previewUrl}" target="_blank" rel="noopener">Preview</a>` : ''}
                       ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ''}
                       ${profile.slug ? ` · <a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ''}
                       ${invite.email ? ` · <button type="button" class="secondary copy-author-invite-email" data-email="${escapeHtml(invite.email)}">Copy email</button>` : ''}
@@ -1858,6 +1875,24 @@
         document.getElementById('duplicate-review-list').innerHTML = '<div class="empty">Could not load duplicates.</div>';
         statusEl.textContent = err.message || 'Could not load duplicates.';
         statusEl.className = 'status error';
+      }
+    }
+
+    async function scanExcerptDuplicates() {
+      const statusEl = document.getElementById('duplicate-review-status');
+      const button = document.getElementById('scan-excerpt-duplicates');
+      button.disabled = true;
+      statusEl.textContent = 'Scanning existing EXC for exact duplicate text…';
+      try {
+        const payload = await api('admin/contentDuplicates/scanExcerpts', { method: 'POST' });
+        await loadDuplicates();
+        statusEl.textContent = `${payload.duplicateGroupCount || 0} exact-text EXC duplicate groups found; ${payload.capturedCount || 0} new review rows captured.`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not scan EXC duplicates.';
+        statusEl.className = 'status error';
+      } finally {
+        button.disabled = false;
       }
     }
 
@@ -2469,7 +2504,10 @@
     }
 
     function updateContentFormVisibility() {
-      const type = state.contentType || 'graphics';
+      const type = state.contentType || 'all';
+      const isBrowseAll = type === 'all';
+      document.getElementById('content-form').style.display = isBrowseAll ? 'none' : '';
+      document.getElementById('content-actions').style.display = isBrowseAll ? 'none' : '';
       document.querySelectorAll('[data-content-field]').forEach((el) => {
         const allowed = String(el.getAttribute('data-content-field') || '').split(/\s+/).filter(Boolean);
         el.style.display = allowed.includes(type) ? '' : 'none';
@@ -2498,7 +2536,7 @@
       const hint = document.getElementById('content-weaver-hint');
       const previewButton = document.getElementById('preview-weaver-import');
       const runButton = document.getElementById('run-weaver-import');
-      const isGraphics = (state.contentType || 'graphics') === 'graphics';
+      const isGraphics = (state.contentType || 'all') === 'graphics';
       const imageType = String(document.getElementById('content-image-type')?.value || '').trim().toUpperCase();
       const isQiMode = !imageType || imageType === 'QI';
       const hasSource = !!String(sourceInput?.value || state.weaverSourceUrl || '').trim();
@@ -2514,6 +2552,7 @@
     }
 
     function clearContentForm() {
+      state.contentOriginalDocId = '';
       [
         'content-doc-id',
         'content-image-type',
@@ -2583,6 +2622,7 @@
       const videosFile = document.getElementById('content-videos-file');
       if (videosFile) videosFile.value = '';
       document.getElementById('content-status').textContent = `Loaded ${item.contentId || item.id} into the form.`;
+      state.contentOriginalDocId = item.contentId || item.id || '';
     }
 
     function maybeAutofillContentId() {
@@ -2649,6 +2689,7 @@
                   <div class="user-name">${escapeHtml(item.title || item.poem || item.contentId || 'Untitled')}</div>
                   <div>${escapeHtml(item.contentId || item.id || '—')}</div>
                   ${item.imageUrl || item.url || item.youtubeUrl ? `<div class="meta"><a href="${escapeHtml(item.youtubeUrl || item.url || item.imageUrl)}" target="_blank" rel="noopener noreferrer">Open asset</a></div>` : ''}
+                  ${item.contentId || item.imageId || item.id ? `<div class="meta"><a href="/?item=${encodeURIComponent(item.contentId || item.imageId || item.id)}" target="_blank" rel="noopener noreferrer">Open in Poetry Please</a></div>` : ''}
                 </td>
                 <td>${escapeHtml(item.author || '—')}</td>
                 <td>${escapeHtml(item.book || '—')}${item.releaseCatalog ? `<div class="meta">${escapeHtml(item.releaseCatalog)}</div>` : ''}</td>
@@ -2710,7 +2751,7 @@
       statusEl.textContent = 'Loading content library…';
       statusEl.className = 'status';
       try {
-        const type = state.contentType || 'graphics';
+        const type = state.contentType || 'all';
         const q = encodeURIComponent(state.contentQuery || '');
         const payload = await api(`admin/contentLibrary?type=${encodeURIComponent(type)}&q=${q}`, { method: 'GET' });
         state.contentItems = payload.items || [];
@@ -2750,6 +2791,7 @@
         const body = {
           type: state.contentType,
           docId: document.getElementById('content-doc-id').value.trim(),
+          originalDocId: state.contentOriginalDocId || '',
           imageType: document.getElementById('content-image-type').value.trim(),
           author: document.getElementById('content-author').value.trim(),
           book: document.getElementById('content-book').value.trim(),
@@ -4010,6 +4052,7 @@
         saveCollapseState('pp_admin_duplicate_review_collapsed', state.duplicateReviewCollapsed);
         applyDuplicateReviewCollapseState();
       });
+      document.getElementById("scan-excerpt-duplicates").addEventListener("click", () => scanExcerptDuplicates());
       document.getElementById("user-submissions-toggle").addEventListener("click", () => {
         state.userSubmissionsCollapsed = !state.userSubmissionsCollapsed;
         saveCollapseState('pp_admin_user_submissions_collapsed', state.userSubmissionsCollapsed);
@@ -4053,7 +4096,7 @@
         await signInWithGoogle();
       });
       document.getElementById("content-type").addEventListener("change", (event) => {
-        state.contentType = event.target.value || "graphics";
+        state.contentType = event.target.value || "all";
         updateContentFormVisibility();
         clearContentForm();
         loadContentLibrary();

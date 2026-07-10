@@ -144,6 +144,7 @@
       <a href="/">Back to app</a>
       <div class="topbar-actions">
         <a href="/admin">Admin</a>
+        <a href="/team-progress">Team Progress</a>
         <span id="auth-note" class="auth-note">Checking access…</span>
         <button id="login-google" type="button" class="primary" style="display:none;">Log in with Google</button>
         <button id="logout" type="button" style="display:none;">Log out</button>
@@ -184,6 +185,7 @@
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
           <button id="scoreboardBtn" type="button" class="active">Scoreboard</button>
           <button id="progressBarsBtn" type="button">Progress Bars</button>
+          <button id="teamProgressBtn" type="button" style="display:none;">Button Team Progress</button>
         </div>
       </div>
 
@@ -255,6 +257,21 @@
           <tbody id="progressBarsBody"></tbody>
         </table>
       </div>
+
+      <div id="teamProgressContainer" class="table-wrap" style="display:none;">
+        <table id="teamProgress">
+          <thead>
+            <tr>
+              <th data-column="user">User</th>
+              <th data-column="voted">Unique Items Voted</th>
+              <th data-column="totalVotes">Total Votes</th>
+              <th data-column="total">Available Items</th>
+              <th data-column="percent">Progress</th>
+            </tr>
+          </thead>
+          <tbody id="teamProgressBody"></tbody>
+        </table>
+      </div>
     </section>
   </main>
 
@@ -276,6 +293,9 @@
     let scoreboardFilterOptions = {};
     let currentProgressSortKey = 'book';
     let currentProgressSortDir = 1;
+    let currentTeamProgressSortKey = 'percent';
+    let currentTeamProgressSortDir = -1;
+    let expandedTeamProgressUser = '';
     let currentSortKey = 'bookTitle';
     let currentSortDir = 1;
     let currentPage = 1;
@@ -288,8 +308,10 @@
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
     const progressBarsBtn = document.getElementById('progressBarsBtn');
+    const teamProgressBtn = document.getElementById('teamProgressBtn');
     const scoreboardContainer = document.getElementById('scoreboardContainer');
     const progressBarsContainer = document.getElementById('progressBarsContainer');
+    const teamProgressContainer = document.getElementById('teamProgressContainer');
     const statusEl = document.getElementById('status');
     const refreshSnapshotBtn = document.getElementById('refreshSnapshotBtn');
     let googleTokenClient = null;
@@ -674,13 +696,23 @@
     function switchView(view) {
       if (!scoreboardLoaded) return;
       const isScoreboard = view === 'scoreboard';
+      const isProgressBars = view === 'progressBars';
+      const isTeamProgress = view === 'teamProgress';
+      if (isTeamProgress && !(currentAccount?.roles || []).includes('admin')) {
+        setStatus('Button team progress is available to admin accounts only.', true);
+        return;
+      }
       scoreboardBtn.classList.toggle('active', isScoreboard);
-      progressBarsBtn.classList.toggle('active', !isScoreboard);
+      progressBarsBtn.classList.toggle('active', isProgressBars);
+      teamProgressBtn.classList.toggle('active', isTeamProgress);
       scoreboardContainer.style.display = isScoreboard ? '' : 'none';
       document.getElementById('scoreboardPagination').style.display = isScoreboard ? 'flex' : 'none';
-      progressBarsContainer.style.display = isScoreboard ? 'none' : '';
+      progressBarsContainer.style.display = isProgressBars ? '' : 'none';
+      teamProgressContainer.style.display = isTeamProgress ? '' : 'none';
       if (isScoreboard) loadScoreboardPage();
-      else ensureFullScoreboard().then(renderProgressBars).catch((err) => setStatus(err.message || 'Could not load progress data.', true));
+      else ensureFullScoreboard()
+        .then(() => isTeamProgress ? renderTeamProgressBars() : renderProgressBars())
+        .catch((err) => setStatus(err.message || 'Could not load progress data.', true));
     }
 
     function updateAuthUI(user) {
@@ -698,6 +730,7 @@
         logoutBtn.style.display = '';
         const roles = currentAccount?.roles || [];
         refreshSnapshotBtn.style.display = roles.includes('admin') ? '' : 'none';
+        teamProgressBtn.style.display = roles.includes('admin') ? '' : 'none';
       }
     }
 
@@ -848,6 +881,7 @@
       currentPage = 1;
       sortData();
       if (scoreboardContainer.style.display === '') updateTable(filteredData);
+      else if (teamProgressContainer.style.display === '') renderTeamProgressBars();
       else renderProgressBars();
     }
 
@@ -1037,6 +1071,143 @@
       setStatus(`Loaded ${rows.length} progress row${rows.length === 1 ? '' : 's'} from ${allGraphics.length} content item${allGraphics.length === 1 ? '' : 's'}.${metaText ? ` ${metaText}` : ''}`);
     }
 
+    function renderTeamProgressBars() {
+      const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
+      const bookVal = normalizeBookTitleKey(document.getElementById('bookDropdown').value);
+      const catalogVal = canonicalCatalogFilterValue(document.getElementById('catalogDropdown').value).trim().toLowerCase();
+      const canonicalLookup = buildCanonicalBookTitleLookup();
+      const availableIds = new Set();
+      const availableById = new Map();
+      const bookCatalogTotals = new Map();
+
+      allGraphics.forEach((graphic) => {
+        if (isKnownWrongBookCatalogPair(graphic.bookTitle, graphic.releaseCatalog)) return;
+        const catalog = canonicalCatalogFilterValue(graphic.releaseCatalog);
+        const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
+        if (typeVal && normalizeTypeForFilter(graphic.type) !== typeVal) return;
+        if (bookVal && normalizeBookTitleKey(title) !== bookVal) return;
+        if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
+        if (!graphic.imageId) return;
+        const key = `${catalog.toLowerCase()}|${normalizeBookTitleKey(title)}`;
+        availableIds.add(graphic.imageId);
+        availableById.set(graphic.imageId, { catalog, title, key });
+        if (!bookCatalogTotals.has(key)) bookCatalogTotals.set(key, { catalog, title, total: 0 });
+        bookCatalogTotals.get(key).total += 1;
+      });
+
+      const byUser = new Map();
+      rawVotes.forEach((vote) => {
+        const user = String(vote.user || '').trim().toLowerCase();
+        if (!user.endsWith('@buttonpoetry.com')) return;
+        if (!availableIds.has(vote.imageId)) return;
+        if (!byUser.has(user)) byUser.set(user, { user, votedIds: new Set(), totalVotes: 0, votedByBookCatalog: new Map() });
+        const entry = byUser.get(user);
+        entry.votedIds.add(vote.imageId);
+        entry.totalVotes += 1;
+        const item = availableById.get(vote.imageId);
+        if (item) {
+          if (!entry.votedByBookCatalog.has(item.key)) entry.votedByBookCatalog.set(item.key, new Set());
+          entry.votedByBookCatalog.get(item.key).add(vote.imageId);
+        }
+      });
+
+      const rows = Array.from(byUser.values()).map((entry) => ({
+        user: entry.user,
+        voted: entry.votedIds.size,
+        totalVotes: entry.totalVotes,
+        total: availableIds.size,
+        percent: availableIds.size ? entry.votedIds.size / availableIds.size : 0,
+        details: Array.from(bookCatalogTotals.entries()).map(([key, totalRow]) => {
+          const voted = entry.votedByBookCatalog.get(key)?.size || 0;
+          return {
+            catalog: totalRow.catalog,
+            title: totalRow.title,
+            voted,
+            total: totalRow.total,
+            percent: totalRow.total ? voted / totalRow.total : 0,
+          };
+        }).filter((detail) => detail.voted > 0 || detail.total > 0)
+          .sort((a, b) => (
+            a.catalog.toLowerCase().localeCompare(b.catalog.toLowerCase())
+            || a.title.toLowerCase().localeCompare(b.title.toLowerCase())
+          )),
+      }));
+
+      rows.sort((a, b) => {
+        let va = a[currentTeamProgressSortKey];
+        let vb = b[currentTeamProgressSortKey];
+        if (typeof va === 'string') va = va.toLowerCase();
+        if (typeof vb === 'string') vb = vb.toLowerCase();
+        if (va > vb) return currentTeamProgressSortDir;
+        if (va < vb) return -currentTeamProgressSortDir;
+        return a.user.localeCompare(b.user);
+      });
+
+      const tbody = document.getElementById('teamProgressBody');
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty">No @buttonpoetry.com progress rows match the current filters.</div></td></tr>';
+        const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
+        setStatus(`Loaded 0 Button team progress rows against ${availableIds.size} available item${availableIds.size === 1 ? '' : 's'}.${metaText ? ` ${metaText}` : ''}`);
+        return;
+      }
+
+      rows.forEach((row) => {
+        const pct = Math.round(row.percent * 100);
+        const tr = document.createElement('tr');
+        tr.dataset.user = row.user;
+        tr.style.cursor = 'pointer';
+        tr.innerHTML = `
+          <td>${escapeHtml(row.user)}</td>
+          <td>${row.voted}</td>
+          <td>${row.totalVotes}</td>
+          <td>${row.total}</td>
+          <td>
+            <div class="progress"><div class="progress-fill" style="width:${pct}%"></div></div>
+            <div class="meta" style="margin-top:6px;">${pct}%</div>
+          </td>
+        `;
+        tbody.appendChild(tr);
+        if (expandedTeamProgressUser === row.user) {
+          const detailRows = row.details.map((detail) => {
+            const detailPct = Math.round(detail.percent * 100);
+            return `
+              <tr>
+                <td>${escapeHtml(detail.catalog || '')}</td>
+                <td>${escapeHtml(detail.title || '')}</td>
+                <td>${detail.voted}</td>
+                <td>${detail.total}</td>
+                <td>
+                  <div class="progress"><div class="progress-fill" style="width:${detailPct}%"></div></div>
+                  <div class="meta" style="margin-top:6px;">${detailPct}%</div>
+                </td>
+              </tr>
+            `;
+          }).join('');
+          const detailTr = document.createElement('tr');
+          detailTr.innerHTML = `
+            <td colspan="5">
+              <div class="empty" style="text-align:left;">
+                <strong>${escapeHtml(row.user)} by catalog/book</strong>
+                <div class="table-wrap" style="margin-top:12px;">
+                  <table>
+                    <thead>
+                      <tr><th>Catalog</th><th>Book</th><th>Unique Items Voted</th><th>Available Items</th><th>Progress</th></tr>
+                    </thead>
+                    <tbody>${detailRows || '<tr><td colspan="5">No matching detail rows.</td></tr>'}</tbody>
+                  </table>
+                </div>
+              </div>
+            </td>
+          `;
+          tbody.appendChild(detailTr);
+        }
+      });
+
+      const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
+      setStatus(`Loaded ${rows.length} Button team progress row${rows.length === 1 ? '' : 's'} against ${availableIds.size} available item${availableIds.size === 1 ? '' : 's'}.${metaText ? ` ${metaText}` : ''}`);
+    }
+
     async function exportVisibleSheet() {
       if (!scoreboardLoaded) return;
       const isUserView = !!document.getElementById('userDropdown').value;
@@ -1092,6 +1263,20 @@
           renderProgressBars();
         });
       });
+      document.querySelectorAll('#teamProgress th[data-column]').forEach((th) => {
+        th.addEventListener('click', () => {
+          if (!scoreboardLoaded) return;
+          const col = th.dataset.column;
+          if (currentTeamProgressSortKey === col) currentTeamProgressSortDir *= -1;
+          else {
+            currentTeamProgressSortKey = col;
+            currentTeamProgressSortDir = col === 'user' ? 1 : -1;
+          }
+          document.querySelectorAll('#teamProgress th').forEach((node) => node.classList.remove('asc', 'desc'));
+          th.classList.add(currentTeamProgressSortDir > 0 ? 'asc' : 'desc');
+          renderTeamProgressBars();
+        });
+      });
     }
 
     function scoreboardPagePath() {
@@ -1135,9 +1320,11 @@
         setControlsDisabled(false);
         scoreboardBtn.classList.add('active');
         progressBarsBtn.classList.remove('active');
+        teamProgressBtn.classList.remove('active');
         scoreboardContainer.style.display = '';
         document.getElementById('scoreboardPagination').style.display = 'flex';
         progressBarsContainer.style.display = 'none';
+        teamProgressContainer.style.display = 'none';
         updateTable(filteredData, totalFilteredRows);
         const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
         setStatus(`Loaded ${totalFilteredRows} matching scored item${totalFilteredRows === 1 ? '' : 's'}.${metaText ? ` ${metaText}` : ''}`);
@@ -1209,6 +1396,13 @@
         const windowName = `poetry-please-text-${String(imageId || 'preview').replace(/[^a-z0-9_-]/gi, '-')}`;
         openComparisonWindow(link.href, windowName);
       });
+      document.getElementById('teamProgressBody').addEventListener('click', (event) => {
+        const row = event.target.closest('tr[data-user]');
+        if (!row) return;
+        const user = row.dataset.user || '';
+        expandedTeamProgressUser = expandedTeamProgressUser === user ? '' : user;
+        renderTeamProgressBars();
+      });
       document.getElementById('exportBtn').addEventListener('click', exportVisibleSheet);
       refreshSnapshotBtn.addEventListener('click', async () => {
         refreshSnapshotBtn.disabled = true;
@@ -1225,6 +1419,7 @@
       });
       scoreboardBtn.addEventListener('click', () => switchView('scoreboard'));
       progressBarsBtn.addEventListener('click', () => switchView('progressBars'));
+      teamProgressBtn.addEventListener('click', () => switchView('teamProgress'));
       document.getElementById('login-google').addEventListener('click', signInWithGoogle);
       document.getElementById('logout').addEventListener('click', async () => {
         await firebase.auth().signOut();

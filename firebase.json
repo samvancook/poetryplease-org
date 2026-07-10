@@ -76,6 +76,14 @@
         "destination": "/scoreboard.html"
       },
       {
+        "source": "/team-progress",
+        "destination": "/team-progress.html"
+      },
+      {
+        "source": "/team-progress/**",
+        "destination": "/team-progress.html"
+      },
+      {
         "source": "/author-command-center",
         "destination": "/author-command-center.html"
       },
