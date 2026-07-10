@@ -5697,6 +5697,159 @@ app.get(getBoth("/internal/contentScores"), async (req, res) => {
   }
 });
 
+app.get(getBoth("/internal/excerptDuplicateCandidates"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  const snap = await db.collection(COLLECTIONS.excerpts).get();
+  const groups = new Map();
+  snap.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const fingerprint = buildExcerptFingerprint(data.excerpt);
+    if (!fingerprint) return;
+    groups.set(fingerprint, [...(groups.get(fingerprint) || []), {
+      id: doc.id,
+      imageId: data.imageId || data.imageID || doc.id,
+      author: data.author || "",
+      book: data.book || "",
+      title: data.poem || data.title || "",
+      excerpt: data.excerpt || "",
+      releaseCatalog: data.releaseCatalog || "",
+      bookShortener: data.bookShortener || "",
+    }]);
+  });
+
+  const duplicateGroups = Array.from(groups.entries())
+    .filter(([, items]) => items.length > 1)
+    .map(([fingerprint, items]) => ({ fingerprint, items }));
+  res.json({
+    ok: true,
+    checkedCount: snap.size,
+    duplicateGroupCount: duplicateGroups.length,
+    duplicateItemCount: duplicateGroups.reduce((sum, group) => sum + group.items.length - 1, 0),
+    groups: duplicateGroups,
+  });
+});
+
+app.post(getBoth("/internal/resolveExcerptDuplicates"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+  if (normalizeText(req.body?.confirm) !== "DELETE_CATALOG_MISMATCHED_EXCERPTS") {
+    return res.status(400).json({ error: "confirmation_required" });
+  }
+
+  const resolutions = Array.isArray(req.body?.resolutions) ? req.body.resolutions.slice(0, 250) : [];
+  if (!resolutions.length) return res.status(400).json({ error: "missing_resolutions" });
+
+  const results = [];
+  let deletedExcerptCount = 0;
+  let migratedVoteCount = 0;
+  let removedRedundantVoteCount = 0;
+  let resolvedLedgerCount = 0;
+
+  for (const resolution of resolutions) {
+    const keepId = normalizeText(resolution?.keepId);
+    const deleteIds = uniq(resolution?.deleteIds || []).filter((id) => id && id !== keepId).slice(0, 25);
+    if (!keepId || !deleteIds.length) {
+      results.push({ ok: false, keepId, error: "invalid_resolution" });
+      continue;
+    }
+
+    const keepRef = db.collection(COLLECTIONS.excerpts).doc(keepId);
+    const [keepSnap, ...deleteSnaps] = await Promise.all([
+      keepRef.get(),
+      ...deleteIds.map((id) => db.collection(COLLECTIONS.excerpts).doc(id).get()),
+    ]);
+    if (!keepSnap.exists || deleteSnaps.some((snap) => !snap.exists)) {
+      results.push({ ok: false, keepId, deleteIds, error: "excerpt_not_found" });
+      continue;
+    }
+
+    const keepFingerprint = buildExcerptFingerprint(keepSnap.data()?.excerpt);
+    const mismatched = deleteSnaps.find((snap) => buildExcerptFingerprint(snap.data()?.excerpt) !== keepFingerprint);
+    if (!keepFingerprint || mismatched) {
+      results.push({ ok: false, keepId, deleteIds, error: "excerpt_text_not_equivalent" });
+      continue;
+    }
+
+    const voteDocs = [];
+    for (const imageId of [keepId, ...deleteIds]) {
+      const voteSnap = await db.collection(COLLECTIONS.votes).where("imageId", "==", imageId).get();
+      voteSnap.docs.forEach((doc) => voteDocs.push(doc));
+    }
+    const votesByUser = new Map();
+    voteDocs.forEach((doc) => {
+      const data = doc.data() || {};
+      const userKey = normalizeKey(data.userId || data.email || `vote:${doc.id}`);
+      votesByUser.set(userKey, [...(votesByUser.get(userKey) || []), doc]);
+    });
+
+    for (const docs of votesByUser.values()) {
+      docs.sort((a, b) => timestampToMs(b.data()?.timestamp) - timestampToMs(a.data()?.timestamp));
+      const winner = docs[0];
+      if (normalizeText(winner.data()?.imageId) !== keepId) {
+        await winner.ref.set({ imageId: keepId }, { merge: true });
+        migratedVoteCount += 1;
+      }
+      for (const redundant of docs.slice(1)) {
+        await redundant.ref.delete();
+        removedRedundantVoteCount += 1;
+      }
+    }
+
+    await Promise.all(deleteSnaps.map((snap) => snap.ref.delete()));
+    deletedExcerptCount += deleteSnaps.length;
+
+    const ledgerRefs = new Map();
+    for (const deleteId of deleteIds) {
+      const [capturedSnap, primarySnap] = await Promise.all([
+        db.collection(COLLECTIONS.contentDuplicates).where("imageId", "==", deleteId).get(),
+        db.collection(COLLECTIONS.contentDuplicates).where("duplicateOfImageId", "==", deleteId).get(),
+      ]);
+      [...capturedSnap.docs, ...primarySnap.docs].forEach((doc) => ledgerRefs.set(doc.id, doc.ref));
+    }
+    for (const ref of ledgerRefs.values()) {
+      await ref.set({
+        status: "confirmed_duplicate",
+        reviewDecision: "catalog_cleanup",
+        reviewNote: `Catalog formatting retained in ${keepId}.`,
+        reviewedBy: "internal_catalog_cleanup",
+        reviewedAt: FieldValue.serverTimestamp(),
+        moderationHistory: FieldValue.arrayUnion(buildDuplicateHistoryEntry(
+          "duplicate_resolved",
+          { uid: "internal_catalog_cleanup", email: "" },
+          `Catalog formatting retained in ${keepId}.`,
+          { reviewDecision: "catalog_cleanup", primaryImageId: keepId }
+        )),
+      }, { merge: true });
+      resolvedLedgerCount += 1;
+    }
+
+    results.push({ ok: true, keepId, deletedIds: deleteIds });
+  }
+
+  if (deletedExcerptCount || migratedVoteCount || removedRedundantVoteCount) {
+    invalidateContentCache();
+    ratingsCache.builtAt = 0;
+    ratingsCache.payload = null;
+    ratingsCache.inFlight = null;
+    await invalidateScoreboardSnapshot("catalog_excerpt_duplicate_cleanup");
+  }
+
+  res.json({
+    ok: true,
+    resolutionCount: results.filter((row) => row.ok).length,
+    errorCount: results.filter((row) => !row.ok).length,
+    deletedExcerptCount,
+    migratedVoteCount,
+    removedRedundantVoteCount,
+    resolvedLedgerCount,
+    results,
+  });
+});
+
 app.post(getBoth("/admin/contentLibrary/deleteByIds"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
