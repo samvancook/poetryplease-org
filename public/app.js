@@ -960,7 +960,7 @@ async function handleRegistration(e) {
 // ===== API Mappings (to your Cloud Functions) =====
 const STARTUP_BATCH_SIZE = 40;
 const FULL_HYDRATION_BATCH_SIZE = 1000;
-const FILTERED_REVIEW_BATCH_SIZE = 5000;
+const FILTERED_REVIEW_BATCH_SIZE = 120;
 const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: false } });
 const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: false } });
 const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: { limit: FILTERED_REVIEW_BATCH_SIZE, ...filters } });
@@ -2398,7 +2398,7 @@ async function hydrateFullFeedInBackground() {
   if ('requestIdleCallback' in window) {
     requestIdleCallback(() => { run(); }, { timeout: 2500 });
   } else {
-    setTimeout(run, 300);
+    setTimeout(run, 2000);
   }
 }
 
