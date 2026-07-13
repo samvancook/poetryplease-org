@@ -5767,6 +5767,7 @@ app.get(getBoth("/internal/contentSnapshotHealth"), async (req, res) => {
   }
 
   try {
+    const startedAt = Date.now();
     const snapshot = await readContentSnapshot();
     if (!snapshot) {
       return res.json({
@@ -5774,8 +5775,15 @@ app.get(getBoth("/internal/contentSnapshotHealth"), async (req, res) => {
         available: false,
         storagePath: CONTENT_SNAPSHOT_PATH,
         version: CONTENT_SNAPSHOT_VERSION,
+        snapshotReadDurationMs: Date.now() - startedAt,
+        memoryCache: {
+          available: Array.isArray(contentCache.payload),
+          contentCount: Array.isArray(contentCache.payload) ? contentCache.payload.length : 0,
+          ageMs: contentCache.builtAt ? Math.max(Date.now() - contentCache.builtAt, 0) : null,
+        },
       });
     }
+    const ageMs = Math.max(Date.now() - snapshot.builtAtMs, 0);
     res.json({
       ok: true,
       available: true,
@@ -5783,8 +5791,16 @@ app.get(getBoth("/internal/contentSnapshotHealth"), async (req, res) => {
       storagePath: CONTENT_SNAPSHOT_PATH,
       version: CONTENT_SNAPSHOT_VERSION,
       builtAtMs: snapshot.builtAtMs,
-      ageMs: Math.max(Date.now() - snapshot.builtAtMs, 0),
+      ageMs,
+      ttlMs: CONTENT_SNAPSHOT_TTL_MS,
+      stale: ageMs >= CONTENT_SNAPSHOT_TTL_MS,
       contentCount: snapshot.payload.length,
+      snapshotReadDurationMs: Date.now() - startedAt,
+      memoryCache: {
+        available: Array.isArray(contentCache.payload),
+        contentCount: Array.isArray(contentCache.payload) ? contentCache.payload.length : 0,
+        ageMs: contentCache.builtAt ? Math.max(Date.now() - contentCache.builtAt, 0) : null,
+      },
     });
   } catch (err) {
     console.error("Content snapshot health check failed", err);
