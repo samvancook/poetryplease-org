@@ -29,6 +29,26 @@ Useful signals:
 - A fast API response but late `firstMediaLoaded` points toward image/video loading.
 - A late `authResolved` or `api:me` can explain logged-in-only startup delay.
 
+### Persistent feed snapshot
+
+Use the protected production diagnostic endpoint when `api:bootstrap` or `api:fetchFiltered` is slow:
+
+```text
+GET https://poetryplease.org/api/internal/contentSnapshotHealth
+x-api-key: POETRY_PLEASE_API_KEY
+```
+
+Use the `POETRY_PLEASE_API_KEY` value from the documented `functions/.env` path without printing or copying the raw value into logs or documentation. Do not use the local interactive `gcloud` account or user Application Default Credentials for this check.
+
+Interpretation:
+
+- `available: true` and `readable: true` confirm that the deployed Poetry Please runtime can download and parse the snapshot using its own service identity.
+- `snapshotReadDurationMs` measures the Storage download and JSON parse performed by the health check.
+- `stale: true` means the next feed request will fall back to Firestore and rebuild the snapshot.
+- `memoryCache.available: true` means the current function instance also has a warm in-memory feed.
+- `contentCount` should roughly match the current total content corpus; a sudden large change warrants an import/content audit.
+- A missing or unreadable snapshot is not fatal because the feed automatically falls back to the Firestore scan.
+
 ## Old App Path Confusion
 
 If someone reports behavior that does not match the current app, first confirm the URL.
