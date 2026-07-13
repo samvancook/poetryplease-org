@@ -77,6 +77,10 @@ const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
 const CONTENT_CACHE_TTL_MS = 15 * 60 * 1000;
+const CONTENT_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
+const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
+const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
+const CONTENT_SNAPSHOT_VERSION = 1;
 const RATINGS_CACHE_TTL_MS = 2 * 60 * 1000;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
@@ -88,6 +92,7 @@ let contentCache = {
   payload: null,
   inFlight: null,
 };
+let contentSnapshotInvalidatedAt = 0;
 let ratingsCache = {
   builtAt: 0,
   payload: null,
@@ -307,6 +312,47 @@ function invalidateContentCache() {
   contentCache.builtAt = 0;
   contentCache.payload = null;
   contentCache.inFlight = null;
+  contentSnapshotInvalidatedAt = Date.now();
+  db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).set({
+    invalidatedAt: FieldValue.serverTimestamp(),
+    builtAt: null,
+  }, { merge: true }).catch((err) => {
+    console.warn("Content snapshot invalidation failed", err);
+  });
+}
+
+async function readContentSnapshot() {
+  const metaSnap = await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).get();
+  if (!metaSnap.exists) return null;
+  const meta = metaSnap.data() || {};
+  const builtAtMs = timestampToMs(meta.builtAt);
+  const storagePath = normalizeText(meta.storagePath || CONTENT_SNAPSHOT_PATH);
+  if (!builtAtMs || !storagePath || Number(meta.version || 0) !== CONTENT_SNAPSHOT_VERSION) return null;
+  if (contentSnapshotInvalidatedAt && builtAtMs <= contentSnapshotInvalidatedAt) return null;
+
+  const [buffer] = await storage.bucket().file(storagePath).download();
+  const payload = JSON.parse(buffer.toString("utf8"));
+  if (!Array.isArray(payload)) return null;
+  return { payload, builtAtMs };
+}
+
+async function writeContentSnapshot(payload) {
+  const builtAtMs = Date.now();
+  const file = storage.bucket().file(CONTENT_SNAPSHOT_PATH);
+  await file.save(JSON.stringify(payload), {
+    contentType: "application/json; charset=utf-8",
+    resumable: false,
+    metadata: { cacheControl: "no-store, max-age=0" },
+  });
+  await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).set({
+    storagePath: CONTENT_SNAPSHOT_PATH,
+    version: CONTENT_SNAPSHOT_VERSION,
+    builtAt: new Date(builtAtMs),
+    contentCount: payload.length,
+    updatedBy: "server",
+  }, { merge: true });
+  contentSnapshotInvalidatedAt = 0;
+  return builtAtMs;
 }
 
 async function getAllContentCached({ forceRefresh = false } = {}) {
@@ -317,17 +363,35 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
   if (!forceRefresh && contentCache.inFlight) {
     return contentCache.inFlight;
   }
-  contentCache.inFlight = getAllContent()
-    .then((payload) => {
-      contentCache.payload = payload.map(canonicalizeContentRecord);
-      contentCache.builtAt = Date.now();
-      contentCache.inFlight = null;
-      return contentCache.payload;
-    })
-    .catch((err) => {
-      contentCache.inFlight = null;
-      throw err;
-    });
+  contentCache.inFlight = (async () => {
+    const startedAt = Date.now();
+    if (!forceRefresh) {
+      try {
+        const snapshot = await readContentSnapshot();
+        if (snapshot && (now - snapshot.builtAtMs) < CONTENT_SNAPSHOT_TTL_MS) {
+          contentCache.payload = snapshot.payload;
+          contentCache.builtAt = snapshot.builtAtMs;
+          console.info("Content cache loaded", { source: "snapshot", count: snapshot.payload.length, durationMs: Date.now() - startedAt });
+          return contentCache.payload;
+        }
+      } catch (err) {
+        console.warn("Content snapshot read failed; falling back to Firestore", err);
+      }
+    }
+
+    const payload = (await getAllContent()).map(canonicalizeContentRecord);
+    contentCache.payload = payload;
+    contentCache.builtAt = Date.now();
+    console.info("Content cache loaded", { source: "firestore", count: payload.length, durationMs: Date.now() - startedAt });
+    try {
+      await writeContentSnapshot(payload);
+    } catch (err) {
+      console.warn("Content snapshot write failed", err);
+    }
+    return contentCache.payload;
+  })().finally(() => {
+    contentCache.inFlight = null;
+  });
   return contentCache.inFlight;
 }
 
