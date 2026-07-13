@@ -5761,6 +5761,41 @@ app.get(getBoth("/internal/contentScores"), async (req, res) => {
   }
 });
 
+app.get(getBoth("/internal/contentSnapshotHealth"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  try {
+    const snapshot = await readContentSnapshot();
+    if (!snapshot) {
+      return res.json({
+        ok: true,
+        available: false,
+        storagePath: CONTENT_SNAPSHOT_PATH,
+        version: CONTENT_SNAPSHOT_VERSION,
+      });
+    }
+    res.json({
+      ok: true,
+      available: true,
+      readable: true,
+      storagePath: CONTENT_SNAPSHOT_PATH,
+      version: CONTENT_SNAPSHOT_VERSION,
+      builtAtMs: snapshot.builtAtMs,
+      ageMs: Math.max(Date.now() - snapshot.builtAtMs, 0),
+      contentCount: snapshot.payload.length,
+    });
+  } catch (err) {
+    console.error("Content snapshot health check failed", err);
+    res.status(500).json({
+      ok: false,
+      error: "content_snapshot_health_failed",
+      message: err.message || "unknown_error",
+    });
+  }
+});
+
 app.get(getBoth("/internal/excerptDuplicateCandidates"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
