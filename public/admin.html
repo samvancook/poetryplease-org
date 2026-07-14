@@ -471,7 +471,7 @@
         </button>
       </div>
       <div id="duplicate-review-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Review duplicate media captured during imports and exact-text EXC scans. Confirmed duplicates stay quarantined; dismissed rows are marked safe.</p>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review suspected duplicate pairs from imports and exact-text EXC scans. Confirm and Not a duplicate only update this review ledger; neither action deletes content, moves votes, or changes which item is kept.</p>
         <div class="actions" style="margin:0 0 12px;">
           <button id="scan-excerpt-duplicates" class="secondary" type="button">Scan existing EXC</button>
         </div>
@@ -1825,8 +1825,8 @@
         <table>
           <thead>
             <tr>
-              <th>Captured item</th>
-              <th>Primary match</th>
+              <th>Duplicate candidate</th>
+              <th>Existing match</th>
               <th>Match type</th>
               <th>Status</th>
               <th>Review</th>
@@ -1836,22 +1836,29 @@
             ${state.duplicates.map((row) => `
               <tr>
                 <td>
-                  <div class="user-name">${row.title || row.imageId}</div>
+                  <div class="user-name">${row.capturedActualTitle || row.title || row.imageId}</div>
                   <div>${row.author || '—'}${row.releaseCatalog ? ' · ' + row.releaseCatalog : ''}</div>
-                  <div><a href="/?item=${encodeURIComponent(row.imageId)}" target="_blank" rel="noopener">Open captured</a></div>
+                  <div>${row.capturedImageType ? row.capturedImageType + ' · ' : ''}${row.imageId || '—'}</div>
+                  ${row.capturedContentFound
+                    ? `<div><a href="/app?item=${encodeURIComponent(row.imageId)}" target="_blank" rel="noopener">Open candidate</a></div>`
+                    : '<div class="status error">No longer in content library</div>'}
                 </td>
                 <td>
-                  <div class="user-name">${row.duplicateOfTitle || row.duplicateOfImageId || '—'}</div>
+                  <div class="user-name">${row.primaryActualTitle || row.duplicateOfTitle || row.duplicateOfImageId || '—'}</div>
                   <div>${row.duplicateOfAuthor || '—'}${row.duplicateOfBook ? ' · ' + row.duplicateOfBook : ''}</div>
-                  ${row.duplicateOfImageId ? `<div><a href="/?item=${encodeURIComponent(row.duplicateOfImageId)}" target="_blank" rel="noopener">Open primary</a></div>` : ''}
+                  <div>${row.primaryImageType ? row.primaryImageType + ' · ' : ''}${row.duplicateOfImageId || '—'}</div>
+                  ${row.duplicateOfImageId && row.primaryContentFound
+                    ? `<div><a href="/app?item=${encodeURIComponent(row.duplicateOfImageId)}" target="_blank" rel="noopener">Open match</a></div>`
+                    : '<div class="status error">No longer in content library</div>'}
                 </td>
                 <td>${row.duplicateMatchType || '—'}</td>
                 <td>${row.status || 'pending'}</td>
                 <td>
                   <div class="actions" style="margin-top:0;">
-                    <button type="button" data-review-duplicate="${row.id}" data-decision="confirmed" ${row.status !== 'pending' ? 'disabled' : ''}>Confirm</button>
-                    <button type="button" class="secondary" data-review-duplicate="${row.id}" data-decision="dismissed" ${row.status !== 'pending' ? 'disabled' : ''}>Dismiss</button>
+                    <button type="button" data-review-duplicate="${row.id}" data-decision="confirmed" ${row.status !== 'pending' ? 'disabled' : ''}>Confirm duplicate</button>
+                    <button type="button" class="secondary" data-review-duplicate="${row.id}" data-decision="dismissed" ${row.status !== 'pending' ? 'disabled' : ''}>Not a duplicate</button>
                   </div>
+                  <div class="lede" style="margin-top:8px;font-size:14px;">Review status only. No deletion.</div>
                 </td>
               </tr>
             `).join('')}
@@ -3803,6 +3810,10 @@
     }
 
     async function reviewDuplicate(duplicateId, decision) {
+      const message = decision === 'confirmed'
+        ? 'Confirm this duplicate? This records the pair as a confirmed duplicate. It does not delete either content item or move votes.'
+        : 'Mark this pair as not a duplicate? This only dismisses the review row and does not change either content item.';
+      if (!window.confirm(message)) return;
       const statusEl = document.getElementById('duplicate-review-status');
       statusEl.textContent = `${decision === 'confirmed' ? 'Confirming' : 'Dismissing'} duplicate…`;
       statusEl.className = 'status';
