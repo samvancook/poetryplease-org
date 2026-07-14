@@ -5812,6 +5812,52 @@ app.get(getBoth("/internal/contentSnapshotHealth"), async (req, res) => {
   }
 });
 
+app.get(getBoth("/internal/contentDuplicateAudit"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  try {
+    const limit = Math.max(1, Math.min(Number(req.query?.limit) || 250, 500));
+    const duplicates = await getEnrichedContentDuplicateRows(limit);
+    res.json({ ok: true, count: duplicates.length, duplicates });
+  } catch (err) {
+    console.error("Content duplicate audit failed", err);
+    res.status(500).json({ error: "content_duplicate_audit_failed", message: err.message || "unknown_error" });
+  }
+});
+
+app.post(getBoth("/internal/contentDuplicateAudit/pruneMissing"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  try {
+    const duplicates = await getEnrichedContentDuplicateRows(500);
+    const staleRows = duplicates.filter((row) => !row.capturedContentFound || !row.primaryContentFound);
+    const dryRun = req.body?.dryRun !== false;
+    if (!dryRun) {
+      for (let index = 0; index < staleRows.length; index += 400) {
+        const batch = db.batch();
+        staleRows.slice(index, index + 400).forEach((row) => {
+          batch.delete(db.collection(COLLECTIONS.contentDuplicates).doc(row.id));
+        });
+        await batch.commit();
+      }
+    }
+    res.json({
+      ok: true,
+      dryRun,
+      checkedCount: duplicates.length,
+      removedCount: dryRun ? 0 : staleRows.length,
+      staleCount: staleRows.length,
+    });
+  } catch (err) {
+    console.error("Content duplicate prune failed", err);
+    res.status(500).json({ error: "content_duplicate_prune_failed", message: err.message || "unknown_error" });
+  }
+});
+
 app.get(getBoth("/internal/excerptDuplicateCandidates"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
@@ -6213,12 +6259,9 @@ app.post(getBoth("/admin/contentClaims/:claimId/review"), async (req, res) => {
   res.json({ ok: true, claim: { id: saved.id, ...(saved.data() || {}) } });
 });
 
-app.get(getBoth("/admin/contentDuplicates"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
-  if (!ctx) return;
-
+async function getEnrichedContentDuplicateRows(limit = 250) {
   const [snap, allContent] = await Promise.all([
-    db.collection(COLLECTIONS.contentDuplicates).limit(250).get(),
+    db.collection(COLLECTIONS.contentDuplicates).limit(limit).get(),
     getAllContentCached(),
   ]);
   const contentById = new Map();
@@ -6227,7 +6270,7 @@ app.get(getBoth("/admin/contentDuplicates"), async (req, res) => {
       if (!contentById.has(key)) contentById.set(key, item);
     });
   });
-  const duplicates = snap.docs
+  return snap.docs
     .map(mapContentDuplicateDoc)
     .map((row) => {
       const captured = contentById.get(normalizeKey(row.imageId));
@@ -6240,9 +6283,22 @@ app.get(getBoth("/admin/contentDuplicates"), async (req, res) => {
         primaryImageType: primary?.imageType || "",
         capturedActualTitle: captured?.title || "",
         primaryActualTitle: primary?.title || "",
+        capturedActualAuthor: captured?.author || "",
+        primaryActualAuthor: primary?.author || "",
+        capturedActualBook: captured?.book || "",
+        primaryActualBook: primary?.book || "",
+        capturedActualCatalog: captured?.releaseCatalog || "",
+        primaryActualCatalog: primary?.releaseCatalog || "",
       };
     })
     .sort((a, b) => (normalizeTimestamp(b.createdAt)?.getTime() || 0) - (normalizeTimestamp(a.createdAt)?.getTime() || 0));
+}
+
+app.get(getBoth("/admin/contentDuplicates"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const duplicates = await getEnrichedContentDuplicateRows(250);
   res.json({ duplicates });
 });
 
