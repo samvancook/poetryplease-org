@@ -81,6 +81,18 @@
 - Replace the separate `Title:` metadata row for text excerpts with a title displayed above or integrated into the poem text itself
 - Move Drive service-account-backed folder import automation earlier in the import-assistant roadmap because it should reduce repeated manual recovery/import work long-term
 - Move from preview/import to direct ingest once the handoff contract is stable
+- Build a durable Poetry Please -> Weaver -> P.I.G. repair loop for deleted or flawed graphics:
+  - expose `Delete permanently` and `Recreate` as distinct admin actions from both Flags and Content Library
+  - make permanent deletion remove the Poetry Please item from active content, preserve a compact deletion audit record, and send no new work downstream
+  - make recreation hide the flawed item from review, create a stable repair request linked to the original content id, and send that request to Weaver
+  - have Weaver track the repair request as a separate lifecycle (`requested`, `accepted`, `in P.I.G.`, `returned`, `reviewed`, `completed`, or `failed`) instead of treating it as a fresh unrelated graphic
+  - have P.I.G. receive the original image/source asset, editable metadata, problem note, and available creation history so staff can revise the existing work rather than start blind
+  - return the replacement through Weaver into Poetry Please, preserving lineage between the original item, repair request, P.I.G. output, and replacement item
+  - show administrators a confirmation and status trail for both outcomes, including who acted, when, why, downstream status, and final replacement link
+  - prevent deleted items from silently reappearing through later imports unless they belong to an explicit approved recreation request
+  - prep first: define canonical cross-tool ids, deletion tombstones, repair-request schema, history fields safe to share with P.I.G., retry/idempotency rules, and service authentication for Poetry Please -> Weaver
+  - prep first: inventory which P.I.G. source files and editable generation settings actually survive today; fall back to original image plus notes when an editable source is unavailable
+  - begin with one QI canary and an admin-only manual action before extending the workflow to `INT`, `EXC`, `FPI`, or bulk repairs
 - Expose Poetry Please ranked texts as a P.I.G.-friendly source feed with stable text identity and duplication guard rails
 - Wire the durable `FP`/`FPI` path across Poetry Please, Weaver, and P.I.G.:
   - keep `FP` as text-backed full poems from the local poetry catalog export
