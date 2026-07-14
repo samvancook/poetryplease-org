@@ -6217,9 +6217,31 @@ app.get(getBoth("/admin/contentDuplicates"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
 
-  const snap = await db.collection(COLLECTIONS.contentDuplicates).limit(250).get();
+  const [snap, allContent] = await Promise.all([
+    db.collection(COLLECTIONS.contentDuplicates).limit(250).get(),
+    getAllContentCached(),
+  ]);
+  const contentById = new Map();
+  allContent.forEach((item) => {
+    [item.id, item.imageId, item.contentId].map(normalizeKey).filter(Boolean).forEach((key) => {
+      if (!contentById.has(key)) contentById.set(key, item);
+    });
+  });
   const duplicates = snap.docs
     .map(mapContentDuplicateDoc)
+    .map((row) => {
+      const captured = contentById.get(normalizeKey(row.imageId));
+      const primary = contentById.get(normalizeKey(row.duplicateOfImageId));
+      return {
+        ...row,
+        capturedContentFound: !!captured,
+        primaryContentFound: !!primary,
+        capturedImageType: captured?.imageType || row.imageType || "",
+        primaryImageType: primary?.imageType || "",
+        capturedActualTitle: captured?.title || "",
+        primaryActualTitle: primary?.title || "",
+      };
+    })
     .sort((a, b) => (normalizeTimestamp(b.createdAt)?.getTime() || 0) - (normalizeTimestamp(a.createdAt)?.getTime() || 0));
   res.json({ duplicates });
 });
