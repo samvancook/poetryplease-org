@@ -2587,6 +2587,9 @@ async function buildInternalContentScoresPayload(contentType = "FPI") {
         dislikes: Number(scoreRow.dislikes || 0),
         meh: Number(scoreRow.meh || 0),
         movedMe: Number(scoreRow.movedMe || 0),
+        authorLikes: Number(scoreRow.authorLikes || 0),
+        authorDislikes: Number(scoreRow.authorDislikes || 0),
+        authorMovedMe: Number(scoreRow.authorMovedMe || 0),
         totalVotes: Number(scoreRow.totalVotes || 0),
       };
     })
