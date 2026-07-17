@@ -166,6 +166,13 @@ function resolveCatalogBookRecord({ author = "", book = "", bookShortener = "", 
   return null;
 }
 
+function canonicalizeAuthorName(value = "") {
+  const author = normalizeText(value);
+  return normalizeKey(author) === "francis dylan waguespeck"
+    ? "Francis Dylan Waguespack"
+    : author;
+}
+
 function resolveCanonicalCatalogMetadata(item = {}) {
   const match = resolveCatalogBookRecord({
     author: item.author || "",
@@ -190,7 +197,7 @@ function resolveCanonicalCatalogMetadata(item = {}) {
     releaseCatalog,
     bookShortener,
     bookLink: normalizeText(item.bookLink || match?.bookLink || ""),
-    author: normalizeText(item.author || match?.author || ""),
+    author: canonicalizeAuthorName(item.author || match?.author || ""),
     changedFields,
     matchReason: match
       ? (sanitizeDocIdSegment(item.bookShortener || inferBookShortenerFromFilename(item.fileName || item.sourceFileName || item.updatedFileName || item.imageId || item.contentId || "")) ? "matched_by_shortener" : "matched_by_author_title")
@@ -200,13 +207,15 @@ function resolveCanonicalCatalogMetadata(item = {}) {
 
 function canonicalizeContentRecord(item = {}) {
   const canonical = resolveCanonicalCatalogMetadata(item);
-  if (!canonical.matched) return item;
   return {
     ...item,
-    book: canonical.book || item.book || item.bookTitle || "",
-    releaseCatalog: canonical.releaseCatalog || item.releaseCatalog || "",
-    bookShortener: canonical.bookShortener || item.bookShortener || "",
-    bookLink: item.bookLink || canonical.bookLink || "",
+    author: canonical.author || canonicalizeAuthorName(item.author),
+    ...(canonical.matched ? {
+      book: canonical.book || item.book || item.bookTitle || "",
+      releaseCatalog: canonical.releaseCatalog || item.releaseCatalog || "",
+      bookShortener: canonical.bookShortener || item.bookShortener || "",
+      bookLink: item.bookLink || canonical.bookLink || "",
+    } : {}),
   };
 }
 
@@ -1426,7 +1435,7 @@ function mapWeaverGraphicRecord(record, options = {}) {
   const defaultImageType = normalizeText(options.defaultImageType || "QI").toUpperCase();
   const parent = record?.__weaverParentRecord || {};
   const firstExcerpt = (record?.__weaverExcerpts || []).find((entry) => entry && typeof entry === "object") || {};
-  const author = firstNonEmpty(record.author, parent.author, firstExcerpt.author);
+  const author = canonicalizeAuthorName(firstNonEmpty(record.author, parent.author, firstExcerpt.author));
   const book = firstNonEmpty(record.book, parent.book, firstExcerpt.book);
   const catalogBookMetadata = lookupCatalogBookMetadata(book, author);
   const bookShortener = sanitizeDocIdSegment(firstNonEmpty(
@@ -2043,7 +2052,7 @@ async function buildScoreboardPayload() {
     const canonicalCatalog = resolveCanonicalCatalogMetadata({ ...item, book: bookTitle, sourceFileName });
     const payload = {
       imageId: imageId || contentId,
-      author: item.author || "",
+      author: canonicalizeAuthorName(item.author || ""),
       poemTitle: item.title || item.poem || "",
       bookTitle,
       originalBookTitle: item.book || "",
@@ -6024,6 +6033,53 @@ app.get(getBoth("/internal/weaverImportHealth"), async (req, res) => {
   }
 });
 
+app.post(getBoth("/internal/repairWaguespackSpelling"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const correctedAuthor = "Francis Dylan Waguespack";
+  const collections = [
+    COLLECTIONS.graphics,
+    COLLECTIONS.excerpts,
+    COLLECTIONS.fullPoems,
+    COLLECTIONS.videos,
+    COLLECTIONS.contentSubmissions,
+  ];
+  const updatedByCollection = {};
+  let updatedCount = 0;
+  for (const collection of collections) {
+    const snap = await db.collection(collection).get();
+    const matches = snap.docs.filter((doc) => normalizeKey(doc.data()?.author) === "francis dylan waguespeck");
+    for (let start = 0; start < matches.length; start += 400) {
+      const batch = db.batch();
+      matches.slice(start, start + 400).forEach((doc) => batch.set(doc.ref, {
+        author: correctedAuthor,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true }));
+      await batch.commit();
+    }
+    updatedByCollection[collection] = matches.length;
+    updatedCount += matches.length;
+  }
+  const profileSnap = await db.collection(COLLECTIONS.authorProfiles).limit(1000).get();
+  const profileMatches = profileSnap.docs.filter((doc) => {
+    const profile = doc.data() || {};
+    return normalizeKey(profile.displayName || profile.name) === "francis dylan waguespeck"
+      || (profile.authorNameVariants || []).some((name) => normalizeKey(name) === "francis dylan waguespeck");
+  });
+  for (const doc of profileMatches) {
+    const profile = doc.data() || {};
+    await doc.ref.set({
+      displayName: canonicalizeAuthorName(profile.displayName || profile.name),
+      authorNameVariants: uniq((profile.authorNameVariants || []).map(canonicalizeAuthorName)),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+  updatedByCollection[COLLECTIONS.authorProfiles] = profileMatches.length;
+  updatedCount += profileMatches.length;
+  invalidateContentCache();
+  await invalidateScoreboardSnapshot("repair_waguespack_spelling");
+  res.json({ ok: true, correctedAuthor, updatedCount, updatedByCollection });
+});
+
 app.get(getBoth("/internal/coverageCounts"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
@@ -7220,7 +7276,7 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/review"), async (req, 
 function resolveImportAssistantRows(rows = [], defaults = {}, imageType = "QI") {
   return rows.slice(0, 100).map((row, index) => {
     const fileName = normalizeText(row?.fileName || row?.sourceFileName || "");
-    const author = normalizeText(row?.author || defaults?.author || "");
+    const author = canonicalizeAuthorName(row?.author || defaults?.author || "");
     const book = normalizeText(row?.book || defaults?.book || "");
     const title = normalizeText(row?.title || "");
     const driveLink = normalizeText(row?.driveLink || defaults?.driveFolderLink || "");
