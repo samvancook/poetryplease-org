@@ -763,11 +763,13 @@
 
         <div class="section-head" style="margin-top:8px;">
           <h3 style="margin:0;">Weaver Imports</h3>
-          <button id="refresh-weaver-exc-health" class="secondary" type="button">Refresh Weaver EXC</button>
+          <button id="refresh-weaver-exc-health" class="secondary" type="button">Refresh Weaver Health</button>
         </div>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Quick check for Weaver-approved excerpts landing in Poetry Please, with missing catalog and duplicate-risk warnings.</p>
         <div id="weaver-exc-health-status" class="status">Loading Weaver EXC health…</div>
         <div id="weaver-exc-health-list"></div>
+        <div id="weaver-import-health-status" class="status" style="margin-top:16px;">Loading Weaver handoff ledger…</div>
+        <div id="weaver-import-health-list"></div>
 
         <div class="section-head" style="margin-top:28px;">
           <h3 style="margin:0;">Temporary ID Cleanup</h3>
@@ -921,6 +923,7 @@
       claims: [],
       duplicates: [],
       weaverExcHealth: null,
+      weaverImportHealth: null,
       submissions: [],
       submissionQuery: "",
       submissionStatusFilter: "all",
@@ -1956,6 +1959,50 @@
         console.error(err);
         document.getElementById('weaver-exc-health-list').innerHTML = '<div class="empty">Could not load Weaver EXC health.</div>';
         statusEl.textContent = err.message || 'Could not load Weaver EXC health.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    function renderWeaverImportHealth() {
+      const health = state.weaverImportHealth;
+      const statusEl = document.getElementById('weaver-import-health-status');
+      const container = document.getElementById('weaver-import-health-list');
+      if (!health) {
+        statusEl.textContent = 'No Weaver handoff ledger loaded.';
+        container.innerHTML = '';
+        return;
+      }
+      statusEl.textContent = `${health.checkedLedgerCount || 0} recent handoffs checked. ${health.failedRequestCount || 0} failed requests. ${health.gapCount || 0} missing-content gaps.`;
+      const rows = (health.ledgers || []).slice(0, 25);
+      container.innerHTML = rows.length ? `
+        <table>
+          <thead><tr><th>Started</th><th>Type</th><th>Status</th><th>Created</th><th>Updated</th><th>Duplicates</th><th>Errors</th><th>Gaps</th><th>Ledger ID</th></tr></thead>
+          <tbody>${rows.map((row) => `
+            <tr>
+              <td>${formatDate(row.startedAt)}</td>
+              <td>${row.contentType || row.requestedContentType || '—'}</td>
+              <td>${row.status || '—'}</td>
+              <td>${row.createdCount || 0}</td>
+              <td>${row.updatedCount || 0}</td>
+              <td>${row.duplicateCount || 0}</td>
+              <td>${row.errorCount || (row.status === 'failed' ? 1 : 0)}</td>
+              <td>${row.missingCount || 0}</td>
+              <td>${row.id || '—'}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      ` : '<div class="empty">No Weaver imports have been recorded in the new ledger yet.</div>';
+    }
+
+    async function loadWeaverImportHealth() {
+      const statusEl = document.getElementById('weaver-import-health-status');
+      statusEl.textContent = 'Loading Weaver handoff ledger…';
+      try {
+        state.weaverImportHealth = await api('admin/weaverImportHealth', { method: 'GET' });
+        renderWeaverImportHealth();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not load Weaver handoff ledger.';
         statusEl.className = 'status error';
       }
     }
@@ -4013,7 +4060,7 @@
           await loadFlags();
           return;
         }
-        await Promise.all([loadUsers(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
+        await Promise.all([loadUsers(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadWeaverImportHealth(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -4134,7 +4181,7 @@
       document.getElementById("preview-videos-import").addEventListener("click", () => previewVideosImport());
       document.getElementById("run-videos-import").addEventListener("click", () => runVideosImport());
       document.getElementById("delete-videos-json").addEventListener("click", () => deleteVideosImportIds());
-      document.getElementById("refresh-weaver-exc-health").addEventListener("click", () => loadWeaverExcHealth());
+      document.getElementById("refresh-weaver-exc-health").addEventListener("click", () => Promise.all([loadWeaverExcHealth(), loadWeaverImportHealth()]));
       document.getElementById("preview-full-poems-import").addEventListener("click", () => previewFullPoemsImport());
       document.getElementById("run-full-poems-import").addEventListener("click", () => runFullPoemsImport());
       document.getElementById("delete-full-poems-json").addEventListener("click", () => deleteFullPoemsImportIds());

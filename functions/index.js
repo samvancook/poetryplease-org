@@ -28,6 +28,7 @@ const COLLECTIONS = {
   contentClaims: "contentClaims",
   contentFlags: "contentFlags",
   contentDuplicates: "contentDuplicates",
+  weaverImportLedger: "weaverImportLedger",
   contentSubmissions: "contentSubmissions",
   submissionResponses: "submissionResponses",
   systemState: "systemState",
@@ -253,6 +254,8 @@ function parseDoc(snap) {
     misc: d.misc || "",
     bookLink: d.bookLink || "",
     releaseCatalog: d.releaseCatalog || "",
+    sourceEvent: d.sourceEvent || "",
+    sourceEventLabel: d.sourceEventLabel || "",
     imageType: d.imageType || "",
     excerpt: d.excerpt || "",
     youtubeId: d.youtubeId || "",
@@ -1092,6 +1095,8 @@ function mapToArr(o) {
     Number(o.socialLikes || 0) || 0,
     Number(o.socialComments || 0) || 0,
     Number(o.socialDislikes || 0) || 0,
+    o.sourceEvent || "",
+    o.sourceEventLabel || "",
   ];
 }
 
@@ -1156,6 +1161,14 @@ function mapToCounterArr(o) {
     o.releaseCatalog || "",
     o.imageType || "",
     "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    o.sourceEvent || "",
+    o.sourceEventLabel || "",
   ];
 }
 
@@ -1228,6 +1241,7 @@ function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, rat
   const batch = sampleItems(newObjs, limit);
   const releaseCatalogs = uniqueReleaseCatalogs(all);
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
+  const sourceEvents = [...new Set(all.map((o) => o.sourceEventLabel || o.sourceEvent).filter(Boolean))].sort();
 
   return {
     allGraphics: includeDomainMeta ? all.map(mapToCounterArr) : [],
@@ -1237,6 +1251,7 @@ function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, rat
     remainingImagesCount: newObjs.length,
     releaseCatalogs,
     imageTypes,
+    sourceEvents,
     ...(ratingsSummary ? { ratingsSummary } : {}),
   };
 }
@@ -1274,6 +1289,7 @@ function filterContentByFeedFilters(items, filters = {}) {
     if (!matchesCatalogFilterValue(item?.releaseCatalog, filters.catalog)) return false;
     if (!matchesFilterValue(item?.author, filters.author)) return false;
     if (!matchesFilterValue(item?.book, filters.book)) return false;
+    if (!matchesFilterValue(item?.sourceEvent, filters.event) && !matchesFilterValue(item?.sourceEventLabel, filters.event)) return false;
     return true;
   });
 }
@@ -1496,6 +1512,8 @@ function mapWeaverGraphicRecord(record, options = {}) {
       firstExcerpt.releaseCatalog,
       catalogBookMetadata?.releaseCatalog
     ),
+    sourceEvent: firstNonEmpty(record.sourceEvent, parent.sourceEvent, firstExcerpt.sourceEvent),
+    sourceEventLabel: firstNonEmpty(record.sourceEventLabel, parent.sourceEventLabel, firstExcerpt.sourceEventLabel),
     pageNumber: firstNonEmpty(record.pageNumber, parent.pageNumber, firstExcerpt.pageNumber),
     ocrText: firstNonEmpty(record.ocrText, record.extractedText, record.transcription, parent.ocrText),
     reviewStatus: firstNonEmpty(record.reviewStatus, parent.reviewStatus, defaultImageType === "FPI" ? "needs_ocr" : ""),
@@ -3217,6 +3235,8 @@ function mapAdminContentDoc(collection, doc) {
     driveLink: data.driveLink || "",
     bookLink: data.bookLink || "",
     releaseCatalog: data.releaseCatalog || "",
+    sourceEvent: data.sourceEvent || "",
+    sourceEventLabel: data.sourceEventLabel || "",
     releaseYear: data.releaseYear || "",
     bookShortener: data.bookShortener || "",
     updatedFileName: data.updatedFileName || "",
@@ -3314,6 +3334,8 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     driveLink: normalizeText(body.driveLink),
     bookLink: normalizeText(body.bookLink),
     releaseCatalog: normalizeText(body.releaseCatalog),
+    sourceEvent: normalizeText(body.sourceEvent),
+    sourceEventLabel: normalizeText(body.sourceEventLabel),
     updatedAt: now,
     updatedBy: normalizeText(options.updatedBy || ""),
   };
@@ -5422,6 +5444,8 @@ function buildWeaverExcerptImportItem(record = {}) {
     bookShortener: normalizeText(record.bookShortener),
     bookLink: normalizeText(record.bookLink),
     releaseCatalog: normalizeText(record.releaseCatalog),
+    sourceEvent: normalizeText(record.sourceEvent),
+    sourceEventLabel: normalizeText(record.sourceEventLabel),
     driveLink: normalizeText(record.driveLink),
     approvedAt: normalizeText(record.approvedAt),
     sourceUpdatedAt: normalizeText(record.updatedAt),
@@ -5502,6 +5526,8 @@ function buildWeaverFullPoemImportItem(record = {}) {
     bookShortener: normalizeText(record.bookShortener),
     bookLink: normalizeText(record.bookLink),
     releaseCatalog: normalizeText(record.releaseCatalog),
+    sourceEvent: normalizeText(record.sourceEvent),
+    sourceEventLabel: normalizeText(record.sourceEventLabel),
     driveLink: normalizeText(record.driveLink),
     approvedAt: normalizeText(record.approvedAt),
     sourceUpdatedAt: normalizeText(record.updatedAt),
@@ -5698,6 +5724,27 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
     return res.status(401).json({ error: "invalid_api_key" });
   }
 
+  const requestedSchemaVersion = normalizeText(req.body?.schemaVersion);
+  const schemaVersion = requestedSchemaVersion || "legacy";
+  if (requestedSchemaVersion && requestedSchemaVersion !== "1") {
+    return res.status(400).json({
+      error: "unsupported_schema_version",
+      schemaVersion: requestedSchemaVersion,
+      supportedSchemaVersions: ["1"],
+    });
+  }
+
+  const ledgerRef = db.collection(COLLECTIONS.weaverImportLedger).doc();
+  const startedAt = Date.now();
+  await ledgerRef.set({
+    status: "processing",
+    schemaVersion,
+    sourceSystem: "weaver",
+    requestedContentType: normalizeText(req.body?.contentType || req.body?.imageType || ""),
+    sourceUrl: normalizeText(req.body?.sourceUrl),
+    startedAt: FieldValue.serverTimestamp(),
+  });
+
   try {
     const rawPayload = req.body?.payload
       || req.body?.records
@@ -5729,9 +5776,86 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
       : isWeaverFullPoemImportType(defaultImageType)
         ? await importWeaverFullPoemsPayload(payload, actor)
         : await importWeaverGraphicsPayload(payload, defaultImageType, actor);
-    res.json(result);
+    const outcomes = [
+      ...(result.results || []).map((row) => ({
+        contentId: normalizeText(row.id),
+        outcome: row.ok ? (row.created ? "created" : "updated") : "failed",
+        error: normalizeText(row.error),
+      })),
+      ...(result.duplicateItems || []).map((row) => ({
+        contentId: normalizeText(row.primaryImageId || row.duplicateOfImageId || row.imageId),
+        incomingContentId: normalizeText(row.imageId),
+        outcome: "duplicate",
+        matchType: normalizeText(row.duplicateMatchType),
+      })),
+    ].slice(0, 500);
+    await ledgerRef.set({
+      status: result.errorCount ? "completed_with_errors" : "completed",
+      contentType: defaultImageType,
+      sourceCount: Number(result.sourceCount || 0),
+      eligibleCount: Number(result.eligibleCount || 0),
+      mappedCount: Number(result.mappedCount || 0),
+      createdCount: Number(result.createdCount || 0),
+      updatedCount: Number(result.updatedCount || 0),
+      duplicateCount: Number(result.duplicateCount || 0),
+      errorCount: Number(result.errorCount || 0),
+      outcomes,
+      durationMs: Date.now() - startedAt,
+      completedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    res.json({ ...result, importLedgerId: ledgerRef.id, schemaVersion });
   } catch (err) {
-    res.status(err.status || 400).json({ error: err.message || "weaver_import_failed" });
+    await ledgerRef.set({
+      status: "failed",
+      error: err.message || "weaver_import_failed",
+      durationMs: Date.now() - startedAt,
+      completedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    res.status(err.status || 400).json({
+      error: err.message || "weaver_import_failed",
+      importLedgerId: ledgerRef.id,
+      schemaVersion,
+    });
+  }
+});
+
+async function buildWeaverImportReconciliation(limit = 100) {
+  const [ledgerSnap, allContent] = await Promise.all([
+    db.collection(COLLECTIONS.weaverImportLedger).orderBy("startedAt", "desc").limit(limit).get(),
+    getAllContentCached(),
+  ]);
+  const contentIds = new Set();
+  allContent.forEach((item) => {
+    [item.id, item.imageId, item.contentId].map(normalizeKey).filter(Boolean).forEach((id) => contentIds.add(id));
+  });
+  const ledgers = ledgerSnap.docs.map((doc) => {
+    const row = { id: doc.id, ...(doc.data() || {}) };
+    const outcomes = Array.isArray(row.outcomes) ? row.outcomes : [];
+    const missing = outcomes
+      .filter((outcome) => outcome.outcome !== "failed" && normalizeText(outcome.contentId))
+      .filter((outcome) => !contentIds.has(normalizeKey(outcome.contentId)))
+      .map((outcome) => ({
+        contentId: outcome.contentId,
+        incomingContentId: outcome.incomingContentId || "",
+        outcome: outcome.outcome,
+      }));
+    return { ...row, missingCount: missing.length, missing };
+  });
+  return {
+    ok: true,
+    checkedLedgerCount: ledgers.length,
+    gapCount: ledgers.reduce((sum, row) => sum + row.missingCount, 0),
+    failedRequestCount: ledgers.filter((row) => row.status === "failed").length,
+    ledgers,
+  };
+}
+
+app.get(getBoth("/internal/weaverImportHealth"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  try {
+    res.json(await buildWeaverImportReconciliation(Math.max(1, Math.min(Number(req.query?.limit) || 100, 250))));
+  } catch (err) {
+    res.status(500).json({ error: "weaver_import_health_failed", message: err.message || "unknown_error" });
   }
 });
 
@@ -6439,6 +6563,16 @@ app.get(getBoth("/admin/weaverExcHealth"), async (req, res) => {
     possibleDuplicates,
     recent,
   });
+});
+
+app.get(getBoth("/admin/weaverImportHealth"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  try {
+    res.json(await buildWeaverImportReconciliation(100));
+  } catch (err) {
+    res.status(500).json({ error: "weaver_import_health_failed", message: err.message || "unknown_error" });
+  }
 });
 
 app.post(getBoth("/admin/contentDuplicates/:duplicateId/review"), async (req, res) => {

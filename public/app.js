@@ -357,8 +357,10 @@ function queueDeferredBootWork() {
     const selType = document.getElementById('type-filter');
     const selCat  = document.getElementById('catalog-filter');
     const selBook = document.getElementById('book-filter');
+    const selEvent = document.getElementById('event-filter');
     const cachedTypes = Array.isArray(lastData?.imageTypes) ? lastData.imageTypes : null;
     const cachedCatalogs = Array.isArray(lastData?.releaseCatalogs) ? lastData.releaseCatalogs : null;
+    const cachedEvents = Array.isArray(lastData?.sourceEvents) ? lastData.sourceEvents : [];
     if (IS_EMBED_UI) {
       // Embed views use URL-supplied filters only.
     } else if (!IS_MOBILE_UI) {
@@ -377,12 +379,17 @@ function queueDeferredBootWork() {
         const sel = document.getElementById('book-filter');
         if (sel) sel.onchange = () => setBookDropdownFilter(sel.value);
       });
+      populateEventsSelect(cachedEvents).then(() => {
+        const sel = document.getElementById('event-filter');
+        if (sel) sel.onchange = () => setEventFilter(sel.value);
+      });
       const queueModeSel = document.getElementById('queue-mode-filter');
       if (queueModeSel) queueModeSel.onchange = () => setQueueMode(queueModeSel.value);
     } else {
       if (selType) (cachedTypes ? populateTypesSelect(cachedTypes) : fetchAndPopulateTypes()).then(() => { selType.onchange = () => setTypeFilter(selType.value); });
       if (selCat)  (cachedCatalogs ? populateCatalogsSelect(cachedCatalogs) : fetchAndPopulateCatalogs()).then(() => { selCat.onchange  = () => setCatalogFilter(selCat.value); });
       if (selBook) fetchAndPopulateBooks().then(() => { selBook.onchange = () => setBookDropdownFilter(selBook.value); });
+      if (selEvent) populateEventsSelect(cachedEvents).then(() => { selEvent.onchange = () => setEventFilter(selEvent.value); });
       const queueModeSel = document.getElementById('queue-mode-filter');
       if (queueModeSel) queueModeSel.onchange = () => setQueueMode(queueModeSel.value);
     }
@@ -1593,6 +1600,7 @@ let selectedType   = '';
 let selectedCatalog= '';
 let selectedAuthor = '';
 let selectedBook = '';
+let selectedEvent = '';
 let selectedQueueMode = 'ranked';
 let selectedItemId = '';
 let embedLockedItemId = '';
@@ -1649,6 +1657,7 @@ function readRouteState() {
     catalog: params.get('catalog') || '',
     author: params.get('author') || '',
     book: params.get('book') || '',
+    event: params.get('event') || '',
     locked: params.get('locked') || params.get('laneLocked') || '',
     authorPreview: params.get('authorPreview') || ''
   };
@@ -1662,6 +1671,7 @@ function writeRouteState() {
     catalog: selectedCatalog,
     author: filterByAuthor ? selectedAuthor : '',
     book: filterByBook ? selectedBook : '',
+    event: selectedEvent,
     locked: lockedLane ? '1' : ''
   };
 
@@ -1680,12 +1690,14 @@ function syncFilterControls() {
   const typeSel = document.getElementById('type-filter');
   const catalogSel = document.getElementById('catalog-filter');
   const bookSel = document.getElementById('book-filter');
+  const eventSel = document.getElementById('event-filter');
   const queueModeSel = document.getElementById('queue-mode-filter');
   if (typeSel) typeSel.value = selectedType;
   if (catalogSel) catalogSel.value = selectedCatalog;
   if (bookSel) bookSel.value = filterByBook ? selectedBook : '';
+  if (eventSel) eventSel.value = selectedEvent;
   if (queueModeSel) queueModeSel.value = selectedQueueMode;
-  [typeSel, catalogSel, bookSel, queueModeSel].forEach((control) => {
+  [typeSel, catalogSel, bookSel, eventSel, queueModeSel].forEach((control) => {
     if (control) control.disabled = !!lockedLane;
   });
 }
@@ -1699,6 +1711,7 @@ function initializeRouteState() {
   selectedCatalog = canonicalCatalogFilterValue(route.catalog);
   selectedAuthor = route.author.trim();
   selectedBook = route.book.trim();
+  selectedEvent = route.event.trim();
   lockedLane = ['1', 'true', 'yes', 'locked'].includes(String(route.locked || '').trim().toLowerCase());
   authorPreviewMode = ['1', 'true', 'yes', 'preview'].includes(String(route.authorPreview || '').trim().toLowerCase()) && !!selectedAuthor;
   if (authorPreviewMode) lockedLane = true;
@@ -1763,6 +1776,18 @@ function setBookDropdownFilter(value) {
   setBookFilter(!!String(value || '').trim(), value);
 }
 
+function setEventFilter(value) {
+  if (lockedLane) {
+    syncFilterControls();
+    flashMessage('Finish this set first, then choose new settings.');
+    return;
+  }
+  selectedEvent = String(value || '').trim();
+  syncFilterControls();
+  writeRouteState();
+  ensureFilterReadyThenRebuild();
+}
+
 function exitLockedLane() {
   lockedLane = false;
   selectedItemId = '';
@@ -1771,6 +1796,7 @@ function exitLockedLane() {
   selectedCatalog = '';
   selectedAuthor = '';
   selectedBook = '';
+  selectedEvent = '';
   filterByAuthor = false;
   filterByBook = false;
   syncFilterControls();
@@ -1963,6 +1989,8 @@ function mapGraphic(g){
       socialLikes: Number(g[12] || 0) || 0,
       socialComments: Number(g[13] || 0) || 0,
       socialDislikes: Number(g[14] || 0) || 0,
+      sourceEvent: g[15] || '',
+      sourceEventLabel: g[16] || '',
       author: g[0] || '',
       title: g[1] || '',
       book: g[2] || '',
@@ -1976,6 +2004,8 @@ function mapGraphic(g){
       : (g?.imageUrl ?? g?.videoUrl ?? g?.driveLink ?? g?.url ?? null),
     bookUrl: g?.bookUrl ?? g?.bookLink ?? g?.link ?? '',
     releaseCatalog: g?.releaseCatalog ?? '',
+    sourceEvent: g?.sourceEvent ?? '',
+    sourceEventLabel: g?.sourceEventLabel ?? '',
     imageType: g?.imageType ?? '',
     excerpt: g?.excerpt ?? '',
     author: g?.author ?? '',
@@ -2282,7 +2312,7 @@ async function fetchLatestBatch() {
 }
 
 function hasActiveFeedFilters() {
-  return !!(selectedType || selectedCatalog || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook));
+  return !!(selectedType || selectedCatalog || selectedEvent || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook));
 }
 
 function getActiveFilterPayload(extra = {}) {
@@ -2291,6 +2321,7 @@ function getActiveFilterPayload(extra = {}) {
     catalog: selectedCatalog || '',
     author: filterByAuthor ? selectedAuthor : '',
     book: filterByBook ? selectedBook : '',
+    event: selectedEvent,
     ...extra,
   };
 }
@@ -2475,6 +2506,21 @@ async function populateCatalogsSelect(cats) {
   syncFilterControls();
 }
 
+async function populateEventsSelect(events) {
+  const sel = $('#event-filter');
+  if (!sel) return;
+  sel.querySelectorAll('option:not(:first-child)').forEach((option) => option.remove());
+  Array.from(new Set((events || []).map((event) => String(event || '').trim()).filter(Boolean)))
+    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+    .forEach((event) => {
+      const option = document.createElement('option');
+      option.value = event;
+      option.textContent = event;
+      sel.appendChild(option);
+    });
+  syncFilterControls();
+}
+
 async function fetchAndPopulateBooks() {
   try {
     const books = await getJSONWrapped('books').catch(() => []);
@@ -2510,6 +2556,7 @@ function buildFilteredList(data) {
     if (selectedCatalog && canonicalCatalogFilterValue(g.releaseCatalog) !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
+    if (selectedEvent && !valuesMatch(g.sourceEvent, selectedEvent) && !valuesMatch(g.sourceEventLabel, selectedEvent)) return false;
     return true;
   });
 
@@ -2886,6 +2933,7 @@ function renderCounter() {
     if (selectedCatalog && canonicalCatalogFilterValue(g.releaseCatalog) !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook   && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
+    if (selectedEvent && !valuesMatch(g.sourceEvent, selectedEvent) && !valuesMatch(g.sourceEventLabel, selectedEvent)) return false;
     return true;
   });
   const totalInDomain = domainAll.length;
@@ -3080,6 +3128,7 @@ function renderCurrent(item) {
       if (selectedCatalog) params.set('catalog', selectedCatalog);
       if (filterByAuthor && selectedAuthor) params.set('author', selectedAuthor);
       if (filterByBook && selectedBook) params.set('book', selectedBook);
+      if (selectedEvent) params.set('event', selectedEvent);
       window.open(`/app${params.toString() ? `?${params.toString()}` : ''}`, '_blank', 'noopener,noreferrer');
     };
   }

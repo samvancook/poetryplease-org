@@ -1,6 +1,16 @@
 # Poetry Please Roadmap
 
 ## Active Focus
+- Weaver/Firestore integration stability goal set:
+  - completed first pass: durable import receipts with schema version, request status, counts, per-item outcomes, duration, and exact failure reason
+  - completed first pass: Admin reconciliation report for handed-off content IDs that no longer resolve in Poetry Please
+  - completed first pass: explicit rejection of unsupported Weaver schema versions while preserving the current unversioned legacy contract
+  - next: add a correct-and-retry workflow for failed ledger records instead of requiring payload reconstruction
+  - next: expand reconciliation from resulting content IDs to source-record IDs and metadata/type mismatches
+  - next: add a formal preflight/canary gate before bulk imports using a new content type or schema version
+  - next: harden idempotency around `sourceSystem + sourceRecordId` across every supported content type and document duplicate-signal precedence
+  - next: add import volume, latency, duplicate-rate, snapshot-age, and last-success trend diagnostics
+  - separately: upgrade Node.js 20 and `firebase-functions` with dedicated compatibility testing
 - App polish and reliability
 - Safer development and deploy workflow so new features do not destabilize existing app behavior
 - Public/general-user onboarding polish, load-time improvements, and non-Google account options
