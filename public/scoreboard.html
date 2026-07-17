@@ -269,10 +269,11 @@
               <th>Direct FP Score</th>
               <th>Connected Content Bonus</th>
               <th>Total Score</th>
+              <th>Signal</th>
               <th>Connected Items With Votes</th>
               <th>Connected Vote Score</th>
               <th>FP Votes</th>
-              <th>Open</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody id="fullPoemsBody"></tbody>
@@ -326,6 +327,8 @@
     let currentAccount = null;
     let scoreboardLoaded = false;
     let scoreboardSnapshotMeta = null;
+    let fullPoemRankingRows = [];
+    let expandedFullPoemId = '';
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
     const fullPoemsBtn = document.getElementById('fullPoemsBtn');
@@ -1386,7 +1389,7 @@
       const book = document.getElementById('bookDropdown').value;
       const body = document.getElementById('fullPoemsBody');
       if (!book) {
-        body.innerHTML = '<tr><td colspan="10"><div class="empty">Choose a book above to rank its full poems.</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="11"><div class="empty">Choose a book above to rank its full poems.</div></td></tr>';
         setStatus('Choose a book to view its ranked full poems.');
         return;
       }
@@ -1395,7 +1398,30 @@
       try {
         const payload = await api(`scoreboard/fullPoems?book=${encodeURIComponent(book)}`, { method: 'GET' });
         const rows = payload.rows || [];
-        body.innerHTML = rows.length ? rows.map((row) => `
+        fullPoemRankingRows = rows;
+        expandedFullPoemId = '';
+        renderFullPoemRankingRows();
+        setStatus(`Ranked ${rows.length} full poem${rows.length === 1 ? '' : 's'} for ${book}. Connected vote score is shown as a diagnostic and is not yet added to the total.`);
+      } catch (err) {
+        console.error(err);
+        fullPoemRankingRows = [];
+        body.innerHTML = '<tr><td colspan="11"><div class="empty">Could not load full-poem rankings.</div></td></tr>';
+        setStatus(err.message || 'Could not load full-poem rankings.', true);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
+    function signalLabel(row) {
+      if (row.signalLevel === 'none') return 'No signal';
+      if (row.signalLevel === 'low') return `Low (${row.signalCount})`;
+      if (row.signalLevel === 'moderate') return `Moderate (${row.signalCount})`;
+      return `Strong (${row.signalCount})`;
+    }
+
+    function renderFullPoemRankingRows() {
+      const body = document.getElementById('fullPoemsBody');
+      body.innerHTML = fullPoemRankingRows.length ? fullPoemRankingRows.map((row) => `
           <tr>
             <td>${row.rank}</td>
             <td>${escapeHtml(row.title || 'Untitled')}</td>
@@ -1403,20 +1429,33 @@
             <td>${row.directScore || 0}</td>
             <td>${row.connectedContentBonus || 0}</td>
             <td><strong>${row.totalScore || 0}</strong></td>
+            <td><strong>${escapeHtml(signalLabel(row))}</strong></td>
             <td>${row.connectedVotedCount || 0}</td>
             <td>${row.connectedVoteScore || 0}</td>
             <td>${row.totalVotes || 0}</td>
-            <td><a href="/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">Open</a></td>
+            <td><button type="button" class="secondary full-poem-details" data-image-id="${escapeHtml(row.imageId || '')}">${expandedFullPoemId === row.imageId ? 'Hide' : 'How scored'}</button></td>
           </tr>
-        `).join('') : '<tr><td colspan="10"><div class="empty">No full poems are associated with this book.</div></td></tr>';
-        setStatus(`Ranked ${rows.length} full poem${rows.length === 1 ? '' : 's'} for ${book}. Connected vote score is shown as a diagnostic and is not yet added to the total.`);
-      } catch (err) {
-        console.error(err);
-        body.innerHTML = '<tr><td colspan="10"><div class="empty">Could not load full-poem rankings.</div></td></tr>';
-        setStatus(err.message || 'Could not load full-poem rankings.', true);
-      } finally {
-        setControlsDisabled(false);
-      }
+          ${expandedFullPoemId === row.imageId ? renderFullPoemScoreDetail(row) : ''}
+        `).join('') : '<tr><td colspan="11"><div class="empty">No full poems are associated with this book.</div></td></tr>';
+    }
+
+    function renderFullPoemScoreDetail(row) {
+      const breakdown = row.scoreBreakdown || {};
+      const connected = row.connectedItems || [];
+      return `<tr class="detail-row"><td colspan="11">
+        <div style="padding:14px 4px;">
+          <strong>Score equation:</strong>
+          ${breakdown.likePoints || 0} likes
+          + ${breakdown.movedMePoints || 0} moved-me points
+          ${Number(breakdown.dislikePoints || 0) < 0 ? `− ${Math.abs(breakdown.dislikePoints)}` : '+ 0'} dislikes
+          ${Number(breakdown.authorAdjustment || 0) < 0 ? `− ${Math.abs(breakdown.authorAdjustment)}` : `+ ${breakdown.authorAdjustment || 0}`} author adjustment
+          + ${breakdown.connectedContentBonus || 0} connected-content bonus
+          = <strong>${breakdown.totalScore || 0}</strong>
+          <div class="meta" style="margin-top:8px;">Signal count: ${row.totalVotes || 0} direct FP votes + ${row.connectedContentBonus || 0} connected content items = ${row.signalCount || 0}. ${row.connectedVotedCount || 0} connected items currently have votes.</div>
+          <div style="margin-top:12px;"><a href="/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">Open full poem</a></div>
+          ${connected.length ? `<table style="margin-top:12px;"><thead><tr><th>Type</th><th>Connected Item</th><th>Votes</th><th>Score</th><th>FP Bonus</th><th>Open</th></tr></thead><tbody>${connected.map((item) => `<tr><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.title || item.imageId)}</td><td>${item.totalVotes || 0}</td><td>${item.score || 0}</td><td>+${item.fpBonusContribution || 0}</td><td><a href="/app?item=${encodeURIComponent(item.imageId || '')}" target="_blank" rel="noopener noreferrer">Open</a></td></tr>`).join('')}</tbody></table>` : '<div class="empty" style="margin-top:12px;">No connected derivative content found.</div>'}
+        </div>
+      </td></tr>`;
     }
 
     async function init() {
@@ -1469,6 +1508,12 @@
         const user = row.dataset.user || '';
         expandedTeamProgressUser = expandedTeamProgressUser === user ? '' : user;
         renderTeamProgressBars();
+      });
+      document.getElementById('fullPoemsBody').addEventListener('click', (event) => {
+        const button = event.target.closest('.full-poem-details');
+        if (!button) return;
+        expandedFullPoemId = expandedFullPoemId === button.dataset.imageId ? '' : button.dataset.imageId;
+        renderFullPoemRankingRows();
       });
       document.getElementById('exportBtn').addEventListener('click', exportVisibleSheet);
       refreshSnapshotBtn.addEventListener('click', async () => {
