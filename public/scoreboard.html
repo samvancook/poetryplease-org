@@ -1455,7 +1455,7 @@
           ${breakdown.likePoints || 0} likes
           + ${breakdown.movedMePoints || 0} moved-me points
           ${Number(breakdown.dislikePoints || 0) < 0 ? `− ${Math.abs(breakdown.dislikePoints)}` : '+ 0'} dislikes
-          ${Number(breakdown.authorAdjustment || 0) < 0 ? `− ${Math.abs(breakdown.authorAdjustment)}` : `+ ${breakdown.authorAdjustment || 0}`} author adjustment
+          ${Number(breakdown.authorAdjustment || 0) < 0 ? `− ${Math.abs(breakdown.authorAdjustment)}` : `+ ${breakdown.authorAdjustment || 0}`} own-author vote adjustment
           + ${breakdown.connectedContentBonus || 0} connected-content bonus
           = <strong>${breakdown.totalScore || 0}</strong>
           <div class="meta" style="margin-top:8px;">Signal count: ${row.totalVotes || 0} direct FP votes + ${row.connectedContentBonus || 0} connected content items = ${row.signalCount || 0}. ${row.connectedVotedCount || 0} connected items currently have votes.</div>

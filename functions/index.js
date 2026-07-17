@@ -1062,6 +1062,32 @@ async function getAuthorVoteUserIds() {
   return ids;
 }
 
+async function getAuthorVoteIdentities() {
+  const identities = new Map();
+  const [userSnap, profileSnap] = await Promise.all([
+    db.collection(COLLECTIONS.users).limit(1000).get(),
+    db.collection(COLLECTIONS.authorProfiles).limit(1000).get(),
+  ]);
+  const profiles = new Map(profileSnap.docs.map((doc) => [doc.id, { id: doc.id, ...(doc.data() || {}) }]));
+  const addIdentity = (userKey, profile) => {
+    const key = normalizeKey(userKey);
+    if (!key || !profile) return;
+    const names = uniq([
+      profile.displayName,
+      profile.name,
+      ...(Array.isArray(profile.authorNameVariants) ? profile.authorNameVariants : []),
+    ].map(normalizeKey).filter(Boolean));
+    if (names.length) identities.set(key, new Set(names));
+  };
+  userSnap.docs.forEach((doc) => {
+    const data = doc.data() || {};
+    const profile = profiles.get(data.authorProfileId) || Array.from(profiles.values()).find((item) => item.userId === doc.id);
+    addIdentity(doc.id, profile);
+    addIdentity(data.email, profile);
+  });
+  return identities;
+}
+
 function timestampToMs(value) {
   if (!value) return 0;
   if (typeof value?.toMillis === "function") return value.toMillis();
@@ -1972,14 +1998,14 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
 }
 
 async function buildScoreboardPayload() {
-  const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds, authorVoteUserIds] = await Promise.all([
+  const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds, authorVoteIdentities] = await Promise.all([
     getAllVotes(),
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
     getFlaggedContentIds(),
-    getAuthorVoteUserIds(),
+    getAuthorVoteIdentities(),
   ]);
 
   const latestByUserImage = new Map();
@@ -2042,28 +2068,37 @@ async function buildScoreboardPayload() {
   const contentRows = Array.from(new Map(
     Array.from(metaMap.values()).map((meta) => [normalizeKey(meta.imageId), meta])
   ).values());
-  const poemKeyForScore = (item = {}) => {
+  const poemKeysForScore = (item = {}) => {
     const author = normalizeKey(item.author || "");
-    const book = normalizeKey(item.bookTitle || item.book || "");
+    const book = normalizeCatalogLookupKey(item.bookTitle || item.book || "");
+    const shortener = sanitizeDocIdSegment(item.bookShortener || "");
     const title = normalizeKey(item.poemTitle || item.title || item.poem || "");
-    if (!author || !book || !title) return "";
-    return `${author}|${book}|${title}`;
+    if (!title) return [];
+    return uniq([
+      shortener ? `shortener:${shortener}|${title}` : "",
+      author && book ? `metadata:${author}|${book}|${title}` : "",
+    ].filter(Boolean));
   };
   const fpDerivativePointsByImageId = new Map();
   const fpImageIdsByPoemKey = new Map();
   contentRows.forEach((item) => {
     if (normalizeKey(item.type) !== "fp") return;
-    const poemKey = poemKeyForScore(item);
     const imageId = normalizeText(item.imageId);
-    if (!poemKey || !imageId) return;
-    fpImageIdsByPoemKey.set(poemKey, [...(fpImageIdsByPoemKey.get(poemKey) || []), imageId]);
+    const poemKeys = poemKeysForScore(item);
+    if (!poemKeys.length || !imageId) return;
+    poemKeys.forEach((poemKey) => fpImageIdsByPoemKey.set(poemKey, [...(fpImageIdsByPoemKey.get(poemKey) || []), imageId]));
     fpDerivativePointsByImageId.set(imageId, 0);
   });
   contentRows.forEach((item) => {
-    const type = normalizeKey(item.type);
+    const rawType = normalizeKey(item.type);
+    const type = rawType === "quote images" ? "qi"
+      : rawType === "excerpts" ? "exc"
+        : rawType === "interiors" ? "int"
+          : rawType === "vertical video" ? "vv"
+            : rawType === "youtube" ? "yt"
+              : rawType;
     if (!["exc", "qi", "int", "vv", "yt"].includes(type)) return;
-    const poemKey = poemKeyForScore(item);
-    const matchingFpIds = fpImageIdsByPoemKey.get(poemKey) || [];
+    const matchingFpIds = new Set(poemKeysForScore(item).flatMap((poemKey) => fpImageIdsByPoemKey.get(poemKey) || []));
     matchingFpIds.forEach((imageId) => {
       fpDerivativePointsByImageId.set(imageId, (fpDerivativePointsByImageId.get(imageId) || 0) + 1);
     });
@@ -2131,7 +2166,8 @@ async function buildScoreboardPayload() {
       });
     }
     const entry = board.get(vote.imageId);
-    const isAuthorVote = authorVoteUserIds.has(normalizeKey(vote.user || ""));
+    const authorNames = authorVoteIdentities.get(normalizeKey(vote.user || ""));
+    const isAuthorVote = !!authorNames?.has(normalizeKey(vote.author || ""));
     if (vote.vote === "like") entry.likes += 1;
     else if (vote.vote === "dislike") entry.dislikes += 1;
     else if (vote.vote === "meh") entry.meh += 1;
@@ -4189,8 +4225,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   ]);
   const rows = result.payload?.aggregated || [];
   const poemKey = (row = {}) => [
-    normalizeKey(row.author),
-    normalizeCatalogLookupKey(row.bookTitle || row.book),
+    sanitizeDocIdSegment(row.bookShortener || "") || `${normalizeKey(row.author)}|${normalizeCatalogLookupKey(row.bookTitle || row.book)}`,
     normalizeKey(row.poemTitle || row.title),
   ].join("|");
   const requestedBookKey = normalizeCatalogLookupKey(requestedBook);
