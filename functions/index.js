@@ -4182,7 +4182,11 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   const requestedBook = normalizeText(req.query?.book);
   if (!requestedBook) return res.status(400).json({ error: "missing_book" });
 
-  const result = await getScoreboardPayloadFromSnapshot();
+  const [result, fullPoemItems, flagSnap] = await Promise.all([
+    getScoreboardPayloadFromSnapshot(),
+    getAllFrom(COLLECTIONS.fullPoems),
+    db.collection(COLLECTIONS.contentFlags).where("status", "==", "pending").limit(1000).get(),
+  ]);
   const rows = result.payload?.aggregated || [];
   const poemKey = (row = {}) => [
     normalizeKey(row.author),
@@ -4190,6 +4194,14 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     normalizeKey(row.poemTitle || row.title),
   ].join("|");
   const requestedBookKey = normalizeCatalogLookupKey(requestedBook);
+  const scoredByImageId = new Map(rows.map((row) => [normalizeKey(row.imageId), row]));
+  const flagsByImageId = new Map();
+  flagSnap.docs.forEach((doc) => {
+    const flag = { id: doc.id, ...(doc.data() || {}) };
+    const key = normalizeKey(flag.imageId);
+    if (!key) return;
+    flagsByImageId.set(key, [...(flagsByImageId.get(key) || []), flag]);
+  });
   const connectedByPoem = new Map();
   rows.forEach((row) => {
     if (!["exc", "qi", "int", "vv", "yt"].includes(normalizeKey(row.type))) return;
@@ -4197,10 +4209,17 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     connectedByPoem.set(key, [...(connectedByPoem.get(key) || []), row]);
   });
 
-  const fullPoems = rows
-    .filter((row) => normalizeKey(row.type) === "fp")
-    .filter((row) => normalizeCatalogLookupKey(row.bookTitle) === requestedBookKey)
-    .map((row) => {
+  const fullPoems = fullPoemItems
+    .filter((item) => normalizeCatalogLookupKey(resolveScoreboardBookTitle(item)) === requestedBookKey)
+    .map((item) => {
+      const row = scoredByImageId.get(normalizeKey(item.imageId)) || {
+        imageId: item.imageId || "",
+        author: item.author || "",
+        poemTitle: item.title || "",
+        bookTitle: resolveScoreboardBookTitle(item) || requestedBook,
+        type: "FP",
+      };
+      const flags = flagsByImageId.get(normalizeKey(item.imageId)) || [];
       const connected = connectedByPoem.get(poemKey(row)) || [];
       const connectedWithVotes = connected.filter((item) => Number(item.totalVotes || 0) > 0);
       const connectedContentBonus = Number(row.fpDerivativePoints || 0);
@@ -4214,6 +4233,14 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         author: row.author || "",
         title: row.poemTitle || "",
         book: row.bookTitle || requestedBook,
+        flagged: flags.length > 0,
+        flags: flags.map((flag) => ({
+          id: flag.id,
+          note: flag.note || "",
+          qualityLane: flag.qualityLane || "",
+          flaggedByEmail: flag.flaggedByEmail || "",
+          createdAt: flag.createdAt || null,
+        })),
         totalScore: Number(row.score || 0),
         directScore: Number(row.score || 0) - connectedContentBonus,
         connectedContentBonus,
@@ -4247,13 +4274,20 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       };
     })
     .sort((a, b) => (
+      (Number(a.flagged) - Number(b.flagged))
+      ||
       (b.totalScore - a.totalScore)
       || (b.connectedVotedCount - a.connectedVotedCount)
       || (b.movedMe - a.movedMe)
       || (b.totalVotes - a.totalVotes)
       || a.title.localeCompare(b.title)
     ))
-    .map((row, index) => ({ rank: index + 1, ...row }));
+    .reduce((ranked, row) => {
+      const activeRank = row.flagged ? null : ranked.activeRank + 1;
+      ranked.rows.push({ rank: activeRank, ...row });
+      ranked.activeRank = activeRank || ranked.activeRank;
+      return ranked;
+    }, { activeRank: 0, rows: [] }).rows;
 
   res.json({
     ok: true,

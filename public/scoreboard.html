@@ -265,6 +265,7 @@
             <tr>
               <th>Rank</th>
               <th>Poem</th>
+              <th>Status</th>
               <th>Author</th>
               <th>Direct FP Score</th>
               <th>Connected Content Bonus</th>
@@ -1392,7 +1393,7 @@
       const book = document.getElementById('bookDropdown').value;
       const body = document.getElementById('fullPoemsBody');
       if (!book) {
-        body.innerHTML = '<tr><td colspan="11"><div class="empty">Choose a book above to rank its full poems.</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="12"><div class="empty">Choose a book above to rank its full poems.</div></td></tr>';
         setStatus('Choose a book to view its ranked full poems.');
         return;
       }
@@ -1408,7 +1409,7 @@
       } catch (err) {
         console.error(err);
         fullPoemRankingRows = [];
-        body.innerHTML = '<tr><td colspan="11"><div class="empty">Could not load full-poem rankings.</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="12"><div class="empty">Could not load full-poem rankings.</div></td></tr>';
         setStatus(err.message || 'Could not load full-poem rankings.', true);
       } finally {
         setControlsDisabled(false);
@@ -1426,8 +1427,9 @@
       const body = document.getElementById('fullPoemsBody');
       body.innerHTML = fullPoemRankingRows.length ? fullPoemRankingRows.map((row) => `
           <tr>
-            <td>${row.rank}</td>
+            <td>${row.rank || '—'}</td>
             <td>${escapeHtml(row.title || 'Untitled')}</td>
+            <td>${row.flagged ? '<span class="chip" style="background:#f6dfdb;color:#8a3e32;">Flagged</span>' : '<span class="meta">Active</span>'}</td>
             <td>${escapeHtml(row.author || '')}</td>
             <td>${row.directScore || 0}</td>
             <td>${row.connectedContentBonus || 0}</td>
@@ -1436,17 +1438,19 @@
             <td>${row.connectedVotedCount || 0}</td>
             <td>${row.connectedVoteScore || 0}</td>
             <td>${row.totalVotes || 0}</td>
-            <td><button type="button" class="secondary full-poem-details" data-image-id="${escapeHtml(row.imageId || '')}">${expandedFullPoemId === row.imageId ? 'Hide' : 'How scored'}</button></td>
+            <td><button type="button" class="secondary full-poem-details" data-image-id="${escapeHtml(row.imageId || '')}">${expandedFullPoemId === row.imageId ? 'Hide' : (row.flagged ? 'Flag details' : 'How scored')}</button></td>
           </tr>
           ${expandedFullPoemId === row.imageId ? renderFullPoemScoreDetail(row) : ''}
-        `).join('') : '<tr><td colspan="11"><div class="empty">No full poems are associated with this book.</div></td></tr>';
+        `).join('') : '<tr><td colspan="12"><div class="empty">No full poems are associated with this book.</div></td></tr>';
     }
 
     function renderFullPoemScoreDetail(row) {
       const breakdown = row.scoreBreakdown || {};
       const connected = row.connectedItems || [];
-      return `<tr class="detail-row"><td colspan="11">
+      const flags = row.flags || [];
+      return `<tr class="detail-row"><td colspan="12">
         <div style="padding:14px 4px;">
+          ${row.flagged ? `<div class="status error" style="margin-bottom:12px;"><strong>Excluded from active review because this full poem is flagged.</strong>${flags.map((flag) => `<div style="margin-top:6px;">${escapeHtml(flag.note || flag.qualityLane || 'No reason supplied.')}${flag.flaggedByEmail ? ` <span class="meta">Flagged by ${escapeHtml(flag.flaggedByEmail)}</span>` : ''}</div>`).join('')}<div style="margin-top:8px;"><a href="/admin" target="_blank" rel="noopener noreferrer">Open Flagged Content</a></div></div>` : ''}
           <strong>Score equation:</strong>
           ${breakdown.likePoints || 0} likes
           + ${breakdown.movedMePoints || 0} moved-me points
