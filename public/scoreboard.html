@@ -184,6 +184,7 @@
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
           <button id="scoreboardBtn" type="button" class="active">Scoreboard</button>
+          <button id="fullPoemsBtn" type="button">Full Poems by Book</button>
           <button id="progressBarsBtn" type="button">Progress Bars</button>
           <button id="teamProgressBtn" type="button" style="display:none;">Button Team Progress</button>
         </div>
@@ -258,6 +259,26 @@
         </table>
       </div>
 
+      <div id="fullPoemsContainer" class="table-wrap" style="display:none;">
+        <table id="fullPoemsRanking">
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Poem</th>
+              <th>Author</th>
+              <th>Direct FP Score</th>
+              <th>Connected Content Bonus</th>
+              <th>Total Score</th>
+              <th>Connected Items With Votes</th>
+              <th>Connected Vote Score</th>
+              <th>FP Votes</th>
+              <th>Open</th>
+            </tr>
+          </thead>
+          <tbody id="fullPoemsBody"></tbody>
+        </table>
+      </div>
+
       <div id="teamProgressContainer" class="table-wrap" style="display:none;">
         <table id="teamProgress">
           <thead>
@@ -307,9 +328,11 @@
     let scoreboardSnapshotMeta = null;
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
+    const fullPoemsBtn = document.getElementById('fullPoemsBtn');
     const progressBarsBtn = document.getElementById('progressBarsBtn');
     const teamProgressBtn = document.getElementById('teamProgressBtn');
     const scoreboardContainer = document.getElementById('scoreboardContainer');
+    const fullPoemsContainer = document.getElementById('fullPoemsContainer');
     const progressBarsContainer = document.getElementById('progressBarsContainer');
     const teamProgressContainer = document.getElementById('teamProgressContainer');
     const statusEl = document.getElementById('status');
@@ -697,19 +720,23 @@
       if (!scoreboardLoaded) return;
       const isScoreboard = view === 'scoreboard';
       const isProgressBars = view === 'progressBars';
+      const isFullPoems = view === 'fullPoems';
       const isTeamProgress = view === 'teamProgress';
       if (isTeamProgress && !(currentAccount?.roles || []).includes('admin')) {
         setStatus('Button team progress is available to admin accounts only.', true);
         return;
       }
       scoreboardBtn.classList.toggle('active', isScoreboard);
+      fullPoemsBtn.classList.toggle('active', isFullPoems);
       progressBarsBtn.classList.toggle('active', isProgressBars);
       teamProgressBtn.classList.toggle('active', isTeamProgress);
       scoreboardContainer.style.display = isScoreboard ? '' : 'none';
       document.getElementById('scoreboardPagination').style.display = isScoreboard ? 'flex' : 'none';
       progressBarsContainer.style.display = isProgressBars ? '' : 'none';
+      fullPoemsContainer.style.display = isFullPoems ? '' : 'none';
       teamProgressContainer.style.display = isTeamProgress ? '' : 'none';
       if (isScoreboard) loadScoreboardPage();
+      else if (isFullPoems) loadFullPoemRanking();
       else ensureFullScoreboard()
         .then(() => isTeamProgress ? renderTeamProgressBars() : renderProgressBars())
         .catch((err) => setStatus(err.message || 'Could not load progress data.', true));
@@ -1355,6 +1382,43 @@
       await loadScoreboardPage();
     }
 
+    async function loadFullPoemRanking() {
+      const book = document.getElementById('bookDropdown').value;
+      const body = document.getElementById('fullPoemsBody');
+      if (!book) {
+        body.innerHTML = '<tr><td colspan="10"><div class="empty">Choose a book above to rank its full poems.</div></td></tr>';
+        setStatus('Choose a book to view its ranked full poems.');
+        return;
+      }
+      setControlsDisabled(true);
+      setStatus(`Loading full poems for ${book}…`);
+      try {
+        const payload = await api(`scoreboard/fullPoems?book=${encodeURIComponent(book)}`, { method: 'GET' });
+        const rows = payload.rows || [];
+        body.innerHTML = rows.length ? rows.map((row) => `
+          <tr>
+            <td>${row.rank}</td>
+            <td>${escapeHtml(row.title || 'Untitled')}</td>
+            <td>${escapeHtml(row.author || '')}</td>
+            <td>${row.directScore || 0}</td>
+            <td>${row.connectedContentBonus || 0}</td>
+            <td><strong>${row.totalScore || 0}</strong></td>
+            <td>${row.connectedVotedCount || 0}</td>
+            <td>${row.connectedVoteScore || 0}</td>
+            <td>${row.totalVotes || 0}</td>
+            <td><a href="/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">Open</a></td>
+          </tr>
+        `).join('') : '<tr><td colspan="10"><div class="empty">No full poems are associated with this book.</div></td></tr>';
+        setStatus(`Ranked ${rows.length} full poem${rows.length === 1 ? '' : 's'} for ${book}. Connected vote score is shown as a diagnostic and is not yet added to the total.`);
+      } catch (err) {
+        console.error(err);
+        body.innerHTML = '<tr><td colspan="10"><div class="empty">Could not load full-poem rankings.</div></td></tr>';
+        setStatus(err.message || 'Could not load full-poem rankings.', true);
+      } finally {
+        setControlsDisabled(false);
+      }
+    }
+
     async function init() {
       wireSortHeaders();
       updateCharacterCountControlsVisibility();
@@ -1363,7 +1427,10 @@
         updateCharacterCountControlsVisibility();
         filterData();
       });
-      document.getElementById('bookDropdown').addEventListener('change', filterData);
+      document.getElementById('bookDropdown').addEventListener('change', () => {
+        if (fullPoemsContainer.style.display === '') loadFullPoemRanking();
+        else filterData();
+      });
       document.getElementById('catalogDropdown').addEventListener('change', () => {
         buildBookDropdown(scoreboardFilterOptions.books || []);
         filterData();
@@ -1418,6 +1485,7 @@
         }
       });
       scoreboardBtn.addEventListener('click', () => switchView('scoreboard'));
+      fullPoemsBtn.addEventListener('click', () => switchView('fullPoems'));
       progressBarsBtn.addEventListener('click', () => switchView('progressBars'));
       teamProgressBtn.addEventListener('click', () => switchView('teamProgress'));
       document.getElementById('login-google').addEventListener('click', signInWithGoogle);

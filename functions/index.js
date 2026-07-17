@@ -4176,6 +4176,77 @@ app.get(getBoth("/scoreboard"), async (req, res) => {
   });
 });
 
+app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  const requestedBook = normalizeText(req.query?.book);
+  if (!requestedBook) return res.status(400).json({ error: "missing_book" });
+
+  const result = await getScoreboardPayloadFromSnapshot();
+  const rows = result.payload?.aggregated || [];
+  const poemKey = (row = {}) => [
+    normalizeKey(row.author),
+    normalizeCatalogLookupKey(row.bookTitle || row.book),
+    normalizeKey(row.poemTitle || row.title),
+  ].join("|");
+  const requestedBookKey = normalizeCatalogLookupKey(requestedBook);
+  const connectedByPoem = new Map();
+  rows.forEach((row) => {
+    if (!["exc", "qi", "int", "vv", "yt"].includes(normalizeKey(row.type))) return;
+    if (Number(row.totalVotes || 0) < 1) return;
+    const key = poemKey(row);
+    connectedByPoem.set(key, [...(connectedByPoem.get(key) || []), row]);
+  });
+
+  const fullPoems = rows
+    .filter((row) => normalizeKey(row.type) === "fp")
+    .filter((row) => normalizeCatalogLookupKey(row.bookTitle) === requestedBookKey)
+    .map((row) => {
+      const connected = connectedByPoem.get(poemKey(row)) || [];
+      const connectedContentBonus = Number(row.fpDerivativePoints || 0);
+      return {
+        imageId: row.imageId || "",
+        author: row.author || "",
+        title: row.poemTitle || "",
+        book: row.bookTitle || requestedBook,
+        totalScore: Number(row.score || 0),
+        directScore: Number(row.score || 0) - connectedContentBonus,
+        connectedContentBonus,
+        connectedVotedCount: connected.length,
+        connectedVoteScore: connected.reduce((sum, item) => sum + Number(item.score || 0), 0),
+        likes: Number(row.likes || 0),
+        movedMe: Number(row.movedMe || 0),
+        dislikes: Number(row.dislikes || 0),
+        meh: Number(row.meh || 0),
+        totalVotes: Number(row.totalVotes || 0),
+      };
+    })
+    .sort((a, b) => (
+      (b.totalScore - a.totalScore)
+      || (b.connectedVotedCount - a.connectedVotedCount)
+      || (b.movedMe - a.movedMe)
+      || (b.totalVotes - a.totalVotes)
+      || a.title.localeCompare(b.title)
+    ))
+    .map((row, index) => ({ rank: index + 1, ...row }));
+
+  res.json({
+    ok: true,
+    book: requestedBook,
+    count: fullPoems.length,
+    rows: fullPoems,
+    scoring: {
+      totalScore: "Current FP score: direct votes plus one point per connected derivative content item.",
+      connectedVoteScore: "Diagnostic only; connected-content vote scores are not yet rolled into the FP total.",
+    },
+    snapshotMeta: {
+      source: result.source,
+      builtAtMs: result.builtAtMs,
+      ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+    },
+  });
+});
+
 app.get(getBoth("/scoreboard/bootstrap"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
