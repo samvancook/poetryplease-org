@@ -975,6 +975,7 @@
 
       const bookMap = {};
       allGraphics.forEach((graphic) => {
+        if (graphic.flagged) return;
         if (isKnownWrongBookCatalogPair(graphic.bookTitle, graphic.releaseCatalog)) return;
         const catalog = canonicalCatalogFilterValue(graphic.releaseCatalog);
         const title = canonicalBookTitle(graphic.bookTitle, catalog, canonicalLookup);
@@ -1117,10 +1118,11 @@
         if (typeVal && normalizeTypeForFilter(graphic.type) !== typeVal) return;
         if (bookVal && normalizeBookTitleKey(title) !== bookVal) return;
         if (catalogVal && catalog.toLowerCase() !== catalogVal) return;
-        if (!graphic.imageId) return;
+        const normalizedImageId = normalizeFilterValue(graphic.imageId);
+        if (!normalizedImageId) return;
         const key = `${catalog.toLowerCase()}|${normalizeBookTitleKey(title)}`;
-        availableIds.add(graphic.imageId);
-        availableById.set(graphic.imageId, { catalog, title, key });
+        availableIds.add(normalizedImageId);
+        availableById.set(normalizedImageId, { catalog, title, key });
         if (!bookCatalogTotals.has(key)) bookCatalogTotals.set(key, { catalog, title, total: 0 });
         bookCatalogTotals.get(key).total += 1;
       });
@@ -1128,16 +1130,17 @@
       const byUser = new Map();
       rawVotes.forEach((vote) => {
         const user = String(vote.user || '').trim().toLowerCase();
+        const normalizedImageId = normalizeFilterValue(vote.imageId);
         if (!user.endsWith('@buttonpoetry.com')) return;
-        if (!availableIds.has(vote.imageId)) return;
+        if (!availableIds.has(normalizedImageId)) return;
         if (!byUser.has(user)) byUser.set(user, { user, votedIds: new Set(), totalVotes: 0, votedByBookCatalog: new Map() });
         const entry = byUser.get(user);
-        entry.votedIds.add(vote.imageId);
+        entry.votedIds.add(normalizedImageId);
         entry.totalVotes += 1;
-        const item = availableById.get(vote.imageId);
+        const item = availableById.get(normalizedImageId);
         if (item) {
           if (!entry.votedByBookCatalog.has(item.key)) entry.votedByBookCatalog.set(item.key, new Set());
-          entry.votedByBookCatalog.get(item.key).add(vote.imageId);
+          entry.votedByBookCatalog.get(item.key).add(normalizedImageId);
         }
       });
 
