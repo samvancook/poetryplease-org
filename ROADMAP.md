@@ -92,6 +92,9 @@
 - Move Drive service-account-backed folder import automation earlier in the import-assistant roadmap because it should reduce repeated manual recovery/import work long-term
 - Move from preview/import to direct ingest once the handoff contract is stable
 - Build a durable Poetry Please -> Weaver -> P.I.G. repair loop for deleted or flawed graphics:
+  - make Poetry Please Flagged Content the canonical moderation inbox: confirm the problem and choose `Re-approve`, `Correct source/text`, `Delete permanently`, or `Recreate`; show the consequence before confirmation
+  - let Weaver own accepted cross-tool repair jobs and their lifecycle, while Poetry Please owns the flag, moderation decision, visibility, and final resolution
+  - consolidate flag and recreate status into one future moderation command center instead of requiring staff to reconcile separate Poetry Please and Weaver panels
   - expose `Delete permanently` and `Recreate` as distinct admin actions from both Flags and Content Library
   - make permanent deletion remove the Poetry Please item from active content, preserve a compact deletion audit record, and send no new work downstream
   - make recreation hide the flawed item from review, create a stable repair request linked to the original content id, and send that request to Weaver
@@ -103,6 +106,11 @@
   - prep first: define canonical cross-tool ids, deletion tombstones, repair-request schema, history fields safe to share with P.I.G., retry/idempotency rules, and service authentication for Poetry Please -> Weaver
   - prep first: inventory which P.I.G. source files and editable generation settings actually survive today; fall back to original image plus notes when an editable source is unavailable
   - begin with one QI canary and an admin-only manual action before extending the workflow to `INT`, `EXC`, `FPI`, or bulk repairs
+  - add an FP-specific decision path based on the pending-flag audit:
+    - source exclusions (`not a poem`, epigraph-only, section break, front/back matter) should be removed from the canonical catalog export and tombstoned in Poetry Please so they do not return on the next import
+    - repairable FP text (`bad lineation`, joined words, missing/incomplete poem, title typo) should return to the catalog/source layer, then idempotently update the same stable FP id while preserving votes and moderation history
+    - visually dependent poems such as erasures/blackout poems should be routed toward an `FPI` asset rather than forced into damaged plain text
+    - show source-repair status and the corrected record beside the original flag in Poetry Please
 - Expose Poetry Please ranked texts as a P.I.G.-friendly source feed with stable text identity and duplication guard rails
 - Wire the durable `FP`/`FPI` path across Poetry Please, Weaver, and P.I.G.:
   - keep `FP` as text-backed full poems from the local poetry catalog export

@@ -6032,6 +6032,42 @@ app.get(getBoth("/internal/userCoverage"), async (req, res) => {
   }
 });
 
+app.get(getBoth("/internal/contentFlagAudit"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  const contentType = normalizeText(req.query?.type || "").toUpperCase();
+  const status = normalizeText(req.query?.status || "pending").toLowerCase();
+  try {
+    const snap = await db.collection(COLLECTIONS.contentFlags).limit(1000).get();
+    const flags = snap.docs
+      .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+      .filter((flag) => !contentType || normalizeText(flag.imageType).toUpperCase() === contentType)
+      .filter((flag) => !status || normalizeText(flag.status || "pending").toLowerCase() === status)
+      .sort((a, b) => timestampToMs(b.createdAt) - timestampToMs(a.createdAt))
+      .map((flag) => ({
+        id: flag.id,
+        imageId: flag.imageId || "",
+        imageType: flag.imageType || "",
+        title: flag.title || "",
+        author: flag.author || "",
+        book: flag.book || "",
+        releaseCatalog: flag.releaseCatalog || "",
+        qualityLane: flag.qualityLane || "",
+        note: flag.note || "",
+        status: flag.status || "pending",
+        resolution: flag.resolution || "",
+        reviewNote: flag.reviewNote || "",
+        flaggedByEmail: flag.flaggedByEmail || "",
+        createdAt: flag.createdAt || null,
+      }));
+    res.json({ ok: true, contentType, status, count: flags.length, flags });
+  } catch (err) {
+    res.status(500).json({ error: "content_flag_audit_failed", message: err.message || "unknown_error" });
+  }
+});
+
 app.get(getBoth("/internal/contentSnapshotHealth"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
