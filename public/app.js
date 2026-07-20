@@ -2435,15 +2435,7 @@ async function hydrateFullFeedInBackground() {
 
 // ===== Filters: population =====
 function buildBookFilterOptions(books = []) {
-  const selectedCatalogKey = normalizeFilterValue(canonicalCatalogFilterValue(selectedCatalog));
-  const contentBooks = Array.isArray(lastData?.newGraphics)
-    ? baseArray(lastData)
-        .map(mapGraphic)
-        .filter((item) => !selectedCatalogKey || normalizeFilterValue(canonicalCatalogFilterValue(item.releaseCatalog)) === selectedCatalogKey)
-        .map((item) => item.book)
-    : [];
-  const sourceBooks = contentBooks.length ? contentBooks : books;
-  return Array.from(new Map((sourceBooks || [])
+  return Array.from(new Map((books || [])
     .map((book) => String(book || '').trim())
     .filter(Boolean)
     .map((book) => [normalizeFilterValue(book), book])).values())
@@ -2523,7 +2515,9 @@ async function populateEventsSelect(events) {
 
 async function fetchAndPopulateBooks() {
   try {
-    const books = await getJSONWrapped('books').catch(() => []);
+    const catalog = canonicalCatalogFilterValue(selectedCatalog);
+    const path = catalog ? `books?catalog=${encodeURIComponent(catalog)}` : 'books';
+    const books = await getJSONWrapped(path).catch(() => []);
     await populateBooksSelect(books);
   } catch(e) { console.warn('fetchAndPopulateBooks error', e); }
 }

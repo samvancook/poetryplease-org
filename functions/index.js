@@ -4094,13 +4094,17 @@ app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
   res.json(cats);
 });
 
-app.get(getBoth("/books"), async (_req, res) => {
+app.get(getBoth("/books"), async (req, res) => {
   const [allContent, flaggedIds] = await Promise.all([
     getAllContentCached(),
     getFlaggedContentIds(),
   ]);
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
-  const books = [...new Set(all.map((i) => i.book).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  const catalogKey = normalizeCatalogLookupKey(req.query?.catalog);
+  const books = [...new Set(all
+    .filter((item) => !catalogKey || normalizeCatalogLookupKey(item.releaseCatalog) === catalogKey)
+    .map((item) => item.book)
+    .filter(Boolean))].sort((a, b) => a.localeCompare(b));
   res.json(books);
 });
 
