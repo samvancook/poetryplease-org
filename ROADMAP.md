@@ -228,6 +228,13 @@ Why this is parked:
 - It makes sense to pause until we want to re-open that product decision.
 
 ## Next Good Threads
+- Protect Poetry Please production deployment ownership:
+  - [x] disable default Firebase deployment from the stale `poetry-please-admin-moderation` and `poetry-please-upload-migration` workspaces
+  - [x] declare the canonical `poetry-please` repository as the only authorized production deployment source
+  - [x] add a guarded production deploy script that verifies repo path, Firebase project, runtime, memory, `minInstances`, public health, and anonymous bootstrap
+  - [ ] make the full smoke test an enforced post-deploy requirement rather than a manual follow-up
+  - [ ] move production deployment to a dedicated Poetry Please service account unavailable to unrelated projects and generated workspaces
+  - [ ] add a deployment/configuration alert for unexpected runtime, memory, reserved-instance, or public-invoker changes
 - Clean up post-import metadata for the new `WTF` and `DBAT` `INT` sets
 - Build the author account system
 - YouTube library lane (`YT`) import and curation
