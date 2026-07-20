@@ -178,8 +178,13 @@
           </label>
           <span class="meta" title="Character count includes author name, poem title, and text with spaces.">Character count includes author name, poem title, and text with spaces.</span>
         </div>
-        <label><input type="checkbox" id="filterCompletedBooks" /> Show only completed books</label>
-        <label><input type="checkbox" id="filterMissingBaseline" /> Show only books missing baseline content</label>
+        <label>Book status
+          <select id="bookStatusDropdown">
+            <option value="">All books</option>
+            <option value="completed">Completed books</option>
+            <option value="missingBaseline">Missing baseline content</option>
+          </select>
+        </label>
         <button id="exportBtn" type="button" title="Export the content rows matching the current filters for calendar planning.">Export content to Google Sheet</button>
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
@@ -972,8 +977,9 @@
       const showMissingCatalogColumn = !catalogVal;
       const hideZero = document.getElementById('filterZeroVotes').checked;
       updateCharacterCountControlsVisibility();
-      const showCompleted = document.getElementById('filterCompletedBooks').checked;
-      const showMissingBaseline = document.getElementById('filterMissingBaseline').checked;
+      const bookStatus = document.getElementById('bookStatusDropdown').value;
+      const showCompleted = bookStatus === 'completed';
+      const showMissingBaseline = bookStatus === 'missingBaseline';
       const canonicalLookup = buildCanonicalBookTitleLookup();
 
       const bookMap = {};
@@ -1489,7 +1495,7 @@
       document.getElementById('characterCountMin').addEventListener('input', filterData);
       document.getElementById('characterCountMax').addEventListener('input', filterData);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);
-      document.getElementById('filterCompletedBooks').addEventListener('change', filterData);
+      document.getElementById('bookStatusDropdown').addEventListener('change', filterData);
       document.getElementById('pageSizeSelect').addEventListener('change', (event) => {
         const nextSize = Number(event.target.value || 25);
         pageSize = nextSize;
