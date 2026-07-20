@@ -4256,7 +4256,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
   const requestedBook = normalizeText(req.query?.book);
-  if (!requestedBook) return res.status(400).json({ error: "missing_book" });
+  const requestedCatalog = normalizeText(req.query?.catalog);
 
   const [result, fullPoemItems, flagSnap] = await Promise.all([
     getScoreboardPayloadFromSnapshot(),
@@ -4269,6 +4269,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     normalizeKey(row.poemTitle || row.title),
   ].join("|");
   const requestedBookKey = normalizeCatalogLookupKey(requestedBook);
+  const requestedCatalogKey = normalizeCatalogLookupKey(requestedCatalog);
   const scoredByImageId = new Map(rows.map((row) => [normalizeKey(row.imageId), row]));
   const flagsByImageId = new Map();
   flagSnap.docs.forEach((doc) => {
@@ -4285,7 +4286,8 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   });
 
   const fullPoems = fullPoemItems
-    .filter((item) => normalizeCatalogLookupKey(resolveScoreboardBookTitle(item)) === requestedBookKey)
+    .filter((item) => !requestedBookKey || normalizeCatalogLookupKey(resolveScoreboardBookTitle(item)) === requestedBookKey)
+    .filter((item) => !requestedCatalogKey || normalizeCatalogLookupKey(item.releaseCatalog) === requestedCatalogKey)
     .map((item) => {
       const row = scoredByImageId.get(normalizeKey(item.imageId)) || {
         imageId: item.imageId || "",
@@ -4308,6 +4310,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         author: row.author || "",
         title: row.poemTitle || "",
         book: row.bookTitle || requestedBook,
+        catalog: item.releaseCatalog || row.releaseCatalog || "",
         flagged: flags.length > 0,
         flags: flags.map((flag) => ({
           id: flag.id,
@@ -4359,14 +4362,18 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     ))
     .reduce((ranked, row) => {
       const activeRank = row.flagged ? null : ranked.activeRank + 1;
-      ranked.rows.push({ rank: activeRank, ...row });
+      const bookKey = normalizeCatalogLookupKey(row.book);
+      const bookRank = row.flagged ? null : (ranked.bookRanks.get(bookKey) || 0) + 1;
+      ranked.rows.push({ rank: activeRank, bookRank, ...row });
       ranked.activeRank = activeRank || ranked.activeRank;
+      if (bookRank) ranked.bookRanks.set(bookKey, bookRank);
       return ranked;
-    }, { activeRank: 0, rows: [] }).rows;
+    }, { activeRank: 0, bookRanks: new Map(), rows: [] }).rows;
 
   res.json({
     ok: true,
     book: requestedBook,
+    catalog: requestedCatalog,
     count: fullPoems.length,
     rows: fullPoems,
     scoring: {

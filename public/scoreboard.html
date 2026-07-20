@@ -152,7 +152,7 @@
     </div>
 
     <h1>Scoreboard</h1>
-    <p class="lede">Live ranking and progress view for Poetry Please content. This surface is available to team and admin accounts.</p>
+    <p class="lede">Rank poems using their direct votes and connected content signals, then inspect individual content and book coverage.</p>
 
     <section class="card">
       <div class="controls">
@@ -180,12 +180,12 @@
         </div>
         <label><input type="checkbox" id="filterCompletedBooks" /> Show only completed books</label>
         <label><input type="checkbox" id="filterMissingBaseline" /> Show only books missing baseline content</label>
-        <button id="exportBtn" type="button">Export visible to Google Sheet</button>
+        <button id="exportBtn" type="button" title="Export the content rows matching the current filters for calendar planning.">Export content to Google Sheet</button>
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="scoreboardBtn" type="button" class="active">Scoreboard</button>
-          <button id="fullPoemsBtn" type="button">Full Poems by Book</button>
-          <button id="progressBarsBtn" type="button">Progress Bars</button>
+          <button id="fullPoemsBtn" type="button" class="active">Poems</button>
+          <button id="scoreboardBtn" type="button">Content</button>
+          <button id="progressBarsBtn" type="button">Books &amp; Coverage</button>
           <button id="teamProgressBtn" type="button" style="display:none;">Button Team Progress</button>
         </div>
       </div>
@@ -267,6 +267,8 @@
               <th>Poem</th>
               <th>Status</th>
               <th>Author</th>
+              <th>Book</th>
+              <th>Catalog</th>
               <th>Direct FP Score</th>
               <th>Connected Content Bonus</th>
               <th>Total Score</th>
@@ -1391,26 +1393,26 @@
 
     async function loadFullPoemRanking() {
       const book = document.getElementById('bookDropdown').value;
+      const catalog = document.getElementById('catalogDropdown').value;
       const body = document.getElementById('fullPoemsBody');
-      if (!book) {
-        body.innerHTML = '<tr><td colspan="12"><div class="empty">Choose a book above to rank its full poems.</div></td></tr>';
-        setStatus('Choose a book to view its ranked full poems.');
-        return;
-      }
       setControlsDisabled(true);
-      setStatus(`Loading full poems for ${book}…`);
+      const scope = book || catalog || 'all books';
+      setStatus(`Loading ranked poems for ${scope}…`);
       try {
-        const payload = await api(`scoreboard/fullPoems?book=${encodeURIComponent(book)}`, { method: 'GET' });
+        const params = new URLSearchParams();
+        if (book) params.set('book', book);
+        if (catalog) params.set('catalog', catalog);
+        const payload = await api(`scoreboard/fullPoems?${params.toString()}`, { method: 'GET' });
         const rows = payload.rows || [];
         fullPoemRankingRows = rows;
         expandedFullPoemId = '';
         renderFullPoemRankingRows();
-        setStatus(`Ranked ${rows.length} full poem${rows.length === 1 ? '' : 's'} for ${book}. Connected vote score is shown as a diagnostic and is not yet added to the total.`);
+        setStatus(`Ranked ${rows.length} poem${rows.length === 1 ? '' : 's'} for ${scope}. Connected vote score is shown as a diagnostic and is not yet added to the total.`);
       } catch (err) {
         console.error(err);
         fullPoemRankingRows = [];
-        body.innerHTML = '<tr><td colspan="12"><div class="empty">Could not load full-poem rankings.</div></td></tr>';
-        setStatus(err.message || 'Could not load full-poem rankings.', true);
+        body.innerHTML = '<tr><td colspan="14"><div class="empty">Could not load poem rankings.</div></td></tr>';
+        setStatus(err.message || 'Could not load poem rankings.', true);
       } finally {
         setControlsDisabled(false);
       }
@@ -1431,6 +1433,8 @@
             <td>${escapeHtml(row.title || 'Untitled')}</td>
             <td>${row.flagged ? '<span class="chip" style="background:#f6dfdb;color:#8a3e32;">Flagged</span>' : '<span class="meta">Active</span>'}</td>
             <td>${escapeHtml(row.author || '')}</td>
+            <td>${escapeHtml(row.book || '')}</td>
+            <td>${escapeHtml(row.catalog || '')}</td>
             <td>${row.directScore || 0}</td>
             <td>${row.connectedContentBonus || 0}</td>
             <td><strong>${row.totalScore || 0}</strong></td>
@@ -1441,14 +1445,14 @@
             <td><button type="button" class="secondary full-poem-details" data-image-id="${escapeHtml(row.imageId || '')}">${expandedFullPoemId === row.imageId ? 'Hide' : (row.flagged ? 'Flag details' : 'How scored')}</button></td>
           </tr>
           ${expandedFullPoemId === row.imageId ? renderFullPoemScoreDetail(row) : ''}
-        `).join('') : '<tr><td colspan="12"><div class="empty">No full poems are associated with this book.</div></td></tr>';
+        `).join('') : '<tr><td colspan="14"><div class="empty">No full poems match the current filters.</div></td></tr>';
     }
 
     function renderFullPoemScoreDetail(row) {
       const breakdown = row.scoreBreakdown || {};
       const connected = row.connectedItems || [];
       const flags = row.flags || [];
-      return `<tr class="detail-row"><td colspan="12">
+      return `<tr class="detail-row"><td colspan="14">
         <div style="padding:14px 4px;">
           ${row.flagged ? `<div class="status error" style="margin-bottom:12px;"><strong>Excluded from active review because this full poem is flagged.</strong>${flags.map((flag) => `<div style="margin-top:6px;">${escapeHtml(flag.note || flag.qualityLane || 'No reason supplied.')}${flag.flaggedByEmail ? ` <span class="meta">Flagged by ${escapeHtml(flag.flaggedByEmail)}</span>` : ''}</div>`).join('')}<div style="margin-top:8px;"><a href="/admin" target="_blank" rel="noopener noreferrer">Open Flagged Content</a></div></div>` : ''}
           <strong>Score equation:</strong>
@@ -1479,7 +1483,8 @@
       });
       document.getElementById('catalogDropdown').addEventListener('change', () => {
         buildBookDropdown(scoreboardFilterOptions.books || []);
-        filterData();
+        if (fullPoemsContainer.style.display === '') loadFullPoemRanking();
+        else filterData();
       });
       document.getElementById('characterCountMin').addEventListener('input', filterData);
       document.getElementById('characterCountMax').addEventListener('input', filterData);
@@ -1567,6 +1572,7 @@
           return;
         }
         await loadScoreboard();
+        switchView('fullPoems');
       });
     }
 
