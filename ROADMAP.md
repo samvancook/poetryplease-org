@@ -169,6 +169,12 @@
   - evaluate whether all or some fraction of derivative content scores should roll back into the source `FP`
   - preserve direct `FP` vote score separately enough that we can explain whether a poem is winning because the poem itself works or because its excerpts/images/videos work
   - decide whether score-back should apply equally across `EXC`, `QI`, `INT`, `VV`, and `YT`, or use different weights by content type
+- Add `FPI` to Scoreboard book coverage and baseline planning:
+  - show per-book `FPI` counts alongside `FP`, `INT`, and the other content types
+  - treat having both `INT` and `FPI` as desirable coverage, while keeping them as distinct lanes
+  - count `FPI` as a required baseline only when a book has no `INT`
+  - make the needed-content explanation explicit: books with `INT` may show `FPI` as optional, while books without `INT` show the remaining `FPI` need
+  - decide the initial per-book `FPI` target and whether one qualifying `FPI` satisfies the fallback requirement
 - Finish full-poem import hardening:
   - preserve the catalog-backed `full-poems-all.json` export as the current FP source for P.I.G.
   - preserve `full-poems-all-review-needed.json` as the blocked/problem row review file
