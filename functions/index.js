@@ -4388,6 +4388,38 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   });
 });
 
+app.get(getBoth("/scoreboard/progress"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  const result = await getScoreboardPayloadFromSnapshot();
+  const payload = result.payload || {};
+  const compactRow = (row = {}) => ({
+    imageId: row.imageId || "",
+    user: row.user || "",
+    bookTitle: row.bookTitle || "",
+    releaseCatalog: row.releaseCatalog || "",
+    type: row.type || "",
+    charCount: Number(row.charCount || 0),
+    totalVotes: Number(row.totalVotes || 0),
+  });
+  res.json({
+    ok: true,
+    aggregated: (payload.aggregated || []).map(compactRow),
+    rawVotes: (payload.rawVotes || []).map(compactRow),
+    allGraphics: (payload.allGraphics || []).map((row) => ({
+      ...compactRow(row),
+      missingCatalog: !!row.missingCatalog,
+      missingBucketUrl: !!row.missingBucketUrl,
+      flagged: !!row.flagged,
+    })),
+    snapshotMeta: {
+      source: result.source,
+      builtAtMs: result.builtAtMs,
+      ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+    },
+  });
+});
+
 app.get(getBoth("/scoreboard/bootstrap"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;

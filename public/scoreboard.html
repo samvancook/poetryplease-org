@@ -1376,7 +1376,7 @@
       setControlsDisabled(true);
       setStatus('Loading progress data…');
       try {
-        const payload = await api('scoreboard', { method: 'GET' });
+        const payload = await api('scoreboard/progress', { method: 'GET' });
         aggregatedData = (payload.aggregated || []).map(enrichScoreMetrics);
         rawVotes = payload.rawVotes || [];
         allGraphics = payload.allGraphics || [];
