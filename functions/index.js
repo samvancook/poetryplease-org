@@ -82,6 +82,7 @@ const CONTENT_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
 const CONTENT_SNAPSHOT_VERSION = 1;
+const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const RATINGS_CACHE_TTL_MS = 2 * 60 * 1000;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
@@ -94,6 +95,11 @@ let contentCache = {
   inFlight: null,
 };
 let contentSnapshotInvalidatedAt = 0;
+let flaggedContentCache = {
+  builtAt: 0,
+  payload: null,
+  inFlight: null,
+};
 let ratingsCache = {
   builtAt: 0,
   payload: null,
@@ -382,7 +388,9 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
         const snapshot = await readContentSnapshot();
         if (snapshot && (now - snapshot.builtAtMs) < CONTENT_SNAPSHOT_TTL_MS) {
           contentCache.payload = snapshot.payload;
-          contentCache.builtAt = snapshot.builtAtMs;
+          // Memory freshness starts when the snapshot is loaded, not when the
+          // durable snapshot was originally built.
+          contentCache.builtAt = Date.now();
           console.info("Content cache loaded", { source: "snapshot", count: snapshot.payload.length, durationMs: Date.now() - startedAt });
           return contentCache.payload;
         }
@@ -3954,6 +3962,18 @@ async function getVoteStatsByUserId() {
 
 
 async function getFlaggedContentIds() {
+  const now = Date.now();
+  if (flaggedContentCache.payload && (now - flaggedContentCache.builtAt) < FLAGGED_CONTENT_CACHE_TTL_MS) {
+    return new Set(flaggedContentCache.payload);
+  }
+  if (flaggedContentCache.inFlight) return flaggedContentCache.inFlight;
+  flaggedContentCache.inFlight = buildFlaggedContentIds().finally(() => {
+    flaggedContentCache.inFlight = null;
+  });
+  return flaggedContentCache.inFlight;
+}
+
+async function buildFlaggedContentIds() {
   const ids = new Set();
   let page = await db.collection(COLLECTIONS.contentFlags).where("status", "==", "pending").limit(1000).get();
   while (!page.empty) {
@@ -3993,7 +4013,15 @@ async function getFlaggedContentIds() {
       if (vote.voteType === "dislike") ids.add(vote.imageId);
     });
   }
-  return ids;
+  flaggedContentCache.payload = [...ids];
+  flaggedContentCache.builtAt = Date.now();
+  return new Set(ids);
+}
+
+function invalidateFlaggedContentCache() {
+  flaggedContentCache.builtAt = 0;
+  flaggedContentCache.payload = null;
+  flaggedContentCache.inFlight = null;
 }
 
 function excludeFlaggedContent(items, flaggedIds) {
@@ -5178,6 +5206,7 @@ app.post(getBoth("/contentFlags"), async (req, res) => {
   if (!result.ok && result.reason === "already_flagged") {
     return res.status(409).json({ error: "content_already_flagged", flag: result.flag });
   }
+  invalidateFlaggedContentCache();
   await invalidateScoreboardSnapshot(`flag_created:${item.imageId || ""}`);
   res.json({ ok: true, flagId: result.flagId });
 });
@@ -5220,6 +5249,7 @@ app.post(getBoth("/admin/contentFlags/batch"), async (req, res) => {
   }
 
   if (results.some((entry) => entry.status === "flagged")) {
+    invalidateFlaggedContentCache();
     await invalidateScoreboardSnapshot("batch_flag_created");
   }
   res.json({
@@ -6534,6 +6564,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
     reviewedAt: FieldValue.serverTimestamp(),
     moderationHistory: FieldValue.arrayUnion(historyEntry),
   }, { merge: true })));
+  invalidateFlaggedContentCache();
   await invalidateScoreboardSnapshot(`flag_reviewed:${flagData.imageId || flagId}`);
 
   const saved = await flagRef.get();
