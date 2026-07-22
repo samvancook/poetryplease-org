@@ -246,6 +246,7 @@
               <th data-column="catalog">Catalog</th>
               <th data-column="QI">QI</th>
               <th data-column="INT">INT</th>
+              <th data-column="FPI">FPI</th>
               <th data-column="EXC">EXC</th>
               <th data-column="FP">FP</th>
               <th data-column="VV">VV</th>
@@ -503,6 +504,7 @@
     const CONTENT_TYPE_LABELS = {
       QI: 'Quote Images',
       INT: 'Interior Images',
+      FPI: 'Full Poem Images',
       EXC: 'Excerpts',
       FP: 'Full Poems',
       VV: 'Video',
@@ -510,12 +512,12 @@
     };
     const CONTENT_BASELINE_TARGETS = {
       QI: 25,
-      INT: 10,
       EXC: 50,
       VV: 5,
       YT: 5,
     };
-    const PROGRESS_COUNT_TYPES = ['QI', 'INT', 'EXC', 'FP', 'VV', 'YT'];
+    const INTERIOR_COVERAGE_TARGET = 10;
+    const PROGRESS_COUNT_TYPES = ['QI', 'INT', 'FPI', 'EXC', 'FP', 'VV', 'YT'];
 
     function formatContentTypeLabel(value) {
       const code = String(value || '').trim();
@@ -1036,6 +1038,10 @@
           const count = row.counts[type] || 0;
           if (count < target) missing.push(`${type} ${target - count}`);
         });
+        const interiorCoverage = (row.counts.INT || 0) + (row.counts.FPI || 0);
+        if (interiorCoverage < INTERIOR_COVERAGE_TARGET) {
+          missing.push(`INT/FPI ${INTERIOR_COVERAGE_TARGET - interiorCoverage}`);
+        }
         row.missingBaseline = missing.reduce((sum, item) => sum + Number(item.split(' ')[1] || 0), 0);
         row.missingBaselineLabel = missing.join(', ');
       });
@@ -1049,6 +1055,7 @@
           case 'catalog': va = a.catalog.toLowerCase(); vb = b.catalog.toLowerCase(); break;
           case 'QI':
           case 'INT':
+          case 'FPI':
           case 'EXC':
           case 'FP':
           case 'VV':
@@ -1074,7 +1081,7 @@
       tbody.innerHTML = '';
       document.querySelector('#progressBars th[data-column="missingCatalog"]').style.display = showMissingCatalogColumn ? '' : 'none';
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="${showMissingCatalogColumn ? 16 : 15}"><div class="empty">No progress rows match the current filters.</div></td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${showMissingCatalogColumn ? 17 : 16}"><div class="empty">No progress rows match the current filters.</div></td></tr>`;
         const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
         setStatus(`Loaded 0 progress rows.${metaText ? ` ${metaText}` : ''}`);
         return;
@@ -1088,6 +1095,7 @@
           <td>${escapeHtml(row.catalog || '')}</td>
           <td>${row.counts.QI || 0}</td>
           <td>${row.counts.INT || 0}</td>
+          <td>${row.counts.FPI || 0}</td>
           <td>${row.counts.EXC || 0}</td>
           <td>${row.counts.FP || 0}</td>
           <td>${row.counts.VV || 0}</td>
