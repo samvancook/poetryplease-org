@@ -3221,7 +3221,7 @@ function uniq(values) {
   return [...new Set((values || []).map(normalizeText).filter(Boolean))];
 }
 
-function resolveRoles(existingRoles = [], email = "") {
+function resolveRoles(existingRoles = [], email = "", options = {}) {
   const roles = new Set(
     (Array.isArray(existingRoles) && existingRoles.length ? existingRoles : ["user"])
       .map(normalizeText)
@@ -3229,17 +3229,24 @@ function resolveRoles(existingRoles = [], email = "") {
   );
   roles.add("user");
   const normalizedEmail = normalizeKey(email);
-  if (normalizedEmail.endsWith("@buttonpoetry.com")) roles.add("team");
-  if (ADMIN_EMAILS.has(normalizedEmail)) roles.add("admin");
+  const automaticTeamAccess = options.automaticTeamAccess !== false;
+  if (normalizedEmail.endsWith("@buttonpoetry.com")) {
+    if (automaticTeamAccess) roles.add("team");
+    else roles.delete("team");
+  }
+  if (ADMIN_EMAILS.has(normalizedEmail)) {
+    roles.add("admin");
+    roles.add("team");
+  }
   return [...roles];
 }
 
-function sanitizeManagedRoles(inputRoles = [], email = "") {
+function sanitizeManagedRoles(inputRoles = [], email = "", options = {}) {
   const allowed = new Set(["user", "author", "team", "admin"]);
   const roles = (Array.isArray(inputRoles) ? inputRoles : [])
     .map(normalizeText)
     .filter((role) => allowed.has(role));
-  return resolveRoles(roles, email);
+  return resolveRoles(roles, email, options);
 }
 
 function mapProfileDoc(id, data = {}) {
@@ -3868,6 +3875,7 @@ async function ensureUserRecord(decoded) {
       email: decoded.email || "",
       displayName: decoded.name || decoded.email || "",
       roles: resolveRoles([], decoded.email),
+      automaticTeamAccess: normalizeKey(decoded.email).endsWith("@buttonpoetry.com"),
       createdAt: FieldValue.serverTimestamp(),
       lastLoginAt: FieldValue.serverTimestamp(),
       status: "active",
@@ -3883,7 +3891,9 @@ async function ensureUserRecord(decoded) {
       displayName: decoded.name || existing.displayName || decoded.email || "",
       lastLoginAt: FieldValue.serverTimestamp(),
       status: existing.status || "active",
-      roles: resolveRoles(existing.roles, decoded.email || existing.email || ""),
+      roles: resolveRoles(existing.roles, decoded.email || existing.email || "", {
+        automaticTeamAccess: existing.automaticTeamAccess !== false,
+      }),
     },
     { merge: true }
   );
@@ -3899,7 +3909,10 @@ async function syncUserRecordFromAuthUser(authUser) {
     email: authUser.email || existing.email || "",
     displayName: authUser.displayName || existing.displayName || authUser.email || authUser.uid,
     status: authUser.disabled ? "disabled" : (existing.status || "active"),
-    roles: resolveRoles(existing.roles, authUser.email || existing.email || ""),
+    roles: resolveRoles(existing.roles, authUser.email || existing.email || "", {
+      automaticTeamAccess: existing.automaticTeamAccess !== false,
+    }),
+    automaticTeamAccess: existing.automaticTeamAccess !== false,
     updatedAt: FieldValue.serverTimestamp(),
   };
   if (!snap.exists) payload.createdAt = FieldValue.serverTimestamp();
@@ -7597,6 +7610,7 @@ app.get(getBoth("/admin/users"), async (req, res) => {
       displayName: row.displayName || "",
       roles: Array.isArray(row.roles) ? row.roles : ["user"],
       status: row.status || "active",
+      automaticTeamAccess: row.automaticTeamAccess !== false,
       authorProfileId: row.authorProfileId || null,
       createdAt: row.createdAt || null,
       lastLoginAt: row.lastLoginAt || null,
@@ -7655,10 +7669,16 @@ app.post(getBoth("/admin/users/:uid/roles"), async (req, res) => {
   if (!snap.exists) return res.status(404).json({ error: "user_not_found" });
 
   const userData = snap.data() || {};
-  const roles = sanitizeManagedRoles(req.body?.roles, userData.email || "");
+  const requestedRoles = Array.isArray(req.body?.roles) ? req.body.roles : [];
+  const isButtonAccount = normalizeKey(userData.email).endsWith("@buttonpoetry.com");
+  const automaticTeamAccess = isButtonAccount
+    ? requestedRoles.map(normalizeText).includes("team")
+    : userData.automaticTeamAccess !== false;
+  const roles = sanitizeManagedRoles(requestedRoles, userData.email || "", { automaticTeamAccess });
   await ref.set(
     {
       roles,
+      automaticTeamAccess,
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: ctx.decoded.uid,
     },
@@ -7673,6 +7693,29 @@ app.post(getBoth("/admin/users/:uid/roles"), async (req, res) => {
       ...(saved.data() || {}),
     },
   });
+});
+
+app.post(getBoth("/admin/users/:uid/status"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const uid = normalizeText(req.params.uid);
+  if (!uid) return res.status(400).json({ error: "missing_uid" });
+  if (uid === ctx.decoded.uid) return res.status(400).json({ error: "cannot_disable_self" });
+
+  const disabled = req.body?.disabled === true;
+  const authUser = await auth.getUser(uid);
+  if (ADMIN_EMAILS.has(normalizeKey(authUser.email))) {
+    return res.status(400).json({ error: "cannot_disable_bootstrap_admin" });
+  }
+  await auth.updateUser(uid, { disabled });
+  const ref = db.collection(COLLECTIONS.users).doc(uid);
+  await ref.set({
+    status: disabled ? "disabled" : "active",
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: ctx.decoded.uid,
+  }, { merge: true });
+  const saved = await ref.get();
+  res.json({ ok: true, user: { uid, ...(saved.data() || {}) } });
 });
 
 

@@ -431,13 +431,10 @@
           <option value="stale">No recent activity</option>
         </select>
         <select id="user-sort">
-          <option value="name-asc">Name A–Z</option>
-          <option value="name-desc">Name Z–A</option>
-          <option value="email-asc">Email A–Z</option>
           <option value="last-active-desc">Most recently active</option>
           <option value="last-active-asc">Least recently active</option>
+          <option value="name-asc">Name A–Z</option>
           <option value="votes-desc">Most votes</option>
-          <option value="votes-asc">Fewest votes</option>
           <option value="status-asc">Status A–Z</option>
         </select>
         <button id="refresh" type="button">Refresh users</button>
@@ -914,7 +911,7 @@
       query: "",
       roleFilter: "all",
       statusFilter: "all",
-      userSort: "name-asc",
+      userSort: "last-active-desc",
       syncedCount: 0,
       invites: [],
       authorCommandCenter: null,
@@ -1022,7 +1019,7 @@
     }
 
     function normalizeUserTimestamp(user) {
-      const value = normalizeTimestamp(user.lastLoginAt);
+      const value = normalizeTimestamp(user.lastAppActivityAt || user.lastLoginAt);
       return value ? value.getTime() : 0;
     }
 
@@ -1302,13 +1299,13 @@
         <table>
           <thead>
             <tr>
-              <th class="sortable"><button type="button" data-user-sort="name" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('name')">${userSortLabel(state.userSort).startsWith('Name') ? `User ${sortIndicatorFor(['name-asc','name-desc'])}` : `User`}</button></th>
+              <th>User</th>
               <th>Roles</th>
               <th>Profile</th>
-              <th class="sortable"><button type="button" data-user-sort="last-active" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('last-active')">Last active ${sortIndicatorFor(['last-active-desc','last-active-asc'])}</button></th>
-              <th class="sortable"><button type="button" data-user-sort="status" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('status')">Status ${sortIndicatorFor(['status-asc'])}</button></th>
-              <th class="sortable"><button type="button" data-user-sort="votes" onclick="window.__ppAdminToggleUserSort && window.__ppAdminToggleUserSort('votes')">Votes ${sortIndicatorFor(['votes-desc','votes-asc'])}</button></th>
-              <th>Save</th>
+              <th>Last activity</th>
+              <th>Status</th>
+              <th>Votes</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1321,6 +1318,7 @@
                   ${(user.roles || []).includes("admin") ? '<span class="pill">Admin</span>' : ""}
                   ${(user.roles || []).includes("team") ? '<span class="pill">Team</span>' : ""}
                   ${(user.roles || []).includes("author") ? '<span class="pill">Author</span>' : ""}
+                  ${String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com') ? `<div class="meta">Automatic team access: ${user.automaticTeamAccess === false ? 'Off' : 'On'}</div>` : ''}
                   <div class="meta">Last login: ${formatLastActive(user.lastLoginAt)}</div>
                 </td>
                 <td>
@@ -1337,7 +1335,15 @@
                 <td>${formatLastActive(user.lastAppActivityAt || user.lastLoginAt)}</td>
                 <td>${user.status || "active"}</td>
                 <td>${Number(user.voteCount || 0).toLocaleString()}</td>
-                <td>${user.isAnonymousAggregate ? '—' : `<button type="button" data-save="${user.uid}">Save roles</button>`}</td>
+                <td>${user.isAnonymousAggregate ? '—' : `
+                  <div class="role-set">
+                    <button type="button" data-save="${user.uid}">Save roles</button>
+                    <button type="button" class="secondary" data-account-status="${user.uid}" data-disabled="${user.status === 'disabled' ? 'false' : 'true'}">${user.status === 'disabled' ? 'Enable account' : 'Disable account'}</button>
+                    ${String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com') && (user.roles || []).includes('team') && user.status !== 'disabled'
+                      ? `<button type="button" class="secondary" data-remove-team-disable="${user.uid}">Remove team &amp; disable</button>`
+                      : ''}
+                  </div>
+                `}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -1347,8 +1353,11 @@
       container.querySelectorAll("[data-save]").forEach((button) => {
         button.addEventListener("click", () => saveRoles(button.getAttribute("data-save")));
       });
-      container.querySelectorAll("[data-user-sort]").forEach((button) => {
-        button.addEventListener("click", () => toggleUserSort(button.getAttribute("data-user-sort")));
+      container.querySelectorAll("[data-account-status]").forEach((button) => {
+        button.addEventListener("click", () => setAccountDisabled(button.getAttribute("data-account-status"), button.dataset.disabled === "true"));
+      });
+      container.querySelectorAll("[data-remove-team-disable]").forEach((button) => {
+        button.addEventListener("click", () => removeTeamAndDisable(button.getAttribute("data-remove-team-disable")));
       });
     }
 
@@ -1394,6 +1403,36 @@
       } catch (err) {
         console.error(err);
         setStatus(err.message || "Failed to update roles.", true);
+      }
+    }
+
+    async function setAccountDisabled(uid, disabled) {
+      setStatus(disabled ? "Disabling account…" : "Enabling account…");
+      try {
+        const payload = await api(`admin/users/${uid}/status`, { method: "POST", body: { disabled } });
+        const idx = state.users.findIndex((user) => user.uid === uid);
+        if (idx >= 0) state.users[idx] = { ...state.users[idx], ...(payload.user || {}) };
+        renderUsers();
+        setStatus(disabled ? "Account disabled." : "Account enabled.");
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "Failed to update account status.", true);
+      }
+    }
+
+    async function removeTeamAndDisable(uid) {
+      const user = state.users.find((row) => row.uid === uid);
+      if (!user) return;
+      setStatus("Removing team access and disabling account…");
+      try {
+        const roles = (user.roles || []).filter((role) => role !== "team" && role !== "admin");
+        await api(`admin/users/${uid}/roles`, { method: "POST", body: { roles } });
+        await api(`admin/users/${uid}/status`, { method: "POST", body: { disabled: true } });
+        await loadUsers();
+        setStatus("Team access removed and account disabled.");
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "Failed to remove access.", true);
       }
     }
 
