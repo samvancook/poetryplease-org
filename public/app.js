@@ -1253,19 +1253,26 @@ async function getOrCreateAnonId() {
     justify-content: flex-start;
     padding-bottom: 18vh;
   }
-  .excerpt-text.full-poem-scroll-shell.is-user-paused::after {
-    content: 'Auto-scroll paused';
-    position: sticky;
-    bottom: 0;
-    left: 0;
-    display: inline-block;
-    margin-top: 10px;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: rgba(250, 247, 240, 0.92);
-    color: #666;
-    font-size: 0.78rem;
-    letter-spacing: 0.01em;
+  .full-poem-scroll-controls {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 8px auto 0;
+  }
+  .full-poem-scroll-controls.is-visible { display: flex; }
+  .full-poem-scroll-controls button {
+    min-height: 38px;
+    padding: 7px 11px;
+    font-size: 0.85rem;
+  }
+  .full-poem-more-button {
+    width: 42px;
+    font-size: 1.15rem !important;
+    line-height: 1;
+  }
+  .full-poem-scroll-controls.is-at-end .full-poem-more-button {
+    opacity: 0.45;
   }
   .full-poem-title { margin: 0 0 1.4rem; font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 700; line-height: 1.2; }
   .full-poem-body { margin: 0; }
@@ -1441,6 +1448,7 @@ function teardownFullPoemAutoScroll_(shell) {
   if (!state) return;
   if (state.rafId) cancelAnimationFrame(state.rafId);
   if (state.resumeTimer) clearTimeout(state.resumeTimer);
+  if (state.resizeObserver) state.resizeObserver.disconnect();
   if (Array.isArray(state.listeners)) {
     state.listeners.forEach(({ target, type, handler, options }) => target.removeEventListener(type, handler, options));
   }
@@ -1454,9 +1462,19 @@ function setupFullPoemAutoScroll_(shell) {
 
   const maxScroll = Math.max(0, shell.scrollHeight - shell.clientHeight);
   const overflowThreshold = 2;
+  const controls = shell.parentElement?.querySelector('.full-poem-scroll-controls');
   shell.classList.toggle('is-overflowing', maxScroll > overflowThreshold);
   shell.scrollTop = 0;
-  if (maxScroll <= overflowThreshold) return;
+  controls?.classList.toggle('is-visible', maxScroll > overflowThreshold);
+  controls?.classList.remove('is-at-end');
+  if (maxScroll <= overflowThreshold) {
+    const resizeObserver = new ResizeObserver(() => {
+      if ((shell.scrollHeight - shell.clientHeight) > overflowThreshold) setupFullPoemAutoScroll_(shell);
+    });
+    resizeObserver.observe(shell);
+    __ppPoemScrollState.set(shell, { resizeObserver, listeners: [] });
+    return;
+  }
 
   const state = {
     rafId: 0,
@@ -1464,6 +1482,7 @@ function setupFullPoemAutoScroll_(shell) {
     pausedUntil: performance.now() + 500,
     listeners: [],
     pausedByUser: false,
+    resizeObserver: null,
   };
   const speed = IS_MOBILE_UI ? 14 : 20;
 
@@ -1472,11 +1491,29 @@ function setupFullPoemAutoScroll_(shell) {
     state.listeners.push({ target, type, handler, options });
   };
 
-  addListener(shell, 'click', () => {
-    state.pausedByUser = !state.pausedByUser;
+  const modeButton = controls?.querySelector('.full-poem-scroll-mode');
+  const moreButton = controls?.querySelector('.full-poem-more-button');
+  const setPaused = (paused) => {
+    state.pausedByUser = paused;
     state.lastTs = 0;
     shell.classList.toggle('is-user-paused', state.pausedByUser);
+    if (modeButton) {
+      modeButton.textContent = state.pausedByUser ? 'Auto-scroll: Off' : 'Auto-scroll: On';
+      modeButton.setAttribute('aria-pressed', String(!state.pausedByUser));
+    }
+    if (!paused && !state.rafId) state.rafId = requestAnimationFrame(tick);
+  };
+  if (modeButton) addListener(modeButton, 'click', () => setPaused(!state.pausedByUser));
+  if (moreButton) addListener(moreButton, 'click', () => {
+    setPaused(true);
+    shell.scrollBy({ top: Math.max(120, shell.clientHeight * 0.72), behavior: 'smooth' });
   });
+  ['wheel', 'touchstart', 'pointerdown'].forEach((type) => addListener(shell, type, () => setPaused(true), { passive: true }));
+  addListener(shell, 'scroll', () => {
+    const remaining = shell.scrollHeight - shell.clientHeight - shell.scrollTop;
+    controls?.classList.toggle('is-at-end', remaining <= 2);
+    if (moreButton) moreButton.disabled = remaining <= 2;
+  }, { passive: true });
 
   const tick = (ts) => {
     if (!document.body.contains(shell)) {
@@ -1487,6 +1524,7 @@ function setupFullPoemAutoScroll_(shell) {
     if (currentMax <= 24) {
       shell.scrollTop = 0;
       shell.classList.remove('is-overflowing');
+      controls?.classList.remove('is-visible');
       teardownFullPoemAutoScroll_(shell);
       return;
     }
@@ -1505,7 +1543,10 @@ function setupFullPoemAutoScroll_(shell) {
     state.lastTs = ts;
     const nextTop = Math.min(currentMax, shell.scrollTop + (speed * delta));
     shell.scrollTop = nextTop;
-    if (nextTop >= currentMax - 0.5) return;
+    if (nextTop >= currentMax - 0.5) {
+      state.rafId = 0;
+      return;
+    }
     state.rafId = requestAnimationFrame(tick);
   };
 
@@ -3003,6 +3044,23 @@ function renderItemMedia(item) {
     textContent.appendChild(p);
     textDiv.appendChild(textContent);
     box.appendChild(textDiv);
+    if (item?.imageType === 'FP') {
+      const controls = document.createElement('div');
+      controls.className = 'full-poem-scroll-controls';
+      const modeButton = document.createElement('button');
+      modeButton.type = 'button';
+      modeButton.className = 'full-poem-scroll-mode';
+      modeButton.textContent = 'Auto-scroll: On';
+      modeButton.setAttribute('aria-pressed', 'true');
+      const moreButton = document.createElement('button');
+      moreButton.type = 'button';
+      moreButton.className = 'full-poem-more-button';
+      moreButton.textContent = '↓';
+      moreButton.title = 'More poem below';
+      moreButton.setAttribute('aria-label', 'Scroll farther down the poem');
+      controls.append(modeButton, moreButton);
+      box.appendChild(controls);
+    }
   } else if (item?.mediaUrl && (item.imageType === 'YT' || isYouTubeUrl(item.mediaUrl))) {
     if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'video';
     box.classList.add('video-media-box');
@@ -3065,6 +3123,7 @@ function renderItemMedia(item) {
   requestAnimationFrame(() => postEmbedSize());
   if (item?.imageType === 'FP') {
     requestAnimationFrame(() => setupFullPoemAutoScroll_(box.querySelector('.full-poem-scroll-shell')));
+    setTimeout(() => setupFullPoemAutoScroll_(box.querySelector('.full-poem-scroll-shell')), 300);
   }
   if (img) img.addEventListener('load', () => {
     LoadTiming.mark('firstMediaLoaded', 'image');

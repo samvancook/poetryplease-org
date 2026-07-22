@@ -183,6 +183,13 @@
   - add an admin cleanup/report for FP duplicate families if future imports regress
   - keep a short operational note for the July 2026 duplicate cleanup: 526 suffixed FP docs were deleted after the repeated bad import, leaving no suffixed FP docs with matching base IDs
   - add a preflight/import summary for FP JSON imports showing create/update/delete risk before execution
+- Build mobile-first full-poem pagination as the successor/companion to auto-scroll:
+  - split long `FP` text into stable reading pages that fit the Poetry Please viewing window on phones first, then desktop
+  - preserve stanza breaks and avoid orphaning poem titles, single lines, or very short final pages
+  - offer an explicit reading-mode toggle between paginated and auto-scroll views
+  - remember a user's preferred reading mode without changing the poem's stored text
+  - add previous/next page controls, page position, and accessible keyboard/touch navigation
+  - test page boundaries across small phones, large phones, and desktop before making pagination the default
 - Add visible book-disambiguation diagnostics to Scoreboard:
   - show possible duplicate book records caused by punctuation, case, spacing, or subtitle variants such as `The Willies` / `Thewillies`
   - flag subtitle-style splits where one canonical book is being counted as two scoreboard books
