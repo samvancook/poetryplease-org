@@ -1,12 +1,14 @@
 {
   "name": "poetry-please-functions",
   "private": true,
-  "engines": { "node": "20" },
+  "engines": {
+    "node": "22"
+  },
   "type": "module",
   "dependencies": {
-    "firebase-admin": "^12.6.0",
-    "firebase-functions": "^6.0.0",
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "express": "^4.22.2",
+    "firebase-admin": "^14.2.0",
+    "firebase-functions": "^7.3.0"
   }
 }

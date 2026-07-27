@@ -1,16 +1,14 @@
 # Poetry Please Roadmap
 
+Completed work is recorded in `ROADMAP_ARCHIVE.md`.
+
 ## Active Focus
 - Weaver/Firestore integration stability goal set:
-  - completed first pass: durable import receipts with schema version, request status, counts, per-item outcomes, duration, and exact failure reason
-  - completed first pass: Admin reconciliation report for handed-off content IDs that no longer resolve in Poetry Please
-  - completed first pass: explicit rejection of unsupported Weaver schema versions while preserving the current unversioned legacy contract
   - next: add a correct-and-retry workflow for failed ledger records instead of requiring payload reconstruction
   - next: expand reconciliation from resulting content IDs to source-record IDs and metadata/type mismatches
   - next: add a formal preflight/canary gate before bulk imports using a new content type or schema version
   - next: harden idempotency around `sourceSystem + sourceRecordId` across every supported content type and document duplicate-signal precedence
   - next: add import volume, latency, duplicate-rate, snapshot-age, and last-success trend diagnostics
-  - separately: upgrade Node.js 20 and `firebase-functions` with dedicated compatibility testing
 - App polish and reliability
 - Safer development and deploy workflow so new features do not destabilize existing app behavior
 - Public/general-user onboarding polish, load-time improvements, and non-Google account options
@@ -62,13 +60,7 @@
   - keep the optimized fast path: small startup bootstrap, deferred ratings summary, moderate background hydration, and larger filtered review queues only where needed
   - monitor the remaining cold backend case: a fresh function instance can still take roughly 10 seconds while rebuilding the in-memory content cache from `20k+` Firestore records
   - trial `minInstances: 1` for the Firebase 2nd-gen `api` function so one container stays warm; confirm the reserved-instance estimate during deploy and watch real user timing for a few days
-  - completed: added a versioned persistent feed/content snapshot in Storage so fresh function instances can load one artifact instead of rescanning all content collections
-  - completed: existing content mutation hooks now invalidate the persistent snapshot after imports, edits, deletes, and moderation changes
-  - completed: the Firestore scan remains the automatic fallback when the persistent snapshot is absent, stale, invalidated, or unreadable
   - decide whether to keep both `minInstances: 1` and the persistent snapshot after measuring the single-instance warm path
-- Schedule the Firebase runtime maintenance separately from feature work:
-  - upgrade the deprecated Node.js 20 Cloud Functions runtime before its October 31, 2026 decommission date
-  - upgrade the outdated `firebase-functions` package carefully, with a dedicated smoke-test pass for breaking changes
 - Build out the shared Drive migration:
   - maintain `MIGRATION_MANIFEST.md` as the local and Drive-facing map of what moved, where it lives, and whether Drive or GitHub is canonical
   - keep GitHub canonical for app code, functions, hosting assets, and deployable source
@@ -240,9 +232,6 @@ Why this is parked:
 
 ## Next Good Threads
 - Protect Poetry Please production deployment ownership:
-  - [x] disable default Firebase deployment from the stale `poetry-please-admin-moderation` and `poetry-please-upload-migration` workspaces
-  - [x] declare the canonical `poetry-please` repository as the only authorized production deployment source
-  - [x] add a guarded production deploy script that verifies repo path, Firebase project, runtime, memory, `minInstances`, public health, and anonymous bootstrap
   - [ ] make the full smoke test an enforced post-deploy requirement rather than a manual follow-up
   - [ ] move production deployment to a dedicated Poetry Please service account unavailable to unrelated projects and generated workspaces
   - [ ] add a deployment/configuration alert for unexpected runtime, memory, reserved-instance, or public-invoker changes

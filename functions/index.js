@@ -2533,6 +2533,7 @@ async function buildInternalCoverageCountsPayload(contentType = "QI") {
       bookShortener: row?.bookShortener || "",
       sourceFileName: row?.sourceFileName || row?.imageId || "",
     });
+    if (!canonical.matched) return;
     const bookTitle = normalizeText(canonical.book || row?.bookTitle || row?.book || "");
     const bookKey = normalizeCatalogLookupKey(bookTitle);
     if (!bookKey) return;
@@ -2569,6 +2570,7 @@ async function buildInternalIntFpiCoveragePayload() {
       bookShortener: row?.bookShortener || "",
       sourceFileName: row?.sourceFileName || row?.imageId || "",
     });
+    if (!canonical.matched) return;
     const bookTitle = normalizeText(canonical.book || row?.bookTitle || row?.book || "");
     const bookKey = normalizeCatalogLookupKey(bookTitle);
     if (!bookKey) return;

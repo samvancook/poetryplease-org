@@ -24,7 +24,7 @@ if ! grep -q '"default": "poetry-please"' .firebaserc; then
 fi
 
 if [[ "$SCOPE" == *functions* ]]; then
-  grep -q '"node": "20"' functions/package.json || {
+  grep -q '"node": "22"' functions/package.json || {
     echo "Refusing deploy: unexpected Node runtime" >&2
     exit 1
   }
@@ -57,4 +57,3 @@ bootstrap="$(curl --max-time 30 -fsS \
 }
 
 echo "Production verification passed: public health and anonymous bootstrap are available."
-
