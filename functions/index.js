@@ -2558,6 +2558,56 @@ async function buildInternalCoverageCountsPayload(contentType = "QI") {
   };
 }
 
+async function buildInternalIntFpiCoveragePayload() {
+  const target = 10;
+  const result = await getScoreboardPayloadFromSnapshot();
+  const countsByBookKey = {};
+  (result?.payload?.aggregated || []).forEach((row) => {
+    const canonical = resolveCanonicalCatalogMetadata({
+      author: row?.author || "",
+      book: row?.bookTitle || row?.book || "",
+      bookShortener: row?.bookShortener || "",
+      sourceFileName: row?.sourceFileName || row?.imageId || "",
+    });
+    const bookTitle = normalizeText(canonical.book || row?.bookTitle || row?.book || "");
+    const bookKey = normalizeCatalogLookupKey(bookTitle);
+    if (!bookKey) return;
+    const current = countsByBookKey[bookKey] || {
+      bookKey,
+      bookTitle,
+      intCount: 0,
+      fpiCount: 0,
+    };
+    const type = normalizeText(row?.type).toUpperCase();
+    if (type === "INT") current.intCount += 1;
+    if (type === "FPI") current.fpiCount += 1;
+    current.bookTitle = current.bookTitle || bookTitle;
+    countsByBookKey[bookKey] = current;
+  });
+  const counts = Object.values(countsByBookKey).map((row) => {
+    const combinedCount = row.intCount + row.fpiCount;
+    return {
+      ...row,
+      combinedCount,
+      target,
+      remaining: Math.max(0, target - combinedCount),
+      complete: combinedCount >= target,
+    };
+  });
+  return {
+    ok: true,
+    lane: "INT_FPI",
+    contentTypes: ["INT", "FPI"],
+    target,
+    counts,
+    snapshotMeta: {
+      source: result.source,
+      builtAtMs: result.builtAtMs,
+      ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
+    },
+  };
+}
+
 async function buildInternalContentScoresPayload(contentType = "FPI") {
   const normalizedType = normalizeText(contentType || "FPI").toUpperCase();
   const [result, sourceItems] = await Promise.all([
@@ -6175,7 +6225,10 @@ app.get(getBoth("/internal/coverageCounts"), async (req, res) => {
   }
 
   try {
-    const result = await buildInternalCoverageCountsPayload(req.query?.type || "QI");
+    const requestedLane = normalizeText(req.query?.lane || req.query?.type || "QI").toUpperCase();
+    const result = requestedLane === "INT_FPI"
+      ? await buildInternalIntFpiCoveragePayload()
+      : await buildInternalCoverageCountsPayload(requestedLane);
     res.json(result);
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "coverage_counts_failed" });
