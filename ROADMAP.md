@@ -3,6 +3,14 @@
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
 ## Active Focus
+- Poem-centered Scoreboard:
+  - make books and their poems the primary ranking and editorial decision surface
+  - preserve the content-level table and Google Sheet export for calendar planning
+  - show book-level FP review coverage, no/low-signal poems, flags, average score, and top poem
+  - keep every poem score explainable as direct FP votes, author adjustment, connected-content bonus, and diagnostic connected vote score
+  - next: add a poem-level export and a calendar-candidate workflow without hiding the underlying content rows
+  - next: decide and document whether a fraction of connected-content vote scores should roll into the source poem score
+  - next: add book-level ranking and signal-distribution comparisons once the per-book summaries have been validated
 - Weaver/Firestore integration stability goal set:
   - next: add a correct-and-retry workflow for failed ledger records instead of requiring payload reconstruction
   - next: expand reconciliation from resulting content IDs to source-record IDs and metadata/type mismatches

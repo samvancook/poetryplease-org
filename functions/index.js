@@ -4377,6 +4377,11 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       const connected = connectedByPoem.get(poemKey(row)) || [];
       const connectedWithVotes = connected.filter((item) => Number(item.totalVotes || 0) > 0);
       const connectedContentBonus = Number(row.fpDerivativePoints || 0);
+      const connectedTypeCounts = connected.reduce((counts, connectedItem) => {
+        const type = normalizeText(connectedItem.type).toUpperCase();
+        if (type) counts[type] = (counts[type] || 0) + 1;
+        return counts;
+      }, {});
       const signalCount = Number(row.totalVotes || 0) + connectedContentBonus;
       const signalLevel = signalCount === 0 ? "none" : signalCount <= 3 ? "low" : signalCount <= 9 ? "moderate" : "strong";
       const authorAdjustment = (Number(row.authorLikes || 0) * 9)
@@ -4399,6 +4404,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         totalScore: Number(row.score || 0),
         directScore: Number(row.score || 0) - connectedContentBonus,
         connectedContentBonus,
+        connectedTypeCounts,
         connectedVotedCount: connectedWithVotes.length,
         connectedVoteScore: connectedWithVotes.reduce((sum, item) => sum + Number(item.score || 0), 0),
         signalCount,
@@ -4447,12 +4453,53 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       return ranked;
     }, { activeRank: 0, bookRanks: new Map(), rows: [] }).rows;
 
+  const bookSummaries = Array.from(fullPoems.reduce((summaries, row) => {
+    const key = normalizeCatalogLookupKey(row.book);
+    const summary = summaries.get(key) || {
+      book: row.book,
+      catalog: row.catalog,
+      poemCount: 0,
+      reviewedPoemCount: 0,
+      noSignalCount: 0,
+      lowSignalCount: 0,
+      flaggedCount: 0,
+      totalScore: 0,
+      totalSignals: 0,
+      topPoem: "",
+      topPoemScore: null,
+    };
+    summary.poemCount += 1;
+    summary.reviewedPoemCount += Number(row.totalVotes || 0) > 0 ? 1 : 0;
+    summary.noSignalCount += row.signalLevel === "none" ? 1 : 0;
+    summary.lowSignalCount += row.signalLevel === "low" ? 1 : 0;
+    summary.flaggedCount += row.flagged ? 1 : 0;
+    summary.totalScore += Number(row.totalScore || 0);
+    summary.totalSignals += Number(row.signalCount || 0);
+    if (!row.flagged && (summary.topPoemScore === null || Number(row.totalScore || 0) > summary.topPoemScore)) {
+      summary.topPoem = row.title;
+      summary.topPoemScore = Number(row.totalScore || 0);
+    }
+    summaries.set(key, summary);
+    return summaries;
+  }, new Map()).values())
+    .map((summary) => ({
+      ...summary,
+      reviewedPercent: summary.poemCount ? Math.round((summary.reviewedPoemCount / summary.poemCount) * 100) : 0,
+      averageScore: summary.poemCount ? Number((summary.totalScore / summary.poemCount).toFixed(1)) : 0,
+    }))
+    .sort((a, b) => (
+      (b.reviewedPercent - a.reviewedPercent)
+      || (b.averageScore - a.averageScore)
+      || a.book.localeCompare(b.book)
+    ));
+
   res.json({
     ok: true,
     book: requestedBook,
     catalog: requestedCatalog,
     count: fullPoems.length,
     rows: fullPoems,
+    bookSummaries,
     scoring: {
       totalScore: "Current FP score: direct votes plus one point per connected derivative content item.",
       connectedVoteScore: "Diagnostic only; connected-content vote scores are not yet rolled into the FP total.",

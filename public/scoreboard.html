@@ -266,6 +266,7 @@
       </div>
 
       <div id="fullPoemsContainer" class="table-wrap" style="display:none;">
+        <div id="poemBookSummary" style="margin-bottom:18px;"></div>
         <table id="fullPoemsRanking">
           <thead>
             <tr>
@@ -337,6 +338,7 @@
     let scoreboardLoaded = false;
     let scoreboardSnapshotMeta = null;
     let fullPoemRankingRows = [];
+    let fullPoemBookSummaries = [];
     let expandedFullPoemId = '';
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
@@ -1419,17 +1421,57 @@
         const payload = await api(`scoreboard/fullPoems?${params.toString()}`, { method: 'GET' });
         const rows = payload.rows || [];
         fullPoemRankingRows = rows;
+        fullPoemBookSummaries = payload.bookSummaries || [];
         expandedFullPoemId = '';
+        renderPoemBookSummary();
         renderFullPoemRankingRows();
-        setStatus(`Ranked ${rows.length} poem${rows.length === 1 ? '' : 's'} for ${scope}. Connected vote score is shown as a diagnostic and is not yet added to the total.`);
+        setStatus(`Ranked ${rows.length} poem${rows.length === 1 ? '' : 's'} across ${fullPoemBookSummaries.length} book${fullPoemBookSummaries.length === 1 ? '' : 's'} for ${scope}. Content export remains available from the Content view.`);
       } catch (err) {
         console.error(err);
         fullPoemRankingRows = [];
+        fullPoemBookSummaries = [];
+        document.getElementById('poemBookSummary').innerHTML = '';
         body.innerHTML = '<tr><td colspan="14"><div class="empty">Could not load poem rankings.</div></td></tr>';
         setStatus(err.message || 'Could not load poem rankings.', true);
       } finally {
         setControlsDisabled(false);
       }
+    }
+
+    function renderPoemBookSummary() {
+      const container = document.getElementById('poemBookSummary');
+      if (!fullPoemBookSummaries.length) {
+        container.innerHTML = '';
+        return;
+      }
+      container.innerHTML = `
+        <div class="section-head">
+          <div>
+            <h2 style="margin:0;">Books at a glance</h2>
+            <div class="meta">Review coverage and signal health for the poems currently in scope.</div>
+          </div>
+        </div>
+        <table style="margin-top:10px;">
+          <thead><tr><th>Book</th><th>Poems</th><th>FP Reviewed</th><th>No Signal</th><th>Low Signal</th><th>Flagged</th><th>Average Score</th><th>Top Poem</th></tr></thead>
+          <tbody>${fullPoemBookSummaries.map((summary) => `
+            <tr>
+              <td><button type="button" class="link-button poem-book-filter" data-book="${escapeHtml(summary.book || '')}">${escapeHtml(summary.book || '')}</button><div class="meta">${escapeHtml(summary.catalog || '')}</div></td>
+              <td>${summary.poemCount || 0}</td>
+              <td><strong>${summary.reviewedPercent || 0}%</strong><div class="meta">${summary.reviewedPoemCount || 0} of ${summary.poemCount || 0}</div></td>
+              <td>${summary.noSignalCount || 0}</td>
+              <td>${summary.lowSignalCount || 0}</td>
+              <td>${summary.flaggedCount || 0}</td>
+              <td>${summary.averageScore || 0}</td>
+              <td>${escapeHtml(summary.topPoem || '—')}${summary.topPoemScore === null ? '' : ` <span class="meta">(${summary.topPoemScore})</span>`}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      `;
+    }
+
+    function connectedTypeLabel(row) {
+      const counts = row.connectedTypeCounts || {};
+      return Object.keys(counts).sort().map((type) => `${type} ${counts[type]}`).join(' · ') || 'No connected content';
     }
 
     function signalLabel(row) {
@@ -1477,6 +1519,7 @@
           + ${breakdown.connectedContentBonus || 0} connected-content bonus
           = <strong>${breakdown.totalScore || 0}</strong>
           <div class="meta" style="margin-top:8px;">Signal count: ${row.totalVotes || 0} direct FP votes + ${row.connectedContentBonus || 0} connected content items = ${row.signalCount || 0}. ${row.connectedVotedCount || 0} connected items currently have votes.</div>
+          <div class="meta" style="margin-top:6px;">Connected content: ${escapeHtml(connectedTypeLabel(row))}. Connected vote score (${row.connectedVoteScore || 0}) remains diagnostic and is not added to the poem total.</div>
           <div style="margin-top:12px;"><a href="/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">Open full poem</a></div>
           ${connected.length ? `<table style="margin-top:12px;"><thead><tr><th>Type</th><th>Connected Item</th><th>Votes</th><th>Score</th><th>FP Bonus</th><th>Open</th></tr></thead><tbody>${connected.map((item) => `<tr><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.title || item.imageId)}</td><td>${item.totalVotes || 0}</td><td>${item.score || 0}</td><td>+${item.fpBonusContribution || 0}</td><td><a href="/app?item=${encodeURIComponent(item.imageId || '')}" target="_blank" rel="noopener noreferrer">Open</a></td></tr>`).join('')}</tbody></table>` : '<div class="empty" style="margin-top:12px;">No connected derivative content found.</div>'}
         </div>
@@ -1540,6 +1583,12 @@
         if (!button) return;
         expandedFullPoemId = expandedFullPoemId === button.dataset.imageId ? '' : button.dataset.imageId;
         renderFullPoemRankingRows();
+      });
+      document.getElementById('poemBookSummary').addEventListener('click', (event) => {
+        const button = event.target.closest('.poem-book-filter');
+        if (!button) return;
+        document.getElementById('bookDropdown').value = button.dataset.book || '';
+        loadFullPoemRanking();
       });
       document.getElementById('exportBtn').addEventListener('click', exportVisibleSheet);
       refreshSnapshotBtn.addEventListener('click', async () => {
