@@ -160,7 +160,7 @@
         <label>Show preferences for
           <select id="userDropdown"></select>
         </label>
-        <label>Filter by type
+        <label id="typeFilterControl">Filter by type
           <select id="typeDropdown"></select>
         </label>
         <label>Filter by book
@@ -345,6 +345,8 @@
     let fullPoemRankingRows = [];
     let fullPoemBookSummaries = [];
     let expandedFullPoemId = '';
+    let currentPoemBookSortKey = 'importedPercent';
+    let currentPoemBookSortDir = -1;
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
     const bookRankingsBtn = document.getElementById('bookRankingsBtn');
@@ -760,6 +762,7 @@
       progressBarsContainer.style.display = isProgressBars ? '' : 'none';
       fullPoemsContainer.style.display = isFullPoems ? '' : 'none';
       teamProgressContainer.style.display = isTeamProgress ? '' : 'none';
+      document.getElementById('typeFilterControl').style.display = isScoreboard ? '' : 'none';
       if (isScoreboard) loadScoreboardPage();
       else if (isFullPoems || isBookRankings) loadFullPoemRanking();
       else ensureFullScoreboard()
@@ -1451,9 +1454,19 @@
     function renderPoemBookSummary() {
       const container = document.getElementById('poemBookSummary');
       const bookStatus = document.getElementById('bookStatusDropdown').value;
-      const visibleSummaries = bookStatus === 'missingFP'
+      const visibleSummaries = (bookStatus === 'missingFP'
         ? fullPoemBookSummaries.filter((summary) => Number(summary.missingFpCount || 0) > 0 || summary.catalogSourceUnavailable)
-        : fullPoemBookSummaries;
+        : fullPoemBookSummaries).slice().sort((a, b) => {
+          let left = a[currentPoemBookSortKey];
+          let right = b[currentPoemBookSortKey];
+          if (typeof left === 'string') left = left.toLowerCase();
+          if (typeof right === 'string') right = right.toLowerCase();
+          if (left === null || left === undefined) left = currentPoemBookSortDir > 0 ? '\uffff' : -Infinity;
+          if (right === null || right === undefined) right = currentPoemBookSortDir > 0 ? '\uffff' : -Infinity;
+          if (left > right) return currentPoemBookSortDir;
+          if (left < right) return -currentPoemBookSortDir;
+          return String(a.book || '').localeCompare(String(b.book || ''));
+        });
       if (!visibleSummaries.length) {
         container.innerHTML = '';
         return;
@@ -1466,12 +1479,23 @@
           </div>
         </div>
         <table style="margin-top:10px;">
-          <thead><tr><th>Book</th><th>Catalog Poems</th><th>FP Imported</th><th>FP Reviewed</th><th>Missing FP</th><th>No Signal</th><th>Low Signal</th><th>Flagged</th><th>Average Score</th><th>Top Poem</th></tr></thead>
+          <thead><tr>
+            <th data-summary-column="book">Book</th>
+            <th data-summary-column="catalogPoemCount">Catalog Poems</th>
+            <th data-summary-column="importedFpCount">FP Imported</th>
+            <th data-summary-column="reviewedPercent">FP Reviewed</th>
+            <th data-summary-column="missingFpCount">Missing FP</th>
+            <th data-summary-column="noSignalCount">No Signal</th>
+            <th data-summary-column="lowSignalCount">Low Signal</th>
+            <th data-summary-column="flaggedCount">Flagged</th>
+            <th data-summary-column="averageScore">Average Score</th>
+            <th data-summary-column="topPoemScore">Top Poem</th>
+          </tr></thead>
           <tbody>${visibleSummaries.map((summary) => `
             <tr>
               <td><button type="button" class="link-button poem-book-filter" data-book="${escapeHtml(summary.book || '')}">${escapeHtml(summary.book || '')}</button><div class="meta">${escapeHtml(summary.catalog || '')}</div></td>
               <td>${summary.catalogPoemCount === null ? `<span class="meta">${summary.catalogSourceUnavailable ? 'Source unavailable' : 'Collection'}</span>` : summary.catalogPoemCount}</td>
-              <td><strong>${summary.importedFpCount || 0}</strong>${summary.importedPercent === null ? '' : `<div class="meta">${summary.importedPercent}% of catalog</div>`}</td>
+              <td><strong>${summary.importedFpCount || 0}</strong>${summary.importedPercent === null ? '' : `<div class="meta">${summary.importedPercent}% catalog coverage</div>`}${summary.excessFpCount ? `<div class="meta" style="color:#8a3e32;">${summary.excessFpCount} extra imported item${summary.excessFpCount === 1 ? '' : 's'} to review</div>` : ''}</td>
               <td><strong>${summary.reviewedPercent || 0}%</strong><div class="meta">${summary.reviewedPoemCount || 0} of ${summary.importedFpCount || 0}</div></td>
               <td>${summary.missingFpCount === null ? '—' : summary.missingFpCount}</td>
               <td>${summary.noSignalCount || 0}</td>
@@ -1537,7 +1561,7 @@
           <div class="meta" style="margin-top:8px;">Signal count: ${row.totalVotes || 0} direct FP votes + ${row.connectedContentBonus || 0} connected content items = ${row.signalCount || 0}. ${row.connectedVotedCount || 0} connected items currently have votes.</div>
           <div class="meta" style="margin-top:6px;">Connected content: ${escapeHtml(connectedTypeLabel(row))}. Connected vote score (${row.connectedVoteScore || 0}) remains diagnostic and is not added to the poem total.</div>
           <div style="margin-top:12px;"><a href="/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">Open full poem</a></div>
-          ${connected.length ? `<table style="margin-top:12px;"><thead><tr><th>Type</th><th>Connected Item</th><th>Votes</th><th>Score</th><th>FP Bonus</th><th>Open</th></tr></thead><tbody>${connected.map((item) => `<tr><td>${escapeHtml(item.type)}</td><td>${escapeHtml(item.title || item.imageId)}</td><td>${item.totalVotes || 0}</td><td>${item.score || 0}</td><td>+${item.fpBonusContribution || 0}</td><td><a href="/app?item=${encodeURIComponent(item.imageId || '')}" target="_blank" rel="noopener noreferrer">Open</a></td></tr>`).join('')}</tbody></table>` : '<div class="empty" style="margin-top:12px;">No connected derivative content found.</div>'}
+          ${connected.length ? `<table style="margin-top:12px;"><thead><tr><th>Type</th><th>Connected Item</th><th>Votes</th><th>Score</th><th>FP Bonus</th></tr></thead><tbody>${connected.map((item) => `<tr><td>${escapeHtml(item.type)}</td><td><a href="/app?item=${encodeURIComponent(item.imageId || '')}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || item.imageId)}</a></td><td>${item.totalVotes || 0}</td><td>${item.score || 0}</td><td>+${item.fpBonusContribution || 0}</td></tr>`).join('')}</tbody></table>` : '<div class="empty" style="margin-top:12px;">No connected derivative content found.</div>'}
         </div>
       </td></tr>`;
     }
@@ -1604,6 +1628,17 @@
         renderFullPoemRankingRows();
       });
       document.getElementById('poemBookSummary').addEventListener('click', (event) => {
+        const sortHeader = event.target.closest('th[data-summary-column]');
+        if (sortHeader) {
+          const nextKey = sortHeader.dataset.summaryColumn;
+          if (currentPoemBookSortKey === nextKey) currentPoemBookSortDir *= -1;
+          else {
+            currentPoemBookSortKey = nextKey;
+            currentPoemBookSortDir = nextKey === 'book' ? 1 : -1;
+          }
+          renderPoemBookSummary();
+          return;
+        }
         const button = event.target.closest('.poem-book-filter');
         if (!button) return;
         document.getElementById('bookDropdown').value = button.dataset.book || '';
