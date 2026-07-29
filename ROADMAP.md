@@ -4,10 +4,12 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
 ## Active Focus
 - Poem-centered Scoreboard:
-  - make books and their poems the primary ranking and editorial decision surface
-  - preserve the content-level table and Google Sheet export for calendar planning
-  - show book-level FP review coverage, no/low-signal poems, flags, average score, and top poem
-  - keep every poem score explainable as direct FP votes, author adjustment, connected-content bonus, and diagnostic connected vote score
+  - keep four distinct views: Books for collection health, Poems for poem-centered ranking, Content for individual assets/export, and Coverage for production targets
+  - preserve the Content table and Google Sheet export for calendar planning
+  - show book-level canonical-title FP matching, missing poems, extra/unmatched imports, review coverage, no/low-signal poems, flags, average score, and top poem
+  - let Books expand likely exact duplicates, repeated-title variants, and titles absent from the canonical catalog without deleting any item automatically
+  - keep every poem score explainable as direct FP votes, author adjustment, connected-content bonus, diagnostic connected vote score, and direct links to contributing items
+  - next: resolve extra FP review candidates as duplicate imports, legitimate repeated titles, or catalog classification gaps
   - next: add a poem-level export and a calendar-candidate workflow without hiding the underlying content rows
   - next: decide and document whether a fraction of connected-content vote scores should roll into the source poem score
   - next: add book-level ranking and signal-distribution comparisons once the per-book summaries have been validated

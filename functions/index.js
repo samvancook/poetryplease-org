@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 75938)
-Total output lines: 8022
+Warning: truncated output (original token count: 76443)
+Total output lines: 8067
 
 import { onRequest } from "firebase-functions/v2/https";
 import express from "express";
@@ -118,16 +118,20 @@ let scoreboardCache = {
 };
 
 async function getCanonicalPoemCount(bookTitle) {
+  const poems = await getCanonicalPoems(bookTitle);
+  return poems === null ? null : poems.length;
+}
+
+async function getCanonicalPoems(bookTitle) {
   const key = normalizeCatalogLookupKey(bookTitle);
   if (!key || key === "short form 2026") return null;
   const cached = canonicalPoemCountCache.get(key);
-  if (cached && Date.now() - cached.builtAt < CANONICAL_POEM_COUNT_TTL_MS) return cached.count;
+  if (cached && Date.now() - cached.builtAt < CANONICAL_POEM_COUNT_TTL_MS) return cached.poems;
 
   try {
     const poems = await fetchCanonicalPoems(bookTitle);
-    const count = poems.length;
-    canonicalPoemCountCache.set(key, { builtAt: Date.now(), count });
-    return count;
+    canonicalPoemCountCache.set(key, { builtAt: Date.now(), poems });
+    return poems;
   } catch (err) {
     console.warn("canonical_poem_count_failed", bookTitle, err?.message || err);
     return null;
@@ -2719,9 +2723,7 @@ async function buildInternalContentScoresPayload(contentType = "FPI") {
     })
     .sort((a, b) => (
       (Number(b.score || 0) - Number(a.score || 0))
-      || (Number(b.movedMe || 0) - Number(a.movedMe || 0))
-      || (Number(b.totalVotes || 0) - Number(a.totalVotes || 0))
-      || String(a…25938 tokens truncated…oreboardSnapshot(`flag_created:${item.imageId || ""}`);
+      || (Number(b.movedM…26443 tokens truncated…oreboardSnapshot(`flag_created:${item.imageId || ""}`);
   res.json({ ok: true, flagId: result.flagId });
 });
 

@@ -156,17 +156,17 @@
 
     <section class="card">
       <div class="controls">
-        <label><input type="checkbox" id="filterZeroVotes" checked /> Hide images with no votes</label>
-        <label>Show preferences for
+        <label id="zeroVotesFilterControl"><input type="checkbox" id="filterZeroVotes" checked /> Hide images with no votes</label>
+        <label id="userFilterControl">Show preferences for
           <select id="userDropdown"></select>
         </label>
         <label id="typeFilterControl">Filter by type
           <select id="typeDropdown"></select>
         </label>
-        <label>Filter by book
+        <label id="bookFilterControl">Filter by book
           <select id="bookDropdown"></select>
         </label>
-        <label>Filter by catalog
+        <label id="catalogFilterControl">Filter by catalog
           <select id="catalogDropdown"></select>
         </label>
         <div id="characterCountControls" style="display:none;align-items:flex-end;gap:12px;flex-wrap:wrap;">
@@ -178,7 +178,7 @@
           </label>
           <span class="meta" title="Character count includes author name, poem title, and text with spaces.">Character count includes author name, poem title, and text with spaces.</span>
         </div>
-        <label>Book status
+        <label id="bookStatusFilterControl">Book status
           <select id="bookStatusDropdown">
             <option value="">All books</option>
             <option value="completed">Completed books</option>
@@ -192,7 +192,7 @@
           <button id="bookRankingsBtn" type="button" class="active">Books</button>
           <button id="fullPoemsBtn" type="button">Poems</button>
           <button id="scoreboardBtn" type="button">Content</button>
-          <button id="progressBarsBtn" type="button">Books &amp; Coverage</button>
+          <button id="progressBarsBtn" type="button">Coverage</button>
           <button id="teamProgressBtn" type="button" style="display:none;">Button Team Progress</button>
         </div>
       </div>
@@ -275,19 +275,19 @@
         <table id="fullPoemsRanking">
           <thead>
             <tr>
-              <th>Rank</th>
-              <th>Poem</th>
-              <th>Status</th>
-              <th>Author</th>
-              <th>Book</th>
-              <th>Catalog</th>
-              <th>Direct FP Score</th>
-              <th>Connected Content Bonus</th>
-              <th>Total Score</th>
-              <th>Signal</th>
-              <th>Connected Items With Votes</th>
-              <th>Connected Vote Score</th>
-              <th>FP Votes</th>
+              <th data-poem-column="rank">Rank</th>
+              <th data-poem-column="title">Poem</th>
+              <th data-poem-column="flagged">Status</th>
+              <th data-poem-column="author">Author</th>
+              <th data-poem-column="book">Book</th>
+              <th data-poem-column="catalog">Catalog</th>
+              <th data-poem-column="directScore">Direct FP Score</th>
+              <th data-poem-column="connectedContentBonus">Connected Content Bonus</th>
+              <th data-poem-column="totalScore">Total Score</th>
+              <th data-poem-column="signalCount">Signal</th>
+              <th data-poem-column="connectedVotedCount">Connected Items With Votes</th>
+              <th data-poem-column="connectedVoteScore">Connected Vote Score</th>
+              <th data-poem-column="totalVotes">FP Votes</th>
               <th>Details</th>
             </tr>
           </thead>
@@ -347,6 +347,9 @@
     let expandedFullPoemId = '';
     let currentPoemBookSortKey = 'importedPercent';
     let currentPoemBookSortDir = -1;
+    let currentFullPoemSortKey = 'totalScore';
+    let currentFullPoemSortDir = -1;
+    let expandedPoemBookKey = '';
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
     const bookRankingsBtn = document.getElementById('bookRankingsBtn');
@@ -763,6 +766,10 @@
       fullPoemsContainer.style.display = isFullPoems ? '' : 'none';
       teamProgressContainer.style.display = isTeamProgress ? '' : 'none';
       document.getElementById('typeFilterControl').style.display = isScoreboard ? '' : 'none';
+      document.getElementById('zeroVotesFilterControl').style.display = (isScoreboard || isProgressBars || isTeamProgress) ? '' : 'none';
+      document.getElementById('userFilterControl').style.display = (isScoreboard || isProgressBars || isTeamProgress) ? '' : 'none';
+      document.getElementById('bookStatusFilterControl').style.display = (isBookRankings || isProgressBars) ? '' : 'none';
+      document.getElementById('exportBtn').style.display = isScoreboard ? '' : 'none';
       if (isScoreboard) loadScoreboardPage();
       else if (isFullPoems || isBookRankings) loadFullPoemRanking();
       else ensureFullScoreboard()
@@ -1491,11 +1498,14 @@
             <th data-summary-column="averageScore">Average Score</th>
             <th data-summary-column="topPoemScore">Top Poem</th>
           </tr></thead>
-          <tbody>${visibleSummaries.map((summary) => `
+          <tbody>${visibleSummaries.map((summary) => {
+            const summaryKey = `${summary.book || ''}|${summary.catalog || ''}`;
+            const extraRows = summary.extraFpItems || [];
+            return `
             <tr>
               <td><button type="button" class="link-button poem-book-filter" data-book="${escapeHtml(summary.book || '')}">${escapeHtml(summary.book || '')}</button><div class="meta">${escapeHtml(summary.catalog || '')}</div></td>
               <td>${summary.catalogPoemCount === null ? `<span class="meta">${summary.catalogSourceUnavailable ? 'Source unavailable' : 'Collection'}</span>` : summary.catalogPoemCount}</td>
-              <td><strong>${summary.importedFpCount || 0}</strong>${summary.importedPercent === null ? '' : `<div class="meta">${summary.importedPercent}% catalog coverage</div>`}${summary.excessFpCount ? `<div class="meta" style="color:#8a3e32;">${summary.excessFpCount} extra imported item${summary.excessFpCount === 1 ? '' : 's'} to review</div>` : ''}</td>
+              <td><strong>${summary.importedFpCount || 0}</strong>${summary.importedPercent === null ? '' : `<div class="meta">${summary.matchedFpCount || 0} matched · ${summary.importedPercent}% coverage</div>`}${summary.excessFpCount ? `<button type="button" class="link-button extra-fp-review" data-summary-key="${escapeHtml(summaryKey)}" style="display:block;color:#8a3e32;padding:4px 0;">${summary.excessFpCount} extra to review</button>` : ''}</td>
               <td><strong>${summary.reviewedPercent || 0}%</strong><div class="meta">${summary.reviewedPoemCount || 0} of ${summary.importedFpCount || 0}</div></td>
               <td>${summary.missingFpCount === null ? '—' : summary.missingFpCount}</td>
               <td>${summary.noSignalCount || 0}</td>
@@ -1504,7 +1514,14 @@
               <td>${summary.averageScore || 0}</td>
               <td>${escapeHtml(summary.topPoem || '—')}${summary.topPoemScore === null ? '' : ` <span class="meta">(${summary.topPoemScore})</span>`}</td>
             </tr>
-          `).join('')}</tbody>
+            ${expandedPoemBookKey === summaryKey ? `<tr><td colspan="10">
+              <div class="empty" style="text-align:left;">
+                <strong>Extra or unmatched Full Poems</strong>
+                <div class="meta" style="margin:6px 0 12px;">These imports do not map one-to-one to the canonical poem list. Review before deleting: repeated titles can be legitimate.</div>
+                ${extraRows.length ? `<table><thead><tr><th>Poem</th><th>Author</th><th>Reason</th><th>Open</th></tr></thead><tbody>${extraRows.map((item) => `<tr><td>${escapeHtml(item.title || 'Untitled')}</td><td>${escapeHtml(item.author || '')}</td><td>${escapeHtml(item.reason || '')}</td><td><a href="/app?item=${encodeURIComponent(item.imageId || '')}" target="_blank" rel="noopener noreferrer">Open item</a></td></tr>`).join('')}</tbody></table>` : '<div class="meta">No extra imports identified.</div>'}
+              </div>
+            </td></tr>` : ''}
+          `;}).join('')}</tbody>
         </table>
       `;
     }
@@ -1523,10 +1540,19 @@
 
     function renderFullPoemRankingRows() {
       const body = document.getElementById('fullPoemsBody');
-      body.innerHTML = fullPoemRankingRows.length ? fullPoemRankingRows.map((row) => `
+      const visibleRows = fullPoemRankingRows.slice().sort((a, b) => {
+        let left = a[currentFullPoemSortKey];
+        let right = b[currentFullPoemSortKey];
+        if (typeof left === 'string') left = left.toLowerCase();
+        if (typeof right === 'string') right = right.toLowerCase();
+        if (left > right) return currentFullPoemSortDir;
+        if (left < right) return -currentFullPoemSortDir;
+        return String(a.title || '').localeCompare(String(b.title || ''));
+      });
+      body.innerHTML = visibleRows.length ? visibleRows.map((row) => `
           <tr>
             <td>${row.rank || '—'}</td>
-            <td>${escapeHtml(row.title || 'Untitled')}</td>
+            <td><a href="/app?item=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">${escapeHtml(row.title || 'Untitled')}</a></td>
             <td>${row.flagged ? '<span class="chip" style="background:#f6dfdb;color:#8a3e32;">Flagged</span>' : '<span class="meta">Active</span>'}</td>
             <td>${escapeHtml(row.author || '')}</td>
             <td>${escapeHtml(row.book || '')}</td>
@@ -1639,10 +1665,27 @@
           renderPoemBookSummary();
           return;
         }
+        const extraReview = event.target.closest('.extra-fp-review');
+        if (extraReview) {
+          expandedPoemBookKey = expandedPoemBookKey === extraReview.dataset.summaryKey ? '' : extraReview.dataset.summaryKey;
+          renderPoemBookSummary();
+          return;
+        }
         const button = event.target.closest('.poem-book-filter');
         if (!button) return;
         document.getElementById('bookDropdown').value = button.dataset.book || '';
         switchView('fullPoems');
+      });
+      document.querySelector('#fullPoemsRanking thead').addEventListener('click', (event) => {
+        const header = event.target.closest('th[data-poem-column]');
+        if (!header) return;
+        const nextKey = header.dataset.poemColumn;
+        if (currentFullPoemSortKey === nextKey) currentFullPoemSortDir *= -1;
+        else {
+          currentFullPoemSortKey = nextKey;
+          currentFullPoemSortDir = ['title', 'author', 'book', 'catalog'].includes(nextKey) ? 1 : -1;
+        }
+        renderFullPoemRankingRows();
       });
       document.getElementById('exportBtn').addEventListener('click', exportVisibleSheet);
       refreshSnapshotBtn.addEventListener('click', async () => {
