@@ -183,6 +183,7 @@
             <option value="">All books</option>
             <option value="completed">Completed books</option>
             <option value="missingBaseline">Missing baseline content</option>
+            <option value="missingFP">Books missing Full Poems</option>
           </select>
         </label>
         <button id="exportBtn" type="button" title="Export the content rows matching the current filters for calendar planning.">Export content to Google Sheet</button>
@@ -1449,7 +1450,11 @@
 
     function renderPoemBookSummary() {
       const container = document.getElementById('poemBookSummary');
-      if (!fullPoemBookSummaries.length) {
+      const bookStatus = document.getElementById('bookStatusDropdown').value;
+      const visibleSummaries = bookStatus === 'missingFP'
+        ? fullPoemBookSummaries.filter((summary) => Number(summary.missingFpCount || 0) > 0 || summary.catalogSourceUnavailable)
+        : fullPoemBookSummaries;
+      if (!visibleSummaries.length) {
         container.innerHTML = '';
         return;
       }
@@ -1462,10 +1467,10 @@
         </div>
         <table style="margin-top:10px;">
           <thead><tr><th>Book</th><th>Catalog Poems</th><th>FP Imported</th><th>FP Reviewed</th><th>Missing FP</th><th>No Signal</th><th>Low Signal</th><th>Flagged</th><th>Average Score</th><th>Top Poem</th></tr></thead>
-          <tbody>${fullPoemBookSummaries.map((summary) => `
+          <tbody>${visibleSummaries.map((summary) => `
             <tr>
               <td><button type="button" class="link-button poem-book-filter" data-book="${escapeHtml(summary.book || '')}">${escapeHtml(summary.book || '')}</button><div class="meta">${escapeHtml(summary.catalog || '')}</div></td>
-              <td>${summary.catalogPoemCount === null ? '<span class="meta">Collection</span>' : summary.catalogPoemCount}</td>
+              <td>${summary.catalogPoemCount === null ? `<span class="meta">${summary.catalogSourceUnavailable ? 'Source unavailable' : 'Collection'}</span>` : summary.catalogPoemCount}</td>
               <td><strong>${summary.importedFpCount || 0}</strong>${summary.importedPercent === null ? '' : `<div class="meta">${summary.importedPercent}% of catalog</div>`}</td>
               <td><strong>${summary.reviewedPercent || 0}%</strong><div class="meta">${summary.reviewedPoemCount || 0} of ${summary.importedFpCount || 0}</div></td>
               <td>${summary.missingFpCount === null ? '—' : summary.missingFpCount}</td>
@@ -1557,7 +1562,10 @@
       document.getElementById('characterCountMin').addEventListener('input', filterData);
       document.getElementById('characterCountMax').addEventListener('input', filterData);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);
-      document.getElementById('bookStatusDropdown').addEventListener('change', filterData);
+      document.getElementById('bookStatusDropdown').addEventListener('change', () => {
+        if (bookRankingsContainer.style.display === '') renderPoemBookSummary();
+        else filterData();
+      });
       document.getElementById('pageSizeSelect').addEventListener('change', (event) => {
         const nextSize = Number(event.target.value || 25);
         pageSize = nextSize;

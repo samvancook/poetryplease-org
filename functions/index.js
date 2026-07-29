@@ -121,19 +121,29 @@ async function getCanonicalPoemCount(bookTitle) {
   if (cached && Date.now() - cached.builtAt < CANONICAL_POEM_COUNT_TTL_MS) return cached.count;
 
   try {
-    const response = await fetch(`${CANONICAL_CATALOG_API}/books/${encodeURIComponent(bookTitle)}`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) return null;
-    const payload = await response.json();
-    const count = Number(payload?.status?.catalog_poem_count);
-    if (!Number.isFinite(count)) return null;
+    const poems = await fetchCanonicalPoems(bookTitle);
+    const count = poems.length;
     canonicalPoemCountCache.set(key, { builtAt: Date.now(), count });
     return count;
   } catch (err) {
     console.warn("canonical_poem_count_failed", bookTitle, err?.message || err);
     return null;
   }
+}
+
+async function fetchCanonicalPoems(bookTitle) {
+  const response = await fetch(`${CANONICAL_CATALOG_API}/books/${encodeURIComponent(bookTitle)}/poems?limit=1000`, {
+      signal: AbortSignal.timeout(5000),
+  }
+  );
+  if (!response.ok) throw new Error(`catalog_poems_${response.status}`);
+  const rows = await response.json();
+  return (Array.isArray(rows) ? rows : []).filter((row) => (
+    Number(row?.is_likely_poem) === 1
+    && normalizeKey(row?.content_kind) === "poem"
+    && normalizeText(row?.title)
+    && normalizeText(row?.served_text || row?.cleaned_text || row?.text)
+  ));
 }
 
 async function mapWithConcurrency(items, concurrency, mapper) {
@@ -4491,7 +4501,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       return ranked;
     }, { activeRank: 0, bookRanks: new Map(), rows: [] }).rows;
 
-  const importedBookSummaries = Array.from(fullPoems.reduce((summaries, row) => {
+  const summaryMap = fullPoems.reduce((summaries, row) => {
     const key = normalizeCatalogLookupKey(row.book);
     const summary = summaries.get(key) || {
       book: row.book,
@@ -4519,7 +4529,32 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     }
     summaries.set(key, summary);
     return summaries;
-  }, new Map()).values());
+  }, new Map());
+
+  BOOK_CATALOG_LOOKUP_ROWS
+    .filter((record) => normalizeText(record?.entityType || "book") === "book")
+    .filter((record) => normalizeCatalogLookupKey(record?.title) !== "flee")
+    .filter((record) => !requestedCatalog || normalizeCatalogLookupKey(record?.releaseCatalog) === normalizeCatalogLookupKey(requestedCatalog))
+    .filter((record) => !requestedBook || normalizeCatalogLookupKey(record?.title) === normalizeCatalogLookupKey(requestedBook))
+    .forEach((record) => {
+      const key = normalizeCatalogLookupKey(record.title);
+      if (summaryMap.has(key)) return;
+      summaryMap.set(key, {
+        book: record.title,
+        catalog: record.releaseCatalog,
+        poemCount: 0,
+        reviewedPoemCount: 0,
+        noSignalCount: 0,
+        lowSignalCount: 0,
+        flaggedCount: 0,
+        totalScore: 0,
+        totalSignals: 0,
+        topPoem: "",
+        topPoemScore: null,
+      });
+    });
+
+  const importedBookSummaries = Array.from(summaryMap.values());
 
   const bookSummaries = (await mapWithConcurrency(importedBookSummaries, 6, async (summary) => {
     const catalogPoemCount = await getCanonicalPoemCount(summary.book);
@@ -4527,6 +4562,8 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     return {
       ...summary,
       catalogPoemCount,
+      catalogSourceUnavailable: catalogPoemCount === null
+        && normalizeCatalogLookupKey(summary.book) !== "short form 2026",
       importedFpCount,
       missingFpCount: catalogPoemCount === null ? null : Math.max(catalogPoemCount - importedFpCount, 0),
       importedPercent: catalogPoemCount ? Math.round((importedFpCount / catalogPoemCount) * 100) : null,
@@ -6118,6 +6155,89 @@ async function importWeaverFullPoemsPayload(rawPayload, actor = {}) {
     results,
   };
 }
+
+app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  try {
+    const requestedBook = normalizeText(req.body?.book);
+    const apply = req.body?.apply === true;
+    const catalogRecord = resolveCatalogBookRecord({ book: requestedBook });
+    if (!catalogRecord || normalizeText(catalogRecord.entityType || "book") !== "book") {
+      return res.status(404).json({ error: "canonical_book_not_found" });
+    }
+    if (normalizeCatalogLookupKey(catalogRecord.title) === "flee") {
+      return res.status(400).json({ error: "fiction_book_not_supported" });
+    }
+
+    const poems = await fetchCanonicalPoems(catalogRecord.title);
+    const existing = (await getAllFrom(COLLECTIONS.fullPoems))
+      .filter((row) => normalizeCatalogLookupKey(row.book) === normalizeCatalogLookupKey(catalogRecord.title));
+    const existingTitleCounts = new Map();
+    existing.forEach((row) => {
+      const key = normalizeCatalogLookupKey(row.title);
+      existingTitleCounts.set(key, (existingTitleCounts.get(key) || 0) + 1);
+    });
+
+    const seenTitleCounts = new Map();
+    const missing = [];
+    poems.forEach((poem) => {
+      const title = normalizeText(poem.title);
+      const titleKey = normalizeCatalogLookupKey(title);
+      const occurrence = (seenTitleCounts.get(titleKey) || 0) + 1;
+      seenTitleCounts.set(titleKey, occurrence);
+      if ((existingTitleCounts.get(titleKey) || 0) >= occurrence) return;
+      const baseId = `${sanitizeDocIdSegment(catalogRecord.bookShortener)}-FP-${slugify(title)}`.toUpperCase();
+      missing.push({
+        docId: occurrence > 1 ? `${baseId}-${occurrence}` : baseId,
+        imageType: "FP",
+        sourceSystem: "button_poetry_catalog",
+        sourceRecordId: `catalog-poem:${poem.id}`,
+        author: catalogRecord.author,
+        book: catalogRecord.title,
+        title,
+        excerpt: normalizeText(poem.served_text || poem.cleaned_text || poem.text),
+        bookShortener: catalogRecord.bookShortener,
+        bookLink: catalogRecord.bookLink,
+        releaseCatalog: catalogRecord.releaseCatalog,
+      });
+    });
+
+    const results = [];
+    if (apply) {
+      for (const item of missing) {
+        const result = await upsertContentLibraryItem("fullpoems", item, {
+          uid: "catalog-sync",
+          email: "catalog-sync@poetryplease.org",
+        });
+        results.push({ id: item.docId, created: !!result.created });
+      }
+      if (results.length) {
+        invalidateContentCache();
+        await invalidateScoreboardSnapshot("catalog_full_poem_sync");
+      }
+    }
+
+    canonicalPoemCountCache.set(normalizeCatalogLookupKey(catalogRecord.title), {
+      builtAt: Date.now(),
+      count: poems.length,
+    });
+    res.json({
+      ok: true,
+      book: catalogRecord.title,
+      catalogPoemCount: poems.length,
+      existingFpCount: existing.length,
+      missingFpCount: missing.length,
+      appliedCount: results.length,
+      missing: missing.map((row) => ({ id: row.docId, title: row.title })),
+    });
+  } catch (err) {
+    console.error("catalog_full_poem_sync_failed", err);
+    res.status(err.status || 500).json({ error: err.message || "catalog_full_poem_sync_failed" });
+  }
+});
 
 app.post(getBoth("/admin/contentLibrary/weaverImport"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
