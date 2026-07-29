@@ -199,6 +199,10 @@ function resolveCanonicalCatalogMetadata(item = {}) {
   return {
     matched: !!match,
     match,
+    entityType: normalizeText(match?.entityType || "book"),
+    canonicalSource: match?.entityType === "non_book_collection"
+      ? "collection_exception_registry"
+      : "book_catalog_lookup",
     book,
     releaseCatalog,
     bookShortener,
@@ -2542,6 +2546,8 @@ async function buildInternalCoverageCountsPayload(contentType = "QI") {
       bookTitle,
       count: 0,
       contentType: normalizedType,
+      entityType: canonical.entityType,
+      canonicalSource: canonical.canonicalSource,
     };
     current.count += 1;
     current.bookTitle = current.bookTitle || bookTitle;
@@ -2579,6 +2585,8 @@ async function buildInternalIntFpiCoveragePayload() {
       bookTitle,
       intCount: 0,
       fpiCount: 0,
+      entityType: canonical.entityType,
+      canonicalSource: canonical.canonicalSource,
     };
     const type = normalizeText(row?.type).toUpperCase();
     if (type === "INT") current.intCount += 1;

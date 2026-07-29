@@ -1373,6 +1373,7 @@
   {
     "title": "Short Form 2026",
     "author": "Authors Multiple",
+    "entityType": "non_book_collection",
     "releaseCatalog": "Contest",
     "bookLink": "",
     "bookShortener": "SFC",
