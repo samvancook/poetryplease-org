@@ -1457,16 +1457,18 @@
         <div class="section-head">
           <div>
             <h2 style="margin:0;">Books at a glance</h2>
-            <div class="meta">Review coverage and signal health for the poems currently in scope.</div>
+            <div class="meta">Canonical catalog coverage, imported Full Poems, and review signal health.</div>
           </div>
         </div>
         <table style="margin-top:10px;">
-          <thead><tr><th>Book</th><th>Poems</th><th>FP Reviewed</th><th>No Signal</th><th>Low Signal</th><th>Flagged</th><th>Average Score</th><th>Top Poem</th></tr></thead>
+          <thead><tr><th>Book</th><th>Catalog Poems</th><th>FP Imported</th><th>FP Reviewed</th><th>Missing FP</th><th>No Signal</th><th>Low Signal</th><th>Flagged</th><th>Average Score</th><th>Top Poem</th></tr></thead>
           <tbody>${fullPoemBookSummaries.map((summary) => `
             <tr>
               <td><button type="button" class="link-button poem-book-filter" data-book="${escapeHtml(summary.book || '')}">${escapeHtml(summary.book || '')}</button><div class="meta">${escapeHtml(summary.catalog || '')}</div></td>
-              <td>${summary.poemCount || 0}</td>
-              <td><strong>${summary.reviewedPercent || 0}%</strong><div class="meta">${summary.reviewedPoemCount || 0} of ${summary.poemCount || 0}</div></td>
+              <td>${summary.catalogPoemCount === null ? '<span class="meta">Collection</span>' : summary.catalogPoemCount}</td>
+              <td><strong>${summary.importedFpCount || 0}</strong>${summary.importedPercent === null ? '' : `<div class="meta">${summary.importedPercent}% of catalog</div>`}</td>
+              <td><strong>${summary.reviewedPercent || 0}%</strong><div class="meta">${summary.reviewedPoemCount || 0} of ${summary.importedFpCount || 0}</div></td>
+              <td>${summary.missingFpCount === null ? '—' : summary.missingFpCount}</td>
               <td>${summary.noSignalCount || 0}</td>
               <td>${summary.lowSignalCount || 0}</td>
               <td>${summary.flaggedCount || 0}</td>

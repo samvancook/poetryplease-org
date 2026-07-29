@@ -89,6 +89,9 @@ const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
 const SCOREBOARD_SNAPSHOT_VERSION = 4;
+const CANONICAL_CATALOG_API = "https://button-poetry-catalog-350789123099.us-central1.run.app";
+const CANONICAL_POEM_COUNT_TTL_MS = 6 * 60 * 60 * 1000;
+const canonicalPoemCountCache = new Map();
 let contentCache = {
   builtAt: 0,
   payload: null,
@@ -110,6 +113,41 @@ let scoreboardCache = {
   payload: null,
   inFlight: null,
 };
+
+async function getCanonicalPoemCount(bookTitle) {
+  const key = normalizeCatalogLookupKey(bookTitle);
+  if (!key || key === "short form 2026") return null;
+  const cached = canonicalPoemCountCache.get(key);
+  if (cached && Date.now() - cached.builtAt < CANONICAL_POEM_COUNT_TTL_MS) return cached.count;
+
+  try {
+    const response = await fetch(`${CANONICAL_CATALOG_API}/books/${encodeURIComponent(bookTitle)}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const count = Number(payload?.status?.catalog_poem_count);
+    if (!Number.isFinite(count)) return null;
+    canonicalPoemCountCache.set(key, { builtAt: Date.now(), count });
+    return count;
+  } catch (err) {
+    console.warn("canonical_poem_count_failed", bookTitle, err?.message || err);
+    return null;
+  }
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const output = new Array(items.length);
+  let nextIndex = 0;
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      output[index] = await mapper(items[index], index);
+    }
+  }));
+  return output;
+}
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const BOOK_CATALOG_LOOKUP_ROWS = JSON.parse(
@@ -4453,7 +4491,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       return ranked;
     }, { activeRank: 0, bookRanks: new Map(), rows: [] }).rows;
 
-  const bookSummaries = Array.from(fullPoems.reduce((summaries, row) => {
+  const importedBookSummaries = Array.from(fullPoems.reduce((summaries, row) => {
     const key = normalizeCatalogLookupKey(row.book);
     const summary = summaries.get(key) || {
       book: row.book,
@@ -4481,14 +4519,24 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     }
     summaries.set(key, summary);
     return summaries;
-  }, new Map()).values())
-    .map((summary) => ({
+  }, new Map()).values());
+
+  const bookSummaries = (await mapWithConcurrency(importedBookSummaries, 6, async (summary) => {
+    const catalogPoemCount = await getCanonicalPoemCount(summary.book);
+    const importedFpCount = summary.poemCount;
+    return {
       ...summary,
-      reviewedPercent: summary.poemCount ? Math.round((summary.reviewedPoemCount / summary.poemCount) * 100) : 0,
-      averageScore: summary.poemCount ? Number((summary.totalScore / summary.poemCount).toFixed(1)) : 0,
-    }))
+      catalogPoemCount,
+      importedFpCount,
+      missingFpCount: catalogPoemCount === null ? null : Math.max(catalogPoemCount - importedFpCount, 0),
+      importedPercent: catalogPoemCount ? Math.round((importedFpCount / catalogPoemCount) * 100) : null,
+      reviewedPercent: importedFpCount ? Math.round((summary.reviewedPoemCount / importedFpCount) * 100) : 0,
+      averageScore: importedFpCount ? Number((summary.totalScore / importedFpCount).toFixed(1)) : 0,
+    };
+  }))
     .sort((a, b) => (
-      (b.reviewedPercent - a.reviewedPercent)
+      ((b.importedPercent ?? -1) - (a.importedPercent ?? -1))
+      || (b.reviewedPercent - a.reviewedPercent)
       || (b.averageScore - a.averageScore)
       || a.book.localeCompare(b.book)
     ));
