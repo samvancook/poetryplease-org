@@ -188,7 +188,8 @@
         <button id="exportBtn" type="button" title="Export the content rows matching the current filters for calendar planning.">Export content to Google Sheet</button>
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="fullPoemsBtn" type="button" class="active">Poems</button>
+          <button id="bookRankingsBtn" type="button" class="active">Books</button>
+          <button id="fullPoemsBtn" type="button">Poems</button>
           <button id="scoreboardBtn" type="button">Content</button>
           <button id="progressBarsBtn" type="button">Books &amp; Coverage</button>
           <button id="teamProgressBtn" type="button" style="display:none;">Button Team Progress</button>
@@ -265,8 +266,11 @@
         </table>
       </div>
 
+      <div id="bookRankingsContainer" class="table-wrap" style="display:none;">
+        <div id="poemBookSummary"></div>
+      </div>
+
       <div id="fullPoemsContainer" class="table-wrap" style="display:none;">
-        <div id="poemBookSummary" style="margin-bottom:18px;"></div>
         <table id="fullPoemsRanking">
           <thead>
             <tr>
@@ -342,10 +346,12 @@
     let expandedFullPoemId = '';
 
     const scoreboardBtn = document.getElementById('scoreboardBtn');
+    const bookRankingsBtn = document.getElementById('bookRankingsBtn');
     const fullPoemsBtn = document.getElementById('fullPoemsBtn');
     const progressBarsBtn = document.getElementById('progressBarsBtn');
     const teamProgressBtn = document.getElementById('teamProgressBtn');
     const scoreboardContainer = document.getElementById('scoreboardContainer');
+    const bookRankingsContainer = document.getElementById('bookRankingsContainer');
     const fullPoemsContainer = document.getElementById('fullPoemsContainer');
     const progressBarsContainer = document.getElementById('progressBarsContainer');
     const teamProgressContainer = document.getElementById('teamProgressContainer');
@@ -734,6 +740,7 @@
     function switchView(view) {
       if (!scoreboardLoaded) return;
       const isScoreboard = view === 'scoreboard';
+      const isBookRankings = view === 'bookRankings';
       const isProgressBars = view === 'progressBars';
       const isFullPoems = view === 'fullPoems';
       const isTeamProgress = view === 'teamProgress';
@@ -742,16 +749,18 @@
         return;
       }
       scoreboardBtn.classList.toggle('active', isScoreboard);
+      bookRankingsBtn.classList.toggle('active', isBookRankings);
       fullPoemsBtn.classList.toggle('active', isFullPoems);
       progressBarsBtn.classList.toggle('active', isProgressBars);
       teamProgressBtn.classList.toggle('active', isTeamProgress);
       scoreboardContainer.style.display = isScoreboard ? '' : 'none';
+      bookRankingsContainer.style.display = isBookRankings ? '' : 'none';
       document.getElementById('scoreboardPagination').style.display = isScoreboard ? 'flex' : 'none';
       progressBarsContainer.style.display = isProgressBars ? '' : 'none';
       fullPoemsContainer.style.display = isFullPoems ? '' : 'none';
       teamProgressContainer.style.display = isTeamProgress ? '' : 'none';
       if (isScoreboard) loadScoreboardPage();
-      else if (isFullPoems) loadFullPoemRanking();
+      else if (isFullPoems || isBookRankings) loadFullPoemRanking();
       else ensureFullScoreboard()
         .then(() => isTeamProgress ? renderTeamProgressBars() : renderProgressBars())
         .catch((err) => setStatus(err.message || 'Could not load progress data.', true));
@@ -1535,12 +1544,12 @@
         filterData();
       });
       document.getElementById('bookDropdown').addEventListener('change', () => {
-        if (fullPoemsContainer.style.display === '') loadFullPoemRanking();
+        if (fullPoemsContainer.style.display === '' || bookRankingsContainer.style.display === '') loadFullPoemRanking();
         else filterData();
       });
       document.getElementById('catalogDropdown').addEventListener('change', () => {
         buildBookDropdown(scoreboardFilterOptions.books || []);
-        if (fullPoemsContainer.style.display === '') loadFullPoemRanking();
+        if (fullPoemsContainer.style.display === '' || bookRankingsContainer.style.display === '') loadFullPoemRanking();
         else filterData();
       });
       document.getElementById('characterCountMin').addEventListener('input', filterData);
@@ -1588,7 +1597,7 @@
         const button = event.target.closest('.poem-book-filter');
         if (!button) return;
         document.getElementById('bookDropdown').value = button.dataset.book || '';
-        loadFullPoemRanking();
+        switchView('fullPoems');
       });
       document.getElementById('exportBtn').addEventListener('click', exportVisibleSheet);
       refreshSnapshotBtn.addEventListener('click', async () => {
@@ -1605,6 +1614,7 @@
         }
       });
       scoreboardBtn.addEventListener('click', () => switchView('scoreboard'));
+      bookRankingsBtn.addEventListener('click', () => switchView('bookRankings'));
       fullPoemsBtn.addEventListener('click', () => switchView('fullPoems'));
       progressBarsBtn.addEventListener('click', () => switchView('progressBars'));
       teamProgressBtn.addEventListener('click', () => switchView('teamProgress'));
@@ -1635,7 +1645,7 @@
           return;
         }
         await loadScoreboard();
-        switchView('fullPoems');
+        switchView('bookRankings');
       });
     }
 
