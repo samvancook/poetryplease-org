@@ -186,8 +186,11 @@ const POETRY_PLEASE_API_KEYS = new Set(
 for (const record of BOOK_CATALOG_LOOKUP_ROWS) {
   const authorKey = String(record?.authorKey || "").trim();
   const shortener = sanitizeDocIdSegment(record?.bookShortener || "");
-  if (shortener && !BOOK_CATALOG_SHORTENER_LOOKUP.has(shortener)) {
-    BOOK_CATALOG_SHORTENER_LOOKUP.set(shortener, record);
+  if (shortener) {
+    BOOK_CATALOG_SHORTENER_LOOKUP.set(shortener, [
+      ...(BOOK_CATALOG_SHORTENER_LOOKUP.get(shortener) || []),
+      record,
+    ]);
   }
   const titleKeys = Array.isArray(record?.titleKeys) ? record.titleKeys.filter(Boolean) : [];
   titleKeys.forEach((titleKey) => {
@@ -212,19 +215,25 @@ function inferBookShortenerFromFilename(fileName = "") {
 function resolveCatalogBookRecord({ author = "", book = "", bookShortener = "", fileName = "" } = {}) {
   const normalizedShortener = sanitizeDocIdSegment(bookShortener || inferBookShortenerFromFilename(fileName));
   if (normalizedShortener && BOOK_CATALOG_SHORTENER_LOOKUP.has(normalizedShortener)) {
-    const shortenerMatch = BOOK_CATALOG_SHORTENER_LOOKUP.get(normalizedShortener);
+    const shortenerMatches = BOOK_CATALOG_SHORTENER_LOOKUP.get(normalizedShortener);
     const authorKey = normalizeCatalogLookupKey(author);
-    const authorMatches = !authorKey
-      || normalizeCatalogLookupKey(shortenerMatch.author) === authorKey
-      || normalizeCatalogLookupKey(shortenerMatch.authorKey) === authorKey;
-    if (authorMatches) return shortenerMatch;
+    if (!authorKey && shortenerMatches.length === 1) return shortenerMatches[0];
+    const authorMatch = shortenerMatches.find((row) => (
+      normalizeCatalogLookupKey(row.author) === authorKey
+      || normalizeCatalogLookupKey(row.authorKey) === authorKey
+    ));
+    if (authorMatch) return authorMatch;
   }
   const authorKey = normalizeCatalogLookupKey(author);
   for (const titleKey of buildCatalogTitleLookupKeys(book)) {
     const bucket = BOOK_CATALOG_TITLE_BUCKETS.get(titleKey) || [];
     if (!bucket.length) continue;
     if (!authorKey) return bucket[0];
-    return bucket.find((row) => normalizeCatalogLookupKey(row.author) === authorKey || normalizeCatalogLookupKey(row.authorKey) === authorKey) || bucket[0];
+    const authorMatch = bucket.find((row) => (
+      normalizeCatalogLookupKey(row.author) === authorKey
+      || normalizeCatalogLookupKey(row.authorKey) === authorKey
+    ));
+    if (authorMatch) return authorMatch;
   }
   return null;
 }
