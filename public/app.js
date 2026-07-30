@@ -3393,6 +3393,11 @@ async function ppAutoloadFirstItem() {
             console.warn('[PP] deep link item lookup failed', err);
           }
         }
+        if (selectedItemId && !selectedItemRecord) {
+          lockedLane = true;
+          renderEmptyFilterState('This linked item is no longer available.');
+          return;
+        }
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
         if (!IS_EMBED_UI) hydrateFullFeedInBackground();
