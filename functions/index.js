@@ -27,6 +27,7 @@ const COLLECTIONS = {
   contentAssets: "contentAssets",
   contentClaims: "contentClaims",
   contentFlags: "contentFlags",
+  contentRepairRequests: "contentRepairRequests",
   contentDuplicates: "contentDuplicates",
   weaverImportLedger: "weaverImportLedger",
   contentSubmissions: "contentSubmissions",
@@ -4600,10 +4601,10 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       summary.totalDerivativeBonus += Number(row.connectedContentBonus || 0);
       summary.totalSignals += Number(row.signalCount || 0);
       summary.eligiblePoemScores.push(Number(row.totalScore || 0));
-      if (summary.topPoemScore === null || Number(row.totalScore || 0) > summary.topPoemScore) {
-        summary.topPoem = row.title;
-        summary.topPoemScore = Number(row.totalScore || 0);
-      }
+    }
+    if (eligible && (summary.topPoemScore === null || Number(row.totalScore || 0) > summary.topPoemScore)) {
+      summary.topPoem = row.title;
+      summary.topPoemScore = Number(row.totalScore || 0);
     }
     summaries.set(key, summary);
     return summaries;
@@ -7004,12 +7005,62 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
   const decision = normalizeText(req.body?.decision);
   const note = normalizeText(req.body?.note || "");
   if (!flagId) return res.status(400).json({ error: "missing_flag_id" });
-  if (!["approved", "updated"].includes(decision)) return res.status(400).json({ error: "invalid_decision" });
+  if (!["approved", "updated", "delete", "recreate"].includes(decision)) {
+    return res.status(400).json({ error: "invalid_decision" });
+  }
 
   const flagRef = db.collection(COLLECTIONS.contentFlags).doc(flagId);
   const snap = await flagRef.get();
   if (!snap.exists) return res.status(404).json({ error: "flag_not_found" });
   const flagData = snap.data() || {};
+  const contentRecord = await findContentRecordByImageId(flagData.imageId || "");
+
+  if (decision === "recreate") {
+    const repairRef = db.collection(COLLECTIONS.contentRepairRequests).doc();
+    const content = contentRecord?.data || {};
+    await repairRef.set({
+      status: "requested",
+      action: "recreate",
+      sourceFlagId: flagId,
+      imageId: flagData.imageId || "",
+      contentType: flagData.imageType || content.imageType || "",
+      author: flagData.author || content.author || "",
+      book: flagData.book || content.book || "",
+      title: flagData.title || content.title || content.poem || "",
+      releaseCatalog: flagData.releaseCatalog || content.releaseCatalog || "",
+      bookShortener: flagData.bookShortener || content.bookShortener || "",
+      issueReason: flagData.note || "",
+      requestNote: note,
+      originalCollection: contentRecord?.collection || "",
+      originalDocId: contentRecord?.docId || "",
+      originalContent: content,
+      requestedBy: ctx.decoded.uid,
+      requestedByEmail: ctx.decoded.email || "",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+      history: [buildFlagHistoryEntry("recreation_requested", {
+        uid: ctx.decoded.uid,
+        email: ctx.decoded.email,
+      }, note)],
+    });
+    await flagRef.set({
+      repairRequestId: repairRef.id,
+      repairStatus: "requested",
+      reviewNote: note,
+      moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry(
+        "recreation_requested",
+        { uid: ctx.decoded.uid, email: ctx.decoded.email },
+        note
+      )),
+    }, { merge: true });
+    invalidateFlaggedContentCache();
+    return res.json({ ok: true, repairRequestId: repairRef.id, status: "repair_requested" });
+  }
+
+  if (decision === "delete" && contentRecord) {
+    await db.collection(contentRecord.collection).doc(contentRecord.docId).delete();
+    invalidateContentCache();
+  }
 
   const matchingFlags = await db.collection(COLLECTIONS.contentFlags)
     .where("imageId", "==", flagData.imageId || "")
@@ -7017,13 +7068,13 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
     .get();
   const targets = matchingFlags.empty ? [flagRef] : matchingFlags.docs.map((doc) => doc.ref);
   const historyEntry = buildFlagHistoryEntry(
-    decision === "approved" ? "reapproved" : "marked_updated",
+    decision === "approved" ? "kept" : (decision === "delete" ? "deleted" : "marked_updated"),
     { uid: ctx.decoded.uid, email: ctx.decoded.email },
     note
   );
   await Promise.all(targets.map((ref) => ref.set({
     status: "resolved",
-    resolution: decision,
+    resolution: decision === "approved" ? "keep" : decision,
     reviewNote: note,
     reviewedBy: ctx.decoded.uid,
     reviewedAt: FieldValue.serverTimestamp(),
