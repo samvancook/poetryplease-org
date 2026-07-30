@@ -4325,7 +4325,9 @@ app.get(getBoth("/contentById"), async (req, res) => {
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
   const item = all.find((entry) =>
-    normalizeKey(entry.imageId) === normalizedTarget || normalizeKey(entry.contentId) === normalizedTarget
+    normalizeKey(entry.id) === normalizedTarget ||
+    normalizeKey(entry.imageId) === normalizedTarget ||
+    normalizeKey(entry.contentId) === normalizedTarget
   );
 
   if (!item) return res.status(404).json({ error: "not_found" });
@@ -4348,7 +4350,9 @@ app.get(getBoth("/scoreboard/textPreview"), async (req, res) => {
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
   const item = all.find((entry) =>
-    normalizeKey(entry.imageId) === normalizedTarget || normalizeKey(entry.contentId) === normalizedTarget
+    normalizeKey(entry.id) === normalizedTarget ||
+    normalizeKey(entry.imageId) === normalizedTarget ||
+    normalizeKey(entry.contentId) === normalizedTarget
   );
 
   if (!item) return res.status(404).send("Content not found.");
