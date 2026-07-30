@@ -6663,6 +6663,17 @@ app.get(getBoth("/internal/repairRequests"), async (req, res) => {
   res.json({ ok: true, requests });
 });
 
+app.get(getBoth("/internal/repairRequests/:requestId"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+  const requestId = normalizeText(req.params.requestId);
+  if (!requestId) return res.status(400).json({ error: "missing_request_id" });
+  const snap = await db.collection(COLLECTIONS.contentRepairRequests).doc(requestId).get();
+  if (!snap.exists) return res.status(404).json({ error: "repair_request_not_found" });
+  res.json({ ok: true, request: { id: snap.id, ...(snap.data() || {}) } });
+});
+
 app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
@@ -6677,7 +6688,7 @@ app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res)
   const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(requestId);
   const snap = await ref.get();
   if (!snap.exists) return res.status(404).json({ error: "repair_request_not_found" });
-  await ref.set({
+  const update = {
     status,
     statusNote: note,
     updatedAt: FieldValue.serverTimestamp(),
@@ -6686,6 +6697,62 @@ app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res)
       note,
       at: new Date().toISOString(),
       actor: "weaver",
+    }),
+  };
+  if (status === "returned") {
+    update.returnReviewStatus = "pending";
+    update.returnReviewedAt = null;
+    update.returnReviewedBy = null;
+    update.returnReviewNote = "";
+    update.returnedAt = FieldValue.serverTimestamp();
+  }
+  [
+    "replacementAssetId",
+    "replacementAssetLink",
+    "weaverJobId",
+    "pigJobId",
+  ].forEach((field) => {
+    const value = normalizeText(req.body?.[field] || "");
+    if (value) update[field] = value;
+  });
+  await ref.set(update, { merge: true });
+  const saved = await ref.get();
+  res.json({ ok: true, request: { id: saved.id, ...(saved.data() || {}) } });
+});
+
+app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const requestId = normalizeText(req.params.requestId);
+  const decision = normalizeKey(req.body?.decision);
+  const note = normalizeText(req.body?.note || "");
+  if (!requestId) return res.status(400).json({ error: "missing_request_id" });
+  if (!["accepted", "rejected"].includes(decision)) {
+    return res.status(400).json({ error: "invalid_decision" });
+  }
+  const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "repair_request_not_found" });
+  const request = snap.data() || {};
+  if (normalizeKey(request.status) !== "returned") {
+    return res.status(409).json({ error: "repair_not_returned" });
+  }
+  if (decision === "rejected" && !note) {
+    return res.status(400).json({ error: "rejection_note_required" });
+  }
+  await ref.set({
+    status: decision === "accepted" ? "resolved" : "returned",
+    returnReviewStatus: decision,
+    returnReviewedAt: FieldValue.serverTimestamp(),
+    returnReviewedBy: ctx.decoded.uid,
+    returnReviewedByEmail: ctx.decoded.email || "",
+    returnReviewNote: note,
+    updatedAt: FieldValue.serverTimestamp(),
+    history: FieldValue.arrayUnion({
+      action: `return_${decision}`,
+      note,
+      at: new Date().toISOString(),
+      actor: ctx.decoded.email || ctx.decoded.uid,
     }),
   }, { merge: true });
   const saved = await ref.get();
