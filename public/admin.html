@@ -3641,8 +3641,10 @@
                 </td>
                 <td>
                   <div class="actions" style="margin-top:0;">
-                    <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Re-approve</button>
-                    <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="updated" ${flag.status !== 'pending' ? 'disabled' : ''}>Mark updated</button>
+                    <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Keep content</button>
+                    <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="recreate" ${flag.status !== 'pending' || flag.repairStatus === 'requested' ? 'disabled' : ''}>Request recreation</button>
+                    <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="delete" ${flag.status !== 'pending' ? 'disabled' : ''}>Delete content</button>
+                    ${flag.repairStatus ? `<div class="meta">Repair: ${escapeHtml(flag.repairStatus)}</div>` : ''}
                   </div>
                   <div class="actions" style="margin-top:10px;flex-wrap:wrap;">
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''} />
@@ -3931,10 +3933,11 @@
 
     async function reviewFlag(flagId, decision) {
       const statusEl = document.getElementById('flag-review-status');
-      const actionLabel = decision === 'approved' ? 're-approve' : 'mark as updated';
+      const actionLabel = decision === 'approved' ? 'keep' : (decision === 'recreate' ? 'request recreation for' : (decision === 'delete' ? 'delete' : 'mark as updated'));
+      if (decision === 'delete' && !window.confirm('Delete this content? The flag and a snapshot of its metadata will remain as an audit record.')) return;
       const note = window.prompt(`Optional note for this ${actionLabel} action:`, '');
       if (note === null) return;
-      statusEl.textContent = `${decision === 'approved' ? 'Re-approving' : 'Marking updated'}…`;
+      statusEl.textContent = `${decision === 'approved' ? 'Keeping content' : (decision === 'recreate' ? 'Creating repair request' : (decision === 'delete' ? 'Deleting content' : 'Marking updated'))}…`;
       statusEl.className = 'status';
       try {
         await api(`admin/contentFlags/${flagId}/review`, { method: 'POST', body: { decision, note } });
