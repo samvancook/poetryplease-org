@@ -966,10 +966,19 @@ async function handleRegistration(e) {
 
 // ===== API Mappings (to your Cloud Functions) =====
 const STARTUP_BATCH_SIZE = 40;
+const WELCOME_BATCH_SIZE = 12;
+const WELCOME_CALIBRATION_VOTES = 8;
 const FULL_HYDRATION_BATCH_SIZE = 1000;
 const FILTERED_REVIEW_BATCH_SIZE = 120;
 const fetchBootstrapWrapped       = () => api('bootstrap',       { body: { limit: STARTUP_BATCH_SIZE, includeRatingsSummary: false } });
-const fetchBootstrapAnonWrapped   = (anonId) => api('bootstrap', { body: { anonId, limit: STARTUP_BATCH_SIZE, includeRatingsSummary: false } });
+const fetchBootstrapAnonWrapped   = (anonId, welcome = false) => api('bootstrap', {
+  body: {
+    anonId,
+    limit: welcome ? WELCOME_BATCH_SIZE : STARTUP_BATCH_SIZE,
+    welcome,
+    includeRatingsSummary: false,
+  }
+});
 const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: { limit: FILTERED_REVIEW_BATCH_SIZE, ...filters } });
 const fetchFullDataWrapped        = () => api('fetchData',        { body: { limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchFullDataAnonWrapped    = (anonId) => api('fetchDataAnon', { body: { anonId, limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
@@ -1643,6 +1652,7 @@ let selectedAuthor = '';
 let selectedBook = '';
 let selectedEvent = '';
 let selectedQueueMode = 'ranked';
+let activeWelcomeLane = false;
 let selectedItemId = '';
 let embedLockedItemId = '';
 let selectedItemRecord = null;
@@ -2349,7 +2359,8 @@ async function fetchLatestBatch() {
   if (user && !user.isAnonymous) return fetchBootstrapWrapped();
 
   const anonId = await getOrCreateAnonId();
-  return fetchBootstrapAnonWrapped(anonId);
+  const welcome = safeLocalStorageGet('pp_welcome_calibrated') !== '1';
+  return fetchBootstrapAnonWrapped(anonId, welcome);
 }
 
 function hasActiveFeedFilters() {
@@ -2761,6 +2772,10 @@ function renderEmptyFilterState(message = getEmptyFilterMessage()) {
 function initQueueFromData(data) {
   LoadTiming.mark('queueInit', `${Array.isArray(data?.newGraphics) ? data.newGraphics.length : 0} items`);
   lastData = data;
+  activeWelcomeLane = data?.feedMode === 'welcome';
+  if (activeWelcomeLane) {
+    flashMessage(`Welcome favorites · rate ${data.calibrationTarget || WELCOME_CALIBRATION_VOTES} to calibrate your feed.`);
+  }
   if (data?.ratingsSummary && !IS_EMBED_UI) {
     ratingsMap = data.ratingsSummary || {};
   }
@@ -3289,6 +3304,15 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
     removeItemFromQueueById(currentItem?.id);
     lastVoteType = (value || '').toLowerCase();
     sessionVotes = (sessionVotes || 0) + 1;
+    if (activeWelcomeLane && sessionVotes >= WELCOME_CALIBRATION_VOTES) {
+      safeLocalStorageSet('pp_welcome_calibrated', '1');
+      activeWelcomeLane = false;
+      flashMessage('Calibration complete. Opening the full Poetry, Please feed.');
+      await refillCurrentViewWithRetry();
+      setVoteButtonsDisabled(false);
+      isTransitioning = false;
+      return;
+    }
     if (lastVoteType === 'meh' || lastVoteType === 'dislike') sessionNegatives = (sessionNegatives || 0) + 1;
 
     const nextIndex = chooseNextIndex();
