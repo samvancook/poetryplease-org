@@ -346,7 +346,7 @@
     let fullPoemRankingRows = [];
     let fullPoemBookSummaries = [];
     let expandedFullPoemId = '';
-    let currentPoemBookSortKey = 'importedPercent';
+    let currentPoemBookSortKey = 'topTenScore';
     let currentPoemBookSortDir = -1;
     let currentFullPoemSortKey = 'totalScore';
     let currentFullPoemSortDir = -1;
@@ -1496,7 +1496,10 @@
             <th data-summary-column="noSignalCount">No Signal</th>
             <th data-summary-column="lowSignalCount">Low Signal</th>
             <th data-summary-column="flaggedCount">Flagged</th>
-            <th data-summary-column="averageScore">Average Score</th>
+            <th data-summary-column="topTenScore">Top-10 Score</th>
+            <th data-summary-column="topTenAverage">Top-10 Average</th>
+            <th data-summary-column="totalScore">Total Score</th>
+            <th data-summary-column="totalDirectScore">Direct / Derivative</th>
             <th data-summary-column="topPoemScore">Top Poem</th>
           </tr></thead>
           <tbody>${visibleSummaries.map((summary) => {
@@ -1512,10 +1515,13 @@
               <td>${summary.noSignalCount || 0}</td>
               <td>${summary.lowSignalCount || 0}</td>
               <td>${summary.flaggedCount || 0}</td>
-              <td>${summary.averageScore || 0}</td>
+              <td><strong>${summary.topTenScore || 0}</strong><div class="meta">${summary.eligiblePoemCount || 0} eligible reviewed</div></td>
+              <td>${summary.topTenAverage || 0}</td>
+              <td>${summary.totalScore || 0}</td>
+              <td>${summary.totalDirectScore || 0} + ${summary.totalDerivativeBonus || 0}</td>
               <td>${escapeHtml(summary.topPoem || '—')}${summary.topPoemScore === null ? '' : ` <span class="meta">(${summary.topPoemScore})</span>`}</td>
             </tr>
-            ${expandedPoemBookKey === summaryKey ? `<tr><td colspan="10">
+            ${expandedPoemBookKey === summaryKey ? `<tr><td colspan="13">
               <div class="empty" style="text-align:left;">
                 <strong>Extra or unmatched Full Poems</strong>
                 <div class="meta" style="margin:6px 0 12px;">These imports do not map one-to-one to the canonical poem list. Review before deleting: repeated titles can be legitimate.</div>
