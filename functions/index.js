@@ -4405,9 +4405,10 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   const requestedBook = normalizeText(req.query?.book);
   const requestedCatalog = normalizeText(req.query?.catalog);
 
-  const [result, fullPoemItems, flagSnap] = await Promise.all([
+  const [result, fullPoemItems, allContent, flagSnap] = await Promise.all([
     getScoreboardPayloadFromSnapshot(),
     getAllFrom(COLLECTIONS.fullPoems),
+    getAllContentCached(),
     db.collection(COLLECTIONS.contentFlags).where("status", "==", "pending").limit(1000).get(),
   ]);
   const rows = result.payload?.aggregated || [];
@@ -4425,6 +4426,35 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     if (!key) return;
     flagsByImageId.set(key, [...(flagsByImageId.get(key) || []), flag]);
   });
+  const contentByIdentifier = new Map();
+  allContent.forEach((item) => {
+    [item.id, item.imageId, item.contentId].forEach((identifier) => {
+      const key = normalizeKey(identifier);
+      if (key && !contentByIdentifier.has(key)) contentByIdentifier.set(key, item);
+    });
+  });
+  const connectedItemStatus = (item = {}) => {
+    const requestedId = normalizeText(item.imageId || item.contentId || "");
+    const key = normalizeKey(requestedId);
+    const content = contentByIdentifier.get(key) || null;
+    const canonicalImageId = normalizeText(content?.imageId || content?.contentId || content?.id || "");
+    const flags = flagsByImageId.get(key)
+      || flagsByImageId.get(normalizeKey(canonicalImageId))
+      || [];
+    if (flags.length) {
+      return { visibilityStatus: "flagged", canonicalImageId: canonicalImageId || requestedId, flags };
+    }
+    if (BROKEN_QI_IDS.has(key)) {
+      return { visibilityStatus: "quarantined", canonicalImageId: canonicalImageId || requestedId, flags: [] };
+    }
+    if (!content) {
+      return { visibilityStatus: "missing", canonicalImageId: "", flags: [] };
+    }
+    if (canonicalImageId && normalizeKey(canonicalImageId) !== key) {
+      return { visibilityStatus: "renamed", canonicalImageId, flags: [] };
+    }
+    return { visibilityStatus: "active", canonicalImageId: canonicalImageId || requestedId, flags: [] };
+  };
   const connectedByPoem = new Map();
   rows.forEach((row) => {
     if (!["exc", "qi", "int", "vv", "yt"].includes(normalizeKey(row.type))) return;
@@ -4444,9 +4474,15 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         type: "FP",
       };
       const flags = flagsByImageId.get(normalizeKey(item.imageId)) || [];
-      const connected = connectedByPoem.get(poemKey(row)) || [];
+      const connected = (connectedByPoem.get(poemKey(row)) || [])
+        .map((connectedItem) => ({ ...connectedItem, ...connectedItemStatus(connectedItem) }));
       const connectedWithVotes = connected.filter((item) => Number(item.totalVotes || 0) > 0);
-      const connectedContentBonus = Number(row.fpDerivativePoints || 0);
+      const originalConnectedContentBonus = Number(row.fpDerivativePoints || 0);
+      const connectedContentBonus = connected.filter((connectedItem) =>
+        connectedItem.visibilityStatus !== "missing"
+      ).length;
+      const directScore = Number(row.score || 0) - originalConnectedContentBonus;
+      const totalScore = directScore + connectedContentBonus;
       const connectedTypeCounts = connected.reduce((counts, connectedItem) => {
         const type = normalizeText(connectedItem.type).toUpperCase();
         if (type) counts[type] = (counts[type] || 0) + 1;
@@ -4471,8 +4507,8 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
           flaggedByEmail: flag.flaggedByEmail || "",
           createdAt: flag.createdAt || null,
         })),
-        totalScore: Number(row.score || 0),
-        directScore: Number(row.score || 0) - connectedContentBonus,
+        totalScore,
+        directScore,
         connectedContentBonus,
         connectedTypeCounts,
         connectedVotedCount: connectedWithVotes.length,
@@ -4495,11 +4531,17 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
           dislikePoints: -Number(row.dislikes || 0),
           authorAdjustment,
           connectedContentBonus,
-          totalScore: Number(row.score || 0),
+          totalScore,
         },
         connectedItems: connected
           .map((item) => ({
             imageId: item.imageId || "",
+            canonicalImageId: item.canonicalImageId || "",
+            visibilityStatus: item.visibilityStatus || "missing",
+            flags: (item.flags || []).map((flag) => ({
+              note: flag.note || "",
+              qualityLane: flag.qualityLane || "",
+            })),
             type: normalizeText(item.type).toUpperCase(),
             title: item.poemTitle || "",
             score: Number(item.score || 0),
