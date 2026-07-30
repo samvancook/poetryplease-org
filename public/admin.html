@@ -847,6 +847,8 @@
             <option value="title-az">Title A–Z</option>
           </select>
         </div>
+        <div id="repair-request-status" class="status">Loading repair requests…</div>
+        <div id="repair-request-list" class="empty">No recreation requests yet.</div>
         <div id="flag-review-status" class="status">Loading flagged content…</div>
         <div id="flag-review-list"></div>
       </div>
@@ -938,6 +940,7 @@
       legacyImportFingerprint: "",
       idHygiene: null,
       flags: [],
+      repairRequests: [],
       flagQuery: "",
       flagStatusFilter: "all",
       flagTypeFilter: "all",
@@ -3669,6 +3672,36 @@
       });
     }
 
+    function renderRepairRequests() {
+      const rows = state.repairRequests || [];
+      const statusEl = document.getElementById('repair-request-status');
+      const container = document.getElementById('repair-request-list');
+      const active = rows.filter((row) => !['resolved'].includes(row.status || 'requested'));
+      statusEl.textContent = `${active.length} active recreation request${active.length === 1 ? '' : 's'} · ${rows.length} total.`;
+      if (!rows.length) {
+        container.className = 'empty';
+        container.textContent = 'No recreation requests yet.';
+        return;
+      }
+      container.className = '';
+      container.innerHTML = `
+        <table>
+          <thead><tr><th>Content</th><th>Issue</th><th>Status</th><th>Requested</th></tr></thead>
+          <tbody>${rows.map((row) => `
+            <tr>
+              <td>
+                <strong>${escapeHtml(row.title || row.imageId || 'Untitled content')}</strong>
+                <div class="meta">${escapeHtml(row.author || '—')} · ${escapeHtml(row.book || '—')} · ${escapeHtml(row.contentType || '—')}</div>
+              </td>
+              <td>${escapeHtml(row.requestNote || row.issueReason || '—')}</td>
+              <td>${escapeHtml((row.status || 'requested').replaceAll('_', ' '))}</td>
+              <td>${formatLastActive(row.createdAt)}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      `;
+    }
+
     function inferQualityLane(flag) {
       const note = String(flag.note || '').toLowerCase();
       if (flag.qualityLane) return flag.qualityLane;
@@ -3874,6 +3907,8 @@
       try {
         const payload = await api('admin/contentFlags', { method: 'GET' });
         state.flags = payload.flags || [];
+        state.repairRequests = payload.repairRequests || [];
+        renderRepairRequests();
         renderFlags();
       } catch (err) {
         console.error(err);
