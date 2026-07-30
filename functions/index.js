@@ -5648,7 +5648,10 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
 
   const allContent = await getAllContent();
   const contentById = new Map(allContent.map((item) => [normalizeKey(item.imageId || ""), item]));
-  const snap = await db.collection(COLLECTIONS.contentFlags).limit(250).get();
+  const [snap, repairSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentFlags).limit(250).get(),
+    db.collection(COLLECTIONS.contentRepairRequests).limit(250).get(),
+  ]);
   const flags = snap.docs
     .map((doc) => {
       const data = doc.data() || {};
@@ -5661,7 +5664,10 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
       };
     })
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
-  res.json({ flags });
+  const repairRequests = repairSnap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
+  res.json({ flags, repairRequests });
 });
 
 app.get(getBoth("/admin/contentLibrary"), async (req, res) => {
@@ -6603,6 +6609,52 @@ app.get(getBoth("/internal/contentScores"), async (req, res) => {
   } catch (err) {
     res.status(err.status || 400).json({ error: err.message || "content_scores_failed" });
   }
+});
+
+app.get(getBoth("/internal/repairRequests"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+  const requestedStatus = normalizeKey(req.query?.status || "requested");
+  const allowedStatuses = new Set(["all", "requested", "in_progress", "returned", "resolved"]);
+  if (!allowedStatuses.has(requestedStatus)) {
+    return res.status(400).json({ error: "invalid_status" });
+  }
+  const snap = await db.collection(COLLECTIONS.contentRepairRequests).limit(250).get();
+  const requests = snap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter((row) => requestedStatus === "all" || normalizeKey(row.status) === requestedStatus)
+    .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
+  res.json({ ok: true, requests });
+});
+
+app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+  const requestId = normalizeText(req.params.requestId);
+  const status = normalizeKey(req.body?.status);
+  const note = normalizeText(req.body?.note || "");
+  if (!requestId) return res.status(400).json({ error: "missing_request_id" });
+  if (!["in_progress", "returned", "resolved"].includes(status)) {
+    return res.status(400).json({ error: "invalid_status" });
+  }
+  const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "repair_request_not_found" });
+  await ref.set({
+    status,
+    statusNote: note,
+    updatedAt: FieldValue.serverTimestamp(),
+    history: FieldValue.arrayUnion({
+      action: `status_${status}`,
+      note,
+      at: new Date().toISOString(),
+      actor: "weaver",
+    }),
+  }, { merge: true });
+  const saved = await ref.get();
+  res.json({ ok: true, request: { id: saved.id, ...(saved.data() || {}) } });
 });
 
 app.get(getBoth("/internal/userCoverage"), async (req, res) => {
