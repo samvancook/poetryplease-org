@@ -3686,20 +3686,64 @@
       container.className = '';
       container.innerHTML = `
         <table>
-          <thead><tr><th>Content</th><th>Issue</th><th>Status</th><th>Requested</th></tr></thead>
+          <thead><tr><th>Content</th><th>Issue</th><th>Status</th><th>Requested</th><th>Return review</th></tr></thead>
           <tbody>${rows.map((row) => `
             <tr>
               <td>
                 <strong>${escapeHtml(row.title || row.imageId || 'Untitled content')}</strong>
                 <div class="meta">${escapeHtml(row.author || '—')} · ${escapeHtml(row.book || '—')} · ${escapeHtml(row.contentType || '—')}</div>
+                ${row.replacementAssetLink ? `<div class="meta"><a href="${escapeHtml(row.replacementAssetLink)}" target="_blank" rel="noopener noreferrer">Open returned asset</a></div>` : ''}
               </td>
               <td>${escapeHtml(row.requestNote || row.issueReason || '—')}</td>
               <td>${escapeHtml((row.status || 'requested').replaceAll('_', ' '))}</td>
               <td>${formatLastActive(row.createdAt)}</td>
+              <td>
+                <div>${escapeHtml((row.returnReviewStatus || (row.status === 'returned' ? 'pending' : '—')).replaceAll('_', ' '))}</div>
+                ${row.status === 'returned' && row.returnReviewStatus !== 'accepted' ? `
+                  <div class="actions" style="margin-top:8px;">
+                    <button type="button" data-review-repair="${row.id}" data-decision="accepted">Accept</button>
+                    <button type="button" class="secondary" data-review-repair="${row.id}" data-decision="rejected">Reject</button>
+                  </div>
+                ` : ''}
+                ${row.returnReviewNote ? `<div class="meta">${escapeHtml(row.returnReviewNote)}</div>` : ''}
+              </td>
             </tr>
           `).join('')}</tbody>
         </table>
       `;
+      container.querySelectorAll('[data-review-repair]').forEach((button) => {
+        button.addEventListener('click', () => reviewRepairReturn(
+          button.getAttribute('data-review-repair'),
+          button.getAttribute('data-decision')
+        ));
+      });
+    }
+
+    async function reviewRepairReturn(requestId, decision) {
+      const statusEl = document.getElementById('repair-request-status');
+      const required = decision === 'rejected';
+      const note = window.prompt(
+        required ? 'Describe what still needs to be repaired:' : 'Optional acceptance note:',
+        ''
+      );
+      if (note === null) return;
+      if (required && !note.trim()) {
+        statusEl.textContent = 'A rejection note is required so Weaver knows what to repair.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = `${decision === 'accepted' ? 'Accepting' : 'Rejecting'} returned repair…`;
+      statusEl.className = 'status';
+      try {
+        await api(`admin/contentRepairRequests/${requestId}/review`, {
+          method: 'POST',
+          body: { decision, note },
+        });
+        await loadFlags();
+      } catch (err) {
+        statusEl.textContent = err.message || 'Could not review returned repair.';
+        statusEl.className = 'status error';
+      }
     }
 
     function inferQualityLane(flag) {
