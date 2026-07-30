@@ -1587,7 +1587,28 @@
           <div class="meta" style="margin-top:8px;">Signal count: ${row.totalVotes || 0} direct FP votes + ${row.connectedContentBonus || 0} connected content items = ${row.signalCount || 0}. ${row.connectedVotedCount || 0} connected items currently have votes.</div>
           <div class="meta" style="margin-top:6px;">Connected content: ${escapeHtml(connectedTypeLabel(row))}. Connected vote score (${row.connectedVoteScore || 0}) remains diagnostic and is not added to the poem total.</div>
           <div style="margin-top:12px;"><a href="/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">Open full poem</a></div>
-          ${connected.length ? `<table style="margin-top:12px;"><thead><tr><th>Type</th><th>Connected Item</th><th>Votes</th><th>Score</th><th>FP Bonus</th></tr></thead><tbody>${connected.map((item) => `<tr><td>${escapeHtml(item.type)}</td><td><a href="/app?item=${encodeURIComponent(item.imageId || '')}" target="_blank" rel="noopener noreferrer">${escapeHtml(item.title || item.imageId)}</a></td><td>${item.totalVotes || 0}</td><td>${item.score || 0}</td><td>+${item.fpBonusContribution || 0}</td></tr>`).join('')}</tbody></table>` : '<div class="empty" style="margin-top:12px;">No connected derivative content found.</div>'}
+          ${connected.length ? `<table style="margin-top:12px;"><thead><tr><th>Type</th><th>Connected Item</th><th>Status</th><th>Votes</th><th>Score</th><th>FP Bonus</th></tr></thead><tbody>${connected.map((item) => {
+            const status = item.visibilityStatus || 'missing';
+            const linkId = item.canonicalImageId || item.imageId || '';
+            const label = escapeHtml(item.title || item.imageId);
+            const linkedLabel = status === 'active' || status === 'renamed'
+              ? `<a href="/app?item=${encodeURIComponent(linkId)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+              : label;
+            const statusLabel = {
+              active: 'Active',
+              renamed: 'Renamed',
+              flagged: 'Flagged',
+              quarantined: 'Asset quarantined',
+              missing: 'Missing / deleted',
+            }[status] || status;
+            const statusDetail = status === 'flagged'
+              ? (item.flags || []).map((flag) => escapeHtml(flag.note || flag.qualityLane || 'No reason supplied.')).join('; ')
+              : status === 'renamed'
+                ? `Now ${escapeHtml(linkId)}`
+                : '';
+            const bonus = status === 'missing' ? 0 : (item.fpBonusContribution || 0);
+            return `<tr><td>${escapeHtml(item.type)}</td><td>${linkedLabel}</td><td><strong>${statusLabel}</strong>${statusDetail ? `<div class="meta">${statusDetail}</div>` : ''}</td><td>${item.totalVotes || 0}</td><td>${item.score || 0}</td><td>+${bonus}</td></tr>`;
+          }).join('')}</tbody></table>` : '<div class="empty" style="margin-top:12px;">No connected derivative content found.</div>'}
         </div>
       </td></tr>`;
     }
