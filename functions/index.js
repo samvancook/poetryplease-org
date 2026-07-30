@@ -1350,9 +1350,41 @@ async function getRatingsSummaryCached() {
   return ratingsCache.inFlight;
 }
 
-function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null }) {
+function buildWelcomeBatch(items = [], ratingsSummary = {}, limit = 12) {
+  const ranked = items
+    .map((item) => {
+      const id = normalizeKey(item.imageId || "");
+      const rating = ratingsSummary?.[id] || ratingsSummary?.[item.imageId] || {};
+      return { item, rating };
+    })
+    .filter(({ rating }) => Number(rating.total || 0) >= 3 && !rating.authorExcluded)
+    .sort((a, b) => (
+      (Number(b.rating.score || 0) - Number(a.rating.score || 0))
+      || (Number(b.rating.movedMe || 0) - Number(a.rating.movedMe || 0))
+      || (Number(b.rating.total || 0) - Number(a.rating.total || 0))
+    ));
+  const selected = [];
+  const bookCounts = new Map();
+  const typeCounts = new Map();
+  for (const entry of ranked) {
+    const bookKey = normalizeKey(entry.item.book || "no-book");
+    const typeKey = normalizeKey(entry.item.imageType || "other");
+    if ((bookCounts.get(bookKey) || 0) >= 2) continue;
+    if ((typeCounts.get(typeKey) || 0) >= 5) continue;
+    selected.push(entry.item);
+    bookCounts.set(bookKey, (bookCounts.get(bookKey) || 0) + 1);
+    typeCounts.set(typeKey, (typeCounts.get(typeKey) || 0) + 1);
+    if (selected.length >= limit) break;
+  }
+  return selected;
+}
+
+function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null, welcome = false }) {
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
-  const batch = sampleItems(newObjs, limit);
+  const welcomeBatch = welcome && ratingsSummary
+    ? buildWelcomeBatch(newObjs, ratingsSummary, Math.min(limit, 12))
+    : [];
+  const batch = welcomeBatch.length >= 8 ? welcomeBatch : sampleItems(newObjs, limit);
   const releaseCatalogs = uniqueReleaseCatalogs(all);
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
   const sourceEvents = [...new Set(all.map((o) => o.sourceEventLabel || o.sourceEvent).filter(Boolean))].sort();
@@ -1366,6 +1398,8 @@ function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, rat
     releaseCatalogs,
     imageTypes,
     sourceEvents,
+    feedMode: welcomeBatch.length >= 8 ? "welcome" : "ranked",
+    calibrationTarget: welcomeBatch.length >= 8 ? 8 : 0,
     ...(ratingsSummary ? { ratingsSummary } : {}),
   };
 }
@@ -4260,7 +4294,8 @@ app.post(getBoth("/bootstrap"), async (req, res) => {
   if (!userId) return res.status(400).json({ error: "missing_user_context" });
 
   const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, 120));
-  const includeRatingsSummary = req.body?.includeRatingsSummary !== false;
+  const welcome = !decoded?.email && req.body?.welcome === true;
+  const includeRatingsSummary = welcome || req.body?.includeRatingsSummary !== false;
 
   const tasks = [
     getAllContentCached(),
@@ -4274,7 +4309,7 @@ app.post(getBoth("/bootstrap"), async (req, res) => {
 
   const [allContent, flaggedIds, votedIds, ratingsSummary = null] = await Promise.all(tasks);
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
-  res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta: false, ratingsSummary }));
+  res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta: false, ratingsSummary, welcome }));
 });
 
 app.post(getBoth("/fetchFiltered"), async (req, res) => {
