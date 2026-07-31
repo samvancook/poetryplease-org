@@ -6720,6 +6720,16 @@ app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res)
   res.json({ ok: true, request: { id: saved.id, ...(saved.data() || {}) } });
 });
 
+export function getRepairReviewDisposition(request = {}, decision = "") {
+  const status = normalizeKey(request.status);
+  const reviewStatus = normalizeKey(request.returnReviewStatus);
+  if (status === "returned") return "apply";
+  if (decision === "accepted" && status === "resolved" && reviewStatus === "accepted") {
+    return "already_applied";
+  }
+  return "not_returned";
+}
+
 app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -6730,33 +6740,51 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
   if (!["accepted", "rejected"].includes(decision)) {
     return res.status(400).json({ error: "invalid_decision" });
   }
-  const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(requestId);
-  const snap = await ref.get();
-  if (!snap.exists) return res.status(404).json({ error: "repair_request_not_found" });
-  const request = snap.data() || {};
-  if (normalizeKey(request.status) !== "returned") {
-    return res.status(409).json({ error: "repair_not_returned" });
-  }
   if (decision === "rejected" && !note) {
     return res.status(400).json({ error: "rejection_note_required" });
   }
-  await ref.set({
-    status: decision === "accepted" ? "resolved" : "returned",
-    returnReviewStatus: decision,
-    returnReviewedAt: FieldValue.serverTimestamp(),
-    returnReviewedBy: ctx.decoded.uid,
-    returnReviewedByEmail: ctx.decoded.email || "",
-    returnReviewNote: note,
-    updatedAt: FieldValue.serverTimestamp(),
-    history: FieldValue.arrayUnion({
-      action: `return_${decision}`,
-      note,
-      at: new Date().toISOString(),
-      actor: ctx.decoded.email || ctx.decoded.uid,
-    }),
-  }, { merge: true });
+
+  const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(requestId);
+  const reviewResult = await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists) return { error: "repair_request_not_found", status: 404 };
+
+    const request = snap.data() || {};
+    const disposition = getRepairReviewDisposition(request, decision);
+    if (disposition === "already_applied") {
+      return { alreadyReviewed: true };
+    }
+    if (disposition !== "apply") {
+      return { error: "repair_not_returned", status: 409 };
+    }
+
+    transaction.set(ref, {
+      status: decision === "accepted" ? "resolved" : "returned",
+      returnReviewStatus: decision,
+      returnReviewedAt: FieldValue.serverTimestamp(),
+      returnReviewedBy: ctx.decoded.uid,
+      returnReviewedByEmail: ctx.decoded.email || "",
+      returnReviewNote: note,
+      updatedAt: FieldValue.serverTimestamp(),
+      history: FieldValue.arrayUnion({
+        action: `return_${decision}`,
+        note,
+        at: new Date().toISOString(),
+        actor: ctx.decoded.email || ctx.decoded.uid,
+      }),
+    }, { merge: true });
+    return { alreadyReviewed: false };
+  });
+
+  if (reviewResult.error) {
+    return res.status(reviewResult.status).json({ error: reviewResult.error });
+  }
   const saved = await ref.get();
-  res.json({ ok: true, request: { id: saved.id, ...(saved.data() || {}) } });
+  res.json({
+    ok: true,
+    alreadyReviewed: reviewResult.alreadyReviewed,
+    request: { id: saved.id, ...(saved.data() || {}) },
+  });
 });
 
 app.get(getBoth("/internal/userCoverage"), async (req, res) => {
