@@ -13,6 +13,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - next: add a poem-level export and a calendar-candidate workflow without hiding the underlying content rows
   - next: decide and document whether a fraction of connected-content vote scores should roll into the source poem score
   - next: add book-level ranking and signal-distribution comparisons once the per-book summaries have been validated
+  - next: build a general unmatched-content audit that identifies assets lacking a reliable poem/book connection, explains which matching fields are missing or ambiguous, and offers a review path; prioritize `VV` and `YT` videos first
 - Weaver/Firestore integration stability goal set:
   - next: add a correct-and-retry workflow for failed ledger records instead of requiring payload reconstruction
   - next: expand reconciliation from resulting content IDs to source-record IDs and metadata/type mismatches
