@@ -109,6 +109,13 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - prep first: define canonical cross-tool ids, deletion tombstones, repair-request schema, history fields safe to share with P.I.G., retry/idempotency rules, and service authentication for Poetry Please -> Weaver
   - prep first: inventory which P.I.G. source files and editable generation settings actually survive today; fall back to original image plus notes when an editable source is unavailable
   - begin with one QI canary and an admin-only manual action before extending the workflow to `INT`, `EXC`, `FPI`, or bulk repairs
+  - finish the returned-repair acceptance loop:
+    - require Weaver to send structured `replacementAssetId` and `replacementAssetLink` fields instead of preserving them only in status notes/history
+    - confirm Weaver mirrors Poetry Please `returnReviewStatus: accepted` or `status: resolved` into its repair ledger
+    - test rejection end to end, including the required note and resuming the same job without creating another repair request
+    - decide and implement the accepted-replacement activation rule: update the original item, create a linked replacement, or require one final admin action
+    - resolve the source flag only after the accepted replacement is active, while preserving the complete lineage and moderation history
+    - add reconciliation for missing replacement fields, inaccessible replacement assets, and Poetry Please/Weaver status disagreements
   - add an FP-specific decision path based on the pending-flag audit:
     - source exclusions (`not a poem`, epigraph-only, section break, front/back matter) should be removed from the canonical catalog export and tombstoned in Poetry Please so they do not return on the next import
     - repairable FP text (`bad lineation`, joined words, missing/incomplete poem, title typo) should return to the catalog/source layer, then idempotently update the same stable FP id while preserving votes and moderation history
