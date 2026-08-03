@@ -385,7 +385,7 @@ function excludeBrokenContent(items = []) {
   return items.filter((item) => {
     const imageId = normalizeKey(item?.imageId || "");
     if (!imageId) return true;
-    return !BROKEN_QI_IDS.has(imageId);
+    return !BROKEN_QI_IDS.has(imageId) || item?.quarantineReleased === true;
   });
 }
 
@@ -4510,11 +4510,11 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     if (flags.length) {
       return { visibilityStatus: "flagged", canonicalImageId: canonicalImageId || requestedId, flags };
     }
-    if (BROKEN_QI_IDS.has(key)) {
-      return { visibilityStatus: "quarantined", canonicalImageId: canonicalImageId || requestedId, flags: [] };
-    }
     if (!content) {
       return { visibilityStatus: "missing", canonicalImageId: "", flags: [] };
+    }
+    if (BROKEN_QI_IDS.has(key) && content.quarantineReleased !== true) {
+      return { visibilityStatus: "quarantined", canonicalImageId: canonicalImageId || requestedId, flags: [] };
     }
     if (canonicalImageId && normalizeKey(canonicalImageId) !== key) {
       return { visibilityStatus: "renamed", canonicalImageId, flags: [] };
@@ -4545,7 +4545,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       const connectedWithVotes = connected.filter((item) => Number(item.totalVotes || 0) > 0);
       const originalConnectedContentBonus = Number(row.fpDerivativePoints || 0);
       const connectedContentBonus = Math.min(10, connected.filter((connectedItem) =>
-        connectedItem.visibilityStatus !== "missing"
+        ["active", "renamed"].includes(connectedItem.visibilityStatus)
       ).length);
       const directScore = Number(row.score || 0) - originalConnectedContentBonus;
       const totalScore = directScore + connectedContentBonus;
@@ -5717,7 +5717,7 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
     db.collection(COLLECTIONS.contentFlags).limit(250).get(),
     db.collection(COLLECTIONS.contentRepairRequests).limit(250).get(),
   ]);
-  const flags = snap.docs
+  const contentFlags = snap.docs
     .map((doc) => {
       const data = doc.data() || {};
       const current = contentById.get(normalizeKey(data.imageId || ""));
@@ -5729,10 +5729,67 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
       };
     })
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
+  const quarantineFlags = allContent
+    .filter((item) => BROKEN_QI_IDS.has(normalizeKey(item.imageId || "")) && item.quarantineReleased !== true)
+    .map((item) => ({
+      id: `system-quarantine:${item.imageId}`,
+      imageId: item.imageId || "",
+      imageType: item.imageType || "QI",
+      title: item.title || item.poem || "",
+      author: item.author || "",
+      book: item.book || "",
+      releaseCatalog: item.releaseCatalog || "",
+      currentImageUrl: item.imageUrl || item.driveLink || "",
+      note: "Known broken QI asset listed in the system quarantine manifest.",
+      qualityLane: "system_quarantine",
+      source: "system_quarantine",
+      isSystemQuarantine: true,
+      status: "pending",
+      flaggedByEmail: "Poetry Please system",
+      createdAt: BROKEN_QI_MANIFEST?.generatedAt || null,
+    }));
+  const flags = [...quarantineFlags, ...contentFlags];
   const repairRequests = repairSnap.docs
     .map(repairRequestJson)
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
   res.json({ flags, repairRequests });
+});
+
+app.post(getBoth("/admin/contentQuarantine/:imageId/review"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const imageId = normalizeText(req.params.imageId);
+  const decision = normalizeText(req.body?.decision);
+  const note = normalizeText(req.body?.note || "");
+  if (!imageId) return res.status(400).json({ error: "missing_image_id" });
+  if (!["release", "delete"].includes(decision)) {
+    return res.status(400).json({ error: "invalid_decision" });
+  }
+  if (!BROKEN_QI_IDS.has(normalizeKey(imageId))) {
+    return res.status(409).json({ error: "content_not_quarantined" });
+  }
+
+  const contentRecord = await findContentRecordByImageId(imageId);
+  if (!contentRecord) return res.status(404).json({ error: "content_not_found" });
+  const contentRef = db.collection(contentRecord.collection).doc(contentRecord.docId);
+
+  if (decision === "delete") {
+    await contentRef.delete();
+  } else {
+    await contentRef.set({
+      quarantineReleased: true,
+      quarantineReleasedAt: FieldValue.serverTimestamp(),
+      quarantineReleasedBy: ctx.decoded.uid,
+      quarantineReleasedByEmail: ctx.decoded.email || "",
+      quarantineReleaseNote: note,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+
+  invalidateContentCache();
+  await invalidateScoreboardSnapshot(`system_quarantine_${decision}:${imageId}`);
+  res.json({ ok: true, imageId, decision });
 });
 
 app.get(getBoth("/admin/contentLibrary"), async (req, res) => {
