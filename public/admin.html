@@ -3693,6 +3693,8 @@
                 <strong>${escapeHtml(row.title || row.imageId || 'Untitled content')}</strong>
                 <div class="meta">${escapeHtml(row.author || '—')} · ${escapeHtml(row.book || '—')} · ${escapeHtml(row.contentType || '—')}</div>
                 ${row.replacementAssetLink ? `<div class="meta"><a href="${escapeHtml(row.replacementAssetLink)}" target="_blank" rel="noopener noreferrer">Open returned asset</a></div>` : ''}
+                ${row.replacementAssetSource === 'status_note' ? '<div class="status error" style="margin-top:8px;">Replacement metadata recovered from a legacy status note; Weaver should send structured asset fields.</div>' : ''}
+                ${['returned', 'resolved'].includes(row.status) && row.replacementAssetSource === 'missing' ? '<div class="status error" style="margin-top:8px;">Returned repair is missing replacement asset metadata.</div>' : ''}
               </td>
               <td>${escapeHtml(row.requestNote || row.issueReason || '—')}</td>
               <td>${escapeHtml((row.status || 'requested').replaceAll('_', ' '))}</td>
