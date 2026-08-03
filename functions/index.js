@@ -85,7 +85,7 @@ const CONTENT_CACHE_TTL_MS = 15 * 60 * 1000;
 const CONTENT_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
-const CONTENT_SNAPSHOT_VERSION = 1;
+const CONTENT_SNAPSHOT_VERSION = 2;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const RATINGS_CACHE_TTL_MS = 2 * 60 * 1000;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -425,6 +425,13 @@ async function readContentSnapshot() {
   const [buffer] = await storage.bucket().file(storagePath).download();
   const payload = JSON.parse(buffer.toString("utf8"));
   if (!Array.isArray(payload)) return null;
+  const hasIdentifiers = payload.length === 0 || payload.slice(0, 100).some((item) =>
+    normalizeText(item?.id || item?.imageId || item?.contentId || "")
+  );
+  if (!hasIdentifiers) {
+    console.warn("Content snapshot missing identifiers; rebuilding from Firestore");
+    return null;
+  }
   return { payload, builtAtMs };
 }
 
