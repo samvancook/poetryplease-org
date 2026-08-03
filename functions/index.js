@@ -4371,7 +4371,6 @@ app.get(getBoth("/contentById"), async (req, res) => {
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
   const item = all.find((entry) =>
-    normalizeKey(entry.id) === normalizedTarget ||
     normalizeKey(entry.imageId) === normalizedTarget ||
     normalizeKey(entry.contentId) === normalizedTarget
   );
@@ -4396,7 +4395,6 @@ app.get(getBoth("/scoreboard/textPreview"), async (req, res) => {
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
   const item = all.find((entry) =>
-    normalizeKey(entry.id) === normalizedTarget ||
     normalizeKey(entry.imageId) === normalizedTarget ||
     normalizeKey(entry.contentId) === normalizedTarget
   );
@@ -4483,10 +4481,14 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     const byAssetLink = new Map();
     const byMetadata = new Map();
     items.forEach((item) => {
-      [item.id, item.imageId, item.contentId].forEach((identifier) => {
-        const key = normalizeKey(identifier);
-        if (key && !byIdentifier.has(key)) byIdentifier.set(key, item);
+      const publicIdentifiers = [item.imageId, item.contentId].map(normalizeKey).filter(Boolean);
+      publicIdentifiers.forEach((key) => {
+        if (!byIdentifier.has(key)) byIdentifier.set(key, item);
       });
+      const documentKey = normalizeKey(item.id);
+      if (documentKey && (!publicIdentifiers.length || publicIdentifiers.includes(documentKey)) && !byIdentifier.has(documentKey)) {
+        byIdentifier.set(documentKey, item);
+      }
       [item.imageUrl, item.driveLink, item.cloudLink, item.videoUrl, item.youtubeUrl].forEach((link) => {
         const key = normalizeKey(link);
         if (key && !byAssetLink.has(key)) byAssetLink.set(key, item);
