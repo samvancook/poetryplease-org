@@ -4485,12 +4485,20 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     const byAssetLink = new Map();
     const byMetadata = new Map();
     items.forEach((item) => {
-      const publicIdentifiers = [item.imageId, item.contentId].map(normalizeKey).filter(Boolean);
-      publicIdentifiers.forEach((key) => {
-        if (!byIdentifier.has(key)) byIdentifier.set(key, item);
-      });
+      const imageKey = normalizeKey(item.imageId);
+      const contentKey = normalizeKey(item.contentId);
+      if (imageKey && !byIdentifier.has(imageKey)) byIdentifier.set(imageKey, item);
+      // imageId is authoritative. Conflicting contentId values are stale aliases.
+      if (contentKey && (!imageKey || contentKey === imageKey) && !byIdentifier.has(contentKey)) {
+        byIdentifier.set(contentKey, item);
+      }
       const documentKey = normalizeKey(item.id);
-      if (documentKey && (!publicIdentifiers.length || publicIdentifiers.includes(documentKey)) && !byIdentifier.has(documentKey)) {
+      if (
+        documentKey &&
+        (!imageKey || documentKey === imageKey) &&
+        (!contentKey || documentKey === contentKey) &&
+        !byIdentifier.has(documentKey)
+      ) {
         byIdentifier.set(documentKey, item);
       }
       [item.imageUrl, item.driveLink, item.cloudLink, item.videoUrl, item.youtubeUrl].forEach((link) => {
