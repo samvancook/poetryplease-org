@@ -4472,54 +4472,69 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     if (!key) return;
     flagsByImageId.set(key, [...(flagsByImageId.get(key) || []), flag]);
   });
-  const contentByIdentifier = new Map();
-  const contentByAssetLink = new Map();
-  const contentByMetadata = new Map();
   const contentMetadataKey = (item = {}) => [
     normalizeKey(item.imageType || item.type),
     normalizeCatalogLookupKey(item.author),
     normalizeCatalogLookupKey(resolveScoreboardBookTitle(item) || item.bookTitle || item.book),
     normalizeCatalogLookupKey(item.title || item.poemTitle),
   ].join("|");
-  allContent.forEach((item) => {
-    [item.id, item.imageId, item.contentId].forEach((identifier) => {
-      const key = normalizeKey(identifier);
-      if (key && !contentByIdentifier.has(key)) contentByIdentifier.set(key, item);
+  const buildContentIndexes = (items = []) => {
+    const byIdentifier = new Map();
+    const byAssetLink = new Map();
+    const byMetadata = new Map();
+    items.forEach((item) => {
+      [item.id, item.imageId, item.contentId].forEach((identifier) => {
+        const key = normalizeKey(identifier);
+        if (key && !byIdentifier.has(key)) byIdentifier.set(key, item);
+      });
+      [item.imageUrl, item.driveLink, item.cloudLink, item.videoUrl, item.youtubeUrl].forEach((link) => {
+        const key = normalizeKey(link);
+        if (key && !byAssetLink.has(key)) byAssetLink.set(key, item);
+      });
+      const metadataKey = contentMetadataKey(item);
+      if (metadataKey.replace(/\|/g, "")) {
+        byMetadata.set(metadataKey, [...(byMetadata.get(metadataKey) || []), item]);
+      }
     });
-    [item.imageUrl, item.driveLink, item.cloudLink, item.videoUrl, item.youtubeUrl].forEach((link) => {
-      const key = normalizeKey(link);
-      if (key && !contentByAssetLink.has(key)) contentByAssetLink.set(key, item);
-    });
-    const metadataKey = contentMetadataKey(item);
-    if (metadataKey.replace(/\|/g, "")) {
-      contentByMetadata.set(metadataKey, [...(contentByMetadata.get(metadataKey) || []), item]);
-    }
-  });
+    return { byIdentifier, byAssetLink, byMetadata };
+  };
+  const flaggedContentIds = new Set(flagsByImageId.keys());
+  const visibleContent = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedContentIds));
+  const allIndexes = buildContentIndexes(allContent);
+  const visibleIndexes = buildContentIndexes(visibleContent);
+  const findIndexedContent = (indexes, item, key, assetLink) => {
+    const metadataMatches = indexes.byMetadata.get(contentMetadataKey(item)) || [];
+    return indexes.byIdentifier.get(key)
+      || indexes.byAssetLink.get(assetLink)
+      || (metadataMatches.length === 1 ? metadataMatches[0] : null);
+  };
   const connectedItemStatus = (item = {}) => {
     const requestedId = normalizeText(item.imageId || item.contentId || "");
     const key = normalizeKey(requestedId);
     const assetLink = normalizeKey(item.cloudLink || item.driveLink || item.fileLink || "");
-    const metadataMatches = contentByMetadata.get(contentMetadataKey(item)) || [];
-    const content = contentByIdentifier.get(key)
-      || contentByAssetLink.get(assetLink)
-      || (metadataMatches.length === 1 ? metadataMatches[0] : null);
-    const canonicalImageId = normalizeText(content?.imageId || content?.contentId || content?.id || "");
+    const visibleMatch = findIndexedContent(visibleIndexes, item, key, assetLink);
+    const storedMatch = visibleMatch || findIndexedContent(allIndexes, item, key, assetLink);
+    const canonicalImageId = normalizeText(storedMatch?.imageId || storedMatch?.contentId || storedMatch?.id || "");
+    const canonicalKey = normalizeKey(canonicalImageId);
     const flags = flagsByImageId.get(key)
-      || flagsByImageId.get(normalizeKey(canonicalImageId))
+      || flagsByImageId.get(canonicalKey)
       || [];
+    if (visibleMatch) {
+      if (canonicalImageId && canonicalKey !== key) {
+        return { visibilityStatus: "renamed", canonicalImageId, flags: [] };
+      }
+      return { visibilityStatus: "active", canonicalImageId: canonicalImageId || requestedId, flags: [] };
+    }
     if (flags.length) {
       return { visibilityStatus: "flagged", canonicalImageId: canonicalImageId || requestedId, flags };
     }
-    if (!content) {
-      return { visibilityStatus: "missing", canonicalImageId: "", flags: [] };
-    }
-    if (BROKEN_QI_IDS.has(key) && content.quarantineReleased !== true) {
+    if (storedMatch && (BROKEN_QI_IDS.has(key) || BROKEN_QI_IDS.has(canonicalKey)) && storedMatch.quarantineReleased !== true) {
       return { visibilityStatus: "quarantined", canonicalImageId: canonicalImageId || requestedId, flags: [] };
     }
-    if (canonicalImageId && normalizeKey(canonicalImageId) !== key) {
-      return { visibilityStatus: "renamed", canonicalImageId, flags: [] };
+    if (storedMatch) {
+      return { visibilityStatus: "unavailable", canonicalImageId: "", flags: [] };
     }
-    return { visibilityStatus: "active", canonicalImageId: canonicalImageId || requestedId, flags: [] };
+    return { visibilityStatus: "missing", canonicalImageId: "", flags: [] };
   };
   const connectedByPoem = new Map();
   rows.forEach((row) => {
