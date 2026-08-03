@@ -1,4 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import express from "express";
 import cors from "cors";
 import { createHash, randomBytes } from "node:crypto";
@@ -14,6 +15,8 @@ import { getAuth } from "firebase-admin/auth";
 import { getStorage, getDownloadURL } from "firebase-admin/storage";
 
 /** ====== CONFIG / CONSTANTS ====== */
+const POETRY_PLEASE_API_KEY_SECRET = defineSecret("POETRY_PLEASE_API_KEY");
+const PIG_POETRY_PLEASE_API_KEY_SECRET = defineSecret("PIG_POETRY_PLEASE_API_KEY");
 const COLLECTIONS = {
   graphics: "graphics",
   excerpts: "excerpts",
@@ -8399,4 +8402,5 @@ export const api = onRequest({
   memory: "1GiB",
   minInstances: 1,
   timeoutSeconds: 540,
+  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET],
 }, app);
