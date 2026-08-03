@@ -838,6 +838,7 @@
             <option value="duplicate_excerpt">Duplicate excerpt</option>
             <option value="missing_catalog">Missing catalog</option>
             <option value="missing_poem_title">Missing poem title</option>
+            <option value="system_quarantine">System quarantine</option>
           </select>
           <button id="export-filtered-flags" type="button" class="secondary">Export filtered flags CSV</button>
           <select id="flag-sort">
@@ -3621,6 +3622,7 @@
               <tr>
                 <td>
                   <div class="user-name">${flag.title || flag.imageId || 'Untitled content'}</div>
+                  ${flag.isSystemQuarantine ? '<span class="chip">System quarantine</span>' : ''}
                   <div>${flag.imageType || '—'}${flag.releaseCatalog ? ' · ' + flag.releaseCatalog : ''}</div>
                   ${flag.imageId ? `<div class="meta"><a href="/?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener noreferrer">Open item</a></div>` : ''}
                   <div class="preview-grid">
@@ -3643,17 +3645,25 @@
                   ${renderFlagHistory(flag)}
                 </td>
                 <td>
-                  <div class="actions" style="margin-top:0;">
-                    <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Keep content</button>
-                    <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="recreate" ${flag.status !== 'pending' || flag.repairStatus === 'requested' ? 'disabled' : ''}>Request recreation</button>
-                    <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="delete" ${flag.status !== 'pending' ? 'disabled' : ''}>Delete content</button>
-                    ${flag.repairStatus ? `<div class="meta">Repair: ${escapeHtml(flag.repairStatus)}</div>` : ''}
-                  </div>
-                  <div class="actions" style="margin-top:10px;flex-wrap:wrap;">
-                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''} />
-                    <button type="button" class="secondary" data-upload-replacement="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''}>Replace asset</button>
-                  </div>
-                  ${['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? '<div class="meta">Replacement upload is currently available for graphics only.</div>' : ''}
+                  ${flag.isSystemQuarantine ? `
+                    <div class="actions" style="margin-top:0;">
+                      <button type="button" data-review-quarantine="${flag.imageId}" data-decision="release">Release asset</button>
+                      <button type="button" class="secondary" data-review-quarantine="${flag.imageId}" data-decision="delete">Delete asset</button>
+                    </div>
+                    <div class="meta">Release restores this asset to Poetry Please and poem scoring. Delete permanently removes it.</div>
+                  ` : `
+                    <div class="actions" style="margin-top:0;">
+                      <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Keep content</button>
+                      <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="recreate" ${flag.status !== 'pending' || flag.repairStatus === 'requested' ? 'disabled' : ''}>Request recreation</button>
+                      <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="delete" ${flag.status !== 'pending' ? 'disabled' : ''}>Delete content</button>
+                      ${flag.repairStatus ? `<div class="meta">Repair: ${escapeHtml(flag.repairStatus)}</div>` : ''}
+                    </div>
+                    <div class="actions" style="margin-top:10px;flex-wrap:wrap;">
+                      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''} />
+                      <button type="button" class="secondary" data-upload-replacement="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''}>Replace asset</button>
+                    </div>
+                    ${['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? '<div class="meta">Replacement upload is currently available for graphics only.</div>' : ''}
+                  `}
                 </td>
               </tr>
             `).join('')}
@@ -3663,6 +3673,9 @@
 
       container.querySelectorAll('[data-review-flag]').forEach((button) => {
         button.addEventListener('click', () => reviewFlag(button.getAttribute('data-review-flag'), button.getAttribute('data-decision')));
+      });
+      container.querySelectorAll('[data-review-quarantine]').forEach((button) => {
+        button.addEventListener('click', () => reviewQuarantine(button.getAttribute('data-review-quarantine'), button.getAttribute('data-decision')));
       });
       container.querySelectorAll('[data-replacement-file]').forEach((input) => {
         input.addEventListener('change', () => renderReplacementPreview(input.getAttribute('data-replacement-file')));
@@ -3750,6 +3763,7 @@
 
     function inferQualityLane(flag) {
       const note = String(flag.note || '').toLowerCase();
+      if (flag.isSystemQuarantine) return 'system_quarantine';
       if (flag.qualityLane) return flag.qualityLane;
       if (note.includes('possible_photo_instruction_ellipsis') || note.includes('photo_instruction_ellipsis')) return 'photo_instruction_ellipsis';
       if (note.includes('duplicate excerpt')) return 'duplicate_excerpt';
@@ -3766,6 +3780,7 @@
         duplicate_excerpt: 'Duplicate excerpt',
         missing_catalog: 'Missing catalog',
         missing_poem_title: 'Missing poem title',
+        system_quarantine: 'System quarantine',
       })[value] || value || 'Unclassified';
     }
 
@@ -4008,6 +4023,27 @@
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not review submission.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function reviewQuarantine(imageId, decision) {
+      const statusEl = document.getElementById('flag-review-status');
+      const verb = decision === 'release' ? 'release' : 'permanently delete';
+      if (!window.confirm(`${verb === 'release' ? 'Release' : 'Permanently delete'} this quarantined asset?`)) return;
+      const note = window.prompt(`Optional note for this ${verb} action:`, '');
+      if (note === null) return;
+      statusEl.textContent = decision === 'release' ? 'Releasing quarantined asset…' : 'Deleting quarantined asset…';
+      statusEl.className = 'status';
+      try {
+        await api(`admin/contentQuarantine/${encodeURIComponent(imageId)}/review`, {
+          method: 'POST',
+          body: { decision, note },
+        });
+        await loadFlags();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not review quarantined content.';
         statusEl.className = 'status error';
       }
     }
