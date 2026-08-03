@@ -30,6 +30,7 @@ jobs:
           filters: |
             functions:
               - 'functions/**'
+              - '.github/workflows/firebase.yml'
             hosting:
               - 'public/**'
               - 'firebase.json'
@@ -79,6 +80,19 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
           echo "Key written to $RUNNER_TEMP/gcloud-key.json"
 
+      - name: Verify production API-key secrets
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          set -euo pipefail
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
+          gcloud config set project poetry-please --quiet
+          for secret in POETRY_PLEASE_API_KEY PIG_POETRY_PLEASE_API_KEY; do
+            gcloud secrets describe "$secret" --project poetry-please >/dev/null
+            test -n "$(gcloud secrets versions list "$secret" --project poetry-please --filter='state=ENABLED' --format='value(name)' --limit=1)"
+          done
+          echo "Required Poetry Please secret bindings are present."
+
       - name: Firebase whoami / projects (sanity)
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
@@ -105,6 +119,20 @@ jobs:
         run: |
           echo "Deploying FUNCTIONS…"
           firebase --project poetry-please deploy --only functions --debug
+
+      - name: Authenticated internal API smoke tests
+        if: steps.changes.outputs.functions == 'true'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          set -euo pipefail
+          poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
+          pig_key="$(gcloud secrets versions access latest --secret=PIG_POETRY_PLEASE_API_KEY --project poetry-please)"
+          trap 'unset poetry_key pig_key' EXIT
+          curl --fail --silent --show-error --retry 6 --retry-delay 10             -H "x-api-key: $poetry_key"             "https://poetryplease.org/api/internal/repairRequests?status=requested" >/dev/null
+          curl --fail --silent --show-error --retry 6 --retry-delay 10             -H "x-api-key: $pig_key"             "https://poetryplease.org/api/internal/coverageCounts?lane=INT_FPI" >/dev/null
+          echo "Authenticated Poetry Please smoke tests passed."
+
 
   # ------------------------------------------------------------
   # DEPLOY PREVIEW CHANNEL for non-main branches
