@@ -2190,7 +2190,7 @@ async function buildScoreboardPayload() {
       releaseCatalog: canonicalCatalog.releaseCatalog || item.releaseCatalog || "",
       charCount: countCharacters([item.author || "", item.title || item.poem || "", item.excerpt || ""]),
     };
-    keys.forEach((key) => metaMap.set(key, payload));
+    keys.forEach((key) => metaMap.set(normalizeKey(key), payload));
   };
   metaObjs.forEach(upsertMeta);
   excerptObjs.forEach(upsertMeta);
@@ -2237,8 +2237,8 @@ async function buildScoreboardPayload() {
   });
 
   const enrichedVotes = rawVotes.map((vote) => {
-    const meta = metaMap.get(vote.imageId) || {};
     const normalizedImageId = normalizeKey(vote.imageId);
+    const meta = metaMap.get(normalizedImageId) || {};
     const inferredType = meta.type
       || (normalizedImageId.includes("-fp-") ? "FP" : "")
       || (normalizedImageId.includes("-exc-") ? "EXC" : "")
@@ -4473,16 +4473,36 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     flagsByImageId.set(key, [...(flagsByImageId.get(key) || []), flag]);
   });
   const contentByIdentifier = new Map();
+  const contentByAssetLink = new Map();
+  const contentByMetadata = new Map();
+  const contentMetadataKey = (item = {}) => [
+    normalizeKey(item.imageType || item.type),
+    normalizeCatalogLookupKey(item.author),
+    normalizeCatalogLookupKey(resolveScoreboardBookTitle(item) || item.bookTitle || item.book),
+    normalizeCatalogLookupKey(item.title || item.poemTitle),
+  ].join("|");
   allContent.forEach((item) => {
     [item.id, item.imageId, item.contentId].forEach((identifier) => {
       const key = normalizeKey(identifier);
       if (key && !contentByIdentifier.has(key)) contentByIdentifier.set(key, item);
     });
+    [item.imageUrl, item.driveLink, item.cloudLink, item.videoUrl, item.youtubeUrl].forEach((link) => {
+      const key = normalizeKey(link);
+      if (key && !contentByAssetLink.has(key)) contentByAssetLink.set(key, item);
+    });
+    const metadataKey = contentMetadataKey(item);
+    if (metadataKey.replace(/\|/g, "")) {
+      contentByMetadata.set(metadataKey, [...(contentByMetadata.get(metadataKey) || []), item]);
+    }
   });
   const connectedItemStatus = (item = {}) => {
     const requestedId = normalizeText(item.imageId || item.contentId || "");
     const key = normalizeKey(requestedId);
-    const content = contentByIdentifier.get(key) || null;
+    const assetLink = normalizeKey(item.cloudLink || item.driveLink || item.fileLink || "");
+    const metadataMatches = contentByMetadata.get(contentMetadataKey(item)) || [];
+    const content = contentByIdentifier.get(key)
+      || contentByAssetLink.get(assetLink)
+      || (metadataMatches.length === 1 ? metadataMatches[0] : null);
     const canonicalImageId = normalizeText(content?.imageId || content?.contentId || content?.id || "");
     const flags = flagsByImageId.get(key)
       || flagsByImageId.get(normalizeKey(canonicalImageId))
