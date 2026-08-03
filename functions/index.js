@@ -6856,6 +6856,58 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
   }
 
   const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(requestId);
+  const initialSnap = await ref.get();
+  if (!initialSnap.exists) return res.status(404).json({ error: "repair_request_not_found" });
+  const initialRequest = initialSnap.data() || {};
+  const initialDisposition = getRepairReviewDisposition(initialRequest, decision);
+  if (initialDisposition === "already_applied") {
+    return res.json({ ok: true, alreadyReviewed: true, request: repairRequestJson(initialSnap) });
+  }
+  if (initialDisposition !== "apply") {
+    return res.status(409).json({ error: "repair_not_returned" });
+  }
+
+  const returnedAssets = extractReturnedRepairAssetFields(
+    initialRequest,
+    initialRequest.statusNote || ""
+  );
+  let contentRecord = null;
+  let contentRef = null;
+  if (decision === "accepted") {
+    if (!returnedAssets.replacementAssetLink) {
+      return res.status(409).json({ error: "replacement_asset_link_required" });
+    }
+    const originalCollection = normalizeText(initialRequest.originalCollection);
+    const originalDocId = normalizeText(initialRequest.originalDocId);
+    const allowedCollections = new Set([
+      COLLECTIONS.graphics,
+      COLLECTIONS.excerpts,
+      COLLECTIONS.fullPoems,
+      COLLECTIONS.videos,
+    ]);
+    if (allowedCollections.has(originalCollection) && originalDocId) {
+      const originalSnap = await db.collection(originalCollection).doc(originalDocId).get();
+      if (originalSnap.exists) {
+        contentRecord = {
+          collection: originalCollection,
+          docId: originalDocId,
+          data: originalSnap.data() || {},
+        };
+      }
+    }
+    if (!contentRecord) {
+      contentRecord = await findContentRecordByImageId(initialRequest.imageId || "");
+    }
+    if (!contentRecord) {
+      return res.status(409).json({ error: "repair_original_content_not_found" });
+    }
+    contentRef = db.collection(contentRecord.collection).doc(contentRecord.docId);
+  }
+
+  const sourceFlagId = normalizeText(initialRequest.sourceFlagId);
+  const sourceFlagRef = sourceFlagId
+    ? db.collection(COLLECTIONS.contentFlags).doc(sourceFlagId)
+    : null;
   const reviewResult = await db.runTransaction(async (transaction) => {
     const snap = await transaction.get(ref);
     if (!snap.exists) return { error: "repair_request_not_found", status: 404 };
@@ -6869,6 +6921,49 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
       return { error: "repair_not_returned", status: 409 };
     }
 
+    if (decision === "accepted") {
+      const original = contentRecord?.data || {};
+      const previousAssetLink = normalizeText(
+        original.imageUrl
+        || original.driveLink
+        || original.cloudLink
+        || original.videoUrl
+        || original.youtubeUrl
+        || ""
+      );
+      transaction.set(contentRef, {
+        imageUrl: returnedAssets.replacementAssetLink,
+        driveLink: returnedAssets.replacementAssetLink,
+        replacementAssetId: returnedAssets.replacementAssetId || "",
+        previousAssetLink,
+        activeRepairRequestId: requestId,
+        repairReplacementActivatedAt: FieldValue.serverTimestamp(),
+        repairReplacementActivatedBy: ctx.decoded.uid,
+        repairReplacementActivatedByEmail: ctx.decoded.email || "",
+        repairReplacementNote: note,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (sourceFlagRef) {
+        transaction.set(sourceFlagRef, {
+          status: "resolved",
+          resolution: "recreated",
+          repairStatus: "resolved",
+          reviewNote: note,
+          reviewedAt: FieldValue.serverTimestamp(),
+          reviewedBy: ctx.decoded.uid,
+          reviewedByEmail: ctx.decoded.email || "",
+          replacementAssetId: returnedAssets.replacementAssetId || "",
+          replacementAssetLink: returnedAssets.replacementAssetLink,
+          repairRequestId: requestId,
+          moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry(
+            "replacement_accepted",
+            { uid: ctx.decoded.uid, email: ctx.decoded.email },
+            note
+          )),
+        }, { merge: true });
+      }
+    }
+
     transaction.set(ref, {
       status: decision === "accepted" ? "resolved" : "returned",
       returnReviewStatus: decision,
@@ -6876,6 +6971,10 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
       returnReviewedBy: ctx.decoded.uid,
       returnReviewedByEmail: ctx.decoded.email || "",
       returnReviewNote: note,
+      replacementActivated: decision === "accepted",
+      replacementActivatedAt: decision === "accepted" ? FieldValue.serverTimestamp() : null,
+      replacementActivatedCollection: decision === "accepted" ? contentRecord.collection : "",
+      replacementActivatedDocId: decision === "accepted" ? contentRecord.docId : "",
       updatedAt: FieldValue.serverTimestamp(),
       history: FieldValue.arrayUnion({
         action: `return_${decision}`,
@@ -6889,6 +6988,11 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
 
   if (reviewResult.error) {
     return res.status(reviewResult.status).json({ error: reviewResult.error });
+  }
+  if (decision === "accepted" && !reviewResult.alreadyReviewed) {
+    invalidateContentCache();
+    invalidateFlaggedContentCache();
+    await invalidateScoreboardSnapshot(`repair_replacement_accepted:${requestId}`);
   }
   const saved = await ref.get();
   res.json({
