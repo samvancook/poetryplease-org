@@ -4370,10 +4370,12 @@ app.get(getBoth("/contentById"), async (req, res) => {
   ]);
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
-  const item = all.find((entry) =>
-    normalizeKey(entry.imageId) === normalizedTarget ||
-    normalizeKey(entry.contentId) === normalizedTarget
-  );
+  const item = all.find((entry) => normalizeKey(entry.imageId) === normalizedTarget)
+    || all.find((entry) => {
+      const imageKey = normalizeKey(entry.imageId);
+      const contentKey = normalizeKey(entry.contentId);
+      return contentKey === normalizedTarget && (!imageKey || imageKey === contentKey);
+    });
 
   if (!item) return res.status(404).json({ error: "not_found" });
 
@@ -4394,10 +4396,12 @@ app.get(getBoth("/scoreboard/textPreview"), async (req, res) => {
   ]);
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
-  const item = all.find((entry) =>
-    normalizeKey(entry.imageId) === normalizedTarget ||
-    normalizeKey(entry.contentId) === normalizedTarget
-  );
+  const item = all.find((entry) => normalizeKey(entry.imageId) === normalizedTarget)
+    || all.find((entry) => {
+      const imageKey = normalizeKey(entry.imageId);
+      const contentKey = normalizeKey(entry.contentId);
+      return contentKey === normalizedTarget && (!imageKey || imageKey === contentKey);
+    });
 
   if (!item) return res.status(404).send("Content not found.");
   if (!normalizeText(item.excerpt || item.text)) return res.status(404).send("No text preview is available for this item.");
