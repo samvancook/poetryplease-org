@@ -5700,7 +5700,7 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
     })
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
   const repairRequests = repairSnap.docs
-    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .map(repairRequestJson)
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
   res.json({ flags, repairRequests });
 });
