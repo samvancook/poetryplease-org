@@ -6661,11 +6661,14 @@ export function extractReturnedRepairAssetFields(payload = {}, note = "") {
 function repairRequestJson(doc) {
   const data = doc.data() || {};
   const assets = extractReturnedRepairAssetFields(data, data.statusNote || "");
+  const hasStructuredAsset = !!normalizeText(data.replacementAssetId || data.replacementAssetLink || "");
+  const hasRecoveredAsset = !!normalizeText(assets.replacementAssetId || assets.replacementAssetLink || "");
   return {
     id: doc.id,
     ...data,
     replacementAssetId: data.replacementAssetId || assets.replacementAssetId || "",
     replacementAssetLink: data.replacementAssetLink || assets.replacementAssetLink || "",
+    replacementAssetSource: hasStructuredAsset ? "structured" : (hasRecoveredAsset ? "status_note" : "missing"),
   };
 }
 
