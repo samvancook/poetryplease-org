@@ -3495,8 +3495,8 @@ firebase.auth().onAuthStateChanged(async (user) => {
   const nextFeedIdentityKey = getFeedIdentityKey();
   if (lastFeedIdentityKey !== nextFeedIdentityKey) {
     lastFeedIdentityKey = nextFeedIdentityKey;
-    if (!currentItem || visibleUser) resetFeedForIdentityChange();
-    else LoadTiming.mark('identityReady', 'kept rendered item');
+    if (!selectedItemId && (!currentItem || visibleUser)) resetFeedForIdentityChange();
+    else LoadTiming.mark('identityReady', selectedItemId ? 'kept direct-linked item' : 'kept rendered item');
   }
 
   updateUserStatusUI();
