@@ -1656,6 +1656,7 @@
               renamed: 'Renamed',
               flagged: 'Flagged',
               quarantined: 'Asset quarantined',
+              unavailable: 'Unavailable in app',
               missing: 'Missing / deleted',
             }[status] || status;
             const statusDetail = status === 'flagged'
@@ -1663,7 +1664,7 @@
               : status === 'renamed'
                 ? `Now ${escapeHtml(linkId)}`
                 : '';
-            const bonus = status === 'missing' ? 0 : (item.fpBonusContribution || 0);
+            const bonus = ['active', 'renamed'].includes(status) ? (item.fpBonusContribution || 0) : 0;
             return `<tr><td>${escapeHtml(item.type)}</td><td>${linkedLabel}</td><td><strong>${statusLabel}</strong>${statusDetail ? `<div class="meta">${statusDetail}</div>` : ''}</td><td>${item.totalVotes || 0}</td><td>${item.score || 0}</td><td>+${bonus}</td></tr>`;
           }).join('')}</tbody></table>` : '<div class="empty" style="margin-top:12px;">No connected derivative content found.</div>'}
         </div>
