@@ -6646,6 +6646,29 @@ app.get(getBoth("/internal/contentScores"), async (req, res) => {
   }
 });
 
+export function extractReturnedRepairAssetFields(payload = {}, note = "") {
+  const explicitId = normalizeText(payload.replacementAssetId || "");
+  const explicitLink = normalizeText(payload.replacementAssetLink || "");
+  const noteText = normalizeText(note || payload.statusNote || "");
+  const inferredId = noteText.match(/(?:^|\|\s*)Replacement\s+([^|\s]+)/i)?.[1] || "";
+  const inferredLink = noteText.match(/https?:\/\/[^\s|]+/i)?.[0] || "";
+  return {
+    replacementAssetId: explicitId || normalizeText(inferredId),
+    replacementAssetLink: explicitLink || normalizeText(inferredLink),
+  };
+}
+
+function repairRequestJson(doc) {
+  const data = doc.data() || {};
+  const assets = extractReturnedRepairAssetFields(data, data.statusNote || "");
+  return {
+    id: doc.id,
+    ...data,
+    replacementAssetId: data.replacementAssetId || assets.replacementAssetId || "",
+    replacementAssetLink: data.replacementAssetLink || assets.replacementAssetLink || "",
+  };
+}
+
 app.get(getBoth("/internal/repairRequests"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
@@ -6657,7 +6680,7 @@ app.get(getBoth("/internal/repairRequests"), async (req, res) => {
   }
   const snap = await db.collection(COLLECTIONS.contentRepairRequests).limit(250).get();
   const requests = snap.docs
-    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .map(repairRequestJson)
     .filter((row) => requestedStatus === "all" || normalizeKey(row.status) === requestedStatus)
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
   res.json({ ok: true, requests });
@@ -6671,7 +6694,7 @@ app.get(getBoth("/internal/repairRequests/:requestId"), async (req, res) => {
   if (!requestId) return res.status(400).json({ error: "missing_request_id" });
   const snap = await db.collection(COLLECTIONS.contentRepairRequests).doc(requestId).get();
   if (!snap.exists) return res.status(404).json({ error: "repair_request_not_found" });
-  res.json({ ok: true, request: { id: snap.id, ...(snap.data() || {}) } });
+  res.json({ ok: true, request: repairRequestJson(snap) });
 });
 
 app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res) => {
@@ -6706,18 +6729,16 @@ app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res)
     update.returnReviewNote = "";
     update.returnedAt = FieldValue.serverTimestamp();
   }
-  [
-    "replacementAssetId",
-    "replacementAssetLink",
-    "weaverJobId",
-    "pigJobId",
-  ].forEach((field) => {
+  const returnedAssets = extractReturnedRepairAssetFields(req.body || {}, note);
+  if (returnedAssets.replacementAssetId) update.replacementAssetId = returnedAssets.replacementAssetId;
+  if (returnedAssets.replacementAssetLink) update.replacementAssetLink = returnedAssets.replacementAssetLink;
+  ["weaverJobId", "pigJobId"].forEach((field) => {
     const value = normalizeText(req.body?.[field] || "");
     if (value) update[field] = value;
   });
   await ref.set(update, { merge: true });
   const saved = await ref.get();
-  res.json({ ok: true, request: { id: saved.id, ...(saved.data() || {}) } });
+  res.json({ ok: true, request: repairRequestJson(saved) });
 });
 
 export function getRepairReviewDisposition(request = {}, decision = "") {
@@ -6783,7 +6804,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
   res.json({
     ok: true,
     alreadyReviewed: reviewResult.alreadyReviewed,
-    request: { id: saved.id, ...(saved.data() || {}) },
+    request: repairRequestJson(saved),
   });
 });
 
