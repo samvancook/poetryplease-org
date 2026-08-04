@@ -4370,12 +4370,15 @@ app.get(getBoth("/contentById"), async (req, res) => {
   ]);
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
-  const item = all.find((entry) => normalizeKey(entry.imageId) === normalizedTarget)
-    || all.find((entry) => {
-      const imageKey = normalizeKey(entry.imageId);
-      const contentKey = normalizeKey(entry.contentId);
-      return contentKey === normalizedTarget && (!imageKey || imageKey === contentKey);
-    });
+  const imageMatches = all.filter((entry) => normalizeKey(entry.imageId) === normalizedTarget);
+  const contentMatches = imageMatches.length ? [] : all.filter((entry) => {
+    const imageKey = normalizeKey(entry.imageId);
+    const contentKey = normalizeKey(entry.contentId);
+    return contentKey === normalizedTarget && (!imageKey || imageKey === contentKey);
+  });
+  const matches = imageMatches.length ? imageMatches : contentMatches;
+  if (matches.length > 1) return res.status(409).json({ error: "ambiguous_content_id" });
+  const item = matches[0];
 
   if (!item) return res.status(404).json({ error: "not_found" });
 
@@ -4396,12 +4399,15 @@ app.get(getBoth("/scoreboard/textPreview"), async (req, res) => {
   ]);
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const normalizedTarget = normalizeKey(targetId);
-  const item = all.find((entry) => normalizeKey(entry.imageId) === normalizedTarget)
-    || all.find((entry) => {
-      const imageKey = normalizeKey(entry.imageId);
-      const contentKey = normalizeKey(entry.contentId);
-      return contentKey === normalizedTarget && (!imageKey || imageKey === contentKey);
-    });
+  const imageMatches = all.filter((entry) => normalizeKey(entry.imageId) === normalizedTarget);
+  const contentMatches = imageMatches.length ? [] : all.filter((entry) => {
+    const imageKey = normalizeKey(entry.imageId);
+    const contentKey = normalizeKey(entry.contentId);
+    return contentKey === normalizedTarget && (!imageKey || imageKey === contentKey);
+  });
+  const matches = imageMatches.length ? imageMatches : contentMatches;
+  if (matches.length > 1) return res.status(409).json({ error: "ambiguous_content_id" });
+  const item = matches[0];
 
   if (!item) return res.status(404).send("Content not found.");
   if (!normalizeText(item.excerpt || item.text)) return res.status(404).send("No text preview is available for this item.");
@@ -4482,24 +4488,36 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   ].join("|");
   const buildContentIndexes = (items = []) => {
     const byIdentifier = new Map();
+    const ambiguousIdentifiers = new Set();
     const byAssetLink = new Map();
     const byMetadata = new Map();
+    const registerIdentifier = (key, item) => {
+      if (!key || ambiguousIdentifiers.has(key)) return;
+      if (!byIdentifier.has(key)) {
+        byIdentifier.set(key, item);
+        return;
+      }
+      if (byIdentifier.get(key) !== item) {
+        byIdentifier.delete(key);
+        ambiguousIdentifiers.add(key);
+      }
+    };
     items.forEach((item) => {
       const imageKey = normalizeKey(item.imageId);
       const contentKey = normalizeKey(item.contentId);
-      if (imageKey && !byIdentifier.has(imageKey)) byIdentifier.set(imageKey, item);
+      registerIdentifier(imageKey, item);
       // imageId is authoritative. Conflicting contentId values are stale aliases.
-      if (contentKey && (!imageKey || contentKey === imageKey) && !byIdentifier.has(contentKey)) {
-        byIdentifier.set(contentKey, item);
+      if (contentKey && (!imageKey || contentKey === imageKey)) {
+        registerIdentifier(contentKey, item);
       }
       const documentKey = normalizeKey(item.id);
       if (
         documentKey &&
         (!imageKey || documentKey === imageKey) &&
         (!contentKey || documentKey === contentKey) &&
-        !byIdentifier.has(documentKey)
+        !ambiguousIdentifiers.has(documentKey)
       ) {
-        byIdentifier.set(documentKey, item);
+        registerIdentifier(documentKey, item);
       }
       [item.imageUrl, item.driveLink, item.cloudLink, item.videoUrl, item.youtubeUrl].forEach((link) => {
         const key = normalizeKey(link);
@@ -4510,7 +4528,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         byMetadata.set(metadataKey, [...(byMetadata.get(metadataKey) || []), item]);
       }
     });
-    return { byIdentifier, byAssetLink, byMetadata };
+    return { byIdentifier, ambiguousIdentifiers, byAssetLink, byMetadata };
   };
   const flaggedContentIds = new Set(flagsByImageId.keys());
   const visibleContent = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedContentIds));
@@ -4526,6 +4544,9 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     const requestedId = normalizeText(item.imageId || item.contentId || "");
     const key = normalizeKey(requestedId);
     const assetLink = normalizeKey(item.cloudLink || item.driveLink || item.fileLink || "");
+    if (visibleIndexes.ambiguousIdentifiers.has(key) || allIndexes.ambiguousIdentifiers.has(key)) {
+      return { visibilityStatus: "missing", canonicalImageId: "", flags: [] };
+    }
     const visibleMatch = findIndexedContent(visibleIndexes, item, key, assetLink);
     const storedMatch = visibleMatch || findIndexedContent(allIndexes, item, key, assetLink);
     const canonicalImageId = normalizeText(storedMatch?.imageId || storedMatch?.contentId || storedMatch?.id || "");
