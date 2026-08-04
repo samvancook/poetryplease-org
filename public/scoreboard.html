@@ -1486,12 +1486,13 @@
         if (catalog) params.set('catalog', catalog);
         const payload = await api(`scoreboard/fullPoems?${params.toString()}`, { method: 'GET' });
         const rows = payload.rows || [];
-        fullPoemRankingRows = rows;
+        const hiddenRows = rows.filter(isHiddenPoemRankingRow);
+        fullPoemRankingRows = rows.filter((row) => !isHiddenPoemRankingRow(row));
         fullPoemBookSummaries = payload.bookSummaries || [];
         expandedFullPoemId = '';
         renderPoemBookSummary();
         renderFullPoemRankingRows();
-        setStatus(`Ranked ${rows.length} poem${rows.length === 1 ? '' : 's'} across ${fullPoemBookSummaries.length} book${fullPoemBookSummaries.length === 1 ? '' : 's'} for ${scope}. Content export remains available from the Content view.`);
+        setStatus(`Ranked ${fullPoemRankingRows.length} poem${fullPoemRankingRows.length === 1 ? '' : 's'} across ${fullPoemBookSummaries.length} book${fullPoemBookSummaries.length === 1 ? '' : 's'} for ${scope}.${hiddenRows.length ? ` ${hiddenRows.length} flagged or quarantined poem${hiddenRows.length === 1 ? ' was' : 's were'} hidden.` : ''} Content export remains available from the Content view.`);
       } catch (err) {
         console.error(err);
         fullPoemRankingRows = [];
@@ -1581,6 +1582,11 @@
     function connectedTypeLabel(row) {
       const counts = row.connectedTypeCounts || {};
       return Object.keys(counts).sort().map((type) => `${type} ${counts[type]}`).join(' · ') || 'No connected content';
+    }
+
+    function isHiddenPoemRankingRow(row = {}) {
+      const status = String(row.visibilityStatus || row.status || '').trim().toLowerCase();
+      return !!row.flagged || !!row.quarantined || status === 'quarantined' || status === 'asset_quarantined';
     }
 
     function signalLabel(row) {
