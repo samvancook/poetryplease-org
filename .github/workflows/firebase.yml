@@ -134,6 +134,22 @@ jobs:
           echo "Authenticated Poetry Please smoke tests passed."
 
 
+      - name: Apply safe P.I.G. ID hygiene migration
+        if: steps.changes.outputs.functions == 'true' && contains(github.event.head_commit.message, '[apply-pig-hygiene]')
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          set -euo pipefail
+          poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
+          trap 'unset poetry_key' EXIT
+          curl --fail --silent --show-error --retry 6 --retry-delay 10 \
+            -X POST \
+            -H "x-api-key: $poetry_key" \
+            "https://poetryplease.org/api/internal/idHygiene/applyPig"
+          echo
+          echo "Safe P.I.G. ID hygiene migration completed."
+
+
   # ------------------------------------------------------------
   # DEPLOY PREVIEW CHANNEL for non-main branches
   # ------------------------------------------------------------
