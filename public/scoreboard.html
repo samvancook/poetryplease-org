@@ -282,12 +282,10 @@
               <th data-poem-column="author">Author</th>
               <th data-poem-column="book">Book</th>
               <th data-poem-column="catalog">Catalog</th>
-              <th data-poem-column="directScore">Direct FP Score</th>
-              <th data-poem-column="connectedContentBonus">Connected Content Bonus</th>
-              <th data-poem-column="totalScore">Total Score</th>
+              <th data-poem-column="directScore">FP Score</th>
+              <th data-poem-column="connectedContentBonus">Asset Bonus</th>
+              <th data-poem-column="totalScore">Total</th>
               <th data-poem-column="signalCount">Signal</th>
-              <th data-poem-column="connectedVotedCount">Connected Items With Votes</th>
-              <th data-poem-column="connectedVoteScore">Connected Vote Score</th>
               <th data-poem-column="totalVotes">FP Votes</th>
               <th>Details</th>
             </tr>
@@ -1499,7 +1497,7 @@
         fullPoemRankingRows = [];
         fullPoemBookSummaries = [];
         document.getElementById('poemBookSummary').innerHTML = '';
-        body.innerHTML = '<tr><td colspan="14"><div class="empty">Could not load poem rankings.</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="12"><div class="empty">Could not load poem rankings.</div></td></tr>';
         setStatus(err.message || 'Could not load poem rankings.', true);
       } finally {
         setControlsDisabled(false);
@@ -1615,20 +1613,18 @@
             <td>${row.connectedContentBonus || 0}</td>
             <td><strong>${row.totalScore || 0}</strong></td>
             <td><strong>${escapeHtml(signalLabel(row))}</strong></td>
-            <td>${row.connectedVotedCount || 0}</td>
-            <td>${row.connectedVoteScore || 0}</td>
             <td>${row.totalVotes || 0}</td>
             <td><button type="button" class="secondary full-poem-details" data-image-id="${escapeHtml(row.imageId || '')}">${expandedFullPoemId === row.imageId ? 'Hide' : (row.flagged ? 'Flag details' : 'How scored')}</button></td>
           </tr>
           ${expandedFullPoemId === row.imageId ? renderFullPoemScoreDetail(row) : ''}
-        `).join('') : '<tr><td colspan="14"><div class="empty">No full poems match the current filters.</div></td></tr>';
+        `).join('') : '<tr><td colspan="12"><div class="empty">No full poems match the current filters.</div></td></tr>';
     }
 
     function renderFullPoemScoreDetail(row) {
       const breakdown = row.scoreBreakdown || {};
       const connected = row.connectedItems || [];
       const flags = row.flags || [];
-      return `<tr class="detail-row"><td colspan="14">
+      return `<tr class="detail-row"><td colspan="12">
         <div style="padding:14px 4px;">
           ${row.flagged ? `<div class="status error" style="margin-bottom:12px;"><strong>Excluded from active review because this full poem is flagged.</strong>${flags.map((flag) => `<div style="margin-top:6px;">${escapeHtml(flag.note || flag.qualityLane || 'No reason supplied.')}${flag.flaggedByEmail ? ` <span class="meta">Flagged by ${escapeHtml(flag.flaggedByEmail)}</span>` : ''}</div>`).join('')}<div style="margin-top:8px;"><a href="/admin" target="_blank" rel="noopener noreferrer">Open Flagged Content</a></div></div>` : ''}
           <strong>Score equation:</strong>
