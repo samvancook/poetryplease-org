@@ -1633,9 +1633,10 @@
           ${Number(breakdown.dislikePoints || 0) < 0 ? `− ${Math.abs(breakdown.dislikePoints)}` : '+ 0'} dislikes
           ${Number(breakdown.authorAdjustment || 0) < 0 ? `− ${Math.abs(breakdown.authorAdjustment)}` : `+ ${breakdown.authorAdjustment || 0}`} own-author vote adjustment
           + ${breakdown.connectedContentBonus || 0} connected-content bonus
+          + ${breakdown.derivativeVoteBonus || 0} derivative-vote bonus
           = <strong>${breakdown.totalScore || 0}</strong>
           <div class="meta" style="margin-top:8px;">Signal count: ${row.totalVotes || 0} direct FP votes + ${row.connectedContentBonus || 0} connected content items = ${row.signalCount || 0}. ${row.connectedVotedCount || 0} connected items currently have votes.</div>
-          <div class="meta" style="margin-top:6px;">Connected content: ${escapeHtml(connectedTypeLabel(row))}. Connected vote score (${row.connectedVoteScore || 0}) remains diagnostic and is not added to the poem total.</div>
+          <div class="meta" style="margin-top:6px;">Connected content: ${escapeHtml(connectedTypeLabel(row))}. The top-three eligible connected score (${breakdown.derivativeVoteSourceScore || 0}) generates a capped derivative-vote bonus of ${breakdown.derivativeVoteBonus || 0}. All connected content has a combined diagnostic score of ${row.connectedVoteScore || 0}.</div>
           <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
             <a href="/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}" target="_blank" rel="noopener noreferrer">Open full poem</a>
             <button type="button" class="secondary export-poem-bundle" data-image-id="${escapeHtml(row.imageId || '')}">Export poem bundle</button>
