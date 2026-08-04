@@ -53,8 +53,12 @@ The full connected-content score remains visible as diagnostic information under
 
 ## Ranking effects
 
-- Poems rank by FP total after flagged poems are excluded.
-- Books rank using their top ten eligible poem totals, followed by top-ten average, reviewed-poem count, and title.
+- Poems rank by FP total after flagged and quarantined poems are excluded.
+- A poem needs at least three direct FP votes to qualify for book scoring.
+- Books rank by the sum of their top ten qualifying poem totals.
+- Ties break by the direct FP average of those same poems, then qualifying-poem count, then title.
+- Books with fewer than five qualifying poems are labeled **Provisional**.
+- The Books view shows the top-ten direct score, asset bonus, and derivative-vote bonus separately.
 - Ranked FP exports and downstream consumers of the poem-score endpoint receive the updated totals.
 - The normal Poetry Please feed does not currently use poem-level totals to decide serving order.
 - Explicit filter lanes continue to preserve their server-provided order.
