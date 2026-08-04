@@ -1657,6 +1657,7 @@ let selectedItemId = '';
 let embedLockedItemId = '';
 let selectedItemRecord = null;
 let routeItemConsumed = false;
+let routeItemUnavailable = false;
 let lockedLane = false;
 let authorPreviewMode = false;
 
@@ -1758,6 +1759,7 @@ function initializeRouteState() {
   selectedItemId = route.item.trim();
   selectedItemRecord = null;
   routeItemConsumed = false;
+  routeItemUnavailable = false;
   selectedType = route.type.trim();
   selectedCatalog = canonicalCatalogFilterValue(route.catalog);
   selectedAuthor = route.author.trim();
@@ -1843,6 +1845,7 @@ function exitLockedLane() {
   lockedLane = false;
   selectedItemId = '';
   selectedItemRecord = null;
+  routeItemUnavailable = false;
   selectedType = '';
   selectedCatalog = '';
   selectedAuthor = '';
@@ -3378,18 +3381,52 @@ function withTimeout_(promise, ms, label) {
   ]);
 }
 
+async function resolveInitialDeepLink() {
+  if (!selectedItemId) return true;
+  if (selectedItemRecord) return true;
+
+  try {
+    const result = await withTimeout_(
+      fetchContentByIdWrapped(selectedItemId),
+      12000,
+      '[PP] deep link lookup'
+    );
+    if (result?.item) {
+      selectedItemRecord = mapGraphic(result.item);
+      return !!selectedItemRecord?.id;
+    }
+  } catch (err) {
+    console.warn('[PP] deep link item lookup failed', err);
+  }
+
+  routeItemUnavailable = true;
+  lockedLane = true;
+  renderEmptyFilterState('This linked item is no longer available.');
+  return false;
+}
+
 async function ppAutoloadFirstItem() {
-  if (__pp_initialLoad || currentItem) return;
+  if (__pp_initialLoad || currentItem || routeItemUnavailable) return;
 
   LoadTiming.mark('autoloadStart');
   console.debug('[PP] autoload: starting');
 
-  // Lock while we try; we’ll unlock in finally if we didn’t actually render an item
   __pp_initialLoad = true;
   const loadSeq = ++__pp_initialLoadSeq;
 
   try {
-    // 2 retries (3 total attempts), each with a timeout
+    if (selectedItemId) {
+      const resolved = await resolveInitialDeepLink();
+      if (!resolved || loadSeq !== __pp_initialLoadSeq) return;
+
+      queue = [selectedItemRecord];
+      idx = 0;
+      historyStack.length = 0;
+      safePreload(0);
+      renderWhenReady(0);
+      return;
+    }
+
     for (let attempt = 1; attempt <= 3; attempt++) {
       console.debug(`[PP] autoload attempt ${attempt}/3`);
 
@@ -3409,33 +3446,18 @@ async function ppAutoloadFirstItem() {
           console.debug('[PP] autoload: ignoring stale startup data');
           return;
         }
-        if (selectedItemId && !selectedItemRecord) {
-          try {
-            const result = await fetchContentByIdWrapped(selectedItemId);
-            if (result?.item) selectedItemRecord = mapGraphic(result.item);
-          } catch (err) {
-            console.warn('[PP] deep link item lookup failed', err);
-          }
-        }
-        if (selectedItemId && !selectedItemRecord) {
-          lockedLane = true;
-          renderEmptyFilterState('This linked item is no longer available.');
-          return;
-        }
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
         if (!IS_EMBED_UI) hydrateFullFeedInBackground();
 
-        // If nothing queued up, allow future attempts.
         if (!currentItem && (!Array.isArray(queue) || !queue.length)) {
           console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
           if (loadSeq === __pp_initialLoadSeq) __pp_initialLoad = false;
         }
-        return; // ✅ success (or unlocked above if render didn’t happen)
+        return;
       }
 
       console.warn('[PP] autoload: no usable data this attempt');
-      // short backoff before retry
       await new Promise(r => setTimeout(r, 600));
     }
 
@@ -3443,12 +3465,12 @@ async function ppAutoloadFirstItem() {
   } catch (e) {
     console.warn('[PP] autoload: fatal error', e);
   } finally {
-    // ✅ If we *still* don’t have an item, allow future attempts (e.g., user logs in later)
-    if (loadSeq === __pp_initialLoadSeq && !currentItem) __pp_initialLoad = false;
+    if (loadSeq === __pp_initialLoadSeq && !currentItem && !routeItemUnavailable) {
+      __pp_initialLoad = false;
+    }
     if (loadSeq === __pp_initialLoadSeq && !currentItem) LoaderController.markScreenReady();
   }
 }
-
 
 
 
