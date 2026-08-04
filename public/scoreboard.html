@@ -1543,9 +1543,9 @@
             <th data-summary-column="lowSignalCount">Low Signal</th>
             <th data-summary-column="flaggedCount">Flagged</th>
             <th data-summary-column="topTenScore">Top-10 Score</th>
-            <th data-summary-column="topTenAverage">Top-10 Average</th>
+            <th data-summary-column="topTenDirectAverage">Direct Avg</th>
             <th data-summary-column="totalScore">Total Score</th>
-            <th data-summary-column="totalDirectScore">Direct / Derivative</th>
+            <th data-summary-column="topTenDirectScore">Top-10 Components</th>
             <th data-summary-column="topPoemScore">Top Poem</th>
           </tr></thead>
           <tbody>${visibleSummaries.map((summary) => {
@@ -1561,10 +1561,10 @@
               <td>${summary.noSignalCount || 0}</td>
               <td>${summary.lowSignalCount || 0}</td>
               <td>${summary.flaggedCount || 0}</td>
-              <td><strong>${summary.topTenScore || 0}</strong><div class="meta">${summary.eligiblePoemCount || 0} eligible reviewed</div></td>
-              <td>${summary.topTenAverage || 0}</td>
+              <td><strong>${summary.topTenScore || 0}</strong>${summary.provisional ? '<div><span class="chip" style="background:#f5ead5;color:#765b25;">Provisional</span></div>' : ''}<div class="meta">${summary.eligiblePoemCount || 0} poems with 3+ FP votes</div></td>
+              <td>${summary.topTenDirectAverage || 0}</td>
               <td>${summary.totalScore || 0}</td>
-              <td>${summary.totalDirectScore || 0} + ${summary.totalDerivativeBonus || 0}</td>
+              <td><strong>${summary.topTenDirectScore || 0}</strong> direct<div class="meta">+${summary.topTenAssetBonus || 0} assets · +${summary.topTenDerivativeVoteBonus || 0} derivative votes</div></td>
               <td>${escapeHtml(summary.topPoem || '—')}${summary.topPoemScore === null ? '' : ` <span class="meta">(${summary.topPoemScore})</span>`}</td>
             </tr>
             ${expandedPoemBookKey === summaryKey ? `<tr><td colspan="13">
