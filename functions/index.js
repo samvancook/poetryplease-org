@@ -4711,23 +4711,34 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       totalScore: 0,
       totalDirectScore: 0,
       totalDerivativeBonus: 0,
+      totalAssetBonus: 0,
+      totalDerivativeVoteBonus: 0,
       totalSignals: 0,
-      eligiblePoemScores: [],
+      eligiblePoems: [],
       topPoem: "",
       topPoemScore: null,
     };
     summary.poemCount += 1;
     summary.flaggedCount += row.flagged ? 1 : 0;
-    const eligible = !row.flagged && Number(row.totalVotes || 0) >= 1;
-    if (eligible) {
+    const reviewed = !row.flagged && Number(row.totalVotes || 0) >= 1;
+    const eligible = !row.flagged && Number(row.totalVotes || 0) >= 3;
+    if (reviewed) {
       summary.reviewedPoemCount += 1;
       summary.noSignalCount += row.signalLevel === "none" ? 1 : 0;
       summary.lowSignalCount += row.signalLevel === "low" ? 1 : 0;
-      summary.totalScore += Number(row.totalScore || 0);
-      summary.totalDirectScore += Number(row.directScore || 0);
-      summary.totalDerivativeBonus += Number(row.connectedContentBonus || 0);
+    }
+    if (eligible) {
+      const directScore = Number(row.directScore || 0);
+      const assetBonus = Number(row.connectedContentBonus || 0);
+      const derivativeVoteBonus = Number(row.derivativeVoteBonus || 0);
+      const totalScore = Number(row.totalScore || 0);
+      summary.totalScore += totalScore;
+      summary.totalDirectScore += directScore;
+      summary.totalAssetBonus += assetBonus;
+      summary.totalDerivativeVoteBonus += derivativeVoteBonus;
+      summary.totalDerivativeBonus += assetBonus + derivativeVoteBonus;
       summary.totalSignals += Number(row.signalCount || 0);
-      summary.eligiblePoemScores.push(Number(row.totalScore || 0));
+      summary.eligiblePoems.push({ totalScore, directScore, assetBonus, derivativeVoteBonus });
     }
     if (eligible && (summary.topPoemScore === null || Number(row.totalScore || 0) > summary.topPoemScore)) {
       summary.topPoem = row.title;
@@ -4756,8 +4767,10 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         totalScore: 0,
         totalDirectScore: 0,
         totalDerivativeBonus: 0,
+        totalAssetBonus: 0,
+        totalDerivativeVoteBonus: 0,
         totalSignals: 0,
-        eligiblePoemScores: [],
+        eligiblePoems: [],
         topPoem: "",
         topPoemScore: null,
       });
@@ -4766,11 +4779,13 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   const importedBookSummaries = Array.from(summaryMap.values());
 
   const bookSummaries = (await mapWithConcurrency(importedBookSummaries, 6, async (summary) => {
-    const topTenScores = (summary.eligiblePoemScores || []).slice().sort((a, b) => b - a).slice(0, 10);
-    const topTenScore = topTenScores.reduce((sum, score) => sum + score, 0);
-    const topTenAverage = topTenScores.length
-      ? Number((topTenScore / topTenScores.length).toFixed(1))
-      : 0;
+    const topTenPoems = (summary.eligiblePoems || []).slice().sort((a, b) => b.totalScore - a.totalScore).slice(0, 10);
+    const topTenScore = topTenPoems.reduce((sum, poem) => sum + poem.totalScore, 0);
+    const topTenDirectScore = topTenPoems.reduce((sum, poem) => sum + poem.directScore, 0);
+    const topTenAssetBonus = topTenPoems.reduce((sum, poem) => sum + poem.assetBonus, 0);
+    const topTenDerivativeVoteBonus = topTenPoems.reduce((sum, poem) => sum + poem.derivativeVoteBonus, 0);
+    const topTenAverage = topTenPoems.length ? Number((topTenScore / topTenPoems.length).toFixed(1)) : 0;
+    const topTenDirectAverage = topTenPoems.length ? Number((topTenDirectScore / topTenPoems.length).toFixed(1)) : 0;
     const canonicalPoems = await getCanonicalPoems(summary.book);
     const catalogPoemCount = canonicalPoems === null ? null : canonicalPoems.length;
     const importedFpCount = summary.poemCount;
@@ -4821,17 +4836,22 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         ? Math.min(100, Math.round((matchedFpCount / catalogPoemCount) * 100))
         : null,
       reviewedPercent: importedFpCount ? Math.round((summary.reviewedPoemCount / importedFpCount) * 100) : 0,
-      eligiblePoemCount: summary.reviewedPoemCount,
+      eligiblePoemCount: (summary.eligiblePoems || []).length,
+      provisional: (summary.eligiblePoems || []).length < 5,
       topTenScore,
       topTenAverage,
-      averageScore: summary.reviewedPoemCount
-        ? Number((summary.totalScore / summary.reviewedPoemCount).toFixed(1))
+      topTenDirectScore,
+      topTenDirectAverage,
+      topTenAssetBonus,
+      topTenDerivativeVoteBonus,
+      averageScore: (summary.eligiblePoems || []).length
+        ? Number((summary.totalScore / summary.eligiblePoems.length).toFixed(1))
         : 0,
     };
   }))
     .sort((a, b) => (
       (b.topTenScore - a.topTenScore)
-      || (b.topTenAverage - a.topTenAverage)
+      || (b.topTenDirectAverage - a.topTenDirectAverage)
       || (b.eligiblePoemCount - a.eligiblePoemCount)
       || a.book.localeCompare(b.book)
     ));
@@ -4845,7 +4865,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     bookSummaries,
     scoring: {
       totalScore: "FP score plus one point per active connected content item (capped at 10), plus 25% of the combined positive score of the top three active connected items with at least two votes (rounded, capped at 6).",
-      bookRanking: "Books rank by the sum of their top 10 unflagged poems with at least one direct FP vote, then top-10 average, eligible poem count, and title.",
+      bookRanking: "Books rank by the sum of their top 10 unflagged poems with at least three direct FP votes, then top-10 direct-score average, eligible poem count, and title. Books with fewer than five eligible poems are provisional.",
       connectedVoteScore: "Connected-content vote scores contribute through the capped top-three derivative vote bonus; complete diagnostics remain available in How scored.",
     },
     snapshotMeta: {
