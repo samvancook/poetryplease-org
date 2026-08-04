@@ -4592,13 +4592,21 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       const flags = flagsByImageId.get(normalizeKey(item.imageId)) || [];
       const connected = (connectedByPoem.get(poemKey(row)) || [])
         .map((connectedItem) => ({ ...connectedItem, ...connectedItemStatus(connectedItem) }));
-      const connectedWithVotes = connected.filter((item) => Number(item.totalVotes || 0) > 0);
+      const activeConnected = connected.filter((item) =>
+        ["active", "renamed"].includes(item.visibilityStatus)
+      );
+      const connectedWithVotes = activeConnected.filter((item) => Number(item.totalVotes || 0) > 0);
+      const derivativeVoteScores = activeConnected
+        .filter((item) => Number(item.totalVotes || 0) >= 2)
+        .map((item) => Math.max(0, Number(item.score || 0)))
+        .sort((a, b) => b - a)
+        .slice(0, 3);
+      const derivativeVoteSourceScore = derivativeVoteScores.reduce((sum, score) => sum + score, 0);
+      const derivativeVoteBonus = Math.min(6, Math.round(derivativeVoteSourceScore * 0.25));
       const originalConnectedContentBonus = Number(row.fpDerivativePoints || 0);
-      const connectedContentBonus = Math.min(10, connected.filter((connectedItem) =>
-        ["active", "renamed"].includes(connectedItem.visibilityStatus)
-      ).length);
+      const connectedContentBonus = Math.min(10, activeConnected.length);
       const directScore = Number(row.score || 0) - originalConnectedContentBonus;
-      const totalScore = directScore + connectedContentBonus;
+      const totalScore = directScore + connectedContentBonus + derivativeVoteBonus;
       const connectedTypeCounts = connected.reduce((counts, connectedItem) => {
         const type = normalizeText(connectedItem.type).toUpperCase();
         if (type) counts[type] = (counts[type] || 0) + 1;
@@ -4626,6 +4634,8 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         totalScore,
         directScore,
         connectedContentBonus,
+        derivativeVoteBonus,
+        derivativeVoteSourceScore,
         connectedTypeCounts,
         connectedVotedCount: connectedWithVotes.length,
         connectedVoteScore: connectedWithVotes.reduce((sum, item) => sum + Number(item.score || 0), 0),
@@ -4647,6 +4657,8 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
           dislikePoints: -Number(row.dislikes || 0),
           authorAdjustment,
           connectedContentBonus,
+          derivativeVoteBonus,
+          derivativeVoteSourceScore,
           totalScore,
         },
         connectedItems: connected
@@ -4832,9 +4844,9 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     rows: fullPoems,
     bookSummaries,
     scoring: {
-      totalScore: "Current FP score: direct votes plus one point per connected derivative content item, capped at 10 derivative points.",
+      totalScore: "FP score plus one point per active connected content item (capped at 10), plus 25% of the combined positive score of the top three active connected items with at least two votes (rounded, capped at 6).",
       bookRanking: "Books rank by the sum of their top 10 unflagged poems with at least one direct FP vote, then top-10 average, eligible poem count, and title.",
-      connectedVoteScore: "Diagnostic only; connected-content vote scores are not yet rolled into the FP total.",
+      connectedVoteScore: "Connected-content vote scores contribute through the capped top-three derivative vote bonus; complete diagnostics remain available in How scored.",
     },
     snapshotMeta: {
       source: result.source,
