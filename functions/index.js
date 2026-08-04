@@ -6078,6 +6078,60 @@ app.post(getBoth("/admin/idHygiene/applyPig"), async (req, res) => {
   }
 });
 
+app.post(getBoth("/internal/idHygiene/applyPig"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  try {
+    const passes = [];
+    let updatedCount = 0;
+    let renamedCount = 0;
+    let metadataFixedCount = 0;
+    let errorCount = 0;
+
+    for (let pass = 1; pass <= 20; pass += 1) {
+      const rows = await buildPigIdHygienePlan();
+      const eligibleCount = rows.filter((row) => row.eligible || row.metadataFixEligible).length;
+      if (!eligibleCount) break;
+
+      const results = await applyPigIdHygieneRows(rows, {
+        email: "system:pig-id-hygiene",
+      });
+      const successful = results.filter((row) => row.ok);
+      const passErrors = results.filter((row) => !row.ok);
+      updatedCount += successful.length;
+      renamedCount += successful.filter((row) => row.action === "rename").length;
+      metadataFixedCount += successful.filter((row) => row.action === "metadata").length;
+      errorCount += passErrors.length;
+      passes.push({
+        pass,
+        eligibleCount,
+        attemptedCount: results.length,
+        updatedCount: successful.length,
+        errorCount: passErrors.length,
+      });
+
+      if (!successful.length) break;
+    }
+
+    const remaining = await buildPigIdHygienePlan();
+    res.json({
+      ok: true,
+      updatedCount,
+      renamedCount,
+      metadataFixedCount,
+      errorCount,
+      remainingPigCount: remaining.length,
+      remainingEligibleCount: remaining.filter((row) => row.eligible || row.metadataFixEligible).length,
+      remainingBlockedCount: remaining.filter((row) => !row.eligible && !row.metadataFixEligible).length,
+      passes,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "pig_apply_failed" });
+  }
+});
+
 async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor = {}) {
   const sourceRecords = flattenWeaverGraphicsRecords(rawPayload);
   const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record, { defaultImageType }));
