@@ -3,6 +3,11 @@
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
 ## Active Focus
+- Deployment integrity (top priority):
+  - automate JavaScript/CSS asset versioning instead of hand-maintained date query strings
+  - fail deployment when changed assets retain stale HTML references
+  - expose the deployed commit/build revision in the UI and verify it after every production deployment
+
 - Poem-centered Scoreboard:
   - keep four distinct views: Books for collection health, Poems for poem-centered ranking, Content for individual assets/export, and Coverage for production targets
   - preserve the Content table and Google Sheet export for calendar planning
