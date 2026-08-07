@@ -84,6 +84,35 @@
     .review-toggle input { width: 24px; height: 24px; flex: 0 0 auto; margin-top: 2px; accent-color: var(--accent); }
     .review-toggle strong { display: block; font-size: 18px; color: var(--ink); }
     .review-toggle span { display: block; margin-top: 4px; color: var(--muted); line-height: 1.45; }
+    .author-view-banner {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+      gap: 18px;
+      align-items: end;
+      margin: 20px 0;
+      padding: 20px;
+      border: 3px solid var(--accent);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .author-view-heading { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+    .author-view-title { font-size: clamp(28px, 5vw, 46px); font-weight: 800; line-height: 1; }
+    .author-view-name { font-size: clamp(24px, 4vw, 38px); font-weight: 700; color: var(--accent); line-height: 1; }
+    .author-view-banner p { margin: 10px 0 0; color: var(--muted); }
+    .author-view-banner select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+      font-weight: 700;
+    }
+    .author-view-back { display: inline-block; margin-top: 10px; color: var(--accent); font-weight: 700; text-decoration: none; }
+    @media (max-width: 720px) {
+      .author-view-banner { grid-template-columns: 1fr; }
+    }
     .is-hidden { display: none !important; }
   </style>
 </head>
@@ -100,6 +129,23 @@
 
     <h1>Author Profile Editor</h1>
     <p class="lede">This editor controls the public author page, social links, and featured work. Slugs are generated automatically, and featured content comes from the content we currently associate with the author.</p>
+
+    <section id="admin-author-view" class="author-view-banner is-hidden" aria-label="Admin author preview controls">
+      <div>
+        <div class="author-view-heading">
+          <span class="author-view-title">AUTHOR VIEW</span>
+          <span id="author-view-current" class="author-view-name"></span>
+        </div>
+        <p>Admin-only preview controls. The author does not see this panel.</p>
+        <a class="author-view-back" href="/author-command-center">Back to Author Command Center</a>
+      </div>
+      <label>
+        Switch author view
+        <select id="author-view-select" aria-label="Switch author preview">
+          <option value="">Loading authors...</option>
+        </select>
+      </label>
+    </section>
 
     <section class="card" data-panel="profile">
       <div class="section-head">
@@ -267,6 +313,7 @@
       authorReviewMode: localStorage.getItem("pp_author_review_mode") !== "false",
       reviewAuthor: new URLSearchParams(window.location.search).get("reviewAuthor") || "",
       previewMode: false,
+      isAdmin: false,
     };
 
     function slugify(value) {
@@ -327,8 +374,57 @@
     function updatePreviewStatus() {
       if (!state.previewMode) return;
       const statusEl = document.getElementById("status");
-      statusEl.textContent = `Preview loaded for ${state.reviewAuthor}. Changes here are for review only.`;
+      const authorName = state.workingProfile?.displayName || state.reviewAuthor;
+      statusEl.textContent = `Preview loaded for ${authorName}. Changes here are for review only.`;
       statusEl.className = "status ok";
+    }
+
+    function renderAdminAuthorView() {
+      const banner = document.getElementById("admin-author-view");
+      if (!state.previewMode || !state.isAdmin) {
+        banner.classList.add("is-hidden");
+        return;
+      }
+      const authorName = state.workingProfile?.displayName || state.reviewAuthor;
+      document.getElementById("author-view-current").textContent = authorName;
+      banner.classList.remove("is-hidden");
+    }
+
+    async function loadAdminAuthorViewOptions() {
+      renderAdminAuthorView();
+      if (!state.previewMode || !state.isAdmin) return;
+      const select = document.getElementById("author-view-select");
+      try {
+        const payload = await api("admin/authorCommandCenter", { method: "GET" });
+        const choices = [];
+        const seen = new Set();
+        (payload.rows || []).forEach((row) => {
+          const profile = row.profile || {};
+          const invite = row.invite || {};
+          const name = profile.displayName || invite.email || "";
+          const reviewAuthor = profile.displayName || profile.slug || name;
+          const key = reviewAuthor.trim().toLowerCase();
+          if (!reviewAuthor || seen.has(key)) return;
+          seen.add(key);
+          choices.push({ name, reviewAuthor });
+        });
+        const currentKey = state.reviewAuthor.trim().toLowerCase();
+        if (currentKey && !seen.has(currentKey)) {
+          choices.push({
+            name: state.workingProfile?.displayName || state.reviewAuthor,
+            reviewAuthor: state.reviewAuthor,
+          });
+        }
+        choices.sort((a, b) => a.name.localeCompare(b.name));
+        select.innerHTML = choices.map((choice) =>
+          `<option value="${escapeHtml(choice.reviewAuthor)}">${escapeHtml(choice.name)}</option>`
+        ).join("");
+        const current = choices.find((choice) => choice.reviewAuthor.trim().toLowerCase() === currentKey);
+        if (current) select.value = current.reviewAuthor;
+      } catch (err) {
+        console.error(err);
+        select.innerHTML = `<option value="${escapeHtml(state.reviewAuthor)}">${escapeHtml(state.workingProfile?.displayName || state.reviewAuthor)}</option>`;
+      }
     }
 
     function setPanelCollapsed(panel, collapsed) {
@@ -714,8 +810,12 @@
       state.authoredContent = payload.authoredContent || [];
       fillProfile(payload.profile || null, payload.workingProfile || payload.profile || {});
       renderContentPicker();
-      if (state.previewMode) updatePreviewStatus();
-      else setStatus(payload.profile ? "Profile loaded." : "No profile yet. Fill this out to create one.");
+      if (state.previewMode) {
+        updatePreviewStatus();
+        await loadAdminAuthorViewOptions();
+      } else {
+        setStatus(payload.profile ? "Profile loaded." : "No profile yet. Fill this out to create one.");
+      }
     }
 
 
@@ -850,7 +950,8 @@
           setStatus("Could not load account state.", "error");
           return;
         }
-        setAccessUI({ signedIn: true, isAdmin: state.me?.roles?.includes("admin") });
+        state.isAdmin = !!state.me?.roles?.includes("admin");
+        setAccessUI({ signedIn: true, isAdmin: state.isAdmin });
         const canPreview = !!state.reviewAuthor && state.me?.roles?.some((role) => role === "team" || role === "admin");
         const canEdit = state.me?.roles?.some((role) => role === "author" || role === "admin");
         if (!canPreview && !canEdit) {
@@ -881,6 +982,13 @@
       document.getElementById("author-review-type").addEventListener("change", (event) => {
         state.reviewType = event.target.value;
         renderContentPicker();
+      });
+      document.getElementById("author-view-select").addEventListener("change", (event) => {
+        const reviewAuthor = event.target.value.trim();
+        if (!state.isAdmin || !reviewAuthor) return;
+        const url = new URL(window.location.href);
+        url.searchParams.set("reviewAuthor", reviewAuthor);
+        window.location.assign(`${url.pathname}${url.search}`);
       });
       document.getElementById("logout").addEventListener("click", async () => {
         await firebase.auth().signOut();
