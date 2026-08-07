@@ -54,6 +54,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - give authors a simple dashboard of their own content
   - let authors flag or suggest corrections on their own content
   - show author-facing response summaries without exposing raw admin tooling
+  - harden admin Author View parity: render the preview through the same permissions and author-scoped data contract as the real account, keep admin-only switching controls outside the simulated author surface, and add regression tests proving admin/team controls never leak into the author view
 - Reduce development risk while continuing feature work:
   - use small scoped changes and checkpoint commits before risky edits
   - add a short smoke-test checklist for every deploy
