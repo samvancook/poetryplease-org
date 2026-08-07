@@ -868,12 +868,14 @@ function updateUserStatusUI() {
 
 function updateFilterControlsVisibility() {
   const canSeeDropdownFilters = currentUserIsTeamOrAdmin();
+  const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
+  const canSeeTypeFilter = canSeeDropdownFilters || (!authorPreviewMode && roles.includes('author'));
   const typeContainer = document.getElementById('type-filter-container');
   const catalogContainer = document.getElementById('catalog-filter-container');
   const bookContainer = document.getElementById('book-filter-container');
   const queueModeContainer = document.getElementById('queue-mode-container');
   if (typeContainer) {
-    if (canSeeDropdownFilters) typeContainer.style.removeProperty('display');
+    if (canSeeTypeFilter) typeContainer.style.removeProperty('display');
     else typeContainer.style.display = 'none';
   }
   if (catalogContainer) {
@@ -1686,34 +1688,6 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
 function userCanFlagContent() {
   const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
   return roles.some((role) => role === 'author' || role === 'team' || role === 'admin');
-}
-
-function userCanSeeScopedContentMetadata() {
-  if (authorPreviewMode) return true;
-  const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
-  return roles.some((role) => role === 'author' || role === 'team' || role === 'admin');
-}
-
-function updateMobileScopedContentMetadata(item) {
-  if (!userCanSeeScopedContentMetadata()) return;
-  const meta = document.querySelector('.pp-info__meta');
-  if (!meta) return;
-
-  const upsertRow = (id, label, value) => {
-    let valueEl = document.getElementById(id);
-    if (!valueEl) {
-      const labelEl = document.createElement('div');
-      labelEl.className = 'pp-info__label';
-      labelEl.textContent = label;
-      valueEl = document.createElement('div');
-      valueEl.id = id;
-      meta.append(labelEl, valueEl);
-    }
-    valueEl.textContent = value || '—';
-  };
-
-  upsertRow('info-content-type', 'Content type', formatContentTypeLabel(item?.imageType));
-  upsertRow('info-release-catalog', 'Catalog', String(item?.releaseCatalog || '').trim());
 }
 
 function normalizeFilterValue(value) {
@@ -2975,7 +2949,6 @@ function renderMetaRows(item) {
     if (window.PP && typeof window.PP.updateInfo === 'function') {
       window.PP.updateInfo(item);
     }
-    updateMobileScopedContentMetadata(item);
     const badge = document.getElementById('mobile-counts');
     if (badge) badge.style.display = 'none';
     return; // prevent the three mediaWrap.prepend(...) lines from running
@@ -2988,11 +2961,6 @@ function renderMetaRows(item) {
   }
 
   // On mobile we still show the metadata, but the checkboxes still work
-  if (userCanSeeScopedContentMetadata()) {
-    const catalog = String(item.releaseCatalog || '').trim();
-    if (catalog) mediaWrap.prepend(row(`Catalog: ${catalog}`));
-    mediaWrap.prepend(row(`Content type: ${formatContentTypeLabel(item.imageType)}`));
-  }
   mediaWrap.prepend(row(`Title: ${item.title || ''}`));
   mediaWrap.prepend(row(
     `From their book: ${item.book || ''}`,
