@@ -73,6 +73,9 @@
     .review-note { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
     .review-note select, .review-note textarea { width: 100%; }
     .review-note textarea { min-height: 72px; }
+    .review-filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; margin-top: 16px; }
+    .review-filters label { min-width: min(280px, 100%); flex: 1 1 240px; }
+    .review-filters select { width: 100%; margin-top: 6px; }
     .empty { border: 1px dashed var(--line); border-radius: 16px; padding: 16px; color: var(--muted); }
     .review-toggle {
       display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 2px solid var(--accent);
@@ -201,6 +204,20 @@
             <span id="author-review-count">Loading associated work…</span>
           </span>
         </label>
+        <div id="author-review-filters" class="review-filters">
+          <label>
+            Filter by Book
+            <select id="author-review-book">
+              <option value="">All Books</option>
+            </select>
+          </label>
+          <label>
+            Filter by Image Type
+            <select id="author-review-type">
+              <option value="">All Types</option>
+            </select>
+          </label>
+        </div>
         <div id="content-picker" class="picker-grid"></div>
       </div>
     </section>
@@ -245,6 +262,8 @@
       photoUrl: "",
       myClaims: [],
       claimResults: [],
+      reviewBook: "",
+      reviewType: "",
       authorReviewMode: localStorage.getItem("pp_author_review_mode") !== "false",
       reviewAuthor: new URLSearchParams(window.location.search).get("reviewAuthor") || "",
       previewMode: false,
@@ -477,16 +496,61 @@
       });
     }
 
+    function contentTypeLabel(value) {
+      const labels = {
+        QI: "Quote Images",
+        INT: "Interior Photos",
+        EXC: "Excerpts",
+        FP: "Full Poems",
+        FPI: "Full Poem Images",
+        VV: "Vertical Videos",
+        YT: "YouTube",
+      };
+      const code = String(value || "").trim();
+      return labels[code] || code || "Content";
+    }
+
+    function renderAuthorReviewFilters() {
+      const filters = document.getElementById("author-review-filters");
+      const bookSelect = document.getElementById("author-review-book");
+      const typeSelect = document.getElementById("author-review-type");
+      if (filters) filters.classList.toggle("is-hidden", !state.authorReviewMode);
+
+      const books = [...new Set(state.authoredContent.map((item) => String(item.book || "").trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b));
+      const types = [...new Set(state.authoredContent.map((item) => String(item.imageType || "").trim()).filter(Boolean))]
+        .sort((a, b) => contentTypeLabel(a).localeCompare(contentTypeLabel(b)));
+
+      if (bookSelect) {
+        bookSelect.innerHTML = '<option value="">All Books</option>' + books
+          .map((book) => `<option value="${escapeHtml(book)}"${book === state.reviewBook ? " selected" : ""}>${escapeHtml(book)}</option>`)
+          .join("");
+      }
+      if (typeSelect) {
+        typeSelect.innerHTML = '<option value="">All Types</option>' + types
+          .map((type) => `<option value="${escapeHtml(type)}"${type === state.reviewType ? " selected" : ""}>${escapeHtml(contentTypeLabel(type))}</option>`)
+          .join("");
+      }
+    }
+
     function renderContentPicker() {
       const container = document.getElementById("content-picker");
       const toggle = document.getElementById("author-review-mode");
       const count = document.getElementById("author-review-count");
       if (toggle) toggle.checked = state.authorReviewMode;
+      renderAuthorReviewFilters();
+      const filteredContent = state.authoredContent.filter((item) => {
+        if (state.reviewBook && String(item.book || "").trim() !== state.reviewBook) return false;
+        if (state.reviewType && String(item.imageType || "").trim() !== state.reviewType) return false;
+        return true;
+      });
       if (count) {
         const authorName = state.workingProfile?.displayName || state.reviewAuthor || "this author";
         const appUrl = reviewAuthorUrl(authorName);
         count.textContent = state.authoredContent.length
-          ? `${state.authoredContent.length} pieces are currently associated with this author profile.`
+          ? (filteredContent.length === state.authoredContent.length
+              ? `${state.authoredContent.length} pieces are currently associated with this author profile.`
+              : `Showing ${filteredContent.length} of ${state.authoredContent.length} associated pieces.`)
           : "No associated work found yet.";
         count.insertAdjacentHTML("beforeend", ` <a class="preview" href="${appUrl}" target="_blank" rel="noopener">Review in Poetry Please</a>`);
       }
@@ -498,15 +562,20 @@
         container.innerHTML = '<div class="empty">We do not currently infer any associated content for this author yet. Saving name variants can help refine matching.</div>';
         return;
       }
-      container.innerHTML = state.authoredContent.map((item) => {
+      if (!filteredContent.length) {
+        container.innerHTML = '<div class="empty">No associated work matches these filters.</div>';
+        return;
+      }
+      container.innerHTML = filteredContent.map((item) => {
         const isFeatured = state.featuredIds.includes(item.imageId);
         const itemId = escapeHtml(item.imageId || "");
         return `
           <article class="content-card">
-            <span class="chip">${escapeHtml(item.imageType || 'Content')}</span>
+            <span class="chip">${escapeHtml(contentTypeLabel(item.imageType))}</span>
             <h3>${escapeHtml(item.title || 'Untitled')}</h3>
-            <p>${escapeHtml(item.author || '')}</p>
-            <p>${escapeHtml(item.releaseCatalog || '')}</p>
+            <p><strong>Author:</strong> ${escapeHtml(item.author || '—')}</p>
+            <p><strong>Book:</strong> ${escapeHtml(item.book || '—')}</p>
+            <p><strong>Catalog:</strong> ${escapeHtml(item.releaseCatalog || '—')}</p>
             <div class="actions" style="margin-top:12px;">
               <button type="button" class="${isFeatured ? 'active-feature' : 'ghost'}" data-feature-id="${itemId}">${isFeatured ? 'Featured' : 'Add to featured'}</button>
               <a class="preview" href="${reviewItemUrl(item)}" target="_blank" rel="noopener">Open in Poetry Please</a>
@@ -803,6 +872,14 @@
       document.getElementById("author-review-mode").addEventListener("change", (event) => {
         state.authorReviewMode = event.target.checked;
         localStorage.setItem("pp_author_review_mode", state.authorReviewMode ? "true" : "false");
+        renderContentPicker();
+      });
+      document.getElementById("author-review-book").addEventListener("change", (event) => {
+        state.reviewBook = event.target.value;
+        renderContentPicker();
+      });
+      document.getElementById("author-review-type").addEventListener("change", (event) => {
+        state.reviewType = event.target.value;
         renderContentPicker();
       });
       document.getElementById("logout").addEventListener("click", async () => {
