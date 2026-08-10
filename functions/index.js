@@ -5874,6 +5874,204 @@ app.post(getBoth("/admin/contentQuarantine/:imageId/review"), async (req, res) =
   res.json({ ok: true, imageId, decision });
 });
 
+
+const MANAGED_CONTENT_STORAGE_PREFIX = "content-library/";
+const STORAGE_REFERENCE_FIELDS = [
+  "imageUrl",
+  "thumbnailUrl",
+  "driveLink",
+  "cloudLink",
+  "assetUrl",
+  "assetLinkUrl",
+  "storageUrl",
+  "publicUrl",
+  "originalAssetLink",
+  "replacementAssetLink",
+  "previewUrl",
+  "storagePath",
+];
+
+function storagePathFromValue(value) {
+  const input = normalizeText(value);
+  if (!input) return "";
+  if (input.startsWith("gs://")) {
+    const withoutScheme = input.slice(5);
+    const slashIndex = withoutScheme.indexOf("/");
+    if (slashIndex < 0) return "";
+    return decodeURIComponent(withoutScheme.slice(slashIndex + 1)).replace(/^\/+/, "");
+  }
+  if (/^https?:\/\//i.test(input)) {
+    try {
+      const parsed = new URL(input);
+      if (parsed.hostname !== "firebasestorage.googleapis.com") return "";
+      const match = parsed.pathname.match(/^\/v0\/b\/([^/]+)\/o\/(.+)$/);
+      if (!match || decodeURIComponent(match[1]) !== storage.bucket().name) return "";
+      return decodeURIComponent(match[2]).replace(/^\/+/, "");
+    } catch {
+      return "";
+    }
+  }
+  return decodeURIComponent(input).replace(/^\/+/, "");
+}
+
+function parseManagedStorageAsset(value) {
+  const input = normalizeText(value);
+  const storagePath = storagePathFromValue(input);
+  if (!storagePath) {
+    const error = new Error("invalid_storage_asset");
+    error.statusCode = 400;
+    throw error;
+  }
+  if (!storagePath.startsWith(MANAGED_CONTENT_STORAGE_PREFIX)) {
+    const error = new Error("storage_asset_outside_content_library");
+    error.statusCode = 400;
+    throw error;
+  }
+  return { input, storagePath };
+}
+
+function contentCollectionForInspection(item = {}) {
+  const type = normalizeKey(item.imageType);
+  if (type === "exc") return COLLECTIONS.excerpts;
+  if (type === "fp") return COLLECTIONS.fullPoems;
+  if (type === "vv" || type === "yt") return COLLECTIONS.videos;
+  return COLLECTIONS.graphics;
+}
+
+async function findStorageAssetReferences(input, storagePath) {
+  const references = new Map();
+  const content = await getAllContentCached({ forceRefresh: true });
+  content.forEach((item) => {
+    const matchingFields = [
+      "imageUrl",
+      "videoUrl",
+      "thumbnailUrl",
+      "driveLink",
+      "cloudLink",
+      "sourceFolderLink",
+    ].filter((field) => storagePathFromValue(item?.[field]) === storagePath);
+    if (!matchingFields.length) return;
+    const docId = normalizeText(item.id || item.contentId || item.imageId);
+    const collection = contentCollectionForInspection(item);
+    const key = collection + "/" + docId;
+    references.set(key, {
+      collection,
+      docId,
+      contentId: normalizeText(item.contentId || item.imageId || docId),
+      imageId: normalizeText(item.imageId || ""),
+      imageType: normalizeText(item.imageType || ""),
+      title: normalizeText(item.title || ""),
+      author: normalizeText(item.author || ""),
+      book: normalizeText(item.book || ""),
+      fields: matchingFields,
+      source: "active_content",
+    });
+  });
+
+  const adminCollections = [
+    COLLECTIONS.contentAssets,
+    COLLECTIONS.contentFlags,
+    COLLECTIONS.contentRepairRequests,
+    COLLECTIONS.contentSubmissions,
+  ];
+  const exactValues = Array.from(new Set([input, storagePath].filter(Boolean)));
+  const queries = [];
+  adminCollections.forEach((collection) => {
+    STORAGE_REFERENCE_FIELDS.forEach((field) => {
+      exactValues.forEach((value) => {
+        queries.push(
+          db.collection(collection).where(field, "==", value).limit(50).get()
+            .then((snap) => ({ collection, field, snap }))
+            .catch(() => ({ collection, field, snap: null }))
+        );
+      });
+    });
+  });
+  const results = await Promise.all(queries);
+  results.forEach(({ collection, field, snap }) => {
+    snap?.docs?.forEach((doc) => {
+      const data = doc.data() || {};
+      const key = collection + "/" + doc.id;
+      const existing = references.get(key);
+      references.set(key, {
+        collection,
+        docId: doc.id,
+        contentId: normalizeText(data.contentId || data.imageId || data.originalContentId || ""),
+        imageId: normalizeText(data.imageId || ""),
+        imageType: normalizeText(data.imageType || data.contentType || ""),
+        title: normalizeText(data.title || data.poem || ""),
+        author: normalizeText(data.author || ""),
+        book: normalizeText(data.book || ""),
+        fields: Array.from(new Set([...(existing?.fields || []), field])),
+        source: existing?.source || "admin_record",
+      });
+    });
+  });
+  return Array.from(references.values()).sort((a, b) =>
+    (a.collection + "/" + a.docId).localeCompare(b.collection + "/" + b.docId)
+  );
+}
+
+async function inspectManagedStorageAsset(value) {
+  const { input, storagePath } = parseManagedStorageAsset(value);
+  const file = storage.bucket().file(storagePath);
+  const [exists] = await file.exists();
+  let metadata = null;
+  if (exists) {
+    const [rawMetadata] = await file.getMetadata();
+    metadata = {
+      name: normalizeText(rawMetadata.name || storagePath),
+      size: normalizeText(rawMetadata.size || ""),
+      contentType: normalizeText(rawMetadata.contentType || ""),
+      updated: normalizeText(rawMetadata.updated || ""),
+    };
+  }
+  const references = await findStorageAssetReferences(input, storagePath);
+  return { storagePath, exists, metadata, references };
+}
+
+app.post(getBoth("/admin/storageAsset/inspect"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  try {
+    const inspection = await inspectManagedStorageAsset(req.body?.url || req.body?.storagePath);
+    res.json({ ok: true, ...inspection });
+  } catch (err) {
+    res.status(err?.statusCode || 500).json({
+      error: err?.message || "storage_asset_inspection_failed",
+    });
+  }
+});
+
+app.post(getBoth("/admin/storageAsset/delete"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  try {
+    const inspection = await inspectManagedStorageAsset(req.body?.url || req.body?.storagePath);
+    if (inspection.references.length && req.body?.confirmReferenced !== true) {
+      return res.status(409).json({
+        error: "storage_asset_referenced",
+        message: "This asset is still referenced by Poetry Please records.",
+        ...inspection,
+      });
+    }
+    await storage.bucket().file(inspection.storagePath).delete({ ignoreNotFound: true });
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot("storage_asset_delete:" + inspection.storagePath);
+    res.json({
+      ok: true,
+      deleted: true,
+      storagePath: inspection.storagePath,
+      referenceCount: inspection.references.length,
+      references: inspection.references,
+    });
+  } catch (err) {
+    res.status(err?.statusCode || 500).json({
+      error: err?.message || "storage_asset_delete_failed",
+    });
+  }
+});
+
 app.get(getBoth("/admin/contentLibrary"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
