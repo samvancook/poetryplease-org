@@ -647,6 +647,17 @@
           <button id="delete-youtube-json" type="button" class="secondary" data-content-field="youtube">Delete JSON IDs</button>
         </div>
         <div id="content-import-preview" class="empty" style="margin-top:12px;">No import preview yet.</div>
+        <details id="storage-asset-maintenance" style="margin-top:20px;">
+          <summary style="cursor:pointer;font-weight:700;">Storage Asset Maintenance</summary>
+          <p class="hint">Inspect a Poetry Please Firebase Storage image before deleting it. Deletion is blocked until any exact content and workflow references are shown.</p>
+          <div class="controls">
+            <input id="storage-asset-url" type="url" placeholder="Paste a firebasestorage.googleapis.com content-library URL" style="min-width:min(100%,680px);" />
+            <button id="inspect-storage-asset" type="button" class="secondary">Inspect asset</button>
+            <button id="delete-storage-asset" type="button" disabled>Delete asset</button>
+          </div>
+          <div id="storage-asset-status" class="status">No Storage asset inspected yet.</div>
+          <div id="storage-asset-results" class="empty">Paste an asset URL to check whether the file exists and which Poetry Please records point to it.</div>
+        </details>
         <div id="content-library-list" style="margin-top:18px;"></div>
       </div>
     </section>
@@ -935,6 +946,7 @@
       contentType: "all",
       contentQuery: "",
       contentOriginalDocId: "",
+      storageAssetInspection: null,
       weaverPreview: null,
       weaverSourceUrl: localStorage.getItem('pp_admin_weaver_source_url') || '',
       legacyImportPreview: null,
@@ -2843,6 +2855,116 @@
       }
     }
 
+    function formatStorageAssetSize(value) {
+      const bytes = Number(value || 0);
+      if (!bytes) return "";
+      if (bytes < 1024) return bytes + " bytes";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    }
+
+    function renderStorageAssetInspection() {
+      const inspection = state.storageAssetInspection;
+      const statusEl = document.getElementById("storage-asset-status");
+      const resultsEl = document.getElementById("storage-asset-results");
+      const deleteButton = document.getElementById("delete-storage-asset");
+      if (!inspection) {
+        deleteButton.disabled = true;
+        resultsEl.className = "empty";
+        resultsEl.textContent = "Paste an asset URL to check whether the file exists and which Poetry Please records point to it.";
+        return;
+      }
+      const references = Array.isArray(inspection.references) ? inspection.references : [];
+      deleteButton.disabled = !inspection.exists;
+      statusEl.className = "status";
+      statusEl.textContent = (inspection.exists ? "Storage file found." : "Storage file not found.") + " " +
+        references.length + " Poetry Please reference" + (references.length === 1 ? "" : "s") + " found.";
+      const metadata = inspection.metadata || {};
+      const metadataText = [
+        metadata.contentType,
+        formatStorageAssetSize(metadata.size),
+        metadata.updated ? "updated " + metadata.updated : "",
+      ].filter(Boolean).join(" · ");
+      const referenceRows = references.length
+        ? '<table><thead><tr><th>Record</th><th>Content</th><th>Matched field</th></tr></thead><tbody>' +
+          references.map(function (reference) {
+            const contentId = reference.contentId || reference.imageId || reference.docId || "";
+            const openLink = contentId
+              ? ' <a href="/app?item=' + encodeURIComponent(contentId) + '" target="_blank" rel="noopener">Open</a>'
+              : "";
+            return '<tr><td>' + escapeHtml(reference.collection + "/" + reference.docId) + openLink +
+              '</td><td><strong>' + escapeHtml(reference.title || contentId || "Untitled") + '</strong>' +
+              '<div class="meta">' + escapeHtml([reference.author, reference.book, reference.imageType].filter(Boolean).join(" · ")) +
+              '</div></td><td>' + escapeHtml((reference.fields || []).join(", ")) + '</td></tr>';
+          }).join("") + '</tbody></table>'
+        : '<div class="empty">No active content or workflow record points to this exact Storage object path.</div>';
+      resultsEl.className = "";
+      resultsEl.innerHTML =
+        '<div class="hint"><strong>Storage path:</strong> ' + escapeHtml(inspection.storagePath || "") +
+        (metadataText ? '<br><strong>File:</strong> ' + escapeHtml(metadataText) : "") +
+        '</div>' + referenceRows;
+    }
+
+    async function inspectStorageAsset() {
+      const statusEl = document.getElementById("storage-asset-status");
+      const url = document.getElementById("storage-asset-url").value.trim();
+      if (!url) {
+        statusEl.textContent = "Paste the Firebase Storage URL first.";
+        statusEl.className = "status error";
+        return;
+      }
+      statusEl.textContent = "Inspecting Storage and Poetry Please references…";
+      statusEl.className = "status";
+      document.getElementById("delete-storage-asset").disabled = true;
+      try {
+        state.storageAssetInspection = await api("admin/storageAsset/inspect", {
+          method: "POST",
+          body: { url: url },
+        });
+        renderStorageAssetInspection();
+      } catch (err) {
+        console.error(err);
+        state.storageAssetInspection = null;
+        renderStorageAssetInspection();
+        statusEl.textContent = err.message || "Could not inspect Storage asset.";
+        statusEl.className = "status error";
+      }
+    }
+
+    async function deleteStorageAsset() {
+      const inspection = state.storageAssetInspection;
+      if (!inspection?.exists) return;
+      const references = Array.isArray(inspection.references) ? inspection.references : [];
+      const warning = references.length
+        ? "This permanently deletes the image file, but leaves " + references.length + " Poetry Please record reference(s) unchanged. Continue?"
+        : "Permanently delete this unreferenced image from Firebase Storage?";
+      if (!window.confirm(warning)) return;
+      const statusEl = document.getElementById("storage-asset-status");
+      statusEl.textContent = "Deleting Storage asset…";
+      statusEl.className = "status";
+      try {
+        const payload = await api("admin/storageAsset/delete", {
+          method: "POST",
+          body: {
+            storagePath: inspection.storagePath,
+            confirmReferenced: references.length > 0,
+          },
+        });
+        state.storageAssetInspection = {
+          ...inspection,
+          exists: false,
+          metadata: null,
+          deleted: true,
+        };
+        renderStorageAssetInspection();
+        statusEl.textContent = "Storage asset deleted. " + Number(payload.referenceCount || 0) + " record reference(s) remain for review.";
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || "Could not delete Storage asset.";
+        statusEl.className = "status error";
+      }
+    }
+
     async function loadContentLibrary() {
       const statusEl = document.getElementById('content-status');
       statusEl.textContent = 'Loading content library…';
@@ -4323,6 +4445,8 @@
         loadContentLibrary();
       });
       document.getElementById("refresh-content").addEventListener("click", () => loadContentLibrary());
+      document.getElementById("inspect-storage-asset").addEventListener("click", () => inspectStorageAsset());
+      document.getElementById("delete-storage-asset").addEventListener("click", () => deleteStorageAsset());
       document.getElementById("save-content").addEventListener("click", () => saveContent());
       document.getElementById("clear-content").addEventListener("click", () => clearContentForm());
       document.getElementById("content-image-type").addEventListener("input", () => syncWeaverIntakeControls());
