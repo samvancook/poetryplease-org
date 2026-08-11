@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>My submissions | Poetry, Please</title>
+  <style>
+    :root { color-scheme:light; --ink:#171512; --muted:#6d675e; --paper:#fbf8f1; --line:#d9d0c2; --accent:#315f64; --soft:#e3eff0; --error:#934536; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial,sans-serif; }
+    main { width:min(880px,calc(100% - 32px)); margin:42px auto 80px; }
+    header { display:flex; justify-content:space-between; gap:20px; align-items:start; border-bottom:1px solid var(--line); padding-bottom:22px; margin-bottom:26px; }
+    h1 { margin:0 0 8px; font:500 clamp(36px,7vw,58px)/1 Georgia,serif; letter-spacing:0; }
+    h2 { margin:0 0 8px; font-size:22px; letter-spacing:0; }
+    p { color:var(--muted); line-height:1.5; }
+    a { color:var(--accent); }
+    .panel { border:1px solid var(--line); background:white; padding:24px; border-radius:8px; }
+    .auth-grid { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; align-items:end; }
+    label { display:grid; gap:7px; font-weight:700; }
+    input { width:100%; border:1px solid var(--line); border-radius:6px; padding:12px; font:inherit; }
+    button { border:0; border-radius:6px; background:var(--accent); color:white; padding:13px 18px; font:700 16px Arial,sans-serif; cursor:pointer; }
+    button.secondary { background:white; color:var(--accent); border:1px solid var(--accent); }
+    button:disabled { opacity:.55; cursor:wait; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+    .status { min-height:24px; margin-top:12px; font-weight:700; }
+    .error { color:var(--error); }
+    .success { color:var(--accent); }
+    .list { display:grid; gap:12px; }
+    .submission { border-top:1px solid var(--line); padding:18px 0 4px; }
+    .submission:first-child { border-top:0; }
+    .meta { display:flex; flex-wrap:wrap; gap:8px 14px; color:var(--muted); }
+    .chip { display:inline-flex; align-items:center; min-height:28px; padding:4px 9px; border-radius:999px; background:var(--soft); color:var(--accent); font-weight:700; font-size:14px; }
+    [hidden] { display:none !important; }
+    @media (max-width:620px) { main { margin-top:24px; } header { display:block; } .auth-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>My submissions</h1>
+        <p>Track contest entries and other work submitted to Poetry, Please.</p>
+      </div>
+      <a href="/app">Back to Poetry, Please</a>
+    </header>
+
+    <section id="signed-out" class="panel">
+      <h2>Sign in</h2>
+      <p>Use the email from your submission. A verified sign-in automatically claims earlier contest entries made with that address.</p>
+      <div class="auth-grid">
+        <label>Email address<input id="email" type="email" autocomplete="email"></label>
+        <button id="email-button" type="button">Email me a sign-in link</button>
+      </div>
+      <div class="actions">
+        <button id="google-button" class="secondary" type="button">Continue with Google</button>
+      </div>
+      <div id="auth-status" class="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section id="signed-in" hidden>
+      <div class="panel">
+        <div class="meta">
+          <strong id="account-label"></strong>
+          <button id="sign-out-button" class="secondary" type="button">Sign out</button>
+        </div>
+        <div id="claim-status" class="status"></div>
+        <div id="submission-list" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/__/firebase/8.10.1/firebase-app.js"></script>
+  <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
+  <script src="/__/firebase/init.js"></script>
+  <script>
+    const auth = firebase.auth();
+    const signedOut = document.getElementById("signed-out");
+    const signedIn = document.getElementById("signed-in");
+    const authStatus = document.getElementById("auth-status");
+    const claimStatus = document.getElementById("claim-status");
+    const list = document.getElementById("submission-list");
+    const emailInput = document.getElementById("email");
+
+    function formatDate(value) {
+      const ms = Number(value?._seconds || value?.seconds || 0) * 1000;
+      const date = ms ? new Date(ms) : new Date(value || "");
+      return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
+    }
+
+    async function api(path, options = {}) {
+      const user = auth.currentUser;
+      if (!user) throw new Error("Sign in required.");
+      const response = await fetch("/api/" + path, {
+        ...options,
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer " + await user.getIdToken(),
+          ...(options.headers || {}),
+        },
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Request failed.");
+      return payload;
+    }
+
+    function renderSubmissions(rows) {
+      if (!rows.length) {
+        list.innerHTML = '<p>No submissions are connected to this account yet.</p>';
+        return;
+      }
+      list.innerHTML = rows.map((row) => {
+        const status = String(row.status || "pending").replace(/_/g, " ");
+        return `
+          <article class="submission">
+            <div class="meta">
+              <span class="chip">${status}</span>
+              <span>${row.submissionProgramName || row.sourceEventLabel || "Poetry, Please submission"}</span>
+              <span>${formatDate(row.createdAt)}</span>
+            </div>
+            <h2>${String(row.title || "Untitled").replace(/[&<>"']/g, (char) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[char]))}</h2>
+            <p>Reference: ${row.id}</p>
+          </article>
+        `;
+      }).join("");
+    }
+
+    async function loadSubmissions() {
+      claimStatus.textContent = "Connecting your submissions...";
+      try {
+        const claim = await api("my/submissions/claim", { method: "POST", body: "{}" });
+        const payload = await api("my/submissions");
+        claimStatus.className = "status success";
+        claimStatus.textContent = claim.claimedCount
+          ? claim.claimedCount + " earlier submission" + (claim.claimedCount === 1 ? "" : "s") + " connected to this account."
+          : "";
+        renderSubmissions(payload.submissions || []);
+      } catch (error) {
+        claimStatus.className = "status error";
+        claimStatus.textContent = error.message || "Could not load submissions.";
+      }
+    }
+
+    async function sendEmailLink() {
+      const email = emailInput.value.trim().toLowerCase();
+      if (!email) {
+        authStatus.className = "status error";
+        authStatus.textContent = "Enter your email address.";
+        return;
+      }
+      authStatus.className = "status";
+      authStatus.textContent = "Sending sign-in link...";
+      try {
+        await auth.sendSignInLinkToEmail(email, {
+          url: new URL("/my-submissions.html", location.origin).href,
+          handleCodeInApp: true,
+        });
+        localStorage.setItem("pp_email_for_sign_in", email);
+        authStatus.className = "status success";
+        authStatus.textContent = "Sign-in link sent. Check your email.";
+      } catch (error) {
+        authStatus.className = "status error";
+        authStatus.textContent = error.code === "auth/operation-not-allowed"
+          ? "Email-link sign-in is not enabled yet."
+          : (error.message || "Could not send the sign-in link.");
+      }
+    }
+
+    async function finishEmailLink() {
+      if (!auth.isSignInWithEmailLink(location.href)) return;
+      const savedEmail = localStorage.getItem("pp_email_for_sign_in") || "";
+      const email = savedEmail || window.prompt("Confirm the email address that received this link:");
+      if (!email) return;
+      authStatus.textContent = "Signing in...";
+      try {
+        await auth.signInWithEmailLink(email, location.href);
+        localStorage.removeItem("pp_email_for_sign_in");
+        history.replaceState({}, "", "/my-submissions.html");
+      } catch (error) {
+        authStatus.className = "status error";
+        authStatus.textContent = error.message || "This sign-in link could not be completed.";
+      }
+    }
+
+    async function signInGoogle() {
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        await auth.signInWithPopup(provider);
+      } catch (error) {
+        if (["auth/popup-blocked", "auth/cancelled-popup-request"].includes(error.code)) {
+          await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+          return;
+        }
+        authStatus.className = "status error";
+        authStatus.textContent = error.message || "Google sign-in failed.";
+      }
+    }
+
+    document.getElementById("email-button").addEventListener("click", sendEmailLink);
+    document.getElementById("google-button").addEventListener("click", signInGoogle);
+    document.getElementById("sign-out-button").addEventListener("click", () => auth.signOut());
+
+    auth.onAuthStateChanged((user) => {
+      signedOut.hidden = Boolean(user);
+      signedIn.hidden = !user;
+      if (!user) return;
+      document.getElementById("account-label").textContent = "Signed in as " + (user.email || user.displayName || "user");
+      loadSubmissions();
+    });
+
+    finishEmailLink();
+  </script>
+</body>
+</html>
