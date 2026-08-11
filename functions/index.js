@@ -8704,9 +8704,48 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     });
   });
 
+  const representedAuthorKeys = new Set();
+  profiles.forEach((profile) => {
+    [profile.displayName, ...(profile.authorNameVariants || [])]
+      .map(normalizeKey)
+      .filter(Boolean)
+      .forEach((key) => representedAuthorKeys.add(key));
+  });
+
+  const previewGroups = new Map();
+  allContent.forEach((item) => {
+    const author = normalizeText(item.author);
+    const key = normalizeKey(author);
+    if (!key || ["unknown", "unknown author", "n/a", "na"].includes(key) || representedAuthorKeys.has(key)) return;
+    const group = previewGroups.get(key) || { author, items: [] };
+    group.items.push(item);
+    previewGroups.set(key, group);
+  });
+
+  previewGroups.forEach(({ author, items }, key) => {
+    const feedbackRows = feedbackByAuthor.get(key) || [];
+    rowsByKey.set(`preview:${key}`, {
+      profile: null,
+      invite: null,
+      previewAuthor: author,
+      status: "preview ready",
+      associatedCount: items.length,
+      associatedSample: items.slice(0, 8).map((item) => ({
+        id: item.imageId || item.contentId || "",
+        title: item.title || item.poem || "",
+        book: item.book || "",
+        type: item.imageType || "",
+        catalog: item.releaseCatalog || "",
+      })),
+      featuredSample: [],
+      feedbackNotes: feedbackRows.slice(0, 8),
+      readiness: profileReadiness(null, items.length, feedbackRows.length),
+    });
+  });
+
   const rows = Array.from(rowsByKey.values()).sort((a, b) => {
-    const aName = a.profile?.displayName || a.invite?.email || "";
-    const bName = b.profile?.displayName || b.invite?.email || "";
+    const aName = a.profile?.displayName || a.previewAuthor || a.invite?.email || "";
+    const bName = b.profile?.displayName || b.previewAuthor || b.invite?.email || "";
     return aName.localeCompare(bName, undefined, { sensitivity: "base" });
   });
 
@@ -8714,6 +8753,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     ok: true,
     summary: {
       total: rows.length,
+      previewReady: rows.filter((row) => row.status === "preview ready").length,
       invited: rows.filter((row) => row.status === "invited").length,
       claimed: rows.filter((row) => row.readiness.hasClaimedAccount).length,
       readyForReview: rows.filter((row) => row.status === "ready for review").length,
