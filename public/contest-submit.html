@@ -78,6 +78,7 @@
     <section id="complete" hidden>
       <h2>Submission received</h2>
       <p>Thank you. Your poem is now in the review queue.</p>
+      <p id="submission-reference"></p>
     </section>
   </main>
   <script>
@@ -162,6 +163,7 @@
           throw new Error(messages[payload.error] || "The submission could not be saved.");
         }
         formSection.hidden = true;
+        document.getElementById("submission-reference").textContent = payload.submissionId ? "Confirmation reference: " + payload.submissionId : "";
         document.getElementById("complete").hidden = false;
       } catch (error) {
         status.className = "status error";
