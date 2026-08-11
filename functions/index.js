@@ -246,9 +246,12 @@ function resolveCatalogBookRecord({ author = "", book = "", bookShortener = "", 
 
 function canonicalizeAuthorName(value = "") {
   const author = normalizeText(value);
-  return normalizeKey(author) === "francis dylan waguespeck"
-    ? "Francis Dylan Waguespack"
-    : author;
+  const authorKey = normalizeKey(author);
+  if (authorKey === "francis dylan waguespeck") return "Francis Dylan Waguespack";
+  if (["guante", "kyle guante tran myhre", "kyle tran myhre"].includes(authorKey)) {
+    return "Kyle Tran Myhre";
+  }
+  return author;
 }
 
 function resolveCanonicalCatalogMetadata(item = {}) {
@@ -4009,10 +4012,14 @@ async function assignImportAssistantGraphicDocId(row = {}, usedIds = new Set()) 
 
 function pickProfileContent(profile, allContent, ratings) {
   const authorKeys = new Set(
-    uniq([profile.displayName, ...(profile.authorNameVariants || [])]).map(normalizeKey)
+    uniq([profile.displayName, ...(profile.authorNameVariants || [])])
+      .map((value) => normalizeKey(canonicalizeAuthorName(value)))
   );
   const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
-  const authored = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)) || claimedKeys.has(normalizeKey(item.imageId)));
+  const authored = allContent.filter((item) => (
+    authorKeys.has(normalizeKey(canonicalizeAuthorName(item.author)))
+    || claimedKeys.has(normalizeKey(item.imageId))
+  ));
   const byId = new Map(authored.map((item) => [normalizeKey(item.imageId), item]));
   const featured = (profile.featuredContentIds || [])
     .map((id) => byId.get(normalizeKey(id)))
