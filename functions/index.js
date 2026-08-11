@@ -8655,11 +8655,129 @@ app.get(getBoth("/admin/contentSubmissions"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
 
-  const snap = await db.collection(COLLECTIONS.contentSubmissions).limit(250).get();
-  const submissions = snap.docs
+  const [submissionSnap, programSnap, decisionSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).limit(250).get(),
+    db.collection(COLLECTIONS.submissionPrograms).limit(100).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").limit(1000).get(),
+  ]);
+  const decisionsBySubmissionId = new Map();
+  decisionSnap.docs.forEach((doc) => {
+    const row = { id: doc.id, ...(doc.data() || {}) };
+    const submissionId = normalizeText(row.submissionId);
+    if (!submissionId) return;
+    decisionsBySubmissionId.set(submissionId, [...(decisionsBySubmissionId.get(submissionId) || []), row]);
+  });
+  const submissions = submissionSnap.docs
     .map(mapSubmissionDoc)
+    .map((row) => {
+      const decisions = decisionsBySubmissionId.get(row.id) || [];
+      const decisionCounts = decisions.reduce((counts, decision) => {
+        const key = normalizeKey(decision.decision);
+        if (["yes", "maybe", "no"].includes(key)) counts[key] += 1;
+        return counts;
+      }, { yes: 0, maybe: 0, no: 0 });
+      return {
+        ...row,
+        contestReviewDecisions: decisions.map((decision) => ({
+          decision: normalizeKey(decision.decision),
+          note: normalizeText(decision.note || ""),
+          reviewerUid: normalizeText(decision.reviewerUid || ""),
+          reviewerEmail: normalizeText(decision.reviewerEmail || ""),
+          reviewedAt: decision.reviewedAt || decision.updatedAt || null,
+        })),
+        contestDecisionCounts: decisionCounts,
+        currentReviewerDecision: normalizeKey(decisions.find((decision) => decision.reviewerUid === ctx.decoded.uid)?.decision || ""),
+      };
+    })
     .sort((a, b) => (normalizeTimestamp(b.createdAt)?.getTime() || 0) - (normalizeTimestamp(a.createdAt)?.getTime() || 0));
-  res.json({ submissions });
+  const programs = programSnap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .sort((a, b) => normalizeText(a.name || a.id).localeCompare(normalizeText(b.name || b.id)));
+  res.json({ submissions, programs });
+});
+
+app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const programId = sanitizeDocIdSegment(req.params.programId).toLowerCase();
+  const name = normalizeText(req.body?.name || "").slice(0, 160);
+  if (!programId || !name) return res.status(400).json({ error: "missing_program_id_or_name" });
+
+  const parseOptionalDate = (value) => {
+    const raw = normalizeText(value || "");
+    if (!raw) return null;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
+  const opensAt = parseOptionalDate(req.body?.opensAt);
+  const closesAt = parseOptionalDate(req.body?.closesAt);
+  if (req.body?.opensAt && !opensAt) return res.status(400).json({ error: "invalid_opens_at" });
+  if (req.body?.closesAt && !closesAt) return res.status(400).json({ error: "invalid_closes_at" });
+  if (opensAt && closesAt && opensAt.getTime() >= closesAt.getTime()) {
+    return res.status(400).json({ error: "invalid_program_date_range" });
+  }
+
+  const ref = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
+  const existingProgram = await ref.get();
+  await ref.set({
+    name,
+    description: normalizeText(req.body?.description || "").slice(0, 1000),
+    releaseCatalog: normalizeText(req.body?.releaseCatalog || USER_SUBMISSION_CATALOG).slice(0, 120),
+    sourceEvent: normalizeText(req.body?.sourceEvent || name).slice(0, 160),
+    sourceEventLabel: normalizeText(req.body?.sourceEventLabel || req.body?.sourceEvent || name).slice(0, 160),
+    maxCharacters: Math.max(1, Math.min(Number(req.body?.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
+    termsLabel: normalizeText(req.body?.termsLabel || "I agree to the contest terms and conditions.").slice(0, 500),
+    termsUrl: normalizeText(req.body?.termsUrl || "").slice(0, 1000),
+    termsVersion: normalizeText(req.body?.termsVersion || "").slice(0, 120),
+    requiredReviewCount: Math.max(1, Math.min(Number(req.body?.requiredReviewCount) || 3, 20)),
+    acceptingSubmissions: req.body?.acceptingSubmissions === true,
+    opensAt: opensAt || null,
+    closesAt: closesAt || null,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: ctx.decoded.uid,
+    ...(!existingProgram.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
+  }, { merge: true });
+
+  const saved = await ref.get();
+  res.json({ ok: true, program: { id: saved.id, ...(saved.data() || {}) } });
+});
+
+app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const submissionId = normalizeText(req.params.submissionId);
+  const decision = normalizeKey(req.body?.decision);
+  const note = normalizeText(req.body?.note || "").slice(0, 1000);
+  if (!submissionId) return res.status(400).json({ error: "missing_submission_id" });
+  if (!["yes", "maybe", "no"].includes(decision)) return res.status(400).json({ error: "invalid_contest_decision" });
+
+  const submissionRef = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+  const submissionSnap = await submissionRef.get();
+  if (!submissionSnap.exists) return res.status(404).json({ error: "submission_not_found" });
+  if (submissionSnap.data()?.contestSubmission !== true) {
+    return res.status(409).json({ error: "not_a_contest_submission" });
+  }
+
+  const responseId = `${submissionId}__contest__${ctx.decoded.uid}`;
+  await db.collection(COLLECTIONS.submissionResponses).doc(responseId).set({
+    responseType: "contest_review",
+    submissionId,
+    submissionProgramId: normalizeText(submissionSnap.data()?.submissionProgramId || ""),
+    decision,
+    note,
+    reviewerUid: ctx.decoded.uid,
+    reviewerEmail: ctx.decoded.email || "",
+    reviewedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  await submissionRef.set({
+    judgingStatus: "in_review",
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+
+  res.json({ ok: true, submissionId, decision });
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/review"), async (req, res) => {
