@@ -8743,8 +8743,71 @@ app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
   res.json({ ok: true, program: { id: saved.id, ...(saved.data() || {}) } });
 });
 
+app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+
+  const requestedProgramId = normalizeText(req.query.programId || "");
+  const [submissionSnap, programSnap, decisionSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).limit(500).get(),
+    db.collection(COLLECTIONS.submissionPrograms).limit(100).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").limit(1000).get(),
+  ]);
+  const programsById = new Map(programSnap.docs.map((doc) => [doc.id, { id: doc.id, ...(doc.data() || {}) }]));
+  const decisionsBySubmissionId = new Map();
+  decisionSnap.docs.forEach((doc) => {
+    const row = { id: doc.id, ...(doc.data() || {}) };
+    const submissionId = normalizeText(row.submissionId);
+    if (!submissionId) return;
+    decisionsBySubmissionId.set(submissionId, [...(decisionsBySubmissionId.get(submissionId) || []), row]);
+  });
+
+  const submissions = submissionSnap.docs
+    .map(mapSubmissionDoc)
+    .filter((row) => !requestedProgramId || row.submissionProgramId === requestedProgramId)
+    .map((row) => {
+      const program = programsById.get(row.submissionProgramId) || {};
+      const decisions = decisionsBySubmissionId.get(row.id) || [];
+      const currentDecision = decisions.find((decision) => decision.reviewerUid === ctx.decoded.uid) || null;
+      const requiredReviewCount = Math.max(1, Number(program.requiredReviewCount) || 3);
+      const reviewCount = decisions.length;
+      return {
+        id: row.id,
+        title: row.title || "Untitled",
+        text: row.text || "",
+        submissionProgramId: row.submissionProgramId || "",
+        submissionProgramName: row.submissionProgramName || program.name || row.submissionProgramId || "Contest",
+        judgingStatus: row.judgingStatus || "unassigned",
+        requiredReviewCount,
+        reviewCount,
+        reviewComplete: reviewCount >= requiredReviewCount,
+        contestScore: reviewCount >= requiredReviewCount ? Number(row.contestScore) || 0 : null,
+        currentReviewerDecision: normalizeKey(currentDecision?.decision || ""),
+        currentReviewerNote: normalizeText(currentDecision?.note || ""),
+        createdAt: row.createdAt || null,
+      };
+    })
+    .sort((a, b) => {
+      const aNeedsReview = a.currentReviewerDecision ? 1 : 0;
+      const bNeedsReview = b.currentReviewerDecision ? 1 : 0;
+      if (aNeedsReview !== bNeedsReview) return aNeedsReview - bNeedsReview;
+      return normalizeText(a.title).localeCompare(normalizeText(b.title));
+    });
+
+  res.json({
+    ok: true,
+    programs: Array.from(programsById.values()).map((program) => ({
+      id: program.id,
+      name: normalizeText(program.name || program.id),
+      acceptingSubmissions: program.acceptingSubmissions === true,
+      requiredReviewCount: Math.max(1, Number(program.requiredReviewCount) || 3),
+    })),
+    submissions,
+  });
+});
+
 app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
 
   const submissionId = normalizeText(req.params.submissionId);
@@ -8760,11 +8823,29 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
     return res.status(409).json({ error: "not_a_contest_submission" });
   }
 
+  const submissionData = submissionSnap.data() || {};
+  const programId = normalizeText(submissionData.submissionProgramId || "");
+  const programSnap = programId
+    ? await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get()
+    : null;
+  const requiredReviewCount = Math.max(1, Number(programSnap?.data()?.requiredReviewCount) || 3);
+  const existingDecisionSnap = await db.collection(COLLECTIONS.submissionResponses)
+    .where("submissionId", "==", submissionId)
+    .limit(50)
+    .get();
+  const existingDecisions = existingDecisionSnap.docs
+    .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
+    .filter((row) => normalizeKey(row.responseType) === "contest_review");
+  const reviewerAlreadyParticipated = existingDecisions.some((row) => row.reviewerUid === ctx.decoded.uid);
+  if (!reviewerAlreadyParticipated && existingDecisions.length >= requiredReviewCount) {
+    return res.status(409).json({ error: "contest_review_complete" });
+  }
+
   const responseId = `${submissionId}__contest__${ctx.decoded.uid}`;
   await db.collection(COLLECTIONS.submissionResponses).doc(responseId).set({
     responseType: "contest_review",
     submissionId,
-    submissionProgramId: normalizeText(submissionSnap.data()?.submissionProgramId || ""),
+    submissionProgramId: programId,
     decision,
     note,
     reviewerUid: ctx.decoded.uid,
@@ -8772,12 +8853,32 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
     reviewedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
+
+  const decisionsByReviewer = new Map(existingDecisions.map((row) => [row.reviewerUid, row]));
+  decisionsByReviewer.set(ctx.decoded.uid, { reviewerUid: ctx.decoded.uid, decision });
+  const finalDecisions = Array.from(decisionsByReviewer.values()).slice(0, requiredReviewCount);
+  const score = finalDecisions.reduce((total, row) => {
+    const value = normalizeKey(row.decision);
+    return total + (value === "yes" ? 1 : value === "no" ? -1 : 0);
+  }, 0);
+  const reviewComplete = finalDecisions.length >= requiredReviewCount;
   await submissionRef.set({
-    judgingStatus: "in_review",
+    judgingStatus: reviewComplete ? "reviewed" : "in_review",
+    contestReviewCount: finalDecisions.length,
+    contestScore: score,
+    contestReviewCompleteAt: reviewComplete ? FieldValue.serverTimestamp() : null,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  res.json({ ok: true, submissionId, decision });
+  res.json({
+    ok: true,
+    submissionId,
+    decision,
+    contestReviewCount: finalDecisions.length,
+    requiredReviewCount,
+    contestScore: reviewComplete ? score : null,
+    reviewComplete,
+  });
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/review"), async (req, res) => {
