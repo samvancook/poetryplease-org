@@ -5315,6 +5315,7 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
   if (!programId) return res.status(400).json({ error: "missing_program_id" });
   if (normalizeText(req.body?.website || "")) return res.json({ ok: true });
 
+  const decoded = await verifyIdTokenFromHeader(req);
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
 
@@ -5344,6 +5345,12 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ error: "invalid_email" });
+  }
+  const verifiedAccountEmail = decoded?.email_verified === true
+    ? normalizeText(decoded.email).toLowerCase()
+    : "";
+  if (verifiedAccountEmail && verifiedAccountEmail !== email) {
+    return res.status(400).json({ error: "signed_in_email_mismatch" });
   }
   if (text.length > maxCharacters) {
     return res.status(400).json({ error: "text_too_long", maxChars: maxCharacters });
@@ -5381,9 +5388,11 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
     judgingStatus: "unassigned",
     reviewNote: "",
     duplicateFingerprint,
-    submitterUid: "",
-    submitterEmail: "",
-    submitterDisplayName: "Contest entrant",
+    submitterUid: verifiedAccountEmail ? decoded.uid : "",
+    submitterEmail: verifiedAccountEmail,
+    submitterDisplayName: verifiedAccountEmail
+      ? normalizeText(decoded.name || [firstName, lastName].filter(Boolean).join(" ") || verifiedAccountEmail)
+      : "Contest entrant",
     positiveResponseCount: 0,
     lastSeenPositiveResponseCount: 0,
     termsVersion: normalizeText(program.termsVersion || ""),
@@ -5397,6 +5406,7 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
     lastName,
     pronouns,
     email,
+    submitterUid: verifiedAccountEmail ? decoded.uid : "",
     postalCode,
     phone,
     instagramHandle,
@@ -5408,13 +5418,69 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
   });
   await batch.commit();
 
-  res.status(201).json({ ok: true, submissionId: submissionRef.id });
+  res.status(201).json({
+    ok: true,
+    submissionId: submissionRef.id,
+    accountLinked: Boolean(verifiedAccountEmail),
+  });
+});
+
+async function claimContestSubmissionsByVerifiedEmail(decoded) {
+  if (!decoded?.uid || decoded.email_verified !== true) {
+    return { claimedCount: 0, matchedCount: 0, skippedCount: 0 };
+  }
+  const email = normalizeText(decoded.email).toLowerCase();
+  if (!email) return { claimedCount: 0, matchedCount: 0, skippedCount: 0 };
+
+  const entrantSnap = await db.collection(COLLECTIONS.submissionEntrants)
+    .where("email", "==", email)
+    .limit(250)
+    .get();
+  const submissionIds = uniq(entrantSnap.docs.map((doc) => doc.data()?.submissionId || doc.id));
+  let claimedCount = 0;
+  let skippedCount = 0;
+
+  await Promise.all(submissionIds.map(async (submissionId) => {
+    const ref = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      skippedCount += 1;
+      return;
+    }
+    const existingUid = normalizeText(snap.data()?.submitterUid);
+    if (existingUid && existingUid !== decoded.uid) {
+      skippedCount += 1;
+      return;
+    }
+    if (existingUid === decoded.uid) return;
+    await ref.set({
+      submitterUid: decoded.uid,
+      submitterEmail: email,
+      submitterDisplayName: normalizeText(decoded.name || email),
+      claimedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    claimedCount += 1;
+  }));
+
+  return { claimedCount, matchedCount: submissionIds.length, skippedCount };
+}
+
+app.post(getBoth("/my/submissions/claim"), async (req, res) => {
+  const ctx = await requireDecodedUser(req, res);
+  if (!ctx) return;
+  if (ctx.decoded.email_verified !== true) {
+    return res.status(403).json({ error: "verified_email_required" });
+  }
+  const result = await claimContestSubmissionsByVerifiedEmail(ctx.decoded);
+  res.json({ ok: true, ...result });
 });
 
 app.get(getBoth("/my/submissions"), async (req, res) => {
   const ctx = await requireDecodedUser(req, res);
   if (!ctx) return;
 
+  const claimResult = await claimContestSubmissionsByVerifiedEmail(ctx.decoded);
   const snap = await db.collection(COLLECTIONS.contentSubmissions)
     .where("submitterUid", "==", ctx.decoded.uid)
     .limit(250)
@@ -5427,7 +5493,7 @@ app.get(getBoth("/my/submissions"), async (req, res) => {
       hasNewPositiveResponse: hasNewPositiveResponse(row),
     }));
   const newPositiveResponses = submissions.filter((row) => row.hasNewPositiveResponse).length;
-  res.json({ submissions, newPositiveResponses });
+  res.json({ submissions, newPositiveResponses, claimResult });
 });
 
 app.post(getBoth("/my/submissions/markPositiveResponsesSeen"), async (req, res) => {
