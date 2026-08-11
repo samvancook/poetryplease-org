@@ -3,6 +3,16 @@
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
 ## Active Focus
+- User submissions and contest intake replacement:
+  - make this the top product project: replace the May 2026 Short Form Contest Google Form and response-sheet workflow with a first-class Poetry Please submission lane
+  - reproduce the current intake fields: submitter identity and contact details, public Instagram handle/follower count, pronouns, location, poem text with contest length rules, and terms acceptance
+  - reuse Poetry Please accounts and the existing User Submissions data model, while allowing a low-friction public submission flow when an account is not yet required
+  - replace the response sheet's three manual `Y` / `N` / `M` columns and derived score with an explicit multi-reviewer adjudication workflow, reviewer identity, timestamps, notes, and durable status history
+  - replace the manually copied `top 10` tab with a live ranked shortlist generated from completed reviews, with an admin override and export
+  - keep contest/program identity secondary to the submitted poem and submitter, using the existing event/lane metadata pattern rather than rewriting book metadata
+  - add duplicate-submission checks, eligibility validation, consent auditing, private-contact-data access controls, and clear submitted / under review / shortlisted / declined / selected states
+  - preserve Google Sheet export for staff handoff and archival needs, but make Poetry Please the source of truth
+  - first build: one contest configuration, one public submission form, one admin review queue, three-reviewer scoring, and one ranked shortlist
 - Deployment integrity (top priority):
   - automate JavaScript/CSS asset versioning instead of hand-maintained date query strings
   - fail deployment when changed assets retain stale HTML references
@@ -43,6 +53,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 - Shared Drive migration for durable Poetry Please handoff docs, imports, exports, and operating notes
 
 ## Top Product Priorities
+- Replace the Short Form Contest Google Form and response sheet with Poetry Please's native User Submissions workflow, beginning with intake, three-reviewer adjudication, and a live shortlist.
 - Smooth the general user experience:
   - make logged-out and anonymous entry feel intentional instead of like a loading state
   - keep first content load fast and predictable
