@@ -401,8 +401,8 @@
         (payload.rows || []).forEach((row) => {
           const profile = row.profile || {};
           const invite = row.invite || {};
-          const name = profile.displayName || invite.email || "";
-          const reviewAuthor = profile.displayName || profile.slug || name;
+          const name = profile.displayName || row.previewAuthor || invite.email || "";
+          const reviewAuthor = profile.displayName || row.previewAuthor || profile.slug || name;
           const key = reviewAuthor.trim().toLowerCase();
           if (!reviewAuthor || seen.has(key)) return;
           seen.add(key);
