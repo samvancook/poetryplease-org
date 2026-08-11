@@ -487,7 +487,33 @@
         </button>
       </div>
       <div id="user-submissions-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Review text and image submissions from readers and authors. Current submissions are tagged to the <strong>User submitted</strong> catalog.</p>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Review ordinary user submissions and program-backed contest entries. Contest identity and contact details remain separate from the judging record.</p>
+        <details style="margin-bottom:18px;">
+          <summary style="font-weight:700;cursor:pointer;">Contest program setup</summary>
+          <div class="controls" style="margin:14px 0;">
+            <select id="submission-program-editor-select"><option value="">New contest program</option></select>
+            <input id="submission-program-id" placeholder="Program ID, e.g. short-form-2026" />
+            <input id="submission-program-name" placeholder="Public contest name" />
+            <input id="submission-program-event" placeholder="Event or lane label" />
+            <input id="submission-program-catalog" placeholder="Catalog label" value="User submitted" />
+            <input id="submission-program-max-characters" type="number" min="1" max="2200" value="250" aria-label="Maximum characters" />
+            <input id="submission-program-review-count" type="number" min="1" max="20" value="3" aria-label="Required reviewer count" />
+            <input id="submission-program-opens-at" type="datetime-local" aria-label="Opens at" />
+            <input id="submission-program-closes-at" type="datetime-local" aria-label="Closes at" />
+            <input id="submission-program-terms-version" placeholder="Terms version" />
+            <input id="submission-program-terms-url" type="url" placeholder="Terms URL" />
+            <label><input id="submission-program-accepting" type="checkbox" /> Open submissions</label>
+            <button id="save-submission-program" type="button">Save program</button>
+          </div>
+          <label style="display:block;margin-bottom:12px;">Description
+            <textarea id="submission-program-description" rows="3" style="width:100%;"></textarea>
+          </label>
+          <label style="display:block;margin-bottom:12px;">Terms checkbox text
+            <input id="submission-program-terms-label" style="width:100%;" value="I agree to the contest terms and conditions." />
+          </label>
+          <div id="submission-program-status" class="status">Programs remain closed until Open submissions is checked.</div>
+          <div id="submission-program-list"></div>
+        </details>
         <div class="controls" style="margin-bottom:16px;">
           <input id="user-submissions-query" placeholder="Search title, submitter, text, or note" />
           <select id="user-submissions-status-filter">
@@ -500,6 +526,10 @@
             <option value="all">All types</option>
             <option value="text">Text</option>
             <option value="image">Image</option>
+          </select>
+          <select id="user-submissions-program-filter">
+            <option value="all">All submission programs</option>
+            <option value="ordinary">Ordinary user submissions</option>
           </select>
         </div>
         <div id="user-submissions-status" class="status">Loading submissions…</div>
@@ -937,9 +967,11 @@
       weaverExcHealth: null,
       weaverImportHealth: null,
       submissions: [],
+      submissionPrograms: [],
       submissionQuery: "",
       submissionStatusFilter: "all",
       submissionTypeFilter: "all",
+      submissionProgramFilter: "all",
       importAssistantResults: [],
       importAssistantPreviewRows: [],
       contentItems: [],
@@ -2063,6 +2095,112 @@
       }
     }
 
+    function programDateInputValue(value) {
+      if (!value) return '';
+      const seconds = Number(value?._seconds ?? value?.seconds);
+      const date = seconds ? new Date(seconds * 1000) : new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 16);
+    }
+
+    function populateSubmissionProgramEditor(program = null) {
+      document.getElementById('submission-program-id').value = program?.id || '';
+      document.getElementById('submission-program-id').disabled = !!program?.id;
+      document.getElementById('submission-program-name').value = program?.name || '';
+      document.getElementById('submission-program-event').value = program?.sourceEvent || '';
+      document.getElementById('submission-program-catalog').value = program?.releaseCatalog || 'User submitted';
+      document.getElementById('submission-program-max-characters').value = program?.maxCharacters || 250;
+      document.getElementById('submission-program-review-count').value = program?.requiredReviewCount || 3;
+      document.getElementById('submission-program-opens-at').value = programDateInputValue(program?.opensAt);
+      document.getElementById('submission-program-closes-at').value = programDateInputValue(program?.closesAt);
+      document.getElementById('submission-program-terms-version').value = program?.termsVersion || '';
+      document.getElementById('submission-program-terms-url').value = program?.termsUrl || '';
+      document.getElementById('submission-program-terms-label').value = program?.termsLabel || 'I agree to the contest terms and conditions.';
+      document.getElementById('submission-program-description').value = program?.description || '';
+      document.getElementById('submission-program-accepting').checked = program?.acceptingSubmissions === true;
+    }
+
+    function renderSubmissionPrograms() {
+      const editorSelect = document.getElementById('submission-program-editor-select');
+      const filterSelect = document.getElementById('user-submissions-program-filter');
+      const selectedEditor = editorSelect.value;
+      const selectedFilter = state.submissionProgramFilter;
+      editorSelect.innerHTML = '<option value="">New contest program</option>' + state.submissionPrograms.map((program) =>
+        `<option value="${escapeHtml(program.id)}">${escapeHtml(program.name || program.id)}</option>`
+      ).join('');
+      filterSelect.innerHTML = '<option value="all">All submission programs</option><option value="ordinary">Ordinary user submissions</option>' + state.submissionPrograms.map((program) =>
+        `<option value="${escapeHtml(program.id)}">${escapeHtml(program.name || program.id)}</option>`
+      ).join('');
+      editorSelect.value = state.submissionPrograms.some((program) => program.id === selectedEditor) ? selectedEditor : '';
+      filterSelect.value = selectedFilter;
+      document.getElementById('submission-program-list').innerHTML = state.submissionPrograms.length ? `
+        <table>
+          <thead><tr><th>Program</th><th>Window</th><th>Reviews</th><th>Public link</th></tr></thead>
+          <tbody>${state.submissionPrograms.map((program) => `
+            <tr>
+              <td><strong>${escapeHtml(program.name || program.id)}</strong><div>${program.acceptingSubmissions ? 'Open' : 'Closed'} · ${escapeHtml(program.id)}</div></td>
+              <td>${program.opensAt ? escapeHtml(new Date(Number(program.opensAt?._seconds ?? program.opensAt?.seconds) * 1000).toLocaleString()) : 'No opening date'}<br>${program.closesAt ? escapeHtml(new Date(Number(program.closesAt?._seconds ?? program.closesAt?.seconds) * 1000).toLocaleString()) : 'No closing date'}</td>
+              <td>${program.requiredReviewCount || 3} required</td>
+              <td><button class="secondary" type="button" data-copy-program-link="${escapeHtml(program.id)}">Copy form link</button></td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      ` : '<div class="empty">No contest programs configured yet.</div>';
+      document.querySelectorAll('[data-copy-program-link]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const id = button.getAttribute('data-copy-program-link');
+          await navigator.clipboard.writeText(`${location.origin}/contest-submit.html?program=${encodeURIComponent(id)}`);
+          document.getElementById('submission-program-status').textContent = 'Public form link copied.';
+        });
+      });
+    }
+
+    async function saveSubmissionProgram() {
+      const statusEl = document.getElementById('submission-program-status');
+      const programId = document.getElementById('submission-program-id').value.trim();
+      const name = document.getElementById('submission-program-name').value.trim();
+      if (!programId || !name) {
+        statusEl.textContent = 'Program ID and public contest name are required.';
+        statusEl.className = 'status error';
+        return;
+      }
+      const body = {
+        name,
+        description: document.getElementById('submission-program-description').value.trim(),
+        sourceEvent: document.getElementById('submission-program-event').value.trim(),
+        releaseCatalog: document.getElementById('submission-program-catalog').value.trim(),
+        maxCharacters: Number(document.getElementById('submission-program-max-characters').value || 250),
+        requiredReviewCount: Number(document.getElementById('submission-program-review-count').value || 3),
+        opensAt: document.getElementById('submission-program-opens-at').value || '',
+        closesAt: document.getElementById('submission-program-closes-at').value || '',
+        termsVersion: document.getElementById('submission-program-terms-version').value.trim(),
+        termsUrl: document.getElementById('submission-program-terms-url').value.trim(),
+        termsLabel: document.getElementById('submission-program-terms-label').value.trim(),
+        acceptingSubmissions: document.getElementById('submission-program-accepting').checked,
+      };
+      statusEl.textContent = body.acceptingSubmissions ? 'Saving and opening submissions…' : 'Saving closed program…';
+      statusEl.className = 'status';
+      try {
+        await api(`admin/submissionPrograms/${encodeURIComponent(programId)}`, { method: 'POST', body });
+        statusEl.textContent = body.acceptingSubmissions ? 'Program saved and open.' : 'Program saved and closed.';
+        await loadUserSubmissions();
+        document.getElementById('submission-program-editor-select').value = programId.toLowerCase();
+      } catch (err) {
+        statusEl.textContent = err.message || 'Could not save program.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function recordContestDecision(submissionId, decision) {
+      const note = window.prompt('Optional private reviewer note:', '') ?? '';
+      await api(`admin/contentSubmissions/${encodeURIComponent(submissionId)}/contestDecision`, {
+        method: 'POST',
+        body: { decision, note },
+      });
+      await loadUserSubmissions();
+    }
+
     function renderUserSubmissions() {
       const container = document.getElementById("user-submissions-list");
       const statusEl = document.getElementById("user-submissions-status");
@@ -2076,6 +2214,8 @@
       const filtered = state.submissions.filter((row) => {
         if (state.submissionStatusFilter !== 'all' && (row.status || 'pending') !== state.submissionStatusFilter) return false;
         if (state.submissionTypeFilter !== 'all' && (row.submissionType || '') !== state.submissionTypeFilter) return false;
+        if (state.submissionProgramFilter === 'ordinary' && row.contestSubmission === true) return false;
+        if (!['all', 'ordinary'].includes(state.submissionProgramFilter) && row.submissionProgramId !== state.submissionProgramFilter) return false;
         if (!query) return true;
         const haystack = [
           row.title,
@@ -2085,6 +2225,8 @@
           row.text,
           row.note,
           row.reviewNote,
+          row.submissionProgramName,
+          row.submissionProgramId,
         ].filter(Boolean).join(' ').toLowerCase();
         return haystack.includes(query);
       });
@@ -2103,20 +2245,33 @@
             ${filtered.map((row) => `
               <tr>
                 <td>
-                  <div class="user-name">${row.title || row.id}</div>
-                  <div>${row.submissionType || '—'} · ${row.releaseCatalog || 'User submitted'}</div>
+                  <div class="user-name">${escapeHtml(row.title || row.id)}</div>
+                  <div>${escapeHtml(row.submissionType || '—')} · ${escapeHtml(row.releaseCatalog || 'User submitted')}</div>
+                  ${row.contestSubmission ? `<div><strong>${escapeHtml(row.submissionProgramName || row.submissionProgramId || 'Contest')}</strong> · blinded entry</div>` : ''}
                   ${row.text ? `<div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(row.text.slice(0, 220))}${row.text.length > 220 ? '…' : ''}</div>` : ''}
                   ${row.note ? `<div style="margin-top:6px; white-space:pre-wrap;">${escapeHtml(row.note.slice(0, 160))}${row.note.length > 160 ? '…' : ''}</div>` : ''}
                   ${row.reviewNote ? `<div style="margin-top:6px; color:#7b6955;">Admin note: ${escapeHtml(row.reviewNote.slice(0, 160))}${row.reviewNote.length > 160 ? '…' : ''}</div>` : ''}
                   ${row.imageUrl ? `<div style="margin-top:6px;"><a href="${row.imageUrl}" target="_blank" rel="noopener">Open image</a></div>` : ''}
                 </td>
-                <td>${row.submitterEmail || row.submitterUid || '—'}</td>
-                <td>${row.status || 'pending'}</td>
+                <td>${row.contestSubmission ? 'Blinded contest entry' : escapeHtml(row.submitterEmail || row.submitterUid || '—')}</td>
                 <td>
-                  <div class="actions" style="margin-top:0;">
-                    <button type="button" data-review-submission="${row.id}" data-decision="approved" ${row.status !== 'pending' ? 'disabled' : ''}>Approve</button>
-                    <button type="button" class="secondary" data-review-submission="${row.id}" data-decision="rejected" ${row.status !== 'pending' ? 'disabled' : ''}>Reject</button>
-                  </div>
+                  ${escapeHtml(row.status || 'pending')}
+                  ${row.contestSubmission ? `<div>Judging: ${escapeHtml(row.judgingStatus || 'unassigned')}</div><div>Y ${row.contestDecisionCounts?.yes || 0} · M ${row.contestDecisionCounts?.maybe || 0} · N ${row.contestDecisionCounts?.no || 0}</div>` : ''}
+                </td>
+                <td>
+                  ${row.contestSubmission ? `
+                    <div class="actions" style="margin-top:0;">
+                      <button type="button" data-contest-decision="${row.id}" data-decision="yes" ${row.currentReviewerDecision === 'yes' ? 'disabled' : ''}>Yes</button>
+                      <button type="button" class="secondary" data-contest-decision="${row.id}" data-decision="maybe" ${row.currentReviewerDecision === 'maybe' ? 'disabled' : ''}>Maybe</button>
+                      <button type="button" class="secondary" data-contest-decision="${row.id}" data-decision="no" ${row.currentReviewerDecision === 'no' ? 'disabled' : ''}>No</button>
+                    </div>
+                    <div style="margin-top:8px;">Your decision: ${escapeHtml(row.currentReviewerDecision || 'none')}</div>
+                  ` : `
+                    <div class="actions" style="margin-top:0;">
+                      <button type="button" data-review-submission="${row.id}" data-decision="approved" ${row.status !== 'pending' ? 'disabled' : ''}>Approve</button>
+                      <button type="button" class="secondary" data-review-submission="${row.id}" data-decision="rejected" ${row.status !== 'pending' ? 'disabled' : ''}>Reject</button>
+                    </div>
+                  `}
                 </td>
               </tr>
             `).join('') || '<tr><td colspan="4">No submissions match the current filters.</td></tr>'}
@@ -2125,6 +2280,9 @@
       `;
       container.querySelectorAll('[data-review-submission]').forEach((button) => {
         button.addEventListener('click', () => reviewSubmission(button.getAttribute('data-review-submission'), button.getAttribute('data-decision')));
+      });
+      container.querySelectorAll('[data-contest-decision]').forEach((button) => {
+        button.addEventListener('click', () => recordContestDecision(button.getAttribute('data-contest-decision'), button.getAttribute('data-decision')));
       });
     }
 
@@ -2566,6 +2724,8 @@
       try {
         const payload = await api('admin/contentSubmissions', { method: 'GET' });
         state.submissions = payload.submissions || [];
+        state.submissionPrograms = payload.programs || [];
+        renderSubmissionPrograms();
         renderUserSubmissions();
       } catch (err) {
         console.error(err);
@@ -4410,6 +4570,15 @@
         state.submissionTypeFilter = event.target.value || "all";
         renderUserSubmissions();
       });
+      document.getElementById("user-submissions-program-filter").addEventListener("change", (event) => {
+        state.submissionProgramFilter = event.target.value || "all";
+        renderUserSubmissions();
+      });
+      document.getElementById("submission-program-editor-select").addEventListener("change", (event) => {
+        const program = state.submissionPrograms.find((row) => row.id === event.target.value) || null;
+        populateSubmissionProgramEditor(program);
+      });
+      document.getElementById("save-submission-program").addEventListener("click", () => saveSubmissionProgram());
       document.getElementById("import-assistant-toggle").addEventListener("click", () => {
         state.importAssistantCollapsed = !state.importAssistantCollapsed;
         saveCollapseState('pp_admin_import_assistant_collapsed', state.importAssistantCollapsed);
