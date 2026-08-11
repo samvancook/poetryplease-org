@@ -512,6 +512,7 @@
             <input id="submission-program-terms-label" style="width:100%;" value="I agree to the contest terms and conditions." />
           </label>
           <div id="submission-program-status" class="status">Programs remain closed until Open submissions is checked.</div>
+          <p><a href="/contest-review.html" target="_blank" rel="noopener">Open blinded team reviewer queue</a></p>
           <div id="submission-program-list"></div>
         </details>
         <div class="controls" style="margin-bottom:16px;">
@@ -2147,6 +2148,26 @@
           `).join('')}</tbody>
         </table>
       ` : '<div class="empty">No contest programs configured yet.</div>';
+      const ranked = state.submissions
+        .filter((row) => row.contestSubmission === true && row.judgingStatus === 'reviewed')
+        .sort((a, b) => (Number(b.contestScore) || 0) - (Number(a.contestScore) || 0) || String(a.title || '').localeCompare(String(b.title || '')));
+      if (ranked.length) {
+        document.getElementById('submission-program-list').insertAdjacentHTML('beforeend', `
+          <h3>Ranked shortlist</h3>
+          <table>
+            <thead><tr><th>Rank</th><th>Submission</th><th>Program</th><th>Score</th><th>Reviews</th></tr></thead>
+            <tbody>${ranked.map((row, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${escapeHtml(row.title || row.id)}</td>
+                <td>${escapeHtml(row.submissionProgramName || row.submissionProgramId || 'Contest')}</td>
+                <td><strong>${Number(row.contestScore) || 0}</strong></td>
+                <td>${Number(row.contestReviewCount) || 0}</td>
+              </tr>
+            `).join('')}</tbody>
+          </table>
+        `);
+      }
       document.querySelectorAll('[data-copy-program-link]').forEach((button) => {
         button.addEventListener('click', async () => {
           const id = button.getAttribute('data-copy-program-link');
@@ -2256,7 +2277,7 @@
                 <td>${row.contestSubmission ? 'Blinded contest entry' : escapeHtml(row.submitterEmail || row.submitterUid || '—')}</td>
                 <td>
                   ${escapeHtml(row.status || 'pending')}
-                  ${row.contestSubmission ? `<div>Judging: ${escapeHtml(row.judgingStatus || 'unassigned')}</div><div>Y ${row.contestDecisionCounts?.yes || 0} · M ${row.contestDecisionCounts?.maybe || 0} · N ${row.contestDecisionCounts?.no || 0}</div>` : ''}
+                  ${row.contestSubmission ? `<div>Judging: ${escapeHtml(row.judgingStatus || 'unassigned')}</div><div>Y ${row.contestDecisionCounts?.yes || 0} · M ${row.contestDecisionCounts?.maybe || 0} · N ${row.contestDecisionCounts?.no || 0}</div><div>Score: ${row.judgingStatus === 'reviewed' ? (Number(row.contestScore) || 0) : 'pending'}</div>` : ''}
                 </td>
                 <td>
                   ${row.contestSubmission ? `
