@@ -148,6 +148,7 @@
           <input id="command-search" type="search" placeholder="Search author or email" />
           <select id="command-status">
             <option value="all">All author lanes</option>
+            <option value="preview ready">Preview ready, not invited</option>
             <option value="invited">Invited</option>
             <option value="claimed">Claimed account</option>
             <option value="profile incomplete">Profile incomplete</option>
@@ -290,7 +291,7 @@
       const rows = (payload.rows || []).filter((row) => {
         const profile = row.profile || {};
         const invite = row.invite || {};
-        const haystack = normalize([profile.displayName, profile.email, profile.slug, invite.email, invite.claimedByEmail, row.status].filter(Boolean).join(" "));
+        const haystack = normalize([profile.displayName, row.previewAuthor, profile.email, profile.slug, invite.email, invite.claimedByEmail, row.status].filter(Boolean).join(" "));
         if (state.query && !haystack.includes(state.query)) return false;
         if (state.status === "claimed") return !!row.readiness?.hasClaimedAccount;
         if (state.status !== "all") return String(row.status || "") === state.status;
@@ -299,6 +300,7 @@
 
       statusEl.textContent = `Showing ${rows.length} of ${summary.total || 0} author lanes.`;
       summaryEl.innerHTML = `
+        <span class="chip">Preview ready: ${summary.previewReady || 0}</span>
         <span class="chip">Invited: ${summary.invited || 0}</span>
         <span class="chip">Claimed: ${summary.claimed || 0}</span>
         <span class="chip">Ready review: ${summary.readyForReview || 0}</span>
@@ -319,8 +321,8 @@
           <tbody>${rows.map((row) => {
             const profile = row.profile || {};
             const invite = row.invite || {};
-            const name = profile.displayName || invite.email || "Unknown author";
-            const reviewAuthor = profile.displayName || profile.slug || name;
+            const name = profile.displayName || row.previewAuthor || invite.email || "Unknown author";
+            const reviewAuthor = profile.displayName || row.previewAuthor || profile.slug || name;
             const rowIndex = (payload.rows || []).indexOf(row);
             const feedbackCount = row.readiness?.unresolvedFeedbackCount || 0;
             const canGenerateInvite = invite.id && invite.status !== "claimed" && !invite.claimedByUserId;
@@ -374,7 +376,7 @@
       const profile = row.profile || {};
       const invite = row.invite || {};
       const feedbackRows = row.feedbackNotes || [];
-      const name = profile.displayName || invite.email || "Unknown author";
+      const name = profile.displayName || row.previewAuthor || invite.email || "Unknown author";
       document.getElementById("drawer-title").textContent = name;
       document.getElementById("drawer-body").innerHTML = `
         <div class="chips">
@@ -384,7 +386,7 @@
         </div>
         <div class="drawer-section">
           <h3>Account</h3>
-          <p><strong>Email:</strong> ${escapeHtml(profile.email || invite.email || "-")}</p>
+          <p><strong>Email:</strong> ${escapeHtml(profile.email || invite.email || "Not invited yet")}</p>
           <p class="meta">Claimed user: ${escapeHtml(profile.userId || invite.claimedByUserId || "Not claimed")}</p>
           <p class="meta">Invite status: ${escapeHtml(invite.email ? inviteStatusLabel(invite) : "No invite")}</p>
         </div>
