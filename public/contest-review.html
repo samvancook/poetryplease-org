@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Contest Review | Poetry, Please</title>
+  <style>
+    :root { color-scheme:light; --ink:#171512; --muted:#6d675e; --paper:#fbf8f1; --line:#d9d0c2; --accent:#315f64; --soft:#e4eff0; --error:#934536; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial,sans-serif; }
+    main { width:min(880px,calc(100% - 32px)); margin:28px auto 72px; }
+    .topbar,.controls,.actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .topbar { justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:18px; }
+    h1 { margin:30px 0 8px; font:500 clamp(36px,7vw,60px) Georgia,serif; letter-spacing:0; }
+    h2 { letter-spacing:0; }
+    p { color:var(--muted); line-height:1.5; }
+    select,input,textarea,button { font:inherit; }
+    select,input,textarea { border:1px solid var(--line); border-radius:6px; background:white; padding:11px; }
+    textarea { width:100%; min-height:90px; resize:vertical; }
+    button { border:1px solid var(--line); border-radius:6px; background:white; color:var(--ink); padding:11px 16px; cursor:pointer; font-weight:700; }
+    button.primary { background:var(--accent); border-color:var(--accent); color:white; }
+    button.active { outline:3px solid #b7d7da; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .card { margin-top:22px; border:1px solid var(--line); background:white; border-radius:8px; padding:24px; }
+    .poem { white-space:pre-wrap; font:18px/1.55 Georgia,serif; max-height:55vh; overflow:auto; border-block:1px solid var(--line); padding:24px 4px; margin:20px 0; }
+    .status { min-height:24px; font-weight:700; }
+    .error { color:var(--error); }
+    .pill { display:inline-block; padding:5px 9px; border-radius:999px; background:var(--soft); font-size:13px; font-weight:700; }
+    [hidden] { display:none !important; }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <a href="/admin.html">Back to Admin</a>
+      <div class="controls">
+        <span id="account">Signed out</span>
+        <button id="login" type="button">Sign in with Google</button>
+        <button id="logout" type="button" hidden>Log out</button>
+      </div>
+    </div>
+    <h1>Contest Review</h1>
+    <p>Blinded review. Entrant identity, contact information, and social metrics are intentionally hidden.</p>
+    <div class="controls">
+      <label>Program <select id="program"><option value="">All programs</option></select></label>
+      <label>View
+        <select id="view">
+          <option value="unreviewed">Needs my review</option>
+          <option value="reviewed">Reviewed by me</option>
+          <option value="all">All available</option>
+        </select>
+      </label>
+      <span id="progress" class="pill">0 submissions</span>
+    </div>
+    <div id="status" class="status">Sign in with a Button Poetry team account.</div>
+    <section id="review-card" class="card" hidden>
+      <div class="topbar">
+        <div>
+          <span id="program-name" class="pill"></span>
+          <h2 id="title"></h2>
+        </div>
+        <span id="position"></span>
+      </div>
+      <div id="poem" class="poem"></div>
+      <label>Private reviewer note
+        <textarea id="note" placeholder="Optional context for your decision"></textarea>
+      </label>
+      <div class="actions" style="margin-top:14px;">
+        <button data-decision="yes" class="primary" type="button">Yes</button>
+        <button data-decision="maybe" type="button">Maybe</button>
+        <button data-decision="no" type="button">No</button>
+      </div>
+      <div class="actions" style="margin-top:18px;">
+        <button id="previous" type="button">Previous</button>
+        <button id="next" type="button">Next</button>
+      </div>
+    </section>
+    <section id="empty" class="card" hidden>
+      <h2>Nothing waiting here</h2>
+      <p>There are no submissions matching this program and view.</p>
+    </section>
+  </main>
+  <script>
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain: "poetry-please.firebaseapp.com",
+      projectId: "poetry-please",
+      storageBucket: "poetry-please.firebasestorage.app",
+      messagingSenderId: "609992589187",
+      appId: "1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId: "G-FBLJHKQ70B"
+    };
+    firebase.initializeApp(FIREBASE_CONFIG);
+    const state = { programs: [], submissions: [], filtered: [], index: 0 };
+
+    async function token() {
+      return firebase.auth().currentUser ? firebase.auth().currentUser.getIdToken(false) : "";
+    }
+
+    async function api(path, options = {}) {
+      const response = await fetch("/api/" + path.replace(/^\//, ""), {
+        method: options.method || "GET",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer " + await token(),
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || "Request failed (" + response.status + ")");
+      return payload;
+    }
+
+    function setStatus(message, error = false) {
+      const el = document.getElementById("status");
+      el.textContent = message;
+      el.className = "status" + (error ? " error" : "");
+    }
+
+    function applyFilters() {
+      const programId = document.getElementById("program").value;
+      const view = document.getElementById("view").value;
+      state.filtered = state.submissions.filter((row) => {
+        if (programId && row.submissionProgramId !== programId) return false;
+        if (view === "unreviewed") return !row.currentReviewerDecision && !row.reviewComplete;
+        if (view === "reviewed") return !!row.currentReviewerDecision;
+        return true;
+      });
+      state.index = Math.min(state.index, Math.max(0, state.filtered.length - 1));
+      render();
+    }
+
+    function render() {
+      document.getElementById("progress").textContent = state.filtered.length + " submission" + (state.filtered.length === 1 ? "" : "s");
+      const card = document.getElementById("review-card");
+      const empty = document.getElementById("empty");
+      if (!state.filtered.length) {
+        card.hidden = true;
+        empty.hidden = false;
+        return;
+      }
+      empty.hidden = true;
+      card.hidden = false;
+      const row = state.filtered[state.index];
+      document.getElementById("program-name").textContent = row.submissionProgramName;
+      document.getElementById("title").textContent = row.title;
+      document.getElementById("poem").textContent = row.text;
+      document.getElementById("position").textContent = (state.index + 1) + " of " + state.filtered.length;
+      document.getElementById("note").value = row.currentReviewerNote || "";
+      document.querySelectorAll("[data-decision]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.decision === row.currentReviewerDecision);
+        button.disabled = row.reviewComplete && !row.currentReviewerDecision;
+      });
+      document.getElementById("previous").disabled = state.index === 0;
+      document.getElementById("next").disabled = state.index >= state.filtered.length - 1;
+    }
+
+    async function loadQueue() {
+      setStatus("Loading review queue...");
+      try {
+        const payload = await api("team/contestSubmissions");
+        state.programs = payload.programs || [];
+        state.submissions = payload.submissions || [];
+        const select = document.getElementById("program");
+        const selected = select.value;
+        select.innerHTML = '<option value="">All programs</option>' + state.programs.map((program) =>
+          '<option value="' + program.id + '">' + program.name + '</option>'
+        ).join("");
+        select.value = selected;
+        setStatus("Ready.");
+        applyFilters();
+      } catch (error) {
+        state.submissions = [];
+        applyFilters();
+        setStatus(error.message === "forbidden" ? "This page requires a Button Poetry team account." : error.message, true);
+      }
+    }
+
+    async function recordDecision(decision) {
+      const row = state.filtered[state.index];
+      if (!row) return;
+      setStatus("Saving decision...");
+      try {
+        await api("admin/contentSubmissions/" + encodeURIComponent(row.id) + "/contestDecision", {
+          method: "POST",
+          body: { decision, note: document.getElementById("note").value.trim() },
+        });
+        await loadQueue();
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    document.getElementById("program").addEventListener("change", applyFilters);
+    document.getElementById("view").addEventListener("change", applyFilters);
+    document.getElementById("previous").addEventListener("click", () => { state.index -= 1; render(); });
+    document.getElementById("next").addEventListener("click", () => { state.index += 1; render(); });
+    document.querySelectorAll("[data-decision]").forEach((button) => {
+      button.addEventListener("click", () => recordDecision(button.dataset.decision));
+    });
+    document.getElementById("login").addEventListener("click", () => {
+      firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    });
+    document.getElementById("logout").addEventListener("click", () => firebase.auth().signOut());
+    firebase.auth().onAuthStateChanged((user) => {
+      document.getElementById("account").textContent = user?.email || "Signed out";
+      document.getElementById("login").hidden = !!user;
+      document.getElementById("logout").hidden = !user;
+      if (user) loadQueue();
+      else {
+        state.submissions = [];
+        applyFilters();
+        setStatus("Sign in with a Button Poetry team account.");
+      }
+    });
+  </script>
+</body>
+</html>
