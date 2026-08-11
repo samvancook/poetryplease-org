@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Submit | Poetry, Please</title>
+  <style>
+    :root { color-scheme: light; --ink:#171512; --muted:#6d675e; --paper:#fbf8f1; --line:#d9d0c2; --accent:#315f64; --error:#934536; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial,sans-serif; }
+    main { width:min(720px,calc(100% - 32px)); margin:48px auto 80px; }
+    header { border-bottom:1px solid var(--line); padding-bottom:24px; margin-bottom:28px; }
+    h1 { margin:0 0 8px; font-family:Georgia,serif; font-size:clamp(36px,7vw,60px); font-weight:500; letter-spacing:0; }
+    h2 { margin:0 0 8px; font-size:24px; letter-spacing:0; }
+    p { color:var(--muted); line-height:1.5; }
+    form { display:grid; gap:20px; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    label { display:grid; gap:7px; font-weight:700; }
+    input, textarea { width:100%; border:1px solid var(--line); border-radius:6px; background:white; color:var(--ink); padding:12px; font:inherit; }
+    textarea { min-height:180px; resize:vertical; }
+    input:focus, textarea:focus { outline:3px solid #c7e0e2; border-color:var(--accent); }
+    .check { display:flex; align-items:flex-start; gap:10px; font-weight:400; }
+    .check input { width:auto; margin-top:3px; }
+    button { justify-self:start; border:0; border-radius:6px; background:var(--accent); color:white; padding:13px 18px; font:700 16px Arial,sans-serif; cursor:pointer; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .status { min-height:24px; font-weight:700; }
+    .error { color:var(--error); }
+    .success { color:var(--accent); }
+    .counter { font-size:14px; color:var(--muted); text-align:right; }
+    .honeypot { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
+    [hidden] { display:none !important; }
+    @media (max-width:600px) { main { margin-top:24px; } .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Poetry, Please</h1>
+      <p>Submit your work for consideration.</p>
+    </header>
+
+    <section id="loading"><p>Loading submission form...</p></section>
+    <section id="unavailable" hidden>
+      <h2>Submissions are not open</h2>
+      <p id="unavailable-message">This submission program is not currently accepting work.</p>
+    </section>
+
+    <section id="form-section" hidden>
+      <h2 id="program-name"></h2>
+      <p id="program-description"></p>
+      <form id="submission-form">
+        <div class="grid">
+          <label>First name<input name="firstName" autocomplete="given-name" required maxlength="80"></label>
+          <label>Last name<input name="lastName" autocomplete="family-name" required maxlength="80"></label>
+          <label>Pronouns<input name="pronouns" autocomplete="off" maxlength="80"></label>
+          <label>Email address<input name="email" type="email" autocomplete="email" required maxlength="240"></label>
+          <label>Zip or postal code<input name="postalCode" autocomplete="postal-code" maxlength="24"></label>
+          <label>Phone number<input name="phone" type="tel" autocomplete="tel" maxlength="40"></label>
+          <label>Public Instagram handle<input name="instagramHandle" autocomplete="off" maxlength="120"></label>
+          <label>Instagram followers<input name="followerCount" type="number" min="0" step="1"></label>
+        </div>
+        <label>Poem title<input name="title" maxlength="120" placeholder="Untitled"></label>
+        <label>
+          Submission
+          <textarea id="submission-text" name="text" required></textarea>
+          <span id="character-count" class="counter"></span>
+        </label>
+        <label class="check">
+          <input id="terms" name="termsAccepted" type="checkbox" required>
+          <span id="terms-label"></span>
+        </label>
+        <label class="honeypot" aria-hidden="true">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+        <button id="submit-button" type="submit">Submit poem</button>
+        <div id="status" class="status" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+
+    <section id="complete" hidden>
+      <h2>Submission received</h2>
+      <p>Thank you. Your poem is now in the review queue.</p>
+    </section>
+  </main>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const programId = params.get("program") || "";
+    const loading = document.getElementById("loading");
+    const unavailable = document.getElementById("unavailable");
+    const formSection = document.getElementById("form-section");
+    const form = document.getElementById("submission-form");
+    const status = document.getElementById("status");
+    const text = document.getElementById("submission-text");
+    const counter = document.getElementById("character-count");
+    const submitButton = document.getElementById("submit-button");
+    let program = null;
+
+    function showUnavailable(message) {
+      loading.hidden = true;
+      formSection.hidden = true;
+      unavailable.hidden = false;
+      document.getElementById("unavailable-message").textContent = message;
+    }
+
+    function updateCount() {
+      const max = program?.maxCharacters || 250;
+      counter.textContent = text.value.length + " / " + max + " characters";
+    }
+
+    async function loadProgram() {
+      if (!programId) return showUnavailable("This link does not identify a submission program.");
+      try {
+        const response = await fetch("/api/submissionPrograms/" + encodeURIComponent(programId));
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Could not load this submission program.");
+        program = payload.program;
+        if (!program.acceptingSubmissions) return showUnavailable("This submission program is not currently accepting work.");
+        document.title = program.name + " | Poetry, Please";
+        document.getElementById("program-name").textContent = program.name;
+        document.getElementById("program-description").textContent = program.description || "";
+        text.maxLength = program.maxCharacters;
+        const termsLabel = document.getElementById("terms-label");
+        termsLabel.textContent = program.termsLabel;
+        if (program.termsUrl) {
+          termsLabel.innerHTML = "";
+          const link = document.createElement("a");
+          link.href = program.termsUrl;
+          link.target = "_blank";
+          link.rel = "noopener";
+          link.textContent = program.termsLabel;
+          termsLabel.append(link);
+        }
+        loading.hidden = true;
+        formSection.hidden = false;
+        updateCount();
+      } catch (error) {
+        showUnavailable(error.message || "Could not load this submission program.");
+      }
+    }
+
+    text.addEventListener("input", updateCount);
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      submitButton.disabled = true;
+      status.className = "status";
+      status.textContent = "Submitting...";
+      const data = Object.fromEntries(new FormData(form).entries());
+      data.termsAccepted = document.getElementById("terms").checked;
+      data.followerCount = Number(data.followerCount || 0);
+      try {
+        const response = await fetch("/api/submissionPrograms/" + encodeURIComponent(programId) + "/submissions", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          const messages = {
+            duplicate_submission: "This poem has already been submitted with this email address.",
+            text_too_long: "The poem is longer than this program allows.",
+            terms_not_accepted: "Please accept the terms before submitting.",
+            submission_program_closed: "Submissions have closed.",
+          };
+          throw new Error(messages[payload.error] || "The submission could not be saved.");
+        }
+        formSection.hidden = true;
+        document.getElementById("complete").hidden = false;
+      } catch (error) {
+        status.className = "status error";
+        status.textContent = error.message;
+        submitButton.disabled = false;
+      }
+    });
+
+    loadProgram();
+  </script>
+</body>
+</html>
