@@ -34,6 +34,8 @@ const COLLECTIONS = {
   contentDuplicates: "contentDuplicates",
   weaverImportLedger: "weaverImportLedger",
   contentSubmissions: "contentSubmissions",
+  submissionEntrants: "submissionEntrants",
+  submissionPrograms: "submissionPrograms",
   submissionResponses: "submissionResponses",
   systemState: "systemState",
 };
@@ -5267,6 +5269,139 @@ app.get(getBoth("/my/authorProfile"), async (req, res) => {
   const snap = await db.collection(COLLECTIONS.authorProfiles).doc(userRecord.authorProfileId).get();
   if (!snap.exists) return res.json({ profile: null });
   res.json({ profile: mapProfileDoc(snap.id, snap.data()) });
+});
+
+app.get(getBoth("/submissionPrograms/:programId"), async (req, res) => {
+  const programId = normalizeText(req.params.programId);
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+
+  const snap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!snap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+
+  const data = snap.data() || {};
+  const now = Date.now();
+  const opensAt = normalizeTimestamp(data.opensAt)?.getTime() || 0;
+  const closesAt = normalizeTimestamp(data.closesAt)?.getTime() || 0;
+  const acceptingSubmissions = data.acceptingSubmissions === true
+    && (!opensAt || opensAt <= now)
+    && (!closesAt || closesAt >= now);
+
+  res.json({
+    ok: true,
+    program: {
+      id: snap.id,
+      name: normalizeText(data.name || snap.id),
+      description: normalizeText(data.description || ""),
+      termsLabel: normalizeText(data.termsLabel || "I agree to the contest terms and conditions."),
+      termsUrl: normalizeText(data.termsUrl || ""),
+      termsVersion: normalizeText(data.termsVersion || ""),
+      maxCharacters: Math.max(1, Math.min(Number(data.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
+      acceptingSubmissions,
+      opensAt: data.opensAt || null,
+      closesAt: data.closesAt || null,
+    },
+  });
+});
+
+app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res) => {
+  const programId = normalizeText(req.params.programId);
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  if (normalizeText(req.body?.website || "")) return res.json({ ok: true });
+
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+
+  const program = programSnap.data() || {};
+  const now = Date.now();
+  const opensAt = normalizeTimestamp(program.opensAt)?.getTime() || 0;
+  const closesAt = normalizeTimestamp(program.closesAt)?.getTime() || 0;
+  if (program.acceptingSubmissions !== true || (opensAt && opensAt > now) || (closesAt && closesAt < now)) {
+    return res.status(409).json({ error: "submission_program_closed" });
+  }
+
+  const firstName = normalizeText(req.body?.firstName || "").slice(0, 80);
+  const lastName = normalizeText(req.body?.lastName || "").slice(0, 80);
+  const pronouns = normalizeText(req.body?.pronouns || "").slice(0, 80);
+  const email = normalizeText(req.body?.email || "").toLowerCase().slice(0, 240);
+  const postalCode = normalizeText(req.body?.postalCode || "").slice(0, 24);
+  const phone = normalizeText(req.body?.phone || "").slice(0, 40);
+  const instagramHandle = normalizeText(req.body?.instagramHandle || "").slice(0, 120);
+  const followerCount = Math.max(0, Math.min(Number(req.body?.followerCount) || 0, 1000000000));
+  const title = normalizeText(req.body?.title || "").slice(0, USER_SUBMISSION_TITLE_MAX) || "Untitled";
+  const text = normalizeText(req.body?.text || "");
+  const termsAccepted = req.body?.termsAccepted === true;
+  const maxCharacters = Math.max(1, Math.min(Number(program.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX));
+
+  if (!firstName || !lastName || !email || !text) {
+    return res.status(400).json({ error: "missing_required_submission_fields" });
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return res.status(400).json({ error: "invalid_email" });
+  }
+  if (text.length > maxCharacters) {
+    return res.status(400).json({ error: "text_too_long", maxChars: maxCharacters });
+  }
+  if (!termsAccepted) return res.status(400).json({ error: "terms_not_accepted" });
+
+  const duplicateFingerprint = createHash("sha256")
+    .update([programId, email, text.toLowerCase()].join("\n"))
+    .digest("hex");
+  const duplicateSnap = await db.collection(COLLECTIONS.contentSubmissions)
+    .where("duplicateFingerprint", "==", duplicateFingerprint)
+    .limit(1)
+    .get();
+  if (!duplicateSnap.empty) {
+    return res.status(409).json({
+      error: "duplicate_submission",
+      submissionId: duplicateSnap.docs[0].id,
+    });
+  }
+
+  const submissionRef = db.collection(COLLECTIONS.contentSubmissions).doc();
+  const entrantRef = db.collection(COLLECTIONS.submissionEntrants).doc(submissionRef.id);
+  const batch = db.batch();
+  batch.set(submissionRef, {
+    submissionType: "text",
+    title,
+    text,
+    releaseCatalog: normalizeText(program.releaseCatalog || USER_SUBMISSION_CATALOG),
+    sourceEvent: normalizeText(program.sourceEvent || program.name || programId),
+    sourceEventLabel: normalizeText(program.sourceEventLabel || program.name || programId),
+    submissionProgramId: programId,
+    submissionProgramName: normalizeText(program.name || programId),
+    contestSubmission: true,
+    status: "pending",
+    judgingStatus: "unassigned",
+    reviewNote: "",
+    duplicateFingerprint,
+    submitterUid: "",
+    submitterEmail: "",
+    submitterDisplayName: "Contest entrant",
+    positiveResponseCount: 0,
+    lastSeenPositiveResponseCount: 0,
+    termsVersion: normalizeText(program.termsVersion || ""),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(entrantRef, {
+    submissionId: submissionRef.id,
+    submissionProgramId: programId,
+    firstName,
+    lastName,
+    pronouns,
+    email,
+    postalCode,
+    phone,
+    instagramHandle,
+    followerCount,
+    termsAccepted: true,
+    termsVersion: normalizeText(program.termsVersion || ""),
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
+
+  res.status(201).json({ ok: true, submissionId: submissionRef.id });
 });
 
 app.get(getBoth("/my/submissions"), async (req, res) => {
