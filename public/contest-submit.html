@@ -27,6 +27,10 @@
     .error { color:var(--error); }
     .success { color:var(--accent); }
     .counter { font-size:14px; color:var(--muted); text-align:right; }
+    .account-invite { margin-top:28px; padding-top:24px; border-top:1px solid var(--line); }
+    .account-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:end; }
+    .account-actions label { flex:1 1 260px; }
+    .secondary { background:white; color:var(--accent); border:1px solid var(--accent); }
     .honeypot { position:absolute; left:-10000px; width:1px; height:1px; overflow:hidden; }
     [hidden] { display:none !important; }
     @media (max-width:600px) { main { margin-top:24px; } .grid { grid-template-columns:1fr; } }
@@ -79,8 +83,22 @@
       <h2>Submission received</h2>
       <p>Thank you. Your poem is now in the review queue.</p>
       <p id="submission-reference"></p>
+      <div class="account-invite">
+        <h2>Keep track of your submission</h2>
+        <p>Create an optional Poetry Please account to see this submission and return for future contests.</p>
+        <div class="account-actions">
+          <label>Email address<input id="account-email" type="email" autocomplete="email"></label>
+          <button id="email-link-button" type="button">Email me a sign-in link</button>
+          <button id="google-account-button" class="secondary" type="button">Continue with Google</button>
+        </div>
+        <div id="account-status" class="status" role="status" aria-live="polite"></div>
+        <p><a href="/my-submissions.html">Already have an account? View my submissions</a></p>
+      </div>
     </section>
   </main>
+  <script src="/__/firebase/8.10.1/firebase-app.js"></script>
+  <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
+  <script src="/__/firebase/init.js"></script>
   <script>
     const params = new URLSearchParams(location.search);
     const programId = params.get("program") || "";
@@ -92,7 +110,65 @@
     const text = document.getElementById("submission-text");
     const counter = document.getElementById("character-count");
     const submitButton = document.getElementById("submit-button");
+    const auth = firebase.auth();
+    const accountEmail = document.getElementById("account-email");
+    const accountStatus = document.getElementById("account-status");
+    let currentUser = null;
     let program = null;
+
+    auth.onAuthStateChanged((user) => {
+      currentUser = user || null;
+      if (user?.email) {
+        accountEmail.value = user.email;
+        const formEmail = form.elements.email;
+        if (formEmail && !formEmail.value) formEmail.value = user.email;
+      }
+    });
+
+    async function authorizationHeaders() {
+      if (!currentUser) return {};
+      return { authorization: "Bearer " + await currentUser.getIdToken() };
+    }
+
+    async function sendAccountLink() {
+      const email = String(accountEmail.value || form.elements.email?.value || "").trim().toLowerCase();
+      if (!email) {
+        accountStatus.className = "status error";
+        accountStatus.textContent = "Enter your email address.";
+        return;
+      }
+      accountStatus.className = "status";
+      accountStatus.textContent = "Sending sign-in link...";
+      try {
+        await auth.sendSignInLinkToEmail(email, {
+          url: new URL("/my-submissions.html", location.origin).href,
+          handleCodeInApp: true,
+        });
+        localStorage.setItem("pp_email_for_sign_in", email);
+        accountStatus.className = "status success";
+        accountStatus.textContent = "Sign-in link sent. Check your email.";
+      } catch (error) {
+        accountStatus.className = "status error";
+        accountStatus.textContent = error.code === "auth/operation-not-allowed"
+          ? "Email-link sign-in is not enabled yet."
+          : (error.message || "Could not send the sign-in link.");
+      }
+    }
+
+    async function signInGoogle() {
+      accountStatus.textContent = "Opening Google sign-in...";
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        await auth.signInWithPopup(provider);
+        location.href = "/my-submissions.html";
+      } catch (error) {
+        accountStatus.className = "status error";
+        accountStatus.textContent = error.message || "Google sign-in failed.";
+      }
+    }
+
+    document.getElementById("email-link-button").addEventListener("click", sendAccountLink);
+    document.getElementById("google-account-button").addEventListener("click", signInGoogle);
 
     function showUnavailable(message) {
       loading.hidden = true;
@@ -149,7 +225,10 @@
       try {
         const response = await fetch("/api/submissionPrograms/" + encodeURIComponent(programId) + "/submissions", {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers: {
+            "content-type": "application/json",
+            ...(await authorizationHeaders()),
+          },
           body: JSON.stringify(data),
         });
         const payload = await response.json();
@@ -159,11 +238,13 @@
             text_too_long: "The poem is longer than this program allows.",
             terms_not_accepted: "Please accept the terms before submitting.",
             submission_program_closed: "Submissions have closed.",
+            signed_in_email_mismatch: "Use the email address connected to your signed-in account.",
           };
           throw new Error(messages[payload.error] || "The submission could not be saved.");
         }
         formSection.hidden = true;
         document.getElementById("submission-reference").textContent = payload.submissionId ? "Confirmation reference: " + payload.submissionId : "";
+        accountEmail.value = data.email || currentUser?.email || "";
         document.getElementById("complete").hidden = false;
       } catch (error) {
         status.className = "status error";
