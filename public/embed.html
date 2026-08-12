@@ -26,10 +26,10 @@
     #stage {
       position: relative;
       display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
       width: 100%;
       height: 100%;
       min-height: 280px;
-      place-items: center;
       overflow: hidden;
       background: #f7f1e5;
       border: 1px solid rgba(34, 28, 20, 0.22);
@@ -74,6 +74,29 @@
       height: 100%;
       place-items: center;
       overflow: hidden;
+    }
+    #metadata {
+      display: none;
+      width: 100%;
+      padding: 12px 16px 13px;
+      border-top: 1px solid rgba(34, 28, 20, 0.16);
+      background: rgba(247, 241, 229, 0.98);
+      color: #191612;
+    }
+    #metadata[data-visible="true"] {
+      display: block;
+    }
+    #meta-title {
+      display: block;
+      font-size: clamp(16px, 3.4vw, 20px);
+      font-weight: 700;
+      line-height: 1.25;
+    }
+    #meta-byline {
+      display: block;
+      margin-top: 3px;
+      color: #5d574e;
+      font: 14px/1.35 Arial, sans-serif;
     }
     .media-image,
     .media-video,
@@ -121,6 +144,10 @@
 <body>
   <main id="stage" data-state="loading" tabindex="0" role="link" aria-label="Open this poem in Poetry Please">
     <div id="content"></div>
+    <div id="metadata" aria-live="polite">
+      <span id="meta-title"></span>
+      <span id="meta-byline"></span>
+    </div>
   </main>
   <script>
     (() => {
@@ -131,6 +158,9 @@
       const month = new Date().toISOString().slice(0, 7);
       const stage = document.getElementById("stage");
       const content = document.getElementById("content");
+      const metadata = document.getElementById("metadata");
+      const metaTitle = document.getElementById("meta-title");
+      const metaByline = document.getElementById("meta-byline");
       let pool = [];
       let index = 0;
       let current = null;
@@ -154,6 +184,9 @@
       function render(item) {
         current = item;
         content.replaceChildren();
+        metadata.dataset.visible = "false";
+        metaTitle.textContent = "";
+        metaByline.textContent = "";
         if (!item) {
           stage.dataset.state = "error";
           stage.removeAttribute("role");
@@ -213,8 +246,18 @@
         }
 
         content.appendChild(node);
+        const title = text(item.title) || "Untitled";
+        const author = text(item.author);
+        const itemBook = text(item.book) || book;
+        metaTitle.textContent = title;
+        metaByline.textContent = [
+          author ? "by " + author : "",
+          itemBook ? "from " + itemBook : ""
+        ].filter(Boolean).join(" · ");
+        metadata.dataset.visible = "true";
         stage.dataset.state = "ready";
-        stage.title = [text(item.title), text(item.author)].filter(Boolean).join(" — ");
+        stage.setAttribute("aria-label", ["Open", title, author ? "by " + author : "", itemBook ? "from " + itemBook : "", "in Poetry Please"].filter(Boolean).join(" "));
+        stage.title = [title, author, itemBook].filter(Boolean).join(" — ");
       }
 
       function openCurrent() {
