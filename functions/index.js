@@ -8588,7 +8588,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     db.collection(COLLECTIONS.authorProfiles).limit(250).get(),
     db.collection(COLLECTIONS.authorInvites).limit(250).get(),
     db.collection(COLLECTIONS.contentFlags).limit(250).get(),
-    getAllContentCached(),
+    getAllContent(),
   ]);
 
   const profiles = profileSnap.docs.map((doc) => mapProfileDoc(doc.id, doc.data()));
