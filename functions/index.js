@@ -8755,10 +8755,15 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     if (!authorKey) return;
     const group = contentGroups.get(authorKey) || { author: profile.displayName, items: [] };
     const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
-    const matches = uniq([
+    const matchesById = new Map();
+    [
       ...group.items,
       ...allContent.filter((item) => claimedKeys.has(normalizeKey(item.imageId || item.contentId || ""))),
-    ], (item) => normalizeKey(item.imageId || item.contentId || ""));
+    ].forEach((item) => {
+      const id = normalizeKey(item.imageId || item.contentId || "");
+      if (id) matchesById.set(id, item);
+    });
+    const matches = Array.from(matchesById.values());
     const invite = inviteByProfileId.get(profile.id)
       || inviteByAuthorKey.get(authorKey)
       || null;
