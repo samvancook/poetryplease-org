@@ -4345,19 +4345,39 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   };
   const limit = Math.max(10, Math.min(Number(req.body?.limit) || 500, 5000));
 
-  const [allContent, flaggedIds, votedIds] = await Promise.all([
+  const embedBook = req.body?.embedBook === true && !!filters.book;
+  const tasks = [
     getAllContentCached(),
     getFlaggedContentIds(),
     getUniqueVotedImageIdsByUser(userId),
-  ]);
+  ];
+  if (embedBook) tasks.push(getRatingsSummaryCached());
+
+  const [allContent, flaggedIds, votedIds, ratingsSummary = null] = await Promise.all(tasks);
 
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const filteredAll = filterContentByFeedFilters(all, filters);
   const filteredNew = filteredAll.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+  const rankedEmbedPool = embedBook
+    ? filteredNew
+      .map((item) => {
+        const rating = ratingsSummary?.[normalizeKey(item.imageId)] || ratingsSummary?.[item.imageId] || {};
+        return { item, rating };
+      })
+      .filter(({ rating }) => !rating.authorExcluded)
+      .sort((a, b) => (
+        (Number(b.rating.score || 0) - Number(a.rating.score || 0))
+        || (Number(b.rating.movedMe || 0) - Number(a.rating.movedMe || 0))
+        || (Number(b.rating.total || 0) - Number(a.rating.total || 0))
+        || normalizeText(a.item.title).localeCompare(normalizeText(b.item.title))
+      ))
+      .slice(0, Math.min(limit, 20))
+      .map(({ item }) => item)
+    : null;
 
   res.json({
     allGraphics: filteredAll.map(mapToCounterArr),
-    newGraphics: sampleItems(filteredNew, limit).map(mapToArr),
+    newGraphics: (rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
     totalImages: all.length,
     votedImagesCount: votedIds.size,
     remainingImagesCount: filteredNew.length,
@@ -4366,6 +4386,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     domainRemainingImagesCount: filteredNew.length,
     releaseCatalogs: uniqueReleaseCatalogs(all),
     imageTypes: [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort(),
+    ...(embedBook ? { ratingsSummary, feedMode: "embed-book", poolSize: rankedEmbedPool.length } : {}),
   });
 });
 
