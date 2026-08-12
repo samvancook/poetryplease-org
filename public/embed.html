@@ -73,6 +73,44 @@
       50% { content: ".."; }
       75%, 100% { content: "..."; }
     }
+    body {
+      min-height: 100vh;
+      overflow: hidden;
+    }
+    #poetry-screen {
+      min-height: 100vh;
+      padding: 18px;
+    }
+    #page-title, .button-container {
+      display: none !important;
+    }
+    #media-wrap {
+      min-height: calc(100vh - 36px);
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+    }
+    #under-controls {
+      margin: 0;
+      padding: 0 0 4px;
+      justify-content: center;
+    }
+    #btn-open-app {
+      min-height: 46px;
+      padding: 11px 20px;
+      border: 1px solid #2f5d62;
+      border-radius: 6px;
+      background: #2f5d62;
+      color: #fff;
+      font: 700 16px/1.2 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: pointer;
+    }
+    @media (max-width: 640px) {
+      #poetry-screen { padding: 12px; }
+      #media-wrap { min-height: calc(100vh - 24px); }
+      #btn-open-app { width: 100%; }
+    }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
@@ -108,6 +146,6 @@
     <div id="gallery" class="gallery"></div>
   </div>
 
-  <script src="/app.js?v=20260601a"></script>
+  <script src="/app.js?v=20260812a"></script>
 </body>
 </html>
