@@ -8700,7 +8700,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
 
   const legacyInviteAuthorByEmail = new Map([
     ["gigibellag@gmail.com", normalizeKey("Gigi Bella")],
-    ["elguante@gmail.com", normalizeKey('Kyle "Guante" Tran Myhre')],
+    ["elguante@gmail.com", normalizeKey("Kyle Tran Myhre")],
   ]);
   const inviteAuthorKey = new Map();
   invites.forEach((invite) => {
