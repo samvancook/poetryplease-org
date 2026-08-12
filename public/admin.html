@@ -750,6 +750,16 @@
           <button id="import-assistant-load-first" type="button" class="secondary">Load first into form</button>
         </div>
         <div class="hint">Use one filename per line, or tab-separated columns in this order: file name, author, book, title, drive link. For graphics, validation checks that each drive link resolves to a real image before import.</div>
+        <div style="margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:8px;background:#fffaf2;">
+          <strong>QI Library year canary</strong>
+          <div class="controls" style="margin-top:10px;">
+            <label>Year <input id="qi-library-year" type="text" inputmode="numeric" value="2023" placeholder="2023" style="width:110px;" /></label>
+            <button id="preview-qi-library-canary" type="button" class="secondary">Preview one ready row</button>
+            <button id="run-qi-library-canary" type="button" disabled>Import one canary</button>
+          </div>
+          <div id="qi-library-canary-status" class="status">Preview one row before importing.</div>
+          <div id="qi-library-canary-preview" class="empty">No QI Library row loaded.</div>
+        </div>
         <textarea id="import-assistant-text" placeholder="CAMACHO - PE - QUOTE IMAGES - DRIFT - 1.png&#10;WTF - INT - hi-01.jpg"></textarea>
         <div id="import-assistant-status" class="status">No import-assistant run yet.</div>
         <div id="import-assistant-results" class="empty">No results yet.</div>
@@ -2579,6 +2589,56 @@
         filled += 1;
       });
       return filled;
+    }
+
+    function renderQiLibraryCanaryRow(row) {
+      const container = document.getElementById('qi-library-canary-preview');
+      container.className = row ? '' : 'empty';
+      container.textContent = row
+        ? `Row ${row.sourceSpreadsheetRow}: ${row.fileName || row.title || row.sourceDriveFileId || 'QI graphic'} · ${row.author || 'Unknown author'} · ${row.book || 'Unknown book'}`
+        : 'No ready row found for this year.';
+    }
+
+    async function previewQiLibraryCanary() {
+      const statusEl = document.getElementById('qi-library-canary-status');
+      const runButton = document.getElementById('run-qi-library-canary');
+      const year = document.getElementById('qi-library-year').value.trim();
+      runButton.disabled = true;
+      statusEl.textContent = 'Loading one ready row…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api(`admin/importAssistant/qiLibraryYear?year=${encodeURIComponent(year)}&limit=1`);
+        const row = (payload.rows || [])[0] || null;
+        renderQiLibraryCanaryRow(row);
+        runButton.disabled = !row;
+        const remaining = payload.remainingCount || payload.readyCount || (row ? 1 : 0);
+        statusEl.textContent = row ? `${remaining} ready row${remaining === 1 ? '' : 's'} remain for ${year}.` : `No ready QI Library rows remain for ${year}.`;
+      } catch (err) {
+        console.error(err);
+        renderQiLibraryCanaryRow(null);
+        statusEl.textContent = err.message || 'Could not read the QI Library.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function runQiLibraryCanary() {
+      const statusEl = document.getElementById('qi-library-canary-status');
+      const runButton = document.getElementById('run-qi-library-canary');
+      const year = document.getElementById('qi-library-year').value.trim();
+      runButton.disabled = true;
+      statusEl.textContent = 'Importing one canary and verifying QI Library writeback…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/importAssistant/qiLibraryYear/run', { method: 'POST', body: { year, limit: 1 } });
+        const batch = (payload.batches || [])[0] || {};
+        statusEl.textContent = `Canary complete. ${batch.writebackCount || 0} QI Library row verified; ${payload.remainingCount || 0} remain for ${year}.`;
+        statusEl.className = 'status success';
+        await previewQiLibraryCanary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'QI Library canary failed.';
+        statusEl.className = 'status error';
+      }
     }
 
     async function runImportAssistant() {
@@ -4637,6 +4697,8 @@
       document.getElementById("author-detail-drawer").addEventListener("click", (event) => {
         if (event.target.id === "author-detail-drawer") closeAuthorDetail();
       });
+      document.getElementById("preview-qi-library-canary").addEventListener("click", () => previewQiLibraryCanary());
+      document.getElementById("run-qi-library-canary").addEventListener("click", () => runQiLibraryCanary());
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
       document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
       document.getElementById("run-import-assistant-graphics").addEventListener("click", () => runImportAssistantGraphics());

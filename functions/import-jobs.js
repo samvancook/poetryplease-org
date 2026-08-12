@@ -566,7 +566,8 @@ export function registerImportJobRoutes({
     if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
     try {
       const values = await getQiLibraryValues("A1:AI8000");
-      const selection = selectQiLibraryYearRows(values, { year, limit: 25, offset: 0 });
+      const limit = Math.min(Math.max(Number(req.body?.limit || 25), 1), 25);
+      const selection = selectQiLibraryYearRows(values, { year, limit, offset: 0 });
       if (!selection.rows.length) {
         return res.json({ ok: true, complete: true, stopReason: "complete", ...selection, batches: [] });
       }
