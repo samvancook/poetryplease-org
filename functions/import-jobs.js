@@ -1,10 +1,23 @@
 import { createHash } from "node:crypto";
-import { canonicalImportManifestJson } from "./uploader-helpers.js";
+import { GoogleAuth } from "google-auth-library";
+import {
+  buildQiLibraryWritebackValues,
+  canonicalImportManifestJson,
+  detectImageMimeType,
+  selectQiLibraryYearRows,
+  validateImportedGraphic,
+} from "./uploader-helpers.js";
 
 const IMPORT_JOB_MAX_ITEMS = 500;
 const IMPORT_PROCESS_BATCH_SIZE = 25;
 const IMPORT_STALE_PROCESSING_MS = 10 * 60 * 1000;
 const IMPORT_SERVER_RUN_LIMIT_MS = 7 * 60 * 1000;
+const QI_LIBRARY_SPREADSHEET_ID = process.env.QI_LIBRARY_SPREADSHEET_ID || "1vfG1vAc095q_UM08bAOoeUkIEy1s5N2yIb0Q99XF95U";
+const QI_LIBRARY_SHEET_NAME = process.env.QI_LIBRARY_SHEET_NAME || "QI Folder Inventory";
+const QI_LIBRARY_SHEET_ID = Number(process.env.QI_LIBRARY_SHEET_ID || 91745643);
+const qiLibrarySheetsAuth = new GoogleAuth({
+  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+});
 
 export function registerImportJobRoutes({
   app,
@@ -23,6 +36,133 @@ export function registerImportJobRoutes({
 }) {
   const importJobs = "importJobs";
   const importJobItems = "importJobItems";
+
+
+  async function getQiLibrarySheetsAccessToken() {
+    const client = await qiLibrarySheetsAuth.getClient();
+    const tokenResult = await client.getAccessToken();
+    const token = typeof tokenResult === "string" ? tokenResult : tokenResult?.token;
+    if (!token) {
+      const err = new Error("missing_qi_library_sheets_token");
+      err.status = 500;
+      throw err;
+    }
+    return token;
+  }
+
+  async function getQiLibraryValues(range) {
+    const token = await getQiLibrarySheetsAccessToken();
+    const encodedRange = encodeURIComponent(`'${QI_LIBRARY_SHEET_NAME.replaceAll("'", "''")}'!${range}`);
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${QI_LIBRARY_SPREADSHEET_ID}/values/${encodedRange}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`,
+      { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) },
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      const err = new Error(`qi_library_read_failed:${response.status}:${detail.slice(0, 300)}`);
+      err.status = response.status === 403 ? 403 : 502;
+      throw err;
+    }
+    const payload = await response.json();
+    return Array.isArray(payload.values) ? payload.values : [];
+  }
+
+  async function writeQiLibraryAuditRow({ rowNumber, sourceDriveFileId, values }) {
+    const safeRow = Number(rowNumber || 0);
+    if (!Number.isInteger(safeRow) || safeRow < 2) throw new Error("invalid_qi_library_row");
+    const current = await getQiLibraryValues(`A${safeRow}:AI${safeRow}`);
+    const currentRow = current[0] || [];
+    if (normalizeText(currentRow[6]) !== normalizeText(sourceDriveFileId)) {
+      const err = new Error("qi_library_source_identity_changed");
+      err.status = 409;
+      throw err;
+    }
+    const token = await getQiLibrarySheetsAccessToken();
+    const encodedRange = encodeURIComponent(`'${QI_LIBRARY_SHEET_NAME.replaceAll("'", "''")}'!AD${safeRow}:AI${safeRow}`);
+    const response = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${QI_LIBRARY_SPREADSHEET_ID}/values/${encodedRange}?valueInputOption=RAW`,
+      {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          range: `'${QI_LIBRARY_SHEET_NAME}'!AD${safeRow}:AI${safeRow}`,
+          majorDimension: "ROWS",
+          values: [values],
+        }),
+        signal: AbortSignal.timeout(30000),
+      },
+    );
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      const err = new Error(`qi_library_write_failed:${response.status}:${detail.slice(0, 300)}`);
+      err.status = response.status === 403 ? 403 : 502;
+      throw err;
+    }
+    const reread = await getQiLibraryValues(`AD${safeRow}:AI${safeRow}`);
+    const savedValues = (reread[0] || []).map(normalizeText);
+    if (values.map(normalizeText).some((value, index) => savedValues[index] !== value)) {
+      const err = new Error("qi_library_write_verification_failed");
+      err.status = 502;
+      throw err;
+    }
+    return { verified: true, values: savedValues };
+  }
+
+  async function verifyAndWriteBackQiLibraryItem({ requested, result, batchId }) {
+    const sourceRow = Number(requested.sourceSpreadsheetRow || 0);
+    if (!sourceRow) return { skipped: true, verified: false };
+    if (
+      normalizeText(requested.sourceSpreadsheetId) !== QI_LIBRARY_SPREADSHEET_ID
+      || Number(requested.sourceSpreadsheetSheetId || 0) !== QI_LIBRARY_SHEET_ID
+      || normalizeText(requested.sourceSpreadsheetSheetName) !== QI_LIBRARY_SHEET_NAME
+    ) {
+      throw new Error("qi_library_destination_mismatch");
+    }
+    const saved = result.item || {};
+    const imageUrl = normalizeText(saved.imageUrl);
+    if (!imageUrl) throw new Error("public_image_missing");
+    const imageResponse = await fetch(imageUrl, {
+      method: "GET",
+      headers: { Range: "bytes=0-511" },
+      signal: AbortSignal.timeout(15000),
+    });
+    const imageBytes = Buffer.from(await imageResponse.arrayBuffer());
+    const detectedImageType = detectImageMimeType(imageBytes.subarray(0, 512));
+    const headerImageType = normalizeText(imageResponse.headers.get("content-type") || "").split(";")[0].toLowerCase();
+    const verification = validateImportedGraphic({
+      requested,
+      saved,
+      imageStatus: imageResponse.status,
+      imageContentType: headerImageType.startsWith("image/") ? headerImageType : detectedImageType,
+    });
+    if (!verification.ok) {
+      const detail = verification.mismatchedFields.length
+        ? `metadata_mismatch:${verification.mismatchedFields.join(",")}`
+        : `image_or_identity_failed:${verification.imageStatus}:${verification.imageContentType}`;
+      throw new Error(detail);
+    }
+    const verifiedAt = new Date().toISOString();
+    const values = buildQiLibraryWritebackValues({
+      imageUrl: verification.imageUrl,
+      docId: normalizeText(saved.id || saved.contentId || saved.imageId),
+      verifiedAt,
+      batchId,
+      action: result.created ? "created" : "updated",
+    });
+    await writeQiLibraryAuditRow({
+      rowNumber: sourceRow,
+      sourceDriveFileId: requested.sourceDriveFileId,
+      values,
+    });
+    return {
+      verified: true,
+      spreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
+      sheetName: QI_LIBRARY_SHEET_NAME,
+      rowNumber: sourceRow,
+      range: `AD${sourceRow}:AI${sourceRow}`,
+      verifiedAt,
+    };
+  }
 
   function itemId(type, item, index) {
     const supplied = normalizeText(item?.idempotencyKey || "");
@@ -221,6 +361,11 @@ export function registerImportJobRoutes({
       }, { merge: true });
       try {
         const result = await upsertContentLibraryItem(job.type, data.payload || {}, actor);
+        const libraryWriteback = await verifyAndWriteBackQiLibraryItem({
+          requested: data.payload || {},
+          result,
+          batchId,
+        });
         await itemDoc.ref.set({
           state: "complete",
           result: {
@@ -231,6 +376,7 @@ export function registerImportJobRoutes({
             storagePath: result.asset?.storagePath || "",
             assetReused: !!result.asset?.reused,
             sourceDriveFileId: normalizeText(data.payload?.sourceDriveFileId),
+            libraryWriteback,
           },
           error: FieldValue.delete(),
           errorCode: FieldValue.delete(),
@@ -389,6 +535,71 @@ export function registerImportJobRoutes({
       retriedCount: itemSnap.size,
       counts: await updateCounts(req.params.batchId),
     });
+  });
+
+
+  app.get(getBoth("/admin/importAssistant/qiLibraryYear"), async (req, res) => {
+    const ctx = await requireRole(req, res, ["admin"]);
+    if (!ctx) return;
+    const year = normalizeText(req.query?.year || "");
+    if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
+    const limit = Math.min(Math.max(Number(req.query?.limit || 25), 1), 100);
+    const offset = Math.max(Number(req.query?.offset || 0), 0);
+    try {
+      const values = await getQiLibraryValues("A1:AI8000");
+      return res.json({
+        ok: true,
+        spreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
+        sheetId: QI_LIBRARY_SHEET_ID,
+        sheetName: QI_LIBRARY_SHEET_NAME,
+        ...selectQiLibraryYearRows(values, { year, limit, offset }),
+      });
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message || "qi_library_year_load_failed" });
+    }
+  });
+
+  app.post(getBoth("/admin/importAssistant/qiLibraryYear/run"), async (req, res) => {
+    const ctx = await requireRole(req, res, ["admin"]);
+    if (!ctx) return;
+    const year = normalizeText(req.body?.year || "");
+    if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
+    try {
+      const values = await getQiLibraryValues("A1:AI8000");
+      const selection = selectQiLibraryYearRows(values, { year, limit: 25, offset: 0 });
+      if (!selection.rows.length) {
+        return res.json({ ok: true, complete: true, stopReason: "complete", ...selection, batches: [] });
+      }
+      const items = selection.rows.map((row) => ({
+        ...row,
+        imageType: "QI",
+        sourceSpreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
+        sourceSpreadsheetSheetId: QI_LIBRARY_SHEET_ID,
+        sourceSpreadsheetSheetName: QI_LIBRARY_SHEET_NAME,
+      }));
+      const actor = { uid: ctx.decoded.uid, email: ctx.decoded.email };
+      const job = await createJob({ type: "graphics", items, actor });
+      const run = await runToCompletion(job.id, actor);
+      const failed = (run.snapshot?.items || []).filter((item) => item.state === "failed");
+      const finalValues = await getQiLibraryValues("A1:AI8000");
+      const finalSelection = selectQiLibraryYearRows(finalValues, { year, limit: 1, offset: 0 });
+      const complete = finalSelection.remainingCount === 0;
+      return res.status(failed.length || run.publishError ? 409 : (complete ? 200 : 202)).json({
+        ok: !failed.length && !run.publishError,
+        complete,
+        stopReason: failed.length ? "batch_failed" : (run.publishError ? "publication_failed" : (complete ? "complete" : "checkpoint")),
+        remainingCount: finalSelection.remainingCount,
+        readyCount: finalSelection.readyCount,
+        batches: [{
+          batchId: job.id,
+          itemCount: items.length,
+          failedCount: failed.length,
+          writebackCount: (run.snapshot?.items || []).filter((item) => item.result?.libraryWriteback?.verified).length,
+        }],
+      });
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message || "qi_library_year_run_failed" });
+    }
   });
 
   return { createJob, processJob, runToCompletion, snapshot };
