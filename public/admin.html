@@ -740,6 +740,12 @@
           <button id="run-import-assistant" type="button">Resolve metadata</button>
           <button id="preview-import-assistant-graphics" type="button" class="secondary">Validate graphics</button>
           <button id="run-import-assistant-graphics" type="button" class="secondary">Import valid graphics</button>
+          <button id="resume-import-assistant-batch" type="button" class="secondary" disabled>Resume latest batch</button>
+          <button id="retry-import-assistant-failed" type="button" class="secondary" disabled>Retry failed rows</button>
+          <label style="display:flex;align-items:center;gap:8px;">
+            <input id="import-assistant-force-replace" type="checkbox" />
+            Replace existing asset
+          </label>
           <button id="import-assistant-download" type="button" class="secondary">Download JSON</button>
           <button id="import-assistant-load-first" type="button" class="secondary">Load first into form</button>
         </div>
@@ -975,6 +981,7 @@
       submissionProgramFilter: "all",
       importAssistantResults: [],
       importAssistantPreviewRows: [],
+      importAssistantBatchId: localStorage.getItem('pp_admin_last_import_batch_id') || '',
       contentItems: [],
       contentTotalCount: 0,
       contentType: "all",
@@ -2640,23 +2647,105 @@
       }
     }
 
-    async function runImportAssistantGraphics() {
+    function applyImportJobResults(snapshot) {
+      const resultsById = new Map((snapshot.items || []).map((item) => [String(item.requestedId || ''), item]));
+      state.importAssistantResults = state.importAssistantResults.map((row) => ({
+        ...row,
+        jobResult: resultsById.get(String(row.suggestedDocId || '')) || row.jobResult || null,
+      }));
+      state.importAssistantPreviewRows = state.importAssistantResults;
+      renderImportAssistantResults(state.importAssistantResults);
+    }
+
+    async function processImportAssistantJob(batchId, itemCount, statusEl) {
+      statusEl.textContent = `Running resumable batch ${batchId}…`;
+      statusEl.className = 'status';
+      const run = await api(`admin/contentLibrary/importJobs/${encodeURIComponent(batchId)}/run`, { method: 'POST' });
+      const snapshot = run.snapshot || await api(`admin/contentLibrary/importJobs/${encodeURIComponent(batchId)}`);
+      applyImportJobResults(snapshot);
+      const counts = run.counts || snapshot.job || {};
+      const failed = (snapshot.items || []).filter((item) => item.state === 'failed');
+      document.getElementById('resume-import-assistant-batch').disabled = !run.timedOut;
+      document.getElementById('retry-import-assistant-failed').disabled = failed.length === 0;
+      if (run.timedOut) {
+        statusEl.textContent = `Batch ${batchId} paused with work remaining. Resume it; completed rows will not replay.`;
+        statusEl.className = 'status error';
+      } else if (failed.length) {
+        statusEl.textContent = `Batch ${batchId}: ${counts.completedCount || 0} complete, ${failed.length} failed.`;
+        statusEl.className = 'status error';
+      } else {
+        statusEl.textContent = `Batch ${batchId}: ${counts.completedCount || itemCount} complete, 0 failed.`;
+        statusEl.className = 'status success';
+      }
+      return snapshot;
+    }
+
+    async function resumeImportAssistantBatch() {
       const statusEl = document.getElementById('import-assistant-status');
-      const rows = state.importAssistantPreviewRows.length ? state.importAssistantPreviewRows : state.importAssistantResults;
-      const items = rows.filter((row) => row.validation?.ok).map((row) => row.contentItem).filter(Boolean);
-      if (!items.length) {
-        statusEl.textContent = 'Validate graphics first, then import the valid rows.';
+      const batchId = state.importAssistantBatchId || localStorage.getItem('pp_admin_last_import_batch_id') || '';
+      if (!batchId) {
+        statusEl.textContent = 'No saved import batch is available.';
         statusEl.className = 'status error';
         return;
       }
-      statusEl.textContent = 'Importing valid graphics…';
+      state.importAssistantBatchId = batchId;
+      try {
+        const snapshot = await api(`admin/contentLibrary/importJobs/${encodeURIComponent(batchId)}`);
+        await processImportAssistantJob(batchId, Number(snapshot.job?.itemCount || snapshot.items?.length || 0), statusEl);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not resume the saved batch.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function retryImportAssistantFailed() {
+      const statusEl = document.getElementById('import-assistant-status');
+      const batchId = state.importAssistantBatchId;
+      if (!batchId) {
+        statusEl.textContent = 'No import batch is available to retry.';
+        statusEl.className = 'status error';
+        return;
+      }
+      try {
+        const retry = await api(`admin/contentLibrary/importJobs/${encodeURIComponent(batchId)}/retryFailed`, { method: 'POST' });
+        if (!retry.retriedCount) {
+          statusEl.textContent = `Batch ${batchId} has no failed rows to retry.`;
+          document.getElementById('retry-import-assistant-failed').disabled = true;
+          return;
+        }
+        await processImportAssistantJob(batchId, state.importAssistantResults.filter((row) => row.validation?.ok).length, statusEl);
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'Could not retry failed rows.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function runImportAssistantGraphics() {
+      const statusEl = document.getElementById('import-assistant-status');
+      const rows = state.importAssistantPreviewRows.length ? state.importAssistantPreviewRows : state.importAssistantResults;
+      const forceAssetReplace = document.getElementById('import-assistant-force-replace').checked;
+      const items = rows
+        .filter((row) => row.validation?.ok && ['create', 'update'].includes(row.action))
+        .map((row) => row.contentItem ? { ...row.contentItem, forceAssetReplace } : null)
+        .filter(Boolean);
+      if (!items.length) {
+        statusEl.textContent = 'Validate graphics first, then import the valid create/update rows.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = 'Creating deterministic import job…';
       statusEl.className = 'status';
       try {
-        const payload = await api('admin/contentLibrary/bulkUpsert', {
+        const job = await api('admin/contentLibrary/importJobs', {
           method: 'POST',
           body: { type: 'graphics', items },
         });
-        statusEl.textContent = `Imported ${payload.createdCount} created, ${payload.updatedCount} updated, ${payload.errorCount} failed.`;
+        state.importAssistantBatchId = job.batchId;
+        localStorage.setItem('pp_admin_last_import_batch_id', job.batchId);
+        document.getElementById('resume-import-assistant-batch').disabled = false;
+        await processImportAssistantJob(job.batchId, items.length, statusEl);
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not import valid graphics.';
@@ -4551,6 +4640,9 @@
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
       document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
       document.getElementById("run-import-assistant-graphics").addEventListener("click", () => runImportAssistantGraphics());
+      document.getElementById("resume-import-assistant-batch").addEventListener("click", () => resumeImportAssistantBatch());
+      document.getElementById("retry-import-assistant-failed").addEventListener("click", () => retryImportAssistantFailed());
+      document.getElementById("resume-import-assistant-batch").disabled = !state.importAssistantBatchId;
       document.getElementById("import-assistant-download").addEventListener("click", () => downloadImportAssistantJson());
       document.getElementById("import-assistant-load-first").addEventListener("click", () => loadFirstImportAssistantRowIntoForm());
       document.getElementById("users-toggle").addEventListener("click", () => {
