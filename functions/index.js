@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import { registerImportJobRoutes } from "./import-jobs.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -37,6 +38,8 @@ const COLLECTIONS = {
   submissionEntrants: "submissionEntrants",
   submissionPrograms: "submissionPrograms",
   submissionResponses: "submissionResponses",
+  importJobs: "importJobs",
+  importJobItems: "importJobItems",
   systemState: "systemState",
 };
 
@@ -6560,6 +6563,22 @@ app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
     await invalidateScoreboardSnapshot(`content_bulk_upsert:${type}`);
   }
   res.json({ ok: true, createdCount, updatedCount, errorCount, results });
+});
+
+registerImportJobRoutes({
+  app,
+  getBoth,
+  requireRole,
+  db,
+  FieldValue,
+  normalizeText,
+  normalizeKey,
+  sanitizeDocIdSegment,
+  deriveContentDocId,
+  extractGoogleDriveFileId,
+  upsertContentLibraryItem,
+  invalidateContentCache,
+  invalidateScoreboardSnapshot,
 });
 
 app.get(getBoth("/admin/idHygiene/pigPreview"), async (req, res) => {
