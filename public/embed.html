@@ -167,9 +167,16 @@
 
       const text = (value) => String(value || "").trim();
       const typeKey = (item) => text(item && item.imageType).toUpperCase();
-      const deepLink = (item) => item && item.id
-        ? "/app?item=" + encodeURIComponent(item.id)
-        : "/app?book=" + encodeURIComponent(book) + "&locked=1";
+      const deepLink = (item) => {
+        const targetBook = text(item && item.book) || book;
+        const targetCatalog = text(item && item.releaseCatalog) || catalog;
+        const target = new URL("/app", location.origin);
+        if (item && item.id) target.searchParams.set("item", item.id);
+        if (targetBook) target.searchParams.set("book", targetBook);
+        if (targetCatalog) target.searchParams.set("catalog", targetCatalog);
+        target.searchParams.set("locked", "1");
+        return target.pathname + target.search;
+      };
 
       function youtubeEmbed(url) {
         const match = text(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{6,})/);
