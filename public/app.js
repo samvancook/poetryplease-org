@@ -982,6 +982,7 @@ const fetchBootstrapAnonWrapped   = (anonId, welcome = false) => api('bootstrap'
   }
 });
 const fetchFilteredWrapped        = (filters) => api('fetchFiltered', { body: { limit: FILTERED_REVIEW_BATCH_SIZE, ...filters } });
+const fetchEmbedBookWrapped       = (filters) => api('fetchFiltered', { body: { limit: 20, embedBook: true, ...filters } });
 const fetchFullDataWrapped        = () => api('fetchData',        { body: { limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchFullDataAnonWrapped    = (anonId) => api('fetchDataAnon', { body: { anonId, limit: FULL_HYDRATION_BATCH_SIZE, includeDomainMeta: true } });
 const fetchContentByIdWrapped     = (id) => api(`contentById?id=${encodeURIComponent(id)}`, { method: 'GET' });
@@ -1657,6 +1658,8 @@ let selectedQueueMode = 'ranked';
 let activeWelcomeLane = false;
 let selectedItemId = '';
 let embedLockedItemId = '';
+let embedRotationTimer = null;
+const EMBED_ROTATION_MS = 45000;
 let selectedItemRecord = null;
 let routeItemConsumed = false;
 let routeItemUnavailable = false;
@@ -2421,6 +2424,10 @@ async function fetchFullFeedData() {
 }
 
 async function fetchBestBatchForCurrentView() {
+  if (IS_EMBED_UI && filterByBook && selectedBook && !selectedItemId) {
+    const anonId = await getOrCreateAnonId();
+    return fetchEmbedBookWrapped(getActiveFilterPayload({ anonId }));
+  }
   return hasActiveFeedFilters() ? fetchFilteredFeedData() : fetchLatestBatch();
 }
 
@@ -2612,7 +2619,7 @@ function buildFilteredList(data) {
   });
 
   const pinnedEmbedId = selectedItemId || embedLockedItemId;
-  if (IS_EMBED_UI && pinnedEmbedId) {
+  if (IS_EMBED_UI && selectedItemId && pinnedEmbedId) {
     list = list.filter((g) => valuesMatch(g.id, pinnedEmbedId));
   }
 
@@ -2781,7 +2788,7 @@ function initQueueFromData(data) {
   if (activeWelcomeLane) {
     flashMessage(`Welcome favorites · rate ${data.calibrationTarget || WELCOME_CALIBRATION_VOTES} to calibrate your feed.`);
   }
-  if (data?.ratingsSummary && !IS_EMBED_UI) {
+  if (data?.ratingsSummary) {
     ratingsMap = data.ratingsSummary || {};
   }
   queue = buildFilteredList(data);
@@ -2796,7 +2803,9 @@ function initQueueFromData(data) {
       queue.unshift(target);
     }
   }
-  idx = 0;
+  idx = (IS_EMBED_UI && data?.feedMode === 'embed-book' && queue.length > 1)
+    ? Math.floor(Math.random() * queue.length)
+    : 0;
   historyStack.length = 0;
   for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
   renderWhenReady(idx);
@@ -3164,7 +3173,7 @@ function renderCurrent(item) {
   currentItem = item;
   refreshItemFeedSignals(currentItem);
   window.currentItem = currentItem; // <-- make it available to mobile.html
-  if (IS_EMBED_UI && currentItem?.id && !embedLockedItemId) {
+  if (IS_EMBED_UI && selectedItemId && currentItem?.id && !embedLockedItemId) {
     embedLockedItemId = currentItem.id;
     selectedItemRecord = currentItem;
   }
@@ -3196,12 +3205,17 @@ function renderCurrent(item) {
   if (toApp) {
     toApp.onclick = () => {
       const params = new URLSearchParams();
-      if (currentItem?.id) params.set('item', currentItem.id);
-      if (selectedType || currentItem?.imageType) params.set('type', selectedType || currentItem.imageType);
-      if (selectedCatalog) params.set('catalog', selectedCatalog);
-      if (filterByAuthor && selectedAuthor) params.set('author', selectedAuthor);
-      if (filterByBook && selectedBook) params.set('book', selectedBook);
-      if (selectedEvent) params.set('event', selectedEvent);
+      if (IS_EMBED_UI && filterByBook && selectedBook) {
+        params.set('book', selectedBook);
+        params.set('locked', '1');
+      } else {
+        if (currentItem?.id) params.set('item', currentItem.id);
+        if (selectedType || currentItem?.imageType) params.set('type', selectedType || currentItem.imageType);
+        if (selectedCatalog) params.set('catalog', selectedCatalog);
+        if (filterByAuthor && selectedAuthor) params.set('author', selectedAuthor);
+        if (filterByBook && selectedBook) params.set('book', selectedBook);
+        if (selectedEvent) params.set('event', selectedEvent);
+      }
       window.open(`/app${params.toString() ? `?${params.toString()}` : ''}`, '_blank', 'noopener,noreferrer');
     };
   }
@@ -3224,6 +3238,13 @@ function renderCurrent(item) {
   }
   LoaderController.clearInline();
   LoaderController.markScreenReady();
+  if (IS_EMBED_UI && !selectedItemId && queue.length > 1) {
+    if (embedRotationTimer) clearTimeout(embedRotationTimer);
+    embedRotationTimer = window.setTimeout(() => {
+      idx = (idx + 1) % queue.length;
+      renderWhenReady(idx);
+    }, EMBED_ROTATION_MS);
+  }
 }
 
 // ===== Heuristic next index chooser =====
@@ -3598,10 +3619,8 @@ window.addEventListener('DOMContentLoaded', () => {
   if (IS_EMBED_UI) {
     if (!$('#under-controls')) {
       const row = document.createElement('div'); row.id='under-controls'; row.className='button-row';
-      const openApp = document.createElement('button'); openApp.id='btn-open-app'; openApp.textContent='Open in Poetry, Please';
-      const toBook = document.createElement('button'); toBook.id='btn-to-book'; toBook.textContent='Take me to the book';
-      const toWorkshops = document.createElement('button'); toWorkshops.id='btn-to-workshops'; toWorkshops.textContent='Take me to the writing workshops';
-      row.append(openApp, toBook, toWorkshops); mediaWrap.appendChild(row);
+      const openApp = document.createElement('button'); openApp.id='btn-open-app'; openApp.textContent='Show me more poems!';
+      row.append(openApp); mediaWrap.appendChild(row);
     }
     return;
   }
