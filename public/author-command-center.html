@@ -238,6 +238,29 @@
       return invite.expiresAt ? `Invite open - expires ${formatDate(invite.expiresAt)}` : "Invite open";
     }
 
+    function inviteEmailUrl(email, inviteUrl, expiresAt = "") {
+      const subject = "Your Poetry, Please author invite";
+      const expiration = expiresAt ? ` This invitation expires ${formatDate(expiresAt)}.` : "";
+      const body = [
+        "Hello,",
+        "",
+        "Button Poetry is inviting you to review the work connected to your author profile in Poetry, Please.",
+        "",
+        "Use this private link to sign in, review associated work, flag corrections, and update your profile:",
+        inviteUrl,
+        "",
+        `Please sign in with ${email}.${expiration}`,
+        "",
+        "Thank you,",
+        "Button Poetry",
+      ].join("\n");
+      return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    }
+
+    function openInviteEmail(email, inviteUrl, expiresAt = "") {
+      window.location.href = inviteEmailUrl(email, inviteUrl, expiresAt);
+    }
+
     function readinessChips(readiness = {}) {
       const items = [
         ["Account", readiness.hasClaimedAccount],
@@ -337,7 +360,7 @@
                   <button type="button" class="secondary detail-button" data-row="${rowIndex}">Details</button>
                   ${reviewAuthor ? `<a class="button secondary" href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ""}
                   ${profile.slug ? `<a class="button secondary" href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ""}
-                  ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Generate link</button>` : ""}
+                  ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Copy invite link</button><button type="button" class="email-button" data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || "")}">Email invite</button>` : ""}
                 </td>
               </tr>
             `;
@@ -350,6 +373,9 @@
       });
       container.querySelectorAll(".generate-button").forEach((button) => {
         button.addEventListener("click", () => regenerateInvite(button.dataset.inviteId));
+      });
+      container.querySelectorAll(".email-button").forEach((button) => {
+        button.addEventListener("click", () => emailInvite(button.dataset.inviteId, button.dataset.email));
       });
     }
 
@@ -477,16 +503,38 @@
         resultEl.innerHTML = `
           <div><strong>Invite link</strong></div>
           <code id="latest-invite-link">${escapeHtml(payload.inviteUrl || "")}</code>
-          <div style="margin-top:10px;"><button id="copy-invite-link" type="button" class="secondary">Copy link</button></div>
+          <div style="margin-top:10px;" class="controls">
+            <button id="copy-invite-link" type="button" class="secondary">Copy link</button>
+            <button id="email-latest-invite" type="button">Email invite</button>
+          </div>
         `;
         document.getElementById("copy-invite-link").addEventListener("click", async () => {
           await navigator.clipboard.writeText(payload.inviteUrl || "");
           statusEl.textContent = "Invite link copied.";
         });
+        document.getElementById("email-latest-invite").addEventListener("click", () => {
+          statusEl.textContent = "Opening invite email...";
+          openInviteEmail(payload.email || email, payload.inviteUrl || "", payload.expiresAt || "");
+        });
         statusEl.textContent = "Invite created.";
         await Promise.all([loadInvites(), loadCommandCenter()]);
       } catch (err) {
         statusEl.textContent = err.message || "Failed to create invite.";
+        statusEl.className = "status error";
+      }
+    }
+
+    async function emailInvite(inviteId, email) {
+      if (!inviteId || !email) return;
+      const statusEl = document.getElementById("command-status-line");
+      statusEl.textContent = "Preparing invite email...";
+      try {
+        const payload = await api(`admin/authorInvites/${encodeURIComponent(inviteId)}/regenerate`, { method: "POST", body: { expiresInDays: 14 } });
+        statusEl.textContent = "Invite email opened.";
+        openInviteEmail(email, payload.inviteUrl || "", payload.expiresAt || "");
+        await Promise.all([loadInvites(), loadCommandCenter()]);
+      } catch (err) {
+        statusEl.textContent = err.message || "Could not prepare invite email.";
         statusEl.className = "status error";
       }
     }
