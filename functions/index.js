@@ -8626,6 +8626,9 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
       expiresAt: expiresAt ? expiresAt.toISOString() : null,
       claimedAt: claimedAt ? claimedAt.toISOString() : null,
       claimedByUserId: data.claimedByUserId || "",
+      authorName: data.authorName || data.profileName || data.displayName || "",
+      authorProfileId: data.authorProfileId || data.profileId || "",
+      profileSlug: data.profileSlug || "",
     };
   });
 
@@ -8634,17 +8637,95 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     const userSnap = await db.collection(COLLECTIONS.users).doc(userId).get();
     return [userId, userSnap.data() || {}];
   })));
+
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
   const profileByEmail = new Map(profiles.filter((profile) => normalizeKey(profile.email)).map((profile) => [normalizeKey(profile.email), profile]));
-  const inviteByEmail = new Map(invites.filter((invite) => normalizeKey(invite.email)).map((invite) => [normalizeKey(invite.email), invite]));
-  const inviteByProfileId = new Map();
-  invites.forEach((invite) => {
-    const user = claimedUsers.get(invite.claimedByUserId) || {};
-    const profileId = user.authorProfileId || invite.claimedByUserId || "";
-    if (profileId) inviteByProfileId.set(profileId, { ...invite, claimedByEmail: user.email || "" });
+  const contentById = new Map(allContent.map((item) => [normalizeKey(item.imageId || item.contentId || ""), item]));
+
+  // Author Command Center is intentionally limited to authors in Button's canonical book catalog.
+  const buttonAuthorByAlias = new Map();
+  BOOK_CATALOG_LOOKUP_ROWS.forEach((record) => {
+    if (normalizeKey(record.entityType || "book") !== "book") return;
+    const author = normalizeText(record.author);
+    if (!author) return;
+    [author, canonicalizeAuthorName(author)].map(normalizeKey).filter(Boolean).forEach((key) => buttonAuthorByAlias.set(key, author));
+  });
+  const legacyNameAliases = new Map([
+    ["guante", 'Kyle "Guante" Tran Myhre'],
+    ["kyle guante tran myhre", 'Kyle "Guante" Tran Myhre'],
+    ['kyle "guante" tran myhre', 'Kyle "Guante" Tran Myhre'],
+    ["kyle tran myhre", 'Kyle "Guante" Tran Myhre'],
+    ["gigi bella", "Gigi Bella"],
+  ]);
+  legacyNameAliases.forEach((author, key) => buttonAuthorByAlias.set(key, author));
+
+  const authorIdentity = (value) => {
+    const key = normalizeKey(value);
+    const author = buttonAuthorByAlias.get(key) || "";
+    return author ? { key: normalizeKey(author), author } : null;
+  };
+  const contentAuthorIdentity = (item) => {
+    const canonical = resolveCanonicalCatalogMetadata(item);
+    if (!canonical.matched || normalizeKey(canonical.entityType || "book") !== "book") return null;
+    const author = normalizeText(canonical.match?.author || canonical.author || item.author);
+    return author ? { key: normalizeKey(author), author } : null;
+  };
+
+  const contentGroups = new Map();
+  allContent.forEach((item) => {
+    const identity = contentAuthorIdentity(item);
+    if (!identity) return;
+    const group = contentGroups.get(identity.key) || { author: identity.author, items: [] };
+    group.items.push(item);
+    contentGroups.set(identity.key, group);
   });
 
-  const contentById = new Map(allContent.map((item) => [normalizeKey(item.imageId || item.contentId || ""), item]));
+  const profileAuthorKey = new Map();
+  profiles.forEach((profile) => {
+    const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
+    const claimedItem = allContent.find((item) => claimedKeys.has(normalizeKey(item.imageId || item.contentId || "")));
+    const claimedIdentity = claimedItem ? contentAuthorIdentity(claimedItem) : null;
+    const namedIdentity = [profile.displayName, ...(profile.authorNameVariants || [])]
+      .map(authorIdentity)
+      .find(Boolean);
+    const identity = claimedIdentity || namedIdentity;
+    if (identity) profileAuthorKey.set(profile.id, identity.key);
+  });
+
+  const profileByAuthorKey = new Map();
+  profiles.forEach((profile) => {
+    const key = profileAuthorKey.get(profile.id);
+    if (key && !profileByAuthorKey.has(key)) profileByAuthorKey.set(key, profile);
+  });
+
+  const legacyInviteAuthorByEmail = new Map([
+    ["gigibellag@gmail.com", normalizeKey("Gigi Bella")],
+    ["elguante@gmail.com", normalizeKey('Kyle "Guante" Tran Myhre')],
+  ]);
+  const inviteAuthorKey = new Map();
+  invites.forEach((invite) => {
+    const user = claimedUsers.get(invite.claimedByUserId) || {};
+    const profile = profileById.get(user.authorProfileId || invite.authorProfileId || invite.claimedByUserId || "")
+      || profileByEmail.get(normalizeKey(invite.email))
+      || null;
+    const key = profileAuthorKey.get(profile?.id)
+      || authorIdentity(invite.authorName)?.key
+      || legacyInviteAuthorByEmail.get(normalizeKey(invite.email))
+      || "";
+    if (key) inviteAuthorKey.set(invite.id, key);
+  });
+
+  const inviteByProfileId = new Map();
+  const inviteByAuthorKey = new Map();
+  invites.forEach((invite) => {
+    const user = claimedUsers.get(invite.claimedByUserId) || {};
+    const profileId = user.authorProfileId || invite.authorProfileId || invite.claimedByUserId || "";
+    const enriched = { ...invite, claimedByEmail: user.email || "" };
+    if (profileId) inviteByProfileId.set(profileId, enriched);
+    const key = inviteAuthorKey.get(invite.id);
+    if (key) inviteByAuthorKey.set(key, enriched);
+  });
+
   const feedbackByAuthor = new Map();
   flagSnap.docs.forEach((doc) => {
     const flag = doc.data() || {};
@@ -8652,7 +8733,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     if (!String(flag.note || "").includes("Author review note")) return;
     const match = String(flag.note || "").match(/Author profile:\s*(.+)/);
     const author = normalizeText(match?.[1]?.split("\n")?.[0] || flag.author || "Unknown author");
-    const key = normalizeKey(author);
+    const key = authorIdentity(author)?.key || normalizeKey(author);
     const rows = feedbackByAuthor.get(key) || [];
     rows.push({
       id: doc.id,
@@ -8666,28 +8747,22 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     feedbackByAuthor.set(key, rows);
   });
 
-  const associatedCounts = new Map();
-  const associatedSamples = new Map();
-  profiles.forEach((profile) => {
-    const authorKeys = new Set([profile.displayName, ...(profile.authorNameVariants || [])].map(normalizeKey).filter(Boolean));
-    const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
-    const matches = allContent.filter((item) => authorKeys.has(normalizeKey(item.author)) || claimedKeys.has(normalizeKey(item.imageId || item.contentId)));
-    associatedCounts.set(profile.id, matches.length);
-    associatedSamples.set(profile.id, matches.slice(0, 8).map((item) => ({
-      id: item.imageId || item.contentId || "",
-      title: item.title || item.poem || "",
-      book: item.book || "",
-      type: item.imageType || "",
-      catalog: item.releaseCatalog || "",
-    })));
-  });
-
   const rowsByKey = new Map();
+  const representedAuthorKeys = new Set();
+
   profiles.forEach((profile) => {
-    const invite = inviteByProfileId.get(profile.id) || inviteByEmail.get(normalizeKey(profile.email)) || null;
-    const associatedCount = associatedCounts.get(profile.id) || 0;
-    const feedbackRows = (profile.authorNameVariants || [profile.displayName]).flatMap((name) => feedbackByAuthor.get(normalizeKey(name)) || []);
-    const feedbackCount = feedbackRows.length;
+    const authorKey = profileAuthorKey.get(profile.id);
+    if (!authorKey) return;
+    const group = contentGroups.get(authorKey) || { author: profile.displayName, items: [] };
+    const claimedKeys = new Set((profile.claimedContentIds || []).map(normalizeKey));
+    const matches = uniq([
+      ...group.items,
+      ...allContent.filter((item) => claimedKeys.has(normalizeKey(item.imageId || item.contentId || ""))),
+    ], (item) => normalizeKey(item.imageId || item.contentId || ""));
+    const invite = inviteByProfileId.get(profile.id)
+      || inviteByAuthorKey.get(authorKey)
+      || null;
+    const feedbackRows = feedbackByAuthor.get(authorKey) || [];
     const featuredSample = (profile.featuredContentIds || []).slice(0, 8).map((id) => {
       const item = contentById.get(normalizeKey(id)) || {};
       return {
@@ -8697,59 +8772,34 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
         type: item.imageType || "",
       };
     });
+    representedAuthorKeys.add(authorKey);
     rowsByKey.set(`profile:${profile.id}`, {
       profile,
       invite,
-      status: authorProfileStatus(profile, invite, feedbackCount),
-      associatedCount,
-      associatedSample: associatedSamples.get(profile.id) || [],
+      status: authorProfileStatus(profile, invite, feedbackRows.length),
+      associatedCount: matches.length,
+      associatedSample: matches.slice(0, 8).map((item) => ({
+        id: item.imageId || item.contentId || "",
+        title: item.title || item.poem || "",
+        book: item.book || "",
+        type: item.imageType || "",
+        catalog: item.releaseCatalog || "",
+      })),
       featuredSample,
       feedbackNotes: feedbackRows.slice(0, 8),
-      readiness: profileReadiness(profile, associatedCount, feedbackCount),
+      readiness: profileReadiness(profile, matches.length, feedbackRows.length),
     });
   });
 
-  invites.forEach((invite) => {
-    const user = claimedUsers.get(invite.claimedByUserId) || {};
-    const profile = profileById.get(user.authorProfileId || invite.claimedByUserId || "") || profileByEmail.get(normalizeKey(invite.email)) || null;
-    if (profile) return;
-    rowsByKey.set(`invite:${invite.id}`, {
-      profile: null,
-      invite: { ...invite, claimedByEmail: user.email || "" },
-      status: authorProfileStatus(null, invite),
-      associatedCount: 0,
-      associatedSample: [],
-      featuredSample: [],
-      feedbackNotes: [],
-      readiness: profileReadiness(null, 0, 0),
-    });
-  });
-
-  const representedAuthorKeys = new Set();
-  profiles.forEach((profile) => {
-    [profile.displayName, ...(profile.authorNameVariants || [])]
-      .map(normalizeKey)
-      .filter(Boolean)
-      .forEach((key) => representedAuthorKeys.add(key));
-  });
-
-  const previewGroups = new Map();
-  allContent.forEach((item) => {
-    const author = normalizeText(item.author);
-    const key = normalizeKey(author);
-    if (!key || ["unknown", "unknown author", "n/a", "na"].includes(key) || representedAuthorKeys.has(key)) return;
-    const group = previewGroups.get(key) || { author, items: [] };
-    group.items.push(item);
-    previewGroups.set(key, group);
-  });
-
-  previewGroups.forEach(({ author, items }, key) => {
+  contentGroups.forEach(({ author, items }, key) => {
+    if (representedAuthorKeys.has(key)) return;
+    const invite = inviteByAuthorKey.get(key) || null;
     const feedbackRows = feedbackByAuthor.get(key) || [];
     rowsByKey.set(`preview:${key}`, {
       profile: null,
-      invite: null,
+      invite,
       previewAuthor: author,
-      status: "preview ready",
+      status: invite ? authorProfileStatus(null, invite) : "preview ready",
       associatedCount: items.length,
       associatedSample: items.slice(0, 8).map((item) => ({
         id: item.imageId || item.contentId || "",
