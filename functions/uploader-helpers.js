@@ -34,6 +34,12 @@ export function contentIdSlug(value) {
     .slice(0, 500);
 }
 
+export function qiLibraryGraphicBaseId({ bookShortener = "", title = "" } = {}) {
+  const shortener = contentIdSlug(bookShortener).toUpperCase();
+  const titleSlug = contentIdSlug(title).toUpperCase();
+  return shortener && titleSlug ? `${shortener}-QI-${titleSlug}` : "";
+}
+
 export function normalizeStorageObjectName(value, contentType = "") {
   let name = normalizeText(value).split("/").pop() || "";
   name = name
