@@ -4,6 +4,7 @@ import {
   buildQiLibraryWritebackValues,
   canonicalImportManifestJson,
   detectImageMimeType,
+  qiLibraryGraphicBaseId,
   selectQiLibraryYearRows,
   validateImportedGraphic,
 } from "./uploader-helpers.js";
@@ -162,6 +163,33 @@ export function registerImportJobRoutes({
       range: `AD${sourceRow}:AI${sourceRow}`,
       verifiedAt,
     };
+  }
+
+  async function assignQiLibraryGraphicDocId(row = {}) {
+    const baseId = qiLibraryGraphicBaseId(row);
+    if (!baseId) {
+      const err = new Error("missing_qi_library_content_id");
+      err.status = 400;
+      throw err;
+    }
+    const sourceDriveFileId = normalizeText(row.sourceDriveFileId)
+      || extractGoogleDriveFileId(row.driveLink || "");
+    for (let suffix = 1; suffix <= 200; suffix += 1) {
+      const candidateId = suffix === 1 ? baseId : `${baseId}-${suffix}`;
+      const snap = await db.collection("graphics").doc(candidateId).get();
+      if (!snap.exists) {
+        return { ...row, docId: candidateId, imageId: candidateId };
+      }
+      const existing = snap.data() || {};
+      const existingDriveFileId = normalizeText(existing.sourceDriveFileId)
+        || extractGoogleDriveFileId(existing.driveLink || existing.sourceUrl || existing.imageUrl || "");
+      if (sourceDriveFileId && existingDriveFileId === sourceDriveFileId) {
+        return { ...row, docId: candidateId, imageId: candidateId };
+      }
+    }
+    const err = new Error("qi_library_graphic_suffix_exhausted");
+    err.status = 409;
+    throw err;
   }
 
   function itemId(type, item, index) {
@@ -571,13 +599,13 @@ export function registerImportJobRoutes({
       if (!selection.rows.length) {
         return res.json({ ok: true, complete: true, stopReason: "complete", ...selection, batches: [] });
       }
-      const items = selection.rows.map((row) => ({
-        ...row,
+      const items = await Promise.all(selection.rows.map(async (row) => ({
+        ...(await assignQiLibraryGraphicDocId(row)),
         imageType: "QI",
         sourceSpreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
         sourceSpreadsheetSheetId: QI_LIBRARY_SHEET_ID,
         sourceSpreadsheetSheetName: QI_LIBRARY_SHEET_NAME,
-      }));
+      })));
       const actor = { uid: ctx.decoded.uid, email: ctx.decoded.email };
       const job = await createJob({ type: "graphics", items, actor });
       const run = await runToCompletion(job.id, actor);
