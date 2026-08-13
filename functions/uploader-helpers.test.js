@@ -13,6 +13,7 @@ import {
   normalizeStorageObjectName,
   nextAvailableGraphicVariantId,
   preserveExistingImportValues,
+  qiLibraryGraphicBaseId,
   shouldCreateSuppliedGraphicVariant,
   shouldForceGraphicAssetReplacement,
   selectQiLibraryYearRows,
@@ -205,6 +206,14 @@ test("cross-instance cache generations reject invalidated or newer snapshots", (
   assert.equal(isCacheGenerationCurrent({ sourceBuiltAtMs: 200, snapshotBuiltAtMs: 200, invalidatedAtMs: 100 }), true);
   assert.equal(isCacheGenerationCurrent({ sourceBuiltAtMs: 200, snapshotBuiltAtMs: 0, invalidatedAtMs: 250 }), false);
   assert.equal(isCacheGenerationCurrent({ sourceBuiltAtMs: 200, snapshotBuiltAtMs: 300, invalidatedAtMs: 100 }), false);
+});
+
+test("QI Library graphics derive the canonical content ID required by the writer", () => {
+  assert.equal(qiLibraryGraphicBaseId({
+    bookShortener: "COTT",
+    title: "3 Funerals",
+  }), "COTT-QI-3-FUNERALS");
+  assert.equal(qiLibraryGraphicBaseId({ bookShortener: "COTT", title: "" }), "");
 });
 
 test("year loader selects only unverified ready QI rows and retains sheet identity", () => {
