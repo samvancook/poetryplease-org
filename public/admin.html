@@ -757,9 +757,12 @@
             <button id="preview-qi-library-canary" type="button" class="secondary">Preview one ready row</button>
             <button id="run-qi-library-canary" type="button" disabled>Import one canary</button>
             <button id="run-qi-library-year" type="button" class="secondary">Run year in 25-row batches</button>
+            <input id="qi-library-batch-id" type="text" placeholder="batch-id" style="min-width:280px;" />
+            <button id="inspect-qi-library-batch" type="button" class="secondary">Inspect batch failures</button>
           </div>
           <div id="qi-library-canary-status" class="status">Preview one row before importing.</div>
           <div id="qi-library-canary-preview" class="empty">No QI Library row loaded.</div>
+          <div id="qi-library-batch-diagnostics" class="empty" style="margin-top:8px;">No QI Library batch inspected.</div>
         </div>
         <textarea id="import-assistant-text" placeholder="CAMACHO - PE - QUOTE IMAGES - DRIFT - 1.png&#10;WTF - INT - hi-01.jpg"></textarea>
         <div id="import-assistant-status" class="status">No import-assistant run yet.</div>
@@ -2679,6 +2682,34 @@
         statusEl.className = 'status error';
       } finally {
         runButton.disabled = false;
+      }
+    }
+
+    async function inspectQiLibraryBatch() {
+      const batchId = document.getElementById('qi-library-batch-id').value.trim();
+      const output = document.getElementById('qi-library-batch-diagnostics');
+      if (!batchId) {
+        output.textContent = 'Enter a batch ID.';
+        output.className = 'status error';
+        return;
+      }
+      output.textContent = 'Loading persisted batch results…';
+      output.className = 'status';
+      try {
+        const payload = await api(`admin/contentLibrary/importJobs/${encodeURIComponent(batchId)}`);
+        const failed = (payload.items || []).filter((item) => item.state === 'failed');
+        output.textContent = failed.length
+          ? failed.map((item) => {
+              const identity = item.requestedId || item.sourceDriveFileId || item.itemId || item.id;
+              const row = Number(item.index || 0) + 1;
+              return `Item ${row} · ${identity}: ${item.error || item.errorCode || 'import_failed'}`;
+            }).join('\n')
+          : `No failed items are persisted in ${batchId}.`;
+        output.className = failed.length ? 'status error' : 'status success';
+      } catch (err) {
+        console.error(err);
+        output.textContent = err.message || 'Could not inspect the import batch.';
+        output.className = 'status error';
       }
     }
 
@@ -4741,6 +4772,7 @@
       document.getElementById("preview-qi-library-canary").addEventListener("click", () => previewQiLibraryCanary());
       document.getElementById("run-qi-library-canary").addEventListener("click", () => runQiLibraryCanary());
       document.getElementById("run-qi-library-year").addEventListener("click", () => runQiLibraryYear());
+      document.getElementById("inspect-qi-library-batch").addEventListener("click", () => inspectQiLibraryBatch());
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
       document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
       document.getElementById("run-import-assistant-graphics").addEventListener("click", () => runImportAssistantGraphics());
