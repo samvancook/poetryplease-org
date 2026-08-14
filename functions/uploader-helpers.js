@@ -212,6 +212,22 @@ export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, li
   };
 }
 
+export function normalizeQiLibraryYearBatchLimit(value) {
+  return Math.min(Math.max(Number(value) || 25, 1), 25);
+}
+
+export function qiLibraryYearStopReason({
+  failedCount = 0,
+  publishError = "",
+  timedOut = false,
+  remainingCount = 0,
+} = {}) {
+  if (Number(failedCount) > 0) return "batch_failed";
+  if (normalizeText(publishError)) return "publication_failed";
+  if (timedOut) return "batch_timed_out";
+  return Number(remainingCount) > 0 ? "checkpoint" : "complete";
+}
+
 export function validateImportedGraphic({ requested = {}, saved = {}, imageStatus = 0, imageContentType = "" } = {}) {
   const expectedId = normalizeText(requested.docId || requested.imageId);
   const savedId = normalizeText(saved.id || saved.contentId || saved.imageId);

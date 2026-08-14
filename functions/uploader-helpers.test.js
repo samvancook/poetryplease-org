@@ -12,7 +12,9 @@ import {
   isCacheGenerationCurrent,
   normalizeStorageObjectName,
   nextAvailableGraphicVariantId,
+  normalizeQiLibraryYearBatchLimit,
   preserveExistingImportValues,
+  qiLibraryYearStopReason,
   qiLibraryGraphicBaseId,
   shouldCreateSuppliedGraphicVariant,
   shouldForceGraphicAssetReplacement,
@@ -247,6 +249,21 @@ test("year loader selects only unverified ready QI rows and retains sheet identi
   assert.equal(selection.rows[0].sourceSpreadsheetRow, 2);
   assert.equal(selection.rows[0].sourceDriveFileId, "drive-1");
   assert.equal(selection.rows[0].title, "Example Poem");
+});
+
+test("QI Library year batches retain the 25-row safety boundary", () => {
+  assert.equal(normalizeQiLibraryYearBatchLimit(undefined), 25);
+  assert.equal(normalizeQiLibraryYearBatchLimit(1), 1);
+  assert.equal(normalizeQiLibraryYearBatchLimit(25), 25);
+  assert.equal(normalizeQiLibraryYearBatchLimit(100), 25);
+});
+
+test("QI Library year checkpoints stop on unsafe child results", () => {
+  assert.equal(qiLibraryYearStopReason({ remainingCount: 12 }), "checkpoint");
+  assert.equal(qiLibraryYearStopReason({ remainingCount: 0 }), "complete");
+  assert.equal(qiLibraryYearStopReason({ failedCount: 1, remainingCount: 12 }), "batch_failed");
+  assert.equal(qiLibraryYearStopReason({ publishError: "publish_failed", remainingCount: 12 }), "publication_failed");
+  assert.equal(qiLibraryYearStopReason({ timedOut: true, remainingCount: 12 }), "batch_timed_out");
 });
 
 test("automatic graphic verification requires matching metadata and a working image", () => {
