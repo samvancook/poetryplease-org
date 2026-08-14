@@ -4,7 +4,9 @@ import {
   buildQiLibraryWritebackValues,
   canonicalImportManifestJson,
   detectImageMimeType,
+  normalizeQiLibraryYearBatchLimit,
   qiLibraryGraphicBaseId,
+  qiLibraryYearStopReason,
   selectQiLibraryYearRows,
   validateImportedGraphic,
 } from "./uploader-helpers.js";
@@ -594,7 +596,7 @@ export function registerImportJobRoutes({
     if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
     try {
       const values = await getQiLibraryValues("A1:AI8000");
-      const limit = Math.min(Math.max(Number(req.body?.limit || 25), 1), 25);
+      const limit = normalizeQiLibraryYearBatchLimit(req.body?.limit);
       const selection = selectQiLibraryYearRows(values, { year, limit, offset: 0 });
       if (!selection.rows.length) {
         return res.json({ ok: true, complete: true, stopReason: "complete", ...selection, batches: [] });
@@ -625,6 +627,133 @@ export function registerImportJobRoutes({
           failedCount: failed.length,
           writebackCount: (run.snapshot?.items || []).filter((item) => item.result?.libraryWriteback?.verified).length,
         }],
+      });
+    } catch (err) {
+      return res.status(err.status || 400).json({ error: err.message || "qi_library_year_run_failed" });
+    }
+  });
+
+  async function runQiLibraryYearToCheckpoint(year, actor) {
+    const startedAt = Date.now();
+    const coordinatorRef = db.collection("systemState").doc(`qi-library-year-${year}`);
+    const batches = [];
+    let stopReason = "";
+    let reviewRows = [];
+
+    while (Date.now() - startedAt < 420000) {
+      const values = await getQiLibraryValues("A1:AI8000");
+      const selection = selectQiLibraryYearRows(values, { year, limit: 25, offset: 0 });
+      if (!selection.rows.length) {
+        stopReason = "complete";
+        break;
+      }
+
+      const items = [];
+      reviewRows = [];
+      for (const row of selection.rows) {
+        try {
+          items.push({
+            ...(await assignQiLibraryGraphicDocId(row)),
+            imageType: "QI",
+            sourceSpreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
+            sourceSpreadsheetSheetId: QI_LIBRARY_SHEET_ID,
+            sourceSpreadsheetSheetName: QI_LIBRARY_SHEET_NAME,
+          });
+        } catch (err) {
+          reviewRows.push({
+            sourceSpreadsheetRow: row.sourceSpreadsheetRow,
+            fileName: row.fileName,
+            error: err.message || "qi_library_row_requires_review",
+          });
+        }
+      }
+      if (reviewRows.length) {
+        stopReason = "review_required";
+        break;
+      }
+
+      const job = await createJob({ type: "graphics", items, actor });
+      const run = await runToCompletion(job.id, actor);
+      const failed = (run.snapshot?.items || []).filter((item) => item.state === "failed");
+      const writebackCount = (run.snapshot?.items || [])
+        .filter((item) => item.result?.libraryWriteback?.verified).length;
+      batches.push({
+        batchId: job.id,
+        itemCount: items.length,
+        failedCount: failed.length,
+        writebackCount,
+      });
+
+      await coordinatorRef.set({
+        year,
+        state: failed.length || run.publishError || run.timedOut ? "blocked" : "running",
+        lastBatchId: job.id,
+        completedBatchCount: FieldValue.increment(1),
+        lastWritebackCount: writebackCount,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: actor.email || actor.uid || "",
+      }, { merge: true });
+
+      stopReason = qiLibraryYearStopReason({
+        failedCount: failed.length,
+        publishError: run.publishError,
+        timedOut: run.timedOut,
+        remainingCount: 1,
+      });
+      if (stopReason !== "checkpoint") break;
+      if (Date.now() - startedAt + 65000 >= 420000) break;
+      await new Promise((resolve) => setTimeout(resolve, 65000));
+    }
+
+    let finalValues;
+    try {
+      finalValues = await getQiLibraryValues("A1:AI8000");
+    } catch (err) {
+      if (!String(err.message || "").includes("qi_library_read_failed:429")) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 65000));
+      finalValues = await getQiLibraryValues("A1:AI8000");
+    }
+    const finalSelection = selectQiLibraryYearRows(finalValues, { year, limit: 1, offset: 0 });
+    const complete = finalSelection.remainingCount === 0;
+    if (!stopReason || stopReason === "checkpoint") {
+      stopReason = qiLibraryYearStopReason({ remainingCount: finalSelection.remainingCount });
+    }
+
+    await coordinatorRef.set({
+      year,
+      state: complete ? "complete" : (stopReason === "checkpoint" ? "checkpoint" : "blocked"),
+      remainingCount: finalSelection.remainingCount,
+      stopReason,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: actor.email || actor.uid || "",
+    }, { merge: true });
+
+    return {
+      year,
+      complete,
+      stopReason,
+      remainingCount: finalSelection.remainingCount,
+      readyCount: finalSelection.readyCount,
+      batches,
+      reviewRows,
+      elapsedMs: Date.now() - startedAt,
+    };
+  }
+
+  app.post(getBoth("/admin/importAssistant/qiLibraryYear/runAll"), async (req, res) => {
+    const ctx = await requireRole(req, res, ["admin"]);
+    if (!ctx) return;
+    const year = normalizeText(req.body?.year || "");
+    if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
+    try {
+      const result = await runQiLibraryYearToCheckpoint(year, {
+        uid: ctx.decoded.uid,
+        email: ctx.decoded.email,
+      });
+      const safeCheckpoint = result.complete || result.stopReason === "checkpoint";
+      return res.status(result.complete ? 200 : (safeCheckpoint ? 202 : 409)).json({
+        ok: safeCheckpoint,
+        ...result,
       });
     } catch (err) {
       return res.status(err.status || 400).json({ error: err.message || "qi_library_year_run_failed" });
