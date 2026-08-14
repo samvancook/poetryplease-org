@@ -756,6 +756,7 @@
             <label>Year <input id="qi-library-year" type="text" inputmode="numeric" value="2023" placeholder="2023" style="width:110px;" /></label>
             <button id="preview-qi-library-canary" type="button" class="secondary">Preview one ready row</button>
             <button id="run-qi-library-canary" type="button" disabled>Import one canary</button>
+            <button id="run-qi-library-year" type="button" class="secondary">Run year in 25-row batches</button>
           </div>
           <div id="qi-library-canary-status" class="status">Preview one row before importing.</div>
           <div id="qi-library-canary-preview" class="empty">No QI Library row loaded.</div>
@@ -2638,6 +2639,46 @@
         console.error(err);
         statusEl.textContent = err.message || 'QI Library canary failed.';
         statusEl.className = 'status error';
+      }
+    }
+
+    async function runQiLibraryYear() {
+      const statusEl = document.getElementById('qi-library-canary-status');
+      const runButton = document.getElementById('run-qi-library-year');
+      const year = document.getElementById('qi-library-year').value.trim();
+      if (!window.confirm(`Run every ready QI Library row for ${year} in verified 25-row batches?`)) return;
+      runButton.disabled = true;
+      statusEl.className = 'status';
+      let totalWritebacks = 0;
+      let checkpointCount = 0;
+      try {
+        let result;
+        do {
+          statusEl.textContent = checkpointCount
+            ? `Continuing ${year}: ${totalWritebacks} rows verified so far…`
+            : `Running verified ${year} batches server-side…`;
+          result = await api('admin/importAssistant/qiLibraryYear/runAll', {
+            method: 'POST',
+            body: { year },
+          });
+          checkpointCount += 1;
+          totalWritebacks += (result.batches || [])
+            .reduce((sum, batch) => sum + Number(batch.writebackCount || 0), 0);
+          statusEl.textContent = result.complete
+            ? `${year} complete. ${totalWritebacks} rows verified during this run; 0 remain.`
+            : `${totalWritebacks} rows verified during this run; ${result.remainingCount} remain for ${year}. Continuing from checkpoint…`;
+          statusEl.className = result.complete ? 'status success' : 'status';
+          if (!result.complete && result.stopReason !== 'checkpoint') {
+            throw new Error(`Year run stopped: ${result.stopReason}`);
+          }
+        } while (!result.complete);
+        await previewQiLibraryCanary();
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'QI Library year run failed.';
+        statusEl.className = 'status error';
+      } finally {
+        runButton.disabled = false;
       }
     }
 
@@ -4699,6 +4740,7 @@
       });
       document.getElementById("preview-qi-library-canary").addEventListener("click", () => previewQiLibraryCanary());
       document.getElementById("run-qi-library-canary").addEventListener("click", () => runQiLibraryCanary());
+      document.getElementById("run-qi-library-year").addEventListener("click", () => runQiLibraryYear());
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
       document.getElementById("preview-import-assistant-graphics").addEventListener("click", () => previewImportAssistantGraphics());
       document.getElementById("run-import-assistant-graphics").addEventListener("click", () => runImportAssistantGraphics());
