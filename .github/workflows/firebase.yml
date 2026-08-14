@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install function dependencies
         working-directory: functions
@@ -28,7 +28,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: npm test
+        run: node --test uploader-helpers.test.js
 
   deploy:
     if: github.ref == 'refs/heads/main'
