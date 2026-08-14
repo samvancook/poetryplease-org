@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import { GoogleAuth, Impersonated } from "google-auth-library";
 import { registerImportJobRoutes } from "./import-jobs.js";
 
 // Firebase Admin v12 (modular)
@@ -86,6 +87,13 @@ const appAdmin = initializeApp({ storageBucket: "poetry-please.firebasestorage.a
 const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
+const DRIVE_READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
+const runtimeCloudAuth = new GoogleAuth({
+  scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+});
+const directDriveReadAuth = new GoogleAuth({
+  scopes: [DRIVE_READ_SCOPE],
+});
 const CONTENT_CACHE_TTL_MS = 15 * 60 * 1000;
 const CONTENT_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
@@ -604,6 +612,73 @@ function inferRemoteMimeType(contentType = "", fileName = "", sourceUrl = "", ru
   return "";
 }
 
+async function getDriveReadAccessToken() {
+  const targetPrincipal = normalizeText(process.env.DRIVE_READER_SERVICE_ACCOUNT || "");
+  let client;
+  if (targetPrincipal) {
+    const sourceClient = await runtimeCloudAuth.getClient();
+    client = new Impersonated({
+      sourceClient,
+      targetPrincipal,
+      targetScopes: [DRIVE_READ_SCOPE],
+      lifetime: 900,
+      delegates: [],
+    });
+  } else {
+    client = await directDriveReadAuth.getClient();
+  }
+  const tokenResult = await client.getAccessToken();
+  const token = typeof tokenResult === "string" ? tokenResult : tokenResult?.token;
+  if (!token) {
+    const err = new Error("drive_service_auth_unavailable");
+    err.status = 503;
+    throw err;
+  }
+  return token;
+}
+
+async function fetchAuthenticatedGoogleDriveMedia(fileId, sourceUrl, rules, body = {}) {
+  const token = await getDriveReadAccessToken();
+  const headers = { Authorization: `Bearer ${token}` };
+  const encodedId = encodeURIComponent(fileId);
+  const metadataResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodedId}?supportsAllDrives=true&fields=id,name,mimeType,size`,
+    { headers, signal: AbortSignal.timeout(30000) },
+  );
+  if (!metadataResponse.ok) {
+    const err = new Error(`drive_service_fetch_${metadataResponse.status}`);
+    err.status = metadataResponse.status;
+    throw err;
+  }
+  const metadata = await metadataResponse.json();
+  const mimeType = normalizeText(metadata.mimeType).toLowerCase();
+  if (!rules.allowedMimeTypes.has(mimeType)) {
+    const err = new Error("unsupported_remote_media_type");
+    err.status = 415;
+    throw err;
+  }
+  const mediaUrl = `https://www.googleapis.com/drive/v3/files/${encodedId}?alt=media&supportsAllDrives=true`;
+  const response = await fetch(mediaUrl, {
+    headers,
+    redirect: "follow",
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) {
+    const err = new Error(`drive_service_fetch_${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+  return {
+    sourceUrl: mediaUrl,
+    finalUrl: response.url || mediaUrl,
+    fileName: normalizeText(metadata.name) || preferredRemoteMediaName(body, sourceUrl),
+    mimeType,
+    fileSize: Number(metadata.size || response.headers.get("content-length") || 0) || null,
+    response,
+    extension: extensionForUpload(metadata.name, mimeType),
+  };
+}
+
 async function fetchRemoteMediaResponse(sourceUrl, rules, body = {}) {
   if (isGoogleDriveFolderUrl(sourceUrl)) {
     const err = new Error("drive_folder_url_not_supported");
@@ -611,6 +686,19 @@ async function fetchRemoteMediaResponse(sourceUrl, rules, body = {}) {
     throw err;
   }
   const driveId = extractGoogleDriveFileId(sourceUrl);
+  let lastError = null;
+  let driveServiceError = null;
+  if (driveId) {
+    try {
+      return await fetchAuthenticatedGoogleDriveMedia(driveId, sourceUrl, rules, body);
+    } catch (err) {
+      lastError = err;
+      driveServiceError = err;
+    }
+  }
+  if (driveServiceError && [403, 404].includes(Number(driveServiceError.status || 0))) {
+    throw driveServiceError;
+  }
   const candidates = driveId
     ? [
         `https://drive.usercontent.google.com/download?id=${encodeURIComponent(driveId)}&export=download&confirm=t`,
@@ -618,8 +706,6 @@ async function fetchRemoteMediaResponse(sourceUrl, rules, body = {}) {
         sourceUrl,
       ]
     : [sourceUrl];
-
-  let lastError = null;
   for (const candidate of candidates) {
     try {
       const response = await fetch(candidate, { redirect: "follow" });
@@ -663,7 +749,7 @@ async function fetchRemoteMediaResponse(sourceUrl, rules, body = {}) {
     }
   }
 
-  const err = lastError || new Error("remote_media_fetch_failed");
+  const err = driveServiceError || lastError || new Error("remote_media_fetch_failed");
   if (!err.status) err.status = 400;
   throw err;
 }

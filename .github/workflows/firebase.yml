@@ -26,6 +26,12 @@ jobs:
         working-directory: functions
         run: npm install --no-audit --no-fund
 
+      - name: Validate function modules
+        working-directory: functions
+        run: |
+          node --check index.js
+          node --check import-jobs.js
+
       - name: Run function tests
         working-directory: functions
         run: node --test uploader-helpers.test.js
