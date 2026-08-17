@@ -628,8 +628,9 @@ export function registerImportJobRoutes({
       const finalValues = await getQiLibraryValues("A1:AI8000");
       const finalSelection = selectQiLibraryYearRows(finalValues, { year, limit: 1, offset: 0 });
       const complete = finalSelection.remainingCount === 0 && finalSelection.reviewCount === 0;
-      return res.status(failed.length || run.publishError || finalSelection.reviewCount ? 409 : (complete ? 200 : 202)).json({
-        ok: !failed.length && !run.publishError,
+      const reviewRequired = finalSelection.remainingCount === 0 && finalSelection.reviewCount > 0;
+      return res.status(failed.length || run.publishError || reviewRequired ? 409 : (complete ? 200 : 202)).json({
+        ok: !failed.length && !run.publishError && !reviewRequired,
         complete,
         stopReason: failed.length ? "batch_failed" : (run.publishError ? "publication_failed" : (finalSelection.remainingCount ? "checkpoint" : (finalSelection.reviewCount ? "review_required" : "complete"))),
         remainingCount: finalSelection.remainingCount,
