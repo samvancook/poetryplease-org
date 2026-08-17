@@ -2697,6 +2697,7 @@
 
           let totalWritebacks = 0;
           let checkpointCount = 0;
+          let transientFailureCount = 0;
           while (true) {
             statusEl.textContent = checkpointCount
               ? `Queue unavailable; browser fallback is continuing ${year}. ${totalWritebacks} rows verified so far. Keep this tab open.`
@@ -2706,6 +2707,7 @@
                 method: 'POST',
                 body: { year },
               });
+              transientFailureCount = 0;
               checkpointCount += 1;
               totalWritebacks += (result.batches || [])
                 .reduce((sum, batch) => sum + Number(batch.writebackCount || 0), 0);
@@ -2720,6 +2722,15 @@
               statusEl.textContent = `${totalWritebacks} rows verified via browser fallback; ${result.remainingCount} importable rows remain. Next checkpoint in 65 seconds…`;
               await new Promise((resolve) => window.setTimeout(resolve, Math.max(Number(result.nextBatchDelayMs || 65000), 0)));
             } catch (fallbackErr) {
+              const transient = /\b50[234]\b|temporar|try again|fetch failed|network/i
+                .test(String(fallbackErr?.message || ''));
+              if (transient && transientFailureCount < 3) {
+                transientFailureCount += 1;
+                statusEl.textContent = `Temporary checkpoint error; retry ${transientFailureCount} of 3 begins in 30 seconds. ${totalWritebacks} rows verified so far.`;
+                statusEl.className = 'status';
+                await new Promise((resolve) => window.setTimeout(resolve, 30000));
+                continue;
+              }
               const payload = await api(`admin/importAssistant/qiLibraryYear/yearRun?year=${encodeURIComponent(year)}`)
                 .catch(() => ({ run: {} }));
               const fallbackRun = payload.run || {};
