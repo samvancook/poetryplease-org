@@ -756,7 +756,7 @@
             <label>Year <input id="qi-library-year" type="text" inputmode="numeric" value="2023" placeholder="2023" style="width:110px;" /></label>
             <button id="preview-qi-library-canary" type="button" class="secondary">Preview one ready row</button>
             <button id="run-qi-library-canary" type="button" disabled>Import one canary</button>
-            <button id="run-qi-library-year" type="button" class="secondary">Run year in 25-row batches</button>
+            <button id="run-qi-library-year" type="button" class="secondary">Start / monitor server year run</button>
             <input id="qi-library-batch-id" type="text" placeholder="batch-id" style="min-width:280px;" />
             <button id="inspect-qi-library-batch" type="button" class="secondary">Inspect batch failures</button>
           </div>
@@ -2654,41 +2654,56 @@
         statusEl.className = 'status error';
         return;
       }
+
+      const terminalStates = new Set(['complete', 'blocked']);
+      const renderRun = (run) => {
+        const verified = Number(run?.totalWritebackCount || 0);
+        const remaining = Number(run?.remainingCount || 0);
+        const state = run?.state || 'queued';
+        if (state === 'complete') {
+          statusEl.textContent = `${year} complete. ${verified} rows verified during this run; 0 remain.`;
+          statusEl.className = 'status success';
+          return;
+        }
+        if (state === 'blocked') {
+          const reason = run?.lastError || run?.stopReason || 'unknown_error';
+          statusEl.textContent = `${year} stopped after ${verified} verified rows with ${remaining} remaining: ${reason}`;
+          statusEl.className = 'status error';
+          return;
+        }
+        const nextRunAt = Number(run?.nextRunAtMs || 0);
+        const waitText = nextRunAt > Date.now()
+          ? ` Next batch in about ${Math.max(Math.ceil((nextRunAt - Date.now()) / 1000), 1)} seconds.`
+          : '';
+        statusEl.textContent = `${year} is ${state}. ${verified} rows verified; ${remaining} remain.${waitText} You may close this tab; the server will continue.`;
+        statusEl.className = 'status';
+      };
+
       runButton.disabled = true;
       statusEl.className = 'status';
-      let totalWritebacks = 0;
-      let checkpointCount = 0;
       try {
-        let result;
-        do {
-          statusEl.textContent = checkpointCount
-            ? `Continuing ${year}: ${totalWritebacks} rows verified so far…`
-            : `Running verified ${year} batches server-side…`;
-          result = await api('admin/importAssistant/qiLibraryYear/runAll', {
-            method: 'POST',
-            body: { year },
-          });
-          checkpointCount += 1;
-          totalWritebacks += (result.batches || [])
-            .reduce((sum, batch) => sum + Number(batch.writebackCount || 0), 0);
-          statusEl.textContent = result.complete
-            ? `${year} complete. ${totalWritebacks} rows verified during this run; 0 remain.`
-            : `${totalWritebacks} rows verified during this run; ${result.remainingCount} remain for ${year}. Continuing from checkpoint…`;
-          statusEl.className = result.complete ? 'status success' : 'status';
-          if (!result.complete && result.stopReason !== 'checkpoint') {
-            throw new Error(`Year run stopped: ${result.stopReason}`);
-          }
-          if (!result.complete) {
-            const delayMs = Math.max(Number(result.nextBatchDelayMs || 65000), 0);
-            statusEl.textContent = `${totalWritebacks} rows verified during this run; ${result.remainingCount} remain for ${year}. Next batch begins in ${Math.ceil(delayMs / 1000)} seconds…`;
-            await new Promise((resolve) => window.setTimeout(resolve, delayMs));
-          }
-        } while (!result.complete);
+        const started = await api('admin/importAssistant/qiLibraryYear/yearRun/start', {
+          method: 'POST',
+          body: { year },
+        });
+        let run = started.run || {};
+        renderRun(run);
+        while (!terminalStates.has(run.state)) {
+          await new Promise((resolve) => window.setTimeout(resolve, 10000));
+          const payload = await api(`admin/importAssistant/qiLibraryYear/yearRun?year=${encodeURIComponent(year)}`);
+          run = payload.run || {};
+          renderRun(run);
+        }
+        if (run.state === 'blocked') {
+          throw new Error(run.lastError || run.stopReason || 'QI Library year run blocked.');
+        }
         await previewQiLibraryCanary();
       } catch (err) {
         console.error(err);
-        statusEl.textContent = err.message || 'QI Library year run failed.';
-        statusEl.className = 'status error';
+        if (!statusEl.textContent || !statusEl.classList.contains('error')) {
+          statusEl.textContent = err.message || 'QI Library year run failed.';
+          statusEl.className = 'status error';
+        }
       } finally {
         runButton.disabled = false;
       }
