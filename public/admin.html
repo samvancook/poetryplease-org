@@ -2690,6 +2690,9 @@
             method: 'POST',
             body: { year },
           });
+          if (started?.alreadyRunning && started.run?.state === 'checkpoint') {
+            throw new Error('task queue checkpoint is not scheduled');
+          }
         } catch (startErr) {
           const queueUnavailable = /task|queue|cloudtasks|not.?found|permission.?denied/i
             .test(String(startErr?.message || ''));
