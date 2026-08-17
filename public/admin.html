@@ -2674,6 +2674,11 @@
           if (!result.complete && result.stopReason !== 'checkpoint') {
             throw new Error(`Year run stopped: ${result.stopReason}`);
           }
+          if (!result.complete) {
+            const delayMs = Math.max(Number(result.nextBatchDelayMs || 65000), 0);
+            statusEl.textContent = `${totalWritebacks} rows verified during this run; ${result.remainingCount} remain for ${year}. Next batch begins in ${Math.ceil(delayMs / 1000)} seconds…`;
+            await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+          }
         } while (!result.complete);
         await previewQiLibraryCanary();
       } catch (err) {
