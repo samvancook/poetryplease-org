@@ -605,7 +605,14 @@ export function registerImportJobRoutes({
       const limit = normalizeQiLibraryYearBatchLimit(req.body?.limit);
       const selection = selectQiLibraryYearRows(values, { year, limit, offset: 0 });
       if (!selection.rows.length) {
-        return res.json({ ok: true, complete: true, stopReason: "complete", ...selection, batches: [] });
+        const complete = selection.reviewCount === 0;
+        return res.status(complete ? 200 : 409).json({
+          ok: complete,
+          complete,
+          stopReason: complete ? "complete" : "review_required",
+          ...selection,
+          batches: [],
+        });
       }
       const items = await Promise.all(selection.rows.map(async (row) => ({
         ...(await assignQiLibraryGraphicDocId(row)),
@@ -620,12 +627,14 @@ export function registerImportJobRoutes({
       const failed = (run.snapshot?.items || []).filter((item) => item.state === "failed");
       const finalValues = await getQiLibraryValues("A1:AI8000");
       const finalSelection = selectQiLibraryYearRows(finalValues, { year, limit: 1, offset: 0 });
-      const complete = finalSelection.remainingCount === 0;
-      return res.status(failed.length || run.publishError ? 409 : (complete ? 200 : 202)).json({
+      const complete = finalSelection.remainingCount === 0 && finalSelection.reviewCount === 0;
+      return res.status(failed.length || run.publishError || finalSelection.reviewCount ? 409 : (complete ? 200 : 202)).json({
         ok: !failed.length && !run.publishError,
         complete,
-        stopReason: failed.length ? "batch_failed" : (run.publishError ? "publication_failed" : (complete ? "complete" : "checkpoint")),
+        stopReason: failed.length ? "batch_failed" : (run.publishError ? "publication_failed" : (finalSelection.remainingCount ? "checkpoint" : (finalSelection.reviewCount ? "review_required" : "complete"))),
         remainingCount: finalSelection.remainingCount,
+        reviewCount: finalSelection.reviewCount,
+        reviewRows: finalSelection.reviewRows,
         readyCount: finalSelection.readyCount,
         batches: [{
           batchId: job.id,
@@ -650,7 +659,8 @@ export function registerImportJobRoutes({
       const values = await getQiLibraryValues("A1:AI8000");
       const selection = selectQiLibraryYearRows(values, { year, limit: 25, offset: 0 });
       if (!selection.rows.length) {
-        stopReason = "complete";
+        reviewRows = selection.reviewRows;
+        stopReason = selection.reviewCount ? "review_required" : "complete";
         break;
       }
 
@@ -718,15 +728,20 @@ export function registerImportJobRoutes({
       finalValues = await getQiLibraryValues("A1:AI8000");
     }
     const finalSelection = selectQiLibraryYearRows(finalValues, { year, limit: 1, offset: 0 });
-    const complete = finalSelection.remainingCount === 0;
+    const complete = finalSelection.remainingCount === 0 && finalSelection.reviewCount === 0;
     if (!stopReason || stopReason === "checkpoint") {
-      stopReason = qiLibraryYearStopReason({ remainingCount: finalSelection.remainingCount });
+      stopReason = finalSelection.remainingCount
+        ? "checkpoint"
+        : (finalSelection.reviewCount ? "review_required" : "complete");
     }
+    if (stopReason === "review_required") reviewRows = finalSelection.reviewRows;
 
     await coordinatorRef.set({
       year,
       state: complete ? "complete" : (stopReason === "checkpoint" ? "checkpoint" : "blocked"),
       remainingCount: finalSelection.remainingCount,
+      reviewCount: finalSelection.reviewCount,
+      reviewRows: stopReason === "review_required" ? reviewRows : [],
       stopReason,
       updatedAt: FieldValue.serverTimestamp(),
       updatedBy: actor.email || actor.uid || "",
@@ -737,6 +752,7 @@ export function registerImportJobRoutes({
       complete,
       stopReason,
       remainingCount: finalSelection.remainingCount,
+      reviewCount: finalSelection.reviewCount,
       readyCount: finalSelection.readyCount,
       batches,
       reviewRows,
@@ -756,6 +772,8 @@ export function registerImportJobRoutes({
       state: normalizeText(data.state),
       stopReason: normalizeText(data.stopReason),
       remainingCount: Number(data.remainingCount || 0),
+      reviewCount: Number(data.reviewCount || 0),
+      reviewRows: Array.isArray(data.reviewRows) ? data.reviewRows : [],
       readyCount: Number(data.readyCount || 0),
       completedBatchCount: Number(data.completedBatchCount || 0),
       totalWritebackCount: Number(data.totalWritebackCount || 0),
@@ -814,17 +832,24 @@ export function registerImportJobRoutes({
       const values = await getQiLibraryValues("A1:AI8000");
       const selection = selectQiLibraryYearRows(values, { year, limit: 1, offset: 0 });
       if (!selection.rows.length) {
+        const complete = selection.reviewCount === 0;
         await coordinatorRef.set({
           year,
-          state: "complete",
-          stopReason: "complete",
+          state: complete ? "complete" : "blocked",
+          stopReason: complete ? "complete" : "review_required",
           remainingCount: 0,
+          reviewCount: selection.reviewCount,
+          reviewRows: selection.reviewRows,
           readyCount: selection.readyCount,
-          completedAt: FieldValue.serverTimestamp(),
+          completedAt: complete ? FieldValue.serverTimestamp() : FieldValue.delete(),
           updatedAt: FieldValue.serverTimestamp(),
           updatedBy: actor.email || actor.uid || "",
         }, { merge: true });
-        return res.json({ ok: true, complete: true, run: qiLibraryYearRunPayload(await coordinatorRef.get()) });
+        return res.status(complete ? 200 : 409).json({
+          ok: complete,
+          complete,
+          run: qiLibraryYearRunPayload(await coordinatorRef.get()),
+        });
       }
 
       const runId = `qi-${year}-${Date.now()}-${createHash("sha256")
@@ -837,6 +862,8 @@ export function registerImportJobRoutes({
         state: "queued",
         stopReason: "",
         remainingCount: selection.remainingCount,
+        reviewCount: selection.reviewCount,
+        reviewRows: [],
         readyCount: selection.readyCount,
         completedBatchCount: 0,
         totalWritebackCount: 0,
@@ -917,6 +944,8 @@ export function registerImportJobRoutes({
         state: decision.enqueue ? "scheduling" : decision.state,
         stopReason: result.stopReason,
         remainingCount: result.remainingCount,
+        reviewCount: result.reviewCount,
+        reviewRows: result.reviewRows,
         readyCount: result.readyCount,
         totalWritebackCount: FieldValue.increment(writebackCount),
         lastBatchId: normalizeText(result.batches?.at(-1)?.batchId || ""),
