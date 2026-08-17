@@ -15,6 +15,8 @@ const IMPORT_JOB_MAX_ITEMS = 500;
 const IMPORT_PROCESS_BATCH_SIZE = 25;
 const IMPORT_STALE_PROCESSING_MS = 10 * 60 * 1000;
 const IMPORT_SERVER_RUN_LIMIT_MS = 7 * 60 * 1000;
+const QI_LIBRARY_YEAR_BATCHES_PER_CHECKPOINT = 1;
+const QI_LIBRARY_YEAR_CHECKPOINT_DELAY_MS = 65 * 1000;
 const QI_LIBRARY_SPREADSHEET_ID = process.env.QI_LIBRARY_SPREADSHEET_ID || "1vfG1vAc095q_UM08bAOoeUkIEy1s5N2yIb0Q99XF95U";
 const QI_LIBRARY_SHEET_NAME = process.env.QI_LIBRARY_SHEET_NAME || "QI Folder Inventory";
 const QI_LIBRARY_SHEET_ID = Number(process.env.QI_LIBRARY_SHEET_ID || 91745643);
@@ -640,7 +642,7 @@ export function registerImportJobRoutes({
     let stopReason = "";
     let reviewRows = [];
 
-    while (Date.now() - startedAt < 420000) {
+    while (batches.length < QI_LIBRARY_YEAR_BATCHES_PER_CHECKPOINT) {
       const values = await getQiLibraryValues("A1:AI8000");
       const selection = selectQiLibraryYearRows(values, { year, limit: 25, offset: 0 });
       if (!selection.rows.length) {
@@ -701,8 +703,6 @@ export function registerImportJobRoutes({
         remainingCount: 1,
       });
       if (stopReason !== "checkpoint") break;
-      if (Date.now() - startedAt + 65000 >= 420000) break;
-      await new Promise((resolve) => setTimeout(resolve, 65000));
     }
 
     let finalValues;
@@ -736,6 +736,7 @@ export function registerImportJobRoutes({
       readyCount: finalSelection.readyCount,
       batches,
       reviewRows,
+      nextBatchDelayMs: complete ? 0 : QI_LIBRARY_YEAR_CHECKPOINT_DELAY_MS,
       elapsedMs: Date.now() - startedAt,
     };
   }
