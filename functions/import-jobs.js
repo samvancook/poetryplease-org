@@ -173,7 +173,7 @@ export function registerImportJobRoutes({
     };
   }
 
-  async function assignQiLibraryGraphicDocId(row = {}) {
+  async function assignQiLibraryGraphicDocId(row = {}, reservedDocIds = new Set()) {
     const baseId = qiLibraryGraphicBaseId(row);
     if (!baseId) {
       const err = new Error("missing_qi_library_content_id");
@@ -184,14 +184,17 @@ export function registerImportJobRoutes({
       || extractGoogleDriveFileId(row.driveLink || "");
     for (let suffix = 1; suffix <= 200; suffix += 1) {
       const candidateId = suffix === 1 ? baseId : `${baseId}-${suffix}`;
+      if (reservedDocIds.has(candidateId)) continue;
       const snap = await db.collection("graphics").doc(candidateId).get();
       if (!snap.exists) {
+        reservedDocIds.add(candidateId);
         return { ...row, docId: candidateId, imageId: candidateId };
       }
       const existing = snap.data() || {};
       const existingDriveFileId = normalizeText(existing.sourceDriveFileId)
         || extractGoogleDriveFileId(existing.driveLink || existing.sourceUrl || existing.imageUrl || "");
       if (sourceDriveFileId && existingDriveFileId === sourceDriveFileId) {
+        reservedDocIds.add(candidateId);
         return { ...row, docId: candidateId, imageId: candidateId };
       }
     }
@@ -614,8 +617,9 @@ export function registerImportJobRoutes({
           batches: [],
         });
       }
+      const reservedDocIds = new Set();
       const items = await Promise.all(selection.rows.map(async (row) => ({
-        ...(await assignQiLibraryGraphicDocId(row)),
+        ...(await assignQiLibraryGraphicDocId(row, reservedDocIds)),
         imageType: "QI",
         sourceSpreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
         sourceSpreadsheetSheetId: QI_LIBRARY_SHEET_ID,
@@ -666,11 +670,12 @@ export function registerImportJobRoutes({
       }
 
       const items = [];
+      const reservedDocIds = new Set();
       reviewRows = [];
       for (const row of selection.rows) {
         try {
           items.push({
-            ...(await assignQiLibraryGraphicDocId(row)),
+            ...(await assignQiLibraryGraphicDocId(row, reservedDocIds)),
             imageType: "QI",
             sourceSpreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
             sourceSpreadsheetSheetId: QI_LIBRARY_SHEET_ID,
