@@ -2649,7 +2649,11 @@
       const statusEl = document.getElementById('qi-library-canary-status');
       const runButton = document.getElementById('run-qi-library-year');
       const year = document.getElementById('qi-library-year').value.trim();
-      if (!window.confirm(`Run every ready QI Library row for ${year} in verified 25-row batches?`)) return;
+      if (!year) {
+        statusEl.textContent = 'Enter a release year before starting the QI Library run.';
+        statusEl.className = 'status error';
+        return;
+      }
       runButton.disabled = true;
       statusEl.className = 'status';
       let totalWritebacks = 0;
