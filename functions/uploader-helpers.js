@@ -228,6 +228,38 @@ export function qiLibraryYearStopReason({
   return Number(remainingCount) > 0 ? "checkpoint" : "complete";
 }
 
+export function qiLibraryYearTaskDecision({
+  complete = false,
+  stopReason = "",
+  attempt = 0,
+  maxAttempts = 3,
+  checkpointDelaySeconds = 65,
+} = {}) {
+  const reason = normalizeText(stopReason);
+  if (complete || reason === "complete") {
+    return { state: "complete", enqueue: false, delaySeconds: 0, nextAttempt: 0 };
+  }
+  if (reason === "checkpoint") {
+    return {
+      state: "queued",
+      enqueue: true,
+      delaySeconds: Math.max(Number(checkpointDelaySeconds) || 65, 1),
+      nextAttempt: 0,
+    };
+  }
+  const safeAttempt = Math.max(Number(attempt) || 0, 0);
+  const safeMaxAttempts = Math.max(Number(maxAttempts) || 3, 1);
+  if (reason === "task_error" && safeAttempt + 1 < safeMaxAttempts) {
+    return {
+      state: "retrying",
+      enqueue: true,
+      delaySeconds: Math.min(65 * (2 ** safeAttempt), 5 * 60),
+      nextAttempt: safeAttempt + 1,
+    };
+  }
+  return { state: "blocked", enqueue: false, delaySeconds: 0, nextAttempt: safeAttempt };
+}
+
 export function validateImportedGraphic({ requested = {}, saved = {}, imageStatus = 0, imageContentType = "" } = {}) {
   const expectedId = normalizeText(requested.docId || requested.imageId);
   const savedId = normalizeText(saved.id || saved.contentId || saved.imageId);

@@ -15,6 +15,7 @@ import {
   normalizeQiLibraryYearBatchLimit,
   preserveExistingImportValues,
   qiLibraryYearStopReason,
+  qiLibraryYearTaskDecision,
   qiLibraryGraphicBaseId,
   shouldCreateSuppliedGraphicVariant,
   shouldForceGraphicAssetReplacement,
@@ -264,6 +265,29 @@ test("QI Library year checkpoints stop on unsafe child results", () => {
   assert.equal(qiLibraryYearStopReason({ failedCount: 1, remainingCount: 12 }), "batch_failed");
   assert.equal(qiLibraryYearStopReason({ publishError: "publish_failed", remainingCount: 12 }), "publication_failed");
   assert.equal(qiLibraryYearStopReason({ timedOut: true, remainingCount: 12 }), "batch_timed_out");
+});
+
+test("QI Library year task decisions continue checkpoints and bound retries", () => {
+  assert.deepEqual(qiLibraryYearTaskDecision({ stopReason: "checkpoint" }), {
+    state: "queued",
+    enqueue: true,
+    delaySeconds: 65,
+    nextAttempt: 0,
+  });
+  assert.deepEqual(qiLibraryYearTaskDecision({ complete: true }), {
+    state: "complete",
+    enqueue: false,
+    delaySeconds: 0,
+    nextAttempt: 0,
+  });
+  assert.deepEqual(qiLibraryYearTaskDecision({ stopReason: "task_error", attempt: 0 }), {
+    state: "retrying",
+    enqueue: true,
+    delaySeconds: 65,
+    nextAttempt: 1,
+  });
+  assert.equal(qiLibraryYearTaskDecision({ stopReason: "task_error", attempt: 2 }).state, "blocked");
+  assert.equal(qiLibraryYearTaskDecision({ stopReason: "review_required" }).state, "blocked");
 });
 
 test("automatic graphic verification requires matching metadata and a working image", () => {

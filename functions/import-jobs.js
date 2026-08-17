@@ -7,6 +7,7 @@ import {
   normalizeQiLibraryYearBatchLimit,
   qiLibraryGraphicBaseId,
   qiLibraryYearStopReason,
+  qiLibraryYearTaskDecision,
   selectQiLibraryYearRows,
   validateImportedGraphic,
 } from "./uploader-helpers.js";
@@ -17,6 +18,8 @@ const IMPORT_STALE_PROCESSING_MS = 10 * 60 * 1000;
 const IMPORT_SERVER_RUN_LIMIT_MS = 7 * 60 * 1000;
 const QI_LIBRARY_YEAR_BATCHES_PER_CHECKPOINT = 1;
 const QI_LIBRARY_YEAR_CHECKPOINT_DELAY_MS = 65 * 1000;
+const QI_LIBRARY_YEAR_TASK_MAX_ATTEMPTS = 3;
+const QI_LIBRARY_YEAR_ACTIVE_STALE_MS = 15 * 60 * 1000;
 const QI_LIBRARY_SPREADSHEET_ID = process.env.QI_LIBRARY_SPREADSHEET_ID || "1vfG1vAc095q_UM08bAOoeUkIEy1s5N2yIb0Q99XF95U";
 const QI_LIBRARY_SHEET_NAME = process.env.QI_LIBRARY_SHEET_NAME || "QI Folder Inventory";
 const QI_LIBRARY_SHEET_ID = Number(process.env.QI_LIBRARY_SHEET_ID || 91745643);
@@ -30,6 +33,7 @@ export function registerImportJobRoutes({
   requireRole,
   db,
   FieldValue,
+  enqueueQiLibraryYearTask,
   normalizeText,
   normalizeKey,
   sanitizeDocIdSegment,
@@ -741,6 +745,254 @@ export function registerImportJobRoutes({
     };
   }
 
+  function qiLibraryYearRunPayload(snapshot) {
+    if (!snapshot?.exists) return { exists: false };
+    const data = snapshot.data() || {};
+    const timestamp = (value) => value?.toDate?.().toISOString?.() || null;
+    return {
+      exists: true,
+      year: normalizeText(data.year),
+      runId: normalizeText(data.runId),
+      state: normalizeText(data.state),
+      stopReason: normalizeText(data.stopReason),
+      remainingCount: Number(data.remainingCount || 0),
+      readyCount: Number(data.readyCount || 0),
+      completedBatchCount: Number(data.completedBatchCount || 0),
+      totalWritebackCount: Number(data.totalWritebackCount || 0),
+      lastBatchId: normalizeText(data.lastBatchId),
+      lastWritebackCount: Number(data.lastWritebackCount || 0),
+      lastError: normalizeText(data.lastError),
+      taskAttempt: Number(data.taskAttempt || 0),
+      nextRunAtMs: Number(data.nextRunAtMs || 0),
+      startedAt: timestamp(data.startedAt),
+      updatedAt: timestamp(data.updatedAt),
+      completedAt: timestamp(data.completedAt),
+      updatedBy: normalizeText(data.updatedBy),
+    };
+  }
+
+  async function enqueueYearTask(data, { delaySeconds = 0 } = {}) {
+    if (typeof enqueueQiLibraryYearTask !== "function") {
+      const err = new Error("qi_library_year_task_queue_unavailable");
+      err.status = 503;
+      throw err;
+    }
+    await enqueueQiLibraryYearTask(data, {
+      scheduleDelaySeconds: Math.max(Number(delaySeconds) || 0, 0),
+      dispatchDeadlineSeconds: 9 * 60,
+    });
+  }
+
+  app.get(getBoth("/admin/importAssistant/qiLibraryYear/yearRun"), async (req, res) => {
+    const ctx = await requireRole(req, res, ["admin"]);
+    if (!ctx) return;
+    const year = normalizeText(req.query?.year || "");
+    if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
+    const snapshot = await db.collection("systemState").doc(`qi-library-year-${year}`).get();
+    return res.json({ ok: true, run: qiLibraryYearRunPayload(snapshot) });
+  });
+
+  app.post(getBoth("/admin/importAssistant/qiLibraryYear/yearRun/start"), async (req, res) => {
+    const ctx = await requireRole(req, res, ["admin"]);
+    if (!ctx) return;
+    const year = normalizeText(req.body?.year || "");
+    if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
+    const actor = { uid: ctx.decoded.uid, email: ctx.decoded.email };
+    const coordinatorRef = db.collection("systemState").doc(`qi-library-year-${year}`);
+    try {
+      const currentSnapshot = await coordinatorRef.get();
+      const current = qiLibraryYearRunPayload(currentSnapshot);
+      const activeStates = new Set(["queued", "running", "retrying", "scheduling", "checkpoint"]);
+      const currentUpdatedAtMs = currentSnapshot.data()?.updatedAt?.toMillis?.() || 0;
+      const activeIsFresh = activeStates.has(current.state)
+        && currentUpdatedAtMs
+        && Date.now() - currentUpdatedAtMs < QI_LIBRARY_YEAR_ACTIVE_STALE_MS;
+      if (activeIsFresh) {
+        return res.status(202).json({ ok: true, alreadyRunning: true, run: current });
+      }
+
+      const values = await getQiLibraryValues("A1:AI8000");
+      const selection = selectQiLibraryYearRows(values, { year, limit: 1, offset: 0 });
+      if (!selection.rows.length) {
+        await coordinatorRef.set({
+          year,
+          state: "complete",
+          stopReason: "complete",
+          remainingCount: 0,
+          readyCount: selection.readyCount,
+          completedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          updatedBy: actor.email || actor.uid || "",
+        }, { merge: true });
+        return res.json({ ok: true, complete: true, run: qiLibraryYearRunPayload(await coordinatorRef.get()) });
+      }
+
+      const runId = `qi-${year}-${Date.now()}-${createHash("sha256")
+        .update(`${year}:${Date.now()}:${actor.uid || actor.email || ""}`)
+        .digest("hex")
+        .slice(0, 12)}`;
+      await coordinatorRef.set({
+        year,
+        runId,
+        state: "queued",
+        stopReason: "",
+        remainingCount: selection.remainingCount,
+        readyCount: selection.readyCount,
+        completedBatchCount: 0,
+        totalWritebackCount: 0,
+        lastBatchId: "",
+        lastWritebackCount: 0,
+        lastError: "",
+        taskAttempt: 0,
+        nextRunAtMs: Date.now(),
+        startedAt: FieldValue.serverTimestamp(),
+        completedAt: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: actor.email || actor.uid || "",
+      }, { merge: true });
+
+      try {
+        await enqueueYearTask({ year, runId, actor, attempt: 0 });
+      } catch (err) {
+        await coordinatorRef.set({
+          state: "blocked",
+          stopReason: "task_enqueue_failed",
+          lastError: err.message || "task_enqueue_failed",
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+        throw err;
+      }
+      return res.status(202).json({ ok: true, alreadyRunning: false, run: qiLibraryYearRunPayload(await coordinatorRef.get()) });
+    } catch (err) {
+      return res.status(err.status || 500).json({ error: err.message || "qi_library_year_start_failed" });
+    }
+  });
+
+  async function runQiLibraryYearTask(data = {}) {
+    const year = normalizeText(data.year || "");
+    const runId = normalizeText(data.runId || "");
+    const actor = {
+      uid: normalizeText(data.actor?.uid || ""),
+      email: normalizeText(data.actor?.email || ""),
+    };
+    const attempt = Math.max(Number(data.attempt || 0), 0);
+    if (!/^20\d{2}$/.test(year) || !runId) {
+      return { ignored: true, reason: "invalid_task_payload" };
+    }
+
+    const coordinatorRef = db.collection("systemState").doc(`qi-library-year-${year}`);
+    const currentSnapshot = await coordinatorRef.get();
+    const current = currentSnapshot.data() || {};
+    if (!currentSnapshot.exists || normalizeText(current.runId) !== runId) {
+      return { ignored: true, reason: "stale_run" };
+    }
+    if (["complete", "blocked"].includes(normalizeText(current.state))) {
+      return { ignored: true, reason: `run_${normalizeText(current.state)}` };
+    }
+    if (normalizeText(current.state) === "running" && Number(current.leaseExpiresAtMs || 0) > Date.now()) {
+      return { ignored: true, reason: "active_lease" };
+    }
+
+    await coordinatorRef.set({
+      state: "running",
+      taskAttempt: attempt,
+      leaseExpiresAtMs: Date.now() + IMPORT_STALE_PROCESSING_MS,
+      nextRunAtMs: 0,
+      updatedAt: FieldValue.serverTimestamp(),
+      updatedBy: actor.email || actor.uid || "",
+    }, { merge: true });
+
+    try {
+      const result = await runQiLibraryYearToCheckpoint(year, actor);
+      const writebackCount = (result.batches || [])
+        .reduce((sum, batch) => sum + Number(batch.writebackCount || 0), 0);
+      const decision = qiLibraryYearTaskDecision({
+        complete: result.complete,
+        stopReason: result.stopReason,
+        attempt,
+        maxAttempts: QI_LIBRARY_YEAR_TASK_MAX_ATTEMPTS,
+        checkpointDelaySeconds: Math.ceil(QI_LIBRARY_YEAR_CHECKPOINT_DELAY_MS / 1000),
+      });
+      await coordinatorRef.set({
+        state: decision.enqueue ? "scheduling" : decision.state,
+        stopReason: result.stopReason,
+        remainingCount: result.remainingCount,
+        readyCount: result.readyCount,
+        totalWritebackCount: FieldValue.increment(writebackCount),
+        lastBatchId: normalizeText(result.batches?.at(-1)?.batchId || ""),
+        lastWritebackCount: writebackCount,
+        lastError: "",
+        taskAttempt: decision.nextAttempt,
+        leaseExpiresAtMs: 0,
+        nextRunAtMs: decision.enqueue ? Date.now() + decision.delaySeconds * 1000 : 0,
+        completedAt: decision.state === "complete" ? FieldValue.serverTimestamp() : FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: actor.email || actor.uid || "",
+      }, { merge: true });
+
+      if (decision.enqueue) {
+        try {
+          await enqueueYearTask(
+            { year, runId, actor, attempt: decision.nextAttempt },
+            { delaySeconds: decision.delaySeconds },
+          );
+          await coordinatorRef.set({
+            state: decision.state,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        } catch (err) {
+          await coordinatorRef.set({
+            state: "blocked",
+            stopReason: "task_enqueue_failed",
+            lastError: err.message || "task_enqueue_failed",
+            nextRunAtMs: 0,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          throw err;
+        }
+      }
+      return { ok: decision.state !== "blocked", result, decision };
+    } catch (err) {
+      const decision = qiLibraryYearTaskDecision({
+        stopReason: "task_error",
+        attempt,
+        maxAttempts: QI_LIBRARY_YEAR_TASK_MAX_ATTEMPTS,
+      });
+      await coordinatorRef.set({
+        state: decision.enqueue ? "scheduling" : "blocked",
+        stopReason: "task_error",
+        lastError: err.message || "qi_library_year_task_failed",
+        taskAttempt: decision.nextAttempt,
+        leaseExpiresAtMs: 0,
+        nextRunAtMs: decision.enqueue ? Date.now() + decision.delaySeconds * 1000 : 0,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (decision.enqueue) {
+        try {
+          await enqueueYearTask(
+            { year, runId, actor, attempt: decision.nextAttempt },
+            { delaySeconds: decision.delaySeconds },
+          );
+          await coordinatorRef.set({
+            state: "retrying",
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          return { ok: true, retryScheduled: true, decision };
+        } catch (enqueueErr) {
+          await coordinatorRef.set({
+            state: "blocked",
+            stopReason: "task_retry_enqueue_failed",
+            lastError: enqueueErr.message || "task_retry_enqueue_failed",
+            nextRunAtMs: 0,
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+          throw enqueueErr;
+        }
+      }
+      return { ok: false, blocked: true, error: err.message || "qi_library_year_task_failed" };
+    }
+  }
+
   app.post(getBoth("/admin/importAssistant/qiLibraryYear/runAll"), async (req, res) => {
     const ctx = await requireRole(req, res, ["admin"]);
     if (!ctx) return;
@@ -761,5 +1013,5 @@ export function registerImportJobRoutes({
     }
   });
 
-  return { createJob, processJob, runToCompletion, snapshot };
+  return { createJob, processJob, runToCompletion, snapshot, runQiLibraryYearTask };
 }

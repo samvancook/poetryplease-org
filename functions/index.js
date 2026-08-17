@@ -1,4 +1,5 @@
 import { onRequest } from "firebase-functions/v2/https";
+import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { defineSecret } from "firebase-functions/params";
 import express from "express";
 import cors from "cors";
@@ -12,6 +13,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
+import { getFunctions } from "firebase-admin/functions";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getStorage, getDownloadURL } from "firebase-admin/storage";
@@ -87,6 +89,8 @@ const appAdmin = initializeApp({ storageBucket: "poetry-please.firebasestorage.a
 const db = getFirestore(appAdmin, "poetrypleasedatabase");
 const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
+const qiLibraryYearQueue = getFunctions(appAdmin)
+  .taskQueue("locations/us-central1/functions/qilibraryyearworker");
 const DRIVE_READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const runtimeCloudAuth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/cloud-platform"],
@@ -6651,7 +6655,7 @@ app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
   res.json({ ok: true, createdCount, updatedCount, errorCount, results });
 });
 
-registerImportJobRoutes({
+const importJobController = registerImportJobRoutes({
   app,
   getBoth,
   requireRole,
@@ -6665,6 +6669,7 @@ registerImportJobRoutes({
   upsertContentLibraryItem,
   invalidateContentCache,
   invalidateScoreboardSnapshot,
+  enqueueQiLibraryYearTask: (data, options = {}) => qiLibraryYearQueue.enqueue(data, options),
 });
 
 app.get(getBoth("/admin/idHygiene/pigPreview"), async (req, res) => {
@@ -9635,6 +9640,17 @@ app.use((req, res) => {
     error: "not_found",
     message: "Try /healthz, /imageTypes, /releaseCatalogs, /ratingsSummary, etc.",
   });
+});
+
+export const qilibraryyearworker = onTaskDispatched({
+  region: "us-central1",
+  memory: "1GiB",
+  timeoutSeconds: 540,
+  retryConfig: { maxAttempts: 1 },
+  rateLimits: { maxConcurrentDispatches: 1 },
+  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET],
+}, async (request) => {
+  await importJobController.runQiLibraryYearTask(request.data || {});
 });
 
 // Keep this LAST
