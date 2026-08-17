@@ -180,12 +180,26 @@ export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, li
   const readyRows = sourceRows.filter(({ cells }) => (
     normalizeText(cells[QI_LIBRARY_COLUMN.readiness]) === "ready_for_poetry_please_ingestion"
   ));
-  const remainingRows = readyRows.filter(({ cells }) => !(
+  const unverifiedRows = readyRows.filter(({ cells }) => !(
     normalizeText(cells[QI_LIBRARY_COLUMN.cloudStorageUrl])
     && normalizeText(cells[QI_LIBRARY_COLUMN.cloudUploadStatus]) === "cloud_upload_verified"
     && normalizeText(cells[QI_LIBRARY_COLUMN.firestoreDocumentId])
     && normalizeText(cells[QI_LIBRARY_COLUMN.firestoreStatus]) === "firestore_verified_public"
   ));
+  const reviewRows = unverifiedRows
+    .filter(({ cells }) => !qiLibraryGraphicBaseId({
+      bookShortener: cells[QI_LIBRARY_COLUMN.bookShortener],
+      title: cells[QI_LIBRARY_COLUMN.canonicalPoemTitle] || cells[QI_LIBRARY_COLUMN.poemTitleCandidate],
+    }))
+    .map(({ cells, rowNumber }) => ({
+      sourceSpreadsheetRow: rowNumber,
+      fileName: normalizeText(cells[QI_LIBRARY_COLUMN.fileName]),
+      error: "missing_qi_library_content_id",
+    }));
+  const remainingRows = unverifiedRows.filter(({ cells }) => qiLibraryGraphicBaseId({
+    bookShortener: cells[QI_LIBRARY_COLUMN.bookShortener],
+    title: cells[QI_LIBRARY_COLUMN.canonicalPoemTitle] || cells[QI_LIBRARY_COLUMN.poemTitleCandidate],
+  }));
   const rows = remainingRows.slice(safeOffset, safeOffset + safeLimit).map(({ cells, rowNumber }) => ({
     fileName: normalizeText(cells[QI_LIBRARY_COLUMN.fileName]),
     author: normalizeText(cells[QI_LIBRARY_COLUMN.normalizedAuthor] || cells[QI_LIBRARY_COLUMN.authorFolder]),
@@ -206,6 +220,8 @@ export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, li
     sourceYearCount: sourceRows.length,
     readyCount: readyRows.length,
     remainingCount: remainingRows.length,
+    reviewCount: reviewRows.length,
+    reviewRows,
     offset: safeOffset,
     limit: safeLimit,
     rows,

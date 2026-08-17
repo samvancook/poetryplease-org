@@ -241,13 +241,22 @@ test("year loader selects only unverified ready QI rows and retains sheet identi
   const deferred = [...ready];
   deferred[4] = "Deferred.png";
   deferred[20] = "deferred_requires_new_matching_tools";
+  const missingIdentity = [...ready];
+  missingIdentity[4] = "Book Specific Quote Graphic - EX 1.png";
+  missingIdentity[22] = "";
 
-  const selection = selectQiLibraryYearRows([header, ready, complete, deferred], { year: "2019", limit: 25 });
-  assert.equal(selection.sourceYearCount, 3);
-  assert.equal(selection.readyCount, 2);
+  const selection = selectQiLibraryYearRows([header, missingIdentity, ready, complete, deferred], { year: "2019", limit: 25 });
+  assert.equal(selection.sourceYearCount, 4);
+  assert.equal(selection.readyCount, 3);
   assert.equal(selection.remainingCount, 1);
+  assert.equal(selection.reviewCount, 1);
+  assert.deepEqual(selection.reviewRows, [{
+    sourceSpreadsheetRow: 2,
+    fileName: "Book Specific Quote Graphic - EX 1.png",
+    error: "missing_qi_library_content_id",
+  }]);
   assert.equal(selection.rows.length, 1);
-  assert.equal(selection.rows[0].sourceSpreadsheetRow, 2);
+  assert.equal(selection.rows[0].sourceSpreadsheetRow, 3);
   assert.equal(selection.rows[0].sourceDriveFileId, "drive-1");
   assert.equal(selection.rows[0].title, "Example Poem");
 });

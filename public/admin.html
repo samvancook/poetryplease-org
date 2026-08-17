@@ -2659,15 +2659,17 @@
       const renderRun = (run) => {
         const verified = Number(run?.totalWritebackCount || 0);
         const remaining = Number(run?.remainingCount || 0);
+        const reviewCount = Number(run?.reviewCount || 0);
+        const reviewText = reviewCount ? ` ${reviewCount} rows require identity review.` : '';
         const state = run?.state || 'queued';
         if (state === 'complete') {
-          statusEl.textContent = `${year} complete. ${verified} rows verified during this run; 0 remain.`;
+          statusEl.textContent = `${year} complete. ${verified} rows verified during this run; 0 remain.${reviewText}`;
           statusEl.className = 'status success';
           return;
         }
         if (state === 'blocked') {
           const reason = run?.lastError || run?.stopReason || 'unknown_error';
-          statusEl.textContent = `${year} stopped after ${verified} verified rows with ${remaining} remaining: ${reason}`;
+          statusEl.textContent = `${year} stopped after ${verified} verified rows with ${remaining} importable rows remaining: ${reason}.${reviewText}`;
           statusEl.className = 'status error';
           return;
         }
@@ -2675,7 +2677,7 @@
         const waitText = nextRunAt > Date.now()
           ? ` Next batch in about ${Math.max(Math.ceil((nextRunAt - Date.now()) / 1000), 1)} seconds.`
           : '';
-        statusEl.textContent = `${year} is ${state}. ${verified} rows verified; ${remaining} remain.${waitText} You may close this tab; the server will continue.`;
+        statusEl.textContent = `${year} is ${state}. ${verified} rows verified; ${remaining} importable rows remain.${reviewText}${waitText} You may close this tab; the server will continue.`;
         statusEl.className = 'status';
       };
 
