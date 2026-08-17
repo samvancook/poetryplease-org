@@ -2684,10 +2684,58 @@
       runButton.disabled = true;
       statusEl.className = 'status';
       try {
-        const started = await api('admin/importAssistant/qiLibraryYear/yearRun/start', {
-          method: 'POST',
-          body: { year },
-        });
+        let started;
+        try {
+          started = await api('admin/importAssistant/qiLibraryYear/yearRun/start', {
+            method: 'POST',
+            body: { year },
+          });
+        } catch (startErr) {
+          const queueUnavailable = /task|queue|cloudtasks|not.?found|permission.?denied/i
+            .test(String(startErr?.message || ''));
+          if (!queueUnavailable) throw startErr;
+
+          let totalWritebacks = 0;
+          let checkpointCount = 0;
+          while (true) {
+            statusEl.textContent = checkpointCount
+              ? `Queue unavailable; browser fallback is continuing ${year}. ${totalWritebacks} rows verified so far. Keep this tab open.`
+              : `Queue unavailable; using the verified browser checkpoint fallback for ${year}. Keep this tab open.`;
+            try {
+              const result = await api('admin/importAssistant/qiLibraryYear/runAll', {
+                method: 'POST',
+                body: { year },
+              });
+              checkpointCount += 1;
+              totalWritebacks += (result.batches || [])
+                .reduce((sum, batch) => sum + Number(batch.writebackCount || 0), 0);
+              if (result.complete) {
+                statusEl.textContent = `${year} complete via browser fallback. ${totalWritebacks} rows verified; 0 remain.`;
+                statusEl.className = 'status success';
+                break;
+              }
+              if (result.stopReason !== 'checkpoint') {
+                throw new Error(`Year run stopped: ${result.stopReason}`);
+              }
+              statusEl.textContent = `${totalWritebacks} rows verified via browser fallback; ${result.remainingCount} importable rows remain. Next checkpoint in 65 seconds…`;
+              await new Promise((resolve) => window.setTimeout(resolve, Math.max(Number(result.nextBatchDelayMs || 65000), 0)));
+            } catch (fallbackErr) {
+              const payload = await api(`admin/importAssistant/qiLibraryYear/yearRun?year=${encodeURIComponent(year)}`)
+                .catch(() => ({ run: {} }));
+              const fallbackRun = payload.run || {};
+              if (fallbackRun.stopReason === 'review_required') {
+                const reviewCount = Number(fallbackRun.reviewCount || 0);
+                statusEl.textContent = `${year} safe rows complete via browser fallback. ${totalWritebacks} rows verified; ${reviewCount} rows require identity review.`;
+                statusEl.className = 'status error';
+                break;
+              }
+              throw fallbackErr;
+            }
+          }
+          await previewQiLibraryCanary();
+          return;
+        }
+
         let run = started.run || {};
         renderRun(run);
         while (!terminalStates.has(run.state)) {
