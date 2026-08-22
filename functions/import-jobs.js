@@ -148,7 +148,9 @@ export function registerImportJobRoutes({
     if (!verification.ok) {
       const detail = verification.mismatchedFields.length
         ? `metadata_mismatch:${verification.mismatchedFields.join(",")}`
-        : `image_or_identity_failed:${verification.imageStatus}:${verification.imageContentType}`;
+        : (!verification.sourceIdentityMatches
+          ? `source_identity_mismatch:${verification.expectedSourceDriveFileId}:${verification.savedSourceDriveFileId}`
+          : `image_verification_failed:${verification.imageStatus}:${verification.imageContentType}`);
       throw new Error(detail);
     }
     const verifiedAt = new Date().toISOString();
