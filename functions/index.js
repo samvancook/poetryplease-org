@@ -3567,6 +3567,7 @@ function mapAdminContentDoc(collection, doc) {
     driveLink: data.driveLink || "",
     bookLink: data.bookLink || "",
     releaseCatalog: data.releaseCatalog || "",
+    sourceDriveFileId: data.sourceDriveFileId || "",
     sourceEvent: data.sourceEvent || "",
     sourceEventLabel: data.sourceEventLabel || "",
     releaseYear: data.releaseYear || "",
@@ -3673,8 +3674,10 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   };
   const sourceSystem = normalizeText(body.sourceSystem);
   const sourceRecordId = normalizeText(body.sourceRecordId);
+  const sourceDriveFileId = normalizeText(body.sourceDriveFileId);
   if (sourceSystem) payload.sourceSystem = sourceSystem;
   if (sourceRecordId) payload.sourceRecordId = sourceRecordId;
+  if (sourceDriveFileId) payload.sourceDriveFileId = sourceDriveFileId;
   if (normalizeText(body.excerptHash)) payload.excerptHash = normalizeText(body.excerptHash);
   if (normalizeText(body.normalizedExcerpt)) payload.normalizedExcerpt = normalizeText(body.normalizedExcerpt);
   if (normalizeText(body.sourceUrl)) payload.sourceUrl = normalizeText(body.sourceUrl);

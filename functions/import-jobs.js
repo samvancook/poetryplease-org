@@ -6,6 +6,7 @@ import {
   detectImageMimeType,
   normalizeQiLibraryYearBatchLimit,
   qiLibraryGraphicBaseId,
+  qiLibraryGraphicVariantCandidates,
   qiLibraryYearStopReason,
   qiLibraryYearTaskDecision,
   selectQiLibraryYearRows,
@@ -147,7 +148,9 @@ export function registerImportJobRoutes({
     if (!verification.ok) {
       const detail = verification.mismatchedFields.length
         ? `metadata_mismatch:${verification.mismatchedFields.join(",")}`
-        : `image_or_identity_failed:${verification.imageStatus}:${verification.imageContentType}`;
+        : (!verification.sourceIdentityMatches
+          ? `source_identity_mismatch:${verification.expectedSourceDriveFileId}:${verification.savedSourceDriveFileId}`
+          : `image_verification_failed:${verification.imageStatus}:${verification.imageContentType}`);
       throw new Error(detail);
     }
     const verifiedAt = new Date().toISOString();
@@ -183,19 +186,25 @@ export function registerImportJobRoutes({
     const sourceDriveFileId = normalizeText(row.sourceDriveFileId)
       || extractGoogleDriveFileId(row.driveLink || "");
     for (let suffix = 1; suffix <= 200; suffix += 1) {
-      const candidateId = suffix === 1 ? baseId : `${baseId}-${suffix}`;
-      if (reservedDocIds.has(candidateId)) continue;
-      const snap = await db.collection("graphics").doc(candidateId).get();
-      if (!snap.exists) {
-        reservedDocIds.add(candidateId);
-        return { ...row, docId: candidateId, imageId: candidateId };
+      const candidateIds = qiLibraryGraphicVariantCandidates(baseId, suffix);
+      const snapshots = await Promise.all(candidateIds.map(async (candidateId) => ({
+        candidateId,
+        snap: await db.collection("graphics").doc(candidateId).get(),
+      })));
+      for (const { candidateId, snap } of snapshots) {
+        if (!snap.exists) continue;
+        const existing = snap.data() || {};
+        const existingDriveFileId = normalizeText(existing.sourceDriveFileId)
+          || extractGoogleDriveFileId(existing.driveLink || existing.sourceUrl || existing.imageUrl || "");
+        if (sourceDriveFileId && existingDriveFileId === sourceDriveFileId) {
+          reservedDocIds.add(candidateId);
+          return { ...row, docId: candidateId, imageId: candidateId };
+        }
       }
-      const existing = snap.data() || {};
-      const existingDriveFileId = normalizeText(existing.sourceDriveFileId)
-        || extractGoogleDriveFileId(existing.driveLink || existing.sourceUrl || existing.imageUrl || "");
-      if (sourceDriveFileId && existingDriveFileId === sourceDriveFileId) {
-        reservedDocIds.add(candidateId);
-        return { ...row, docId: candidateId, imageId: candidateId };
+      const canonical = snapshots[0];
+      if (!reservedDocIds.has(canonical.candidateId) && !canonical.snap.exists) {
+        reservedDocIds.add(canonical.candidateId);
+        return { ...row, docId: canonical.candidateId, imageId: canonical.candidateId };
       }
     }
     const err = new Error("qi_library_graphic_suffix_exhausted");

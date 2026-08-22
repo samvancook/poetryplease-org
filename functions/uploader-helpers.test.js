@@ -17,6 +17,8 @@ import {
   qiLibraryYearStopReason,
   qiLibraryYearTaskDecision,
   qiLibraryGraphicBaseId,
+  qiLibraryGraphicVariantCandidates,
+  qiLibraryGraphicVariantId,
   shouldCreateSuppliedGraphicVariant,
   shouldForceGraphicAssetReplacement,
   selectQiLibraryYearRows,
@@ -133,6 +135,20 @@ test("known-broken QI IDs force a fresh asset upload", () => {
     requestedForce: true,
     brokenIds,
   }), true);
+});
+
+test("QI Library variant IDs always use the canonical V suffix", () => {
+  assert.equal(qiLibraryGraphicVariantId("EX-QI-POEM", 1), "EX-QI-POEM");
+  assert.equal(qiLibraryGraphicVariantId("EX-QI-POEM", 2), "EX-QI-POEM-V2");
+  assert.equal(qiLibraryGraphicVariantId("EX-QI-POEM", 12), "EX-QI-POEM-V12");
+});
+
+test("QI Library variant lookup recognizes legacy IDs without creating new legacy IDs", () => {
+  assert.deepEqual(qiLibraryGraphicVariantCandidates("EX-QI-POEM", 1), ["EX-QI-POEM"]);
+  assert.deepEqual(qiLibraryGraphicVariantCandidates("EX-QI-POEM", 2), [
+    "EX-QI-POEM-V2",
+    "EX-QI-POEM-2",
+  ]);
 });
 
 test("graphic variants use the first available deterministic suffix", () => {
@@ -254,11 +270,32 @@ test("year loader selects only unverified ready QI rows and retains sheet identi
     sourceSpreadsheetRow: 2,
     fileName: "Book Specific Quote Graphic - EX 1.png",
     error: "missing_qi_library_content_id",
+    errors: ["missing_qi_library_content_id"],
   }]);
   assert.equal(selection.rows.length, 1);
   assert.equal(selection.rows[0].sourceSpreadsheetRow, 3);
   assert.equal(selection.rows[0].sourceDriveFileId, "drive-1");
   assert.equal(selection.rows[0].title, "Example Poem");
+});
+
+test("year loader blocks Sheet-ready rows that lack canonical source metadata", () => {
+  const header = Array(35).fill("");
+  const incomplete = Array(35).fill("");
+  incomplete[0] = "2026";
+  incomplete[4] = "Example.png";
+  incomplete[16] = "EX";
+  incomplete[20] = "ready_for_poetry_please_ingestion";
+  incomplete[22] = "Example Poem";
+
+  const selection = selectQiLibraryYearRows([header, incomplete], { year: "2026" });
+  assert.equal(selection.remainingCount, 0);
+  assert.equal(selection.reviewCount, 1);
+  assert.deepEqual(selection.reviewRows[0].errors, [
+    "missing_source_drive_file_id",
+    "missing_normalized_author",
+    "missing_book_title",
+    "missing_release_catalog",
+  ]);
 });
 
 test("QI Library year batches retain the 25-row safety boundary", () => {
@@ -301,8 +338,8 @@ test("QI Library year task decisions continue checkpoints and bound retries", ()
 
 test("automatic graphic verification requires matching metadata and a working image", () => {
   const valid = validateImportedGraphic({
-    requested: { docId: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI" },
-    saved: { id: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI", imageUrl: "https://example.com/image.png" },
+    requested: { docId: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI", sourceDriveFileId: "drive-example" },
+    saved: { id: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI", sourceDriveFileId: "drive-example", imageUrl: "https://example.com/image.png" },
     imageStatus: 200,
     imageContentType: "image/png",
   });
@@ -313,6 +350,26 @@ test("automatic graphic verification requires matching metadata and a working im
     imageStatus: 200,
     imageContentType: "image/png",
   }).ok, false);
+});
+
+test("automatic graphic verification rejects a different Drive source identity", () => {
+  const validation = validateImportedGraphic({
+    requested: {
+      docId: "WASH-QI-FROM-PAGE-43",
+      title: "From Page 43",
+      sourceDriveFileId: "drive-from-page-43",
+    },
+    saved: {
+      id: "WASH-QI-FROM-PAGE-43",
+      title: "From Page 43",
+      sourceDriveFileId: "drive-having-a-ball",
+      imageUrl: "https://example.com/having-a-ball.png",
+    },
+    imageStatus: 200,
+    imageContentType: "image/png",
+  });
+  assert.equal(validation.ok, false);
+  assert.equal(validation.sourceIdentityMatches, false);
 });
 
 test("QI Library writeback has the canonical six audit values", () => {

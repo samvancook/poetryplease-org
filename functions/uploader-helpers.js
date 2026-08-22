@@ -135,6 +135,20 @@ export function shouldForceGraphicAssetReplacement({
   return normalizedBrokenIds.has(normalizedDocId);
 }
 
+export function qiLibraryGraphicVariantId(baseId = "", variant = 1) {
+  const cleanBaseId = normalizeText(baseId);
+  const safeVariant = Math.max(Number(variant) || 1, 1);
+  if (!cleanBaseId) return "";
+  return safeVariant === 1 ? cleanBaseId : `${cleanBaseId}-V${safeVariant}`;
+}
+
+export function qiLibraryGraphicVariantCandidates(baseId = "", variant = 1) {
+  const canonicalId = qiLibraryGraphicVariantId(baseId, variant);
+  if (!canonicalId) return [];
+  const safeVariant = Math.max(Number(variant) || 1, 1);
+  return safeVariant === 1 ? [canonicalId] : [canonicalId, `${normalizeText(baseId)}-${safeVariant}`];
+}
+
 export function nextAvailableGraphicVariantId({ baseId = "", unavailableIds = [] } = {}) {
   const cleanBaseId = normalizeText(baseId);
   if (!cleanBaseId) return "";
@@ -143,7 +157,7 @@ export function nextAvailableGraphicVariantId({ baseId = "", unavailableIds = []
   );
   if (!unavailable.has(cleanBaseId.toLowerCase())) return cleanBaseId;
   for (let variant = 2; variant < 10000; variant += 1) {
-    const candidate = `${cleanBaseId}-V${variant}`;
+    const candidate = qiLibraryGraphicVariantId(cleanBaseId, variant);
     if (!unavailable.has(candidate.toLowerCase())) return candidate;
   }
   throw new Error("graphic_variant_limit_exceeded");
@@ -170,6 +184,24 @@ const QI_LIBRARY_COLUMN = {
   firestoreStatus: 32,
 };
 
+export function qiLibraryRowReviewErrors(cells = []) {
+  const row = Array.isArray(cells) ? cells : [];
+  const title = normalizeText(
+    row[QI_LIBRARY_COLUMN.canonicalPoemTitle] || row[QI_LIBRARY_COLUMN.poemTitleCandidate]
+  );
+  const errors = [];
+  if (!qiLibraryGraphicBaseId({
+    bookShortener: row[QI_LIBRARY_COLUMN.bookShortener],
+    title,
+  })) errors.push("missing_qi_library_content_id");
+  if (!normalizeText(row[QI_LIBRARY_COLUMN.driveFileId])) errors.push("missing_source_drive_file_id");
+  if (!normalizeText(row[QI_LIBRARY_COLUMN.fileName])) errors.push("missing_source_file_name");
+  if (!normalizeText(row[QI_LIBRARY_COLUMN.normalizedAuthor])) errors.push("missing_normalized_author");
+  if (!normalizeText(row[QI_LIBRARY_COLUMN.book])) errors.push("missing_book_title");
+  if (!normalizeText(row[QI_LIBRARY_COLUMN.releaseCatalog])) errors.push("missing_release_catalog");
+  return errors;
+}
+
 export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, limit = 25 } = {}) {
   const normalizedYear = normalizeText(year);
   const safeOffset = Math.max(Number(offset) || 0, 0);
@@ -186,23 +218,23 @@ export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, li
     && normalizeText(cells[QI_LIBRARY_COLUMN.firestoreDocumentId])
     && normalizeText(cells[QI_LIBRARY_COLUMN.firestoreStatus]) === "firestore_verified_public"
   ));
-  const reviewRows = unverifiedRows
-    .filter(({ cells }) => !qiLibraryGraphicBaseId({
-      bookShortener: cells[QI_LIBRARY_COLUMN.bookShortener],
-      title: cells[QI_LIBRARY_COLUMN.canonicalPoemTitle] || cells[QI_LIBRARY_COLUMN.poemTitleCandidate],
-    }))
-    .map(({ cells, rowNumber }) => ({
+  const evaluatedRows = unverifiedRows.map(({ cells, rowNumber }) => ({
+    cells,
+    rowNumber,
+    errors: qiLibraryRowReviewErrors(cells),
+  }));
+  const reviewRows = evaluatedRows
+    .filter(({ errors }) => errors.length)
+    .map(({ cells, rowNumber, errors }) => ({
       sourceSpreadsheetRow: rowNumber,
       fileName: normalizeText(cells[QI_LIBRARY_COLUMN.fileName]),
-      error: "missing_qi_library_content_id",
+      error: errors[0],
+      errors,
     }));
-  const remainingRows = unverifiedRows.filter(({ cells }) => qiLibraryGraphicBaseId({
-    bookShortener: cells[QI_LIBRARY_COLUMN.bookShortener],
-    title: cells[QI_LIBRARY_COLUMN.canonicalPoemTitle] || cells[QI_LIBRARY_COLUMN.poemTitleCandidate],
-  }));
+  const remainingRows = evaluatedRows.filter(({ errors }) => !errors.length);
   const rows = remainingRows.slice(safeOffset, safeOffset + safeLimit).map(({ cells, rowNumber }) => ({
     fileName: normalizeText(cells[QI_LIBRARY_COLUMN.fileName]),
-    author: normalizeText(cells[QI_LIBRARY_COLUMN.normalizedAuthor] || cells[QI_LIBRARY_COLUMN.authorFolder]),
+    author: normalizeText(cells[QI_LIBRARY_COLUMN.normalizedAuthor]),
     book: normalizeText(cells[QI_LIBRARY_COLUMN.book]),
     title: normalizeText(cells[QI_LIBRARY_COLUMN.canonicalPoemTitle] || cells[QI_LIBRARY_COLUMN.poemTitleCandidate]),
     driveLink: normalizeText(cells[QI_LIBRARY_COLUMN.driveLink]),
@@ -284,12 +316,17 @@ export function validateImportedGraphic({ requested = {}, saved = {}, imageStatu
     const expected = normalizeText(requested[field]);
     return expected && normalizeText(saved[field]) !== expected;
   });
+  const expectedSourceDriveFileId = normalizeText(requested.sourceDriveFileId);
+  const savedSourceDriveFileId = normalizeText(saved.sourceDriveFileId);
+  const sourceIdentityMatches = !expectedSourceDriveFileId
+    || savedSourceDriveFileId === expectedSourceDriveFileId;
   const imageUrl = normalizeText(saved.imageUrl);
   const normalizedContentType = normalizeText(imageContentType).toLowerCase();
   return {
     ok: !!expectedId
       && normalizeText(savedId).toLowerCase() === expectedId.toLowerCase()
       && !mismatchedFields.length
+      && sourceIdentityMatches
       && !!imageUrl
       && Number(imageStatus) >= 200
       && Number(imageStatus) < 400
@@ -297,6 +334,9 @@ export function validateImportedGraphic({ requested = {}, saved = {}, imageStatu
     expectedId,
     savedId,
     mismatchedFields,
+    expectedSourceDriveFileId,
+    savedSourceDriveFileId,
+    sourceIdentityMatches,
     imageUrl,
     imageStatus: Number(imageStatus) || 0,
     imageContentType: normalizedContentType,
