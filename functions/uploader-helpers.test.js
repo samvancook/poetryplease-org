@@ -17,6 +17,7 @@ import {
   qiLibraryYearStopReason,
   qiLibraryYearTaskDecision,
   qiLibraryGraphicBaseId,
+  qiLibraryGraphicVariantCandidates,
   qiLibraryGraphicVariantId,
   shouldCreateSuppliedGraphicVariant,
   shouldForceGraphicAssetReplacement,
@@ -140,6 +141,14 @@ test("QI Library variant IDs always use the canonical V suffix", () => {
   assert.equal(qiLibraryGraphicVariantId("EX-QI-POEM", 1), "EX-QI-POEM");
   assert.equal(qiLibraryGraphicVariantId("EX-QI-POEM", 2), "EX-QI-POEM-V2");
   assert.equal(qiLibraryGraphicVariantId("EX-QI-POEM", 12), "EX-QI-POEM-V12");
+});
+
+test("QI Library variant lookup recognizes legacy IDs without creating new legacy IDs", () => {
+  assert.deepEqual(qiLibraryGraphicVariantCandidates("EX-QI-POEM", 1), ["EX-QI-POEM"]);
+  assert.deepEqual(qiLibraryGraphicVariantCandidates("EX-QI-POEM", 2), [
+    "EX-QI-POEM-V2",
+    "EX-QI-POEM-2",
+  ]);
 });
 
 test("graphic variants use the first available deterministic suffix", () => {
