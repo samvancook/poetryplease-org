@@ -316,12 +316,17 @@ export function validateImportedGraphic({ requested = {}, saved = {}, imageStatu
     const expected = normalizeText(requested[field]);
     return expected && normalizeText(saved[field]) !== expected;
   });
+  const expectedSourceDriveFileId = normalizeText(requested.sourceDriveFileId);
+  const savedSourceDriveFileId = normalizeText(saved.sourceDriveFileId);
+  const sourceIdentityMatches = !expectedSourceDriveFileId
+    || savedSourceDriveFileId === expectedSourceDriveFileId;
   const imageUrl = normalizeText(saved.imageUrl);
   const normalizedContentType = normalizeText(imageContentType).toLowerCase();
   return {
     ok: !!expectedId
       && normalizeText(savedId).toLowerCase() === expectedId.toLowerCase()
       && !mismatchedFields.length
+      && sourceIdentityMatches
       && !!imageUrl
       && Number(imageStatus) >= 200
       && Number(imageStatus) < 400
@@ -329,6 +334,9 @@ export function validateImportedGraphic({ requested = {}, saved = {}, imageStatu
     expectedId,
     savedId,
     mismatchedFields,
+    expectedSourceDriveFileId,
+    savedSourceDriveFileId,
+    sourceIdentityMatches,
     imageUrl,
     imageStatus: Number(imageStatus) || 0,
     imageContentType: normalizedContentType,
