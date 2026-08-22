@@ -6,6 +6,7 @@ import {
   detectImageMimeType,
   normalizeQiLibraryYearBatchLimit,
   qiLibraryGraphicBaseId,
+  qiLibraryGraphicVariantId,
   qiLibraryYearStopReason,
   qiLibraryYearTaskDecision,
   selectQiLibraryYearRows,
@@ -183,7 +184,7 @@ export function registerImportJobRoutes({
     const sourceDriveFileId = normalizeText(row.sourceDriveFileId)
       || extractGoogleDriveFileId(row.driveLink || "");
     for (let suffix = 1; suffix <= 200; suffix += 1) {
-      const candidateId = suffix === 1 ? baseId : `${baseId}-${suffix}`;
+      const candidateId = qiLibraryGraphicVariantId(baseId, suffix);
       if (reservedDocIds.has(candidateId)) continue;
       const snap = await db.collection("graphics").doc(candidateId).get();
       if (!snap.exists) {
