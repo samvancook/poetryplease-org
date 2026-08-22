@@ -142,6 +142,13 @@ export function qiLibraryGraphicVariantId(baseId = "", variant = 1) {
   return safeVariant === 1 ? cleanBaseId : `${cleanBaseId}-V${safeVariant}`;
 }
 
+export function qiLibraryGraphicVariantCandidates(baseId = "", variant = 1) {
+  const canonicalId = qiLibraryGraphicVariantId(baseId, variant);
+  if (!canonicalId) return [];
+  const safeVariant = Math.max(Number(variant) || 1, 1);
+  return safeVariant === 1 ? [canonicalId] : [canonicalId, `${normalizeText(baseId)}-${safeVariant}`];
+}
+
 export function nextAvailableGraphicVariantId({ baseId = "", unavailableIds = [] } = {}) {
   const cleanBaseId = normalizeText(baseId);
   if (!cleanBaseId) return "";
