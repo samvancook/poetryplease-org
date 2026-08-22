@@ -352,6 +352,26 @@ test("automatic graphic verification requires matching metadata and a working im
   }).ok, false);
 });
 
+test("automatic graphic verification rejects a different Drive source identity", () => {
+  const validation = validateImportedGraphic({
+    requested: {
+      docId: "WASH-QI-FROM-PAGE-43",
+      title: "From Page 43",
+      sourceDriveFileId: "drive-from-page-43",
+    },
+    saved: {
+      id: "WASH-QI-FROM-PAGE-43",
+      title: "From Page 43",
+      sourceDriveFileId: "drive-having-a-ball",
+      imageUrl: "https://example.com/having-a-ball.png",
+    },
+    imageStatus: 200,
+    imageContentType: "image/png",
+  });
+  assert.equal(validation.ok, false);
+  assert.equal(validation.sourceIdentityMatches, false);
+});
+
 test("QI Library writeback has the canonical six audit values", () => {
   assert.deepEqual(buildQiLibraryWritebackValues({
     imageUrl: "https://example.com/image.png",
