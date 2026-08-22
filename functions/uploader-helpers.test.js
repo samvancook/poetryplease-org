@@ -338,8 +338,8 @@ test("QI Library year task decisions continue checkpoints and bound retries", ()
 
 test("automatic graphic verification requires matching metadata and a working image", () => {
   const valid = validateImportedGraphic({
-    requested: { docId: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI" },
-    saved: { id: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI", imageUrl: "https://example.com/image.png" },
+    requested: { docId: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI", sourceDriveFileId: "drive-example" },
+    saved: { id: "EX-QI-POEM", author: "Example Author", book: "Example Book", title: "Poem", releaseCatalog: "Spring 2019", imageType: "QI", sourceDriveFileId: "drive-example", imageUrl: "https://example.com/image.png" },
     imageStatus: 200,
     imageContentType: "image/png",
   });
