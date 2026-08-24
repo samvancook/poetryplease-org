@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  approvedQiLibrarySourceRows,
   buildQiLibraryWritebackValues,
   canonicalImportManifestJson,
   contentIdSlug,
@@ -296,6 +297,42 @@ test("year loader blocks Sheet-ready rows that lack canonical source metadata", 
     "missing_book_title",
     "missing_release_catalog",
   ]);
+});
+
+test("year loader admits only source rows approved for new ingestion", () => {
+  const header = Array(35).fill("");
+  const approved = Array(35).fill("");
+  approved[0] = "2023";
+  approved[4] = "Approved.png";
+  approved[6] = "drive-approved";
+  approved[11] = "Example Book";
+  approved[12] = "Fall 2023";
+  approved[15] = "Example Author";
+  approved[16] = "EX";
+  approved[20] = "ready_for_poetry_please_ingestion";
+  approved[22] = "Approved Poem";
+  const unapproved = [...approved];
+  unapproved[4] = "Unapproved.png";
+  unapproved[6] = "drive-unapproved";
+  unapproved[22] = "Unapproved Poem";
+
+  const approvedSourceRows = approvedQiLibrarySourceRows([
+    ["Approved?", "Lane", "Source Row"],
+    ["TRUE", "Ready for new ingestion", "2"],
+    ["TRUE", "Confirm existing QI match", "3"],
+  ]);
+  const selection = selectQiLibraryYearRows(
+    [header, approved, unapproved],
+    { year: "2023", approvedSourceRows }
+  );
+
+  assert.equal(selection.readyCount, 2);
+  assert.equal(selection.approvedReadyCount, 1);
+  assert.equal(selection.unapprovedReadyCount, 1);
+  assert.equal(selection.remainingCount, 1);
+  assert.equal(selection.rows.length, 1);
+  assert.equal(selection.rows[0].sourceSpreadsheetRow, 2);
+  assert.equal(selection.rows[0].sourceDriveFileId, "drive-approved");
 });
 
 test("QI Library year batches retain the 25-row safety boundary", () => {
