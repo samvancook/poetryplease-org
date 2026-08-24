@@ -202,7 +202,26 @@ export function qiLibraryRowReviewErrors(cells = []) {
   return errors;
 }
 
-export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, limit = 25 } = {}) {
+export function approvedQiLibrarySourceRows(values = [], { lane = "Ready for new ingestion" } = {}) {
+  const normalizedLane = normalizeText(lane).toLowerCase();
+  return new Set(
+    (Array.isArray(values) ? values : [])
+      .slice(1)
+      .filter((cells) => (
+        normalizeText(cells?.[0]).toLowerCase() === "true"
+        && normalizeText(cells?.[1]).toLowerCase() === normalizedLane
+      ))
+      .map((cells) => Number(cells?.[2]))
+      .filter((rowNumber) => Number.isInteger(rowNumber) && rowNumber > 1)
+  );
+}
+
+export function selectQiLibraryYearRows(values = [], {
+  year = "",
+  offset = 0,
+  limit = 25,
+  approvedSourceRows = null,
+} = {}) {
   const normalizedYear = normalizeText(year);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
@@ -212,7 +231,13 @@ export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, li
   const readyRows = sourceRows.filter(({ cells }) => (
     normalizeText(cells[QI_LIBRARY_COLUMN.readiness]) === "ready_for_poetry_please_ingestion"
   ));
-  const unverifiedRows = readyRows.filter(({ cells }) => !(
+  const approvalSet = approvedSourceRows == null
+    ? null
+    : new Set(Array.from(approvedSourceRows).map(Number).filter(Number.isInteger));
+  const approvedReadyRows = approvalSet == null
+    ? readyRows
+    : readyRows.filter(({ rowNumber }) => approvalSet.has(rowNumber));
+  const unverifiedRows = approvedReadyRows.filter(({ cells }) => !(
     normalizeText(cells[QI_LIBRARY_COLUMN.cloudStorageUrl])
     && normalizeText(cells[QI_LIBRARY_COLUMN.cloudUploadStatus]) === "cloud_upload_verified"
     && normalizeText(cells[QI_LIBRARY_COLUMN.firestoreDocumentId])
@@ -251,6 +276,8 @@ export function selectQiLibraryYearRows(values = [], { year = "", offset = 0, li
     year: normalizedYear,
     sourceYearCount: sourceRows.length,
     readyCount: readyRows.length,
+    approvedReadyCount: approvedReadyRows.length,
+    unapprovedReadyCount: readyRows.length - approvedReadyRows.length,
     remainingCount: remainingRows.length,
     reviewCount: reviewRows.length,
     reviewRows,
