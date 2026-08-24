@@ -177,14 +177,14 @@ const QI_LIBRARY_COLUMN = {
   bookShortener: 16,
   bookLink: 17,
   readiness: 20,
-  canonicalPoemTitle: 22, catalogReviewStatus: 26, outstandingQiSubgroup: 28,
+  canonicalPoemTitle: 22, catalogReviewStatus: 26, outstandingQiLane: 27,
   cloudStorageUrl: 29,
   cloudUploadStatus: 30,
   firestoreDocumentId: 31,
   firestoreStatus: 32,
 };
 
-export function qiLibraryRowTitle(cells = []) { const row = Array.isArray(cells) ? cells : []; const poemTitle = normalizeText(row[QI_LIBRARY_COLUMN.canonicalPoemTitle] || row[QI_LIBRARY_COLUMN.poemTitleCandidate]); if (poemTitle) return poemTitle; const explicitNoPoem = normalizeText(row[QI_LIBRARY_COLUMN.catalogReviewStatus]) === "user_confirmed_no_poem_qi_uploaded" && normalizeText(row[QI_LIBRARY_COLUMN.outstandingQiSubgroup]) === "author_qi_book_confirmed_no_poem"; return explicitNoPoem ? normalizeText(row[QI_LIBRARY_COLUMN.fileName]).replace(/\.[^.]+$/, "") : ""; } export function qiLibraryRowReviewErrors(cells = []) {
+export function qiLibraryRowTitle(cells = []) { const row = Array.isArray(cells) ? cells : []; const poemTitle = normalizeText(row[QI_LIBRARY_COLUMN.canonicalPoemTitle] || row[QI_LIBRARY_COLUMN.poemTitleCandidate]); if (poemTitle) return poemTitle; const explicitNoPoem = normalizeText(row[QI_LIBRARY_COLUMN.catalogReviewStatus]) === "user_confirmed_no_poem_qi_uploaded" && normalizeText(row[QI_LIBRARY_COLUMN.outstandingQiLane]) === "author_qi_book_confirmed_no_poem"; return explicitNoPoem ? normalizeText(row[QI_LIBRARY_COLUMN.fileName]).replace(/\.[^.]+$/, "") : ""; } export function qiLibraryRowReviewErrors(cells = []) {
   const row = Array.isArray(cells) ? cells : [];
   const title = normalizeText(
     qiLibraryRowTitle(row)
