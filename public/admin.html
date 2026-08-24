@@ -756,6 +756,7 @@
             <label>Year <input id="qi-library-year" type="text" inputmode="numeric" value="2023" placeholder="2023" style="width:110px;" /></label>
             <button id="preview-qi-library-canary" type="button" class="secondary">Preview one ready row</button>
             <button id="run-qi-library-canary" type="button" disabled>Import one canary</button>
+            <button id="run-qi-library-batch" type="button" class="secondary">Import next approved tranche (max 25)</button>
             <button id="run-qi-library-year" type="button" class="secondary">Start / monitor server year run</button>
             <input id="qi-library-batch-id" type="text" placeholder="batch-id" style="min-width:280px;" />
             <button id="inspect-qi-library-batch" type="button" class="secondary">Inspect batch failures</button>
@@ -2642,6 +2643,51 @@
         console.error(err);
         statusEl.textContent = err.message || 'QI Library canary failed.';
         statusEl.className = 'status error';
+      }
+    }
+
+    async function runQiLibraryBatch() {
+      const statusEl = document.getElementById('qi-library-canary-status');
+      const runButton = document.getElementById('run-qi-library-batch');
+      const canaryButton = document.getElementById('run-qi-library-canary');
+      const year = document.getElementById('qi-library-year').value.trim();
+      if (!/^20\d{2}$/.test(year)) {
+        statusEl.textContent = 'Enter a four-digit release year before importing a tranche.';
+        statusEl.className = 'status error';
+        return;
+      }
+
+      runButton.disabled = true;
+      canaryButton.disabled = true;
+      statusEl.textContent = 'Importing one approved tranche of up to 25 rows and verifying every writeback…';
+      statusEl.className = 'status';
+      try {
+        const payload = await api('admin/importAssistant/qiLibraryYear/run', {
+          method: 'POST',
+          body: { year, limit: 25 },
+        });
+        const batch = (payload.batches || [])[0] || {};
+        const itemCount = Number(batch.itemCount || 0);
+        const writebackCount = Number(batch.writebackCount || 0);
+        const failedCount = Number(batch.failedCount || 0);
+        const remainingCount = Number(payload.remainingCount || 0);
+        const stopReason = payload.stopReason || (remainingCount ? 'checkpoint' : 'complete');
+
+        const preview = await api(`admin/importAssistant/qiLibraryYear?year=${encodeURIComponent(year)}&limit=1`);
+        const nextRow = (preview.rows || [])[0] || null;
+        renderQiLibraryCanaryRow(nextRow);
+        canaryButton.disabled = !nextRow;
+
+        statusEl.textContent = failedCount
+          ? `Tranche stopped. ${writebackCount} of ${itemCount} rows verified; ${failedCount} failed; ${remainingCount} remain for ${year}.`
+          : `Tranche complete. ${writebackCount} of ${itemCount} rows verified; ${remainingCount} remain for ${year}. Stop reason: ${stopReason}. No continuation was scheduled.`;
+        statusEl.className = failedCount ? 'status error' : 'status success';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message || 'QI Library tranche failed.';
+        statusEl.className = 'status error';
+      } finally {
+        runButton.disabled = false;
       }
     }
 
@@ -4859,6 +4905,7 @@
       });
       document.getElementById("preview-qi-library-canary").addEventListener("click", () => previewQiLibraryCanary());
       document.getElementById("run-qi-library-canary").addEventListener("click", () => runQiLibraryCanary());
+      document.getElementById("run-qi-library-batch").addEventListener("click", () => runQiLibraryBatch());
       document.getElementById("run-qi-library-year").addEventListener("click", () => runQiLibraryYear());
       document.getElementById("inspect-qi-library-batch").addEventListener("click", () => inspectQiLibraryBatch());
       document.getElementById("run-import-assistant").addEventListener("click", () => runImportAssistant());
