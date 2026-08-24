@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import { GoogleAuth } from "google-auth-library";
 import {
+  approvedQiLibrarySourceRows,
   buildQiLibraryWritebackValues,
   canonicalImportManifestJson,
   detectImageMimeType,
   normalizeQiLibraryYearBatchLimit,
   qiLibraryGraphicBaseId,
+  qiLibraryGraphicVariantCandidates,
   qiLibraryYearStopReason,
   qiLibraryYearTaskDecision,
   selectQiLibraryYearRows,
@@ -22,6 +24,7 @@ const QI_LIBRARY_YEAR_TASK_MAX_ATTEMPTS = 3;
 const QI_LIBRARY_YEAR_ACTIVE_STALE_MS = 15 * 60 * 1000;
 const QI_LIBRARY_SPREADSHEET_ID = process.env.QI_LIBRARY_SPREADSHEET_ID || "1vfG1vAc095q_UM08bAOoeUkIEy1s5N2yIb0Q99XF95U";
 const QI_LIBRARY_SHEET_NAME = process.env.QI_LIBRARY_SHEET_NAME || "QI Folder Inventory";
+const QI_LIBRARY_APPROVAL_SHEET_NAME = process.env.QI_LIBRARY_APPROVAL_SHEET_NAME || "QI Supply Review";
 const QI_LIBRARY_SHEET_ID = Number(process.env.QI_LIBRARY_SHEET_ID || 91745643);
 const qiLibrarySheetsAuth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -59,9 +62,9 @@ export function registerImportJobRoutes({
     return token;
   }
 
-  async function getQiLibraryValues(range) {
+  async function getQiLibraryValues(range, sheetName = QI_LIBRARY_SHEET_NAME) {
     const token = await getQiLibrarySheetsAccessToken();
-    const encodedRange = encodeURIComponent(`'${QI_LIBRARY_SHEET_NAME.replaceAll("'", "''")}'!${range}`);
+    const encodedRange = encodeURIComponent(`'${sheetName.replaceAll("'", "''")}'!${range}`);
     const response = await fetch(
       `https://sheets.googleapis.com/v4/spreadsheets/${QI_LIBRARY_SPREADSHEET_ID}/values/${encodedRange}?majorDimension=ROWS&valueRenderOption=FORMATTED_VALUE`,
       { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(30000) },
@@ -74,6 +77,25 @@ export function registerImportJobRoutes({
     }
     const payload = await response.json();
     return Array.isArray(payload.values) ? payload.values : [];
+  }
+
+  async function getApprovedQiLibrarySourceRows() {
+    const approvalValues = await getQiLibraryValues("A1:C1000", QI_LIBRARY_APPROVAL_SHEET_NAME);
+    const approvedRows = approvedQiLibrarySourceRows(approvalValues);
+    if (!approvedRows.size) {
+      const err = new Error("qi_library_approval_ledger_empty");
+      err.status = 409;
+      throw err;
+    }
+    return approvedRows;
+  }
+
+  async function loadQiLibraryYearSelection({ year, limit = 25, offset = 0 } = {}) {
+    const [values, approvedSourceRows] = await Promise.all([
+      getQiLibraryValues("A1:AI8000"),
+      getApprovedQiLibrarySourceRows(),
+    ]);
+    return selectQiLibraryYearRows(values, { year, limit, offset, approvedSourceRows });
   }
 
   async function writeQiLibraryAuditRow({ rowNumber, sourceDriveFileId, values }) {
@@ -147,7 +169,9 @@ export function registerImportJobRoutes({
     if (!verification.ok) {
       const detail = verification.mismatchedFields.length
         ? `metadata_mismatch:${verification.mismatchedFields.join(",")}`
-        : `image_or_identity_failed:${verification.imageStatus}:${verification.imageContentType}`;
+        : (!verification.sourceIdentityMatches
+          ? `source_identity_mismatch:${verification.expectedSourceDriveFileId}:${verification.savedSourceDriveFileId}`
+          : `image_verification_failed:${verification.imageStatus}:${verification.imageContentType}`);
       throw new Error(detail);
     }
     const verifiedAt = new Date().toISOString();
@@ -183,19 +207,25 @@ export function registerImportJobRoutes({
     const sourceDriveFileId = normalizeText(row.sourceDriveFileId)
       || extractGoogleDriveFileId(row.driveLink || "");
     for (let suffix = 1; suffix <= 200; suffix += 1) {
-      const candidateId = suffix === 1 ? baseId : `${baseId}-${suffix}`;
-      if (reservedDocIds.has(candidateId)) continue;
-      const snap = await db.collection("graphics").doc(candidateId).get();
-      if (!snap.exists) {
-        reservedDocIds.add(candidateId);
-        return { ...row, docId: candidateId, imageId: candidateId };
+      const candidateIds = qiLibraryGraphicVariantCandidates(baseId, suffix);
+      const snapshots = await Promise.all(candidateIds.map(async (candidateId) => ({
+        candidateId,
+        snap: await db.collection("graphics").doc(candidateId).get(),
+      })));
+      for (const { candidateId, snap } of snapshots) {
+        if (!snap.exists) continue;
+        const existing = snap.data() || {};
+        const existingDriveFileId = normalizeText(existing.sourceDriveFileId)
+          || extractGoogleDriveFileId(existing.driveLink || existing.sourceUrl || existing.imageUrl || "");
+        if (sourceDriveFileId && existingDriveFileId === sourceDriveFileId) {
+          reservedDocIds.add(candidateId);
+          return { ...row, docId: candidateId, imageId: candidateId };
+        }
       }
-      const existing = snap.data() || {};
-      const existingDriveFileId = normalizeText(existing.sourceDriveFileId)
-        || extractGoogleDriveFileId(existing.driveLink || existing.sourceUrl || existing.imageUrl || "");
-      if (sourceDriveFileId && existingDriveFileId === sourceDriveFileId) {
-        reservedDocIds.add(candidateId);
-        return { ...row, docId: candidateId, imageId: candidateId };
+      const canonical = snapshots[0];
+      if (!reservedDocIds.has(canonical.candidateId) && !canonical.snap.exists) {
+        reservedDocIds.add(canonical.candidateId);
+        return { ...row, docId: canonical.candidateId, imageId: canonical.candidateId };
       }
     }
     const err = new Error("qi_library_graphic_suffix_exhausted");
@@ -585,13 +615,14 @@ export function registerImportJobRoutes({
     const limit = Math.min(Math.max(Number(req.query?.limit || 25), 1), 100);
     const offset = Math.max(Number(req.query?.offset || 0), 0);
     try {
-      const values = await getQiLibraryValues("A1:AI8000");
+      const selection = await loadQiLibraryYearSelection({ year, limit, offset });
       return res.json({
         ok: true,
         spreadsheetId: QI_LIBRARY_SPREADSHEET_ID,
         sheetId: QI_LIBRARY_SHEET_ID,
         sheetName: QI_LIBRARY_SHEET_NAME,
-        ...selectQiLibraryYearRows(values, { year, limit, offset }),
+        approvalSheetName: QI_LIBRARY_APPROVAL_SHEET_NAME,
+        ...selection,
       });
     } catch (err) {
       return res.status(err.status || 400).json({ error: err.message || "qi_library_year_load_failed" });
@@ -604,9 +635,8 @@ export function registerImportJobRoutes({
     const year = normalizeText(req.body?.year || "");
     if (!/^20\d{2}$/.test(year)) return res.status(400).json({ error: "invalid_release_year" });
     try {
-      const values = await getQiLibraryValues("A1:AI8000");
       const limit = normalizeQiLibraryYearBatchLimit(req.body?.limit);
-      const selection = selectQiLibraryYearRows(values, { year, limit, offset: 0 });
+      const selection = await loadQiLibraryYearSelection({ year, limit, offset: 0 });
       if (!selection.rows.length) {
         const complete = selection.reviewCount === 0;
         return res.status(complete ? 200 : 409).json({
@@ -629,8 +659,7 @@ export function registerImportJobRoutes({
       const job = await createJob({ type: "graphics", items, actor });
       const run = await runToCompletion(job.id, actor);
       const failed = (run.snapshot?.items || []).filter((item) => item.state === "failed");
-      const finalValues = await getQiLibraryValues("A1:AI8000");
-      const finalSelection = selectQiLibraryYearRows(finalValues, { year, limit: 1, offset: 0 });
+      const finalSelection = await loadQiLibraryYearSelection({ year, limit: 1, offset: 0 });
       const complete = finalSelection.remainingCount === 0 && finalSelection.reviewCount === 0;
       const reviewRequired = finalSelection.remainingCount === 0 && finalSelection.reviewCount > 0;
       return res.status(failed.length || run.publishError || reviewRequired ? 409 : (complete ? 200 : 202)).json({
@@ -661,8 +690,7 @@ export function registerImportJobRoutes({
     let reviewRows = [];
 
     while (batches.length < QI_LIBRARY_YEAR_BATCHES_PER_CHECKPOINT) {
-      const values = await getQiLibraryValues("A1:AI8000");
-      const selection = selectQiLibraryYearRows(values, { year, limit: 25, offset: 0 });
+      const selection = await loadQiLibraryYearSelection({ year, limit: 25, offset: 0 });
       if (!selection.rows.length) {
         reviewRows = selection.reviewRows;
         stopReason = selection.reviewCount ? "review_required" : "complete";
@@ -725,15 +753,14 @@ export function registerImportJobRoutes({
       if (stopReason !== "checkpoint") break;
     }
 
-    let finalValues;
+    let finalSelection;
     try {
-      finalValues = await getQiLibraryValues("A1:AI8000");
+      finalSelection = await loadQiLibraryYearSelection({ year, limit: 1, offset: 0 });
     } catch (err) {
       if (!String(err.message || "").includes("qi_library_read_failed:429")) throw err;
       await new Promise((resolve) => setTimeout(resolve, 65000));
-      finalValues = await getQiLibraryValues("A1:AI8000");
+      finalSelection = await loadQiLibraryYearSelection({ year, limit: 1, offset: 0 });
     }
-    const finalSelection = selectQiLibraryYearRows(finalValues, { year, limit: 1, offset: 0 });
     const complete = finalSelection.remainingCount === 0 && finalSelection.reviewCount === 0;
     if (!stopReason || stopReason === "checkpoint") {
       stopReason = finalSelection.remainingCount
@@ -835,8 +862,7 @@ export function registerImportJobRoutes({
         return res.status(202).json({ ok: true, alreadyRunning: true, run: current });
       }
 
-      const values = await getQiLibraryValues("A1:AI8000");
-      const selection = selectQiLibraryYearRows(values, { year, limit: 1, offset: 0 });
+      const selection = await loadQiLibraryYearSelection({ year, limit: 1, offset: 0 });
       if (!selection.rows.length) {
         const complete = selection.reviewCount === 0;
         await coordinatorRef.set({
