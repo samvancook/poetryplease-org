@@ -171,13 +171,22 @@
           <select id="catalogDropdown"></select>
         </label>
         <div id="characterCountControls" style="display:none;align-items:flex-end;gap:12px;flex-wrap:wrap;">
-          <label title="Character count includes author name, poem title, and text with spaces.">Character count min
+          <label title="Counts poem text.">Character count min
             <input id="characterCountMin" type="number" min="0" step="1" placeholder="Min characters" />
           </label>
-          <label title="Character count includes author name, poem title, and text with spaces.">Character count max
+          <label title="Counts poem text.">Character count max
             <input id="characterCountMax" type="number" min="0" step="1" placeholder="Max characters" />
           </label>
-          <span class="meta" title="Character count includes author name, poem title, and text with spaces.">Character count includes author name, poem title, and text with spaces.</span>
+          <div id="lineCountControls" style="display:none;align-items:flex-end;gap:12px;flex-wrap:wrap;">
+            <label title="Counts newline-separated text lines, including internal blank lines.">Line count min
+              <input id="lineCountMin" type="number" min="0" step="1" placeholder="Min lines" />
+            </label>
+            <label title="Counts newline-separated text lines, including internal blank lines.">Line count max
+              <input id="lineCountMax" type="number" min="0" step="1" placeholder="Max lines" />
+            </label>
+          </div>
+          <label title="When checked, author and title are prepended as separate lines before both counts are calculated."><input id="lengthIncludeMetadata" type="checkbox" /> Include author + title in counts</label>
+          <span class="meta">Internal blank lines count as lines.</span>
         </div>
         <label id="bookStatusFilterControl">Book status
           <select id="bookStatusDropdown">
@@ -225,6 +234,7 @@
               <th data-column="bookTitle">Book Title</th>
               <th data-column="type">Type</th>
               <th data-column="charCount">Character Count</th>
+              <th data-column="lineCount">Line Count</th>
               <th data-column="fileLink">File Link</th>
               <th data-column="likes">Likes</th>
               <th data-column="dislikes">Dislikes</th>
@@ -282,6 +292,8 @@
               <th data-poem-column="author">Author</th>
               <th data-poem-column="book">Book</th>
               <th data-poem-column="catalog">Catalog</th>
+              <th data-poem-column="charCount">Characters</th>
+              <th data-poem-column="lineCount">Lines</th>
               <th data-poem-column="directScore">FP Score</th>
               <th data-poem-column="connectedContentBonus">Asset Bonus</th>
               <th data-poem-column="totalScore">Total</th>
@@ -769,6 +781,7 @@
       document.getElementById('userFilterControl').style.display = (isScoreboard || isProgressBars || isTeamProgress) ? '' : 'none';
       document.getElementById('bookStatusFilterControl').style.display = (isBookRankings || isProgressBars) ? '' : 'none';
       document.getElementById('exportBtn').style.display = isScoreboard ? '' : 'none';
+      updateCharacterCountControlsVisibility();
       if (isScoreboard) loadScoreboardPage();
       else if (isFullPoems || isBookRankings) loadFullPoemRanking();
       else ensureFullScoreboard()
@@ -890,8 +903,12 @@
 
     function updateCharacterCountControlsVisibility() {
       const typeVal = normalizeTypeForFilter(document.getElementById('typeDropdown').value);
-      const shouldShow = typeVal === 'fp' || typeVal === 'exc';
-      document.getElementById('characterCountControls').style.display = shouldShow ? 'flex' : 'none';
+      const isContentView = scoreboardContainer.style.display === '';
+      const isPoemView = fullPoemsContainer.style.display === '';
+      const showCharacterCounts = isPoemView || (isContentView && (typeVal === 'fp' || typeVal === 'exc'));
+      const showLineCounts = isPoemView || (isContentView && typeVal === 'fp');
+      document.getElementById('characterCountControls').style.display = showCharacterCounts ? 'flex' : 'none';
+      document.getElementById('lineCountControls').style.display = showLineCounts ? 'flex' : 'none';
     }
 
     function filterData() {
@@ -911,6 +928,11 @@
       const charCountMaxRaw = document.getElementById('characterCountMax').value.trim();
       const charCountMin = charCountMinRaw ? Number(charCountMinRaw) : null;
       const charCountMax = charCountMaxRaw ? Number(charCountMaxRaw) : null;
+      const lineCountMinRaw = document.getElementById('lineCountMin').value.trim();
+      const lineCountMaxRaw = document.getElementById('lineCountMax').value.trim();
+      const lineCountMin = lineCountMinRaw ? Number(lineCountMinRaw) : null;
+      const lineCountMax = lineCountMaxRaw ? Number(lineCountMaxRaw) : null;
+      const includeMetadata = document.getElementById('lengthIncludeMetadata').checked;
       const supportsCharCount = typeVal === 'fp' || typeVal === 'exc';
       const hasCharCountFilter = supportsCharCount && (Number.isFinite(charCountMin) || Number.isFinite(charCountMax));
 
@@ -927,6 +949,13 @@
       if (typeVal) data = data.filter((row) => normalizeTypeForFilter(row.type) === typeVal);
       if (bookVal) data = data.filter((row) => normalizeBookTitleKey(canonicalBookTitle(row.bookTitle, row.releaseCatalog)) === bookVal);
       if (catalogVal) data = data.filter((row) => canonicalCatalogFilterValue(row.releaseCatalog).trim().toLowerCase() === catalogVal);
+      if (includeMetadata) {
+        data = data.map((row) => ({
+          ...row,
+          charCount: Number(row.charCountWithMetadata || 0) || 0,
+          lineCount: Number(row.lineCountWithMetadata || 0) || 0,
+        }));
+      }
       if (hasCharCountFilter) {
         data = data.filter((row) => {
           const rowType = normalizeTypeForFilter(row.type);
@@ -934,6 +963,14 @@
           const charCount = Number(row.charCount || 0) || 0;
           if (Number.isFinite(charCountMin) && charCount < charCountMin) return false;
           if (Number.isFinite(charCountMax) && charCount > charCountMax) return false;
+          return true;
+        });
+      }
+      if (typeVal === 'fp' && (Number.isFinite(lineCountMin) || Number.isFinite(lineCountMax))) {
+        data = data.filter((row) => {
+          const lineCount = Number(row.lineCount || 0) || 0;
+          if (Number.isFinite(lineCountMin) && lineCount < lineCountMin) return false;
+          if (Number.isFinite(lineCountMax) && lineCount > lineCountMax) return false;
           return true;
         });
       }
@@ -963,14 +1000,14 @@
       document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
         const col = th.dataset.column;
         th.style.display = isUserView
-          ? (['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'fileLink', 'vote'].includes(col) ? '' : 'none')
+          ? (['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'lineCount', 'fileLink', 'vote'].includes(col) ? '' : 'none')
           : (col === 'vote' ? 'none' : '');
       });
 
       const tbody = document.querySelector('#scoreboard tbody');
       tbody.innerHTML = '';
       if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="16"><div class="empty">No scoreboard rows match the current filters.</div></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="17"><div class="empty">No scoreboard rows match the current filters.</div></td></tr>';
         updatePaginationControls(0);
         return;
       }
@@ -985,10 +1022,11 @@
           : row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" target="_blank" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
         const typeLabel = formatContentTypeLabel(row.type);
         const charCount = Number(row.charCount || 0) || 0;
+        const lineCount = Number(row.lineCount || 0) || 0;
         const displayBookTitle = canonicalBookTitle(row.bookTitle, row.releaseCatalog);
         const html = isUserView
-          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
-          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
+          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
+          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
         tbody.insertAdjacentHTML('beforeend', html);
       });
     }
@@ -1412,12 +1450,18 @@
       const catalog = document.getElementById('catalogDropdown').value.trim();
       const charMin = document.getElementById('characterCountMin').value.trim();
       const charMax = document.getElementById('characterCountMax').value.trim();
+      const lineMin = document.getElementById('lineCountMin').value.trim();
+      const lineMax = document.getElementById('lineCountMax').value.trim();
+      const includeMetadata = document.getElementById('lengthIncludeMetadata').checked;
       if (user) params.set('user', user);
       if (type) params.set('type', type);
       if (book) params.set('book', book);
       if (catalog) params.set('catalog', catalog);
       if (charMin) params.set('charMin', charMin);
       if (charMax) params.set('charMax', charMax);
+      if (lineMin) params.set('lineMin', lineMin);
+      if (lineMax) params.set('lineMax', lineMax);
+      if (includeMetadata) params.set('includeLengthMetadata', '1');
       return `scoreboard?${params.toString()}`;
     }
 
@@ -1484,6 +1528,16 @@
         const params = new URLSearchParams();
         if (book) params.set('book', book);
         if (catalog) params.set('catalog', catalog);
+        const charMin = document.getElementById('characterCountMin').value.trim();
+        const charMax = document.getElementById('characterCountMax').value.trim();
+        const lineMin = document.getElementById('lineCountMin').value.trim();
+        const lineMax = document.getElementById('lineCountMax').value.trim();
+        const includeMetadata = document.getElementById('lengthIncludeMetadata').checked;
+        if (charMin) params.set('charMin', charMin);
+        if (charMax) params.set('charMax', charMax);
+        if (lineMin) params.set('lineMin', lineMin);
+        if (lineMax) params.set('lineMax', lineMax);
+        if (includeMetadata) params.set('includeLengthMetadata', '1');
         const payload = await api(`scoreboard/fullPoems?${params.toString()}`, { method: 'GET' });
         const rows = payload.rows || [];
         const hiddenRows = rows.filter(isHiddenPoemRankingRow);
@@ -1498,7 +1552,7 @@
         fullPoemRankingRows = [];
         fullPoemBookSummaries = [];
         document.getElementById('poemBookSummary').innerHTML = '';
-        body.innerHTML = '<tr><td colspan="12"><div class="empty">Could not load poem rankings.</div></td></tr>';
+        body.innerHTML = '<tr><td colspan="14"><div class="empty">Could not load poem rankings.</div></td></tr>';
         setStatus(err.message || 'Could not load poem rankings.', true);
       } finally {
         setControlsDisabled(false);
@@ -1615,6 +1669,8 @@
             <td>${escapeHtml(row.author || '')}</td>
             <td>${escapeHtml(row.book || '')}</td>
             <td>${escapeHtml(row.catalog || '')}</td>
+            <td>${row.charCount || 0}</td>
+            <td>${row.lineCount || 0}</td>
             <td>${row.directScore || 0}</td>
             <td>${row.connectedContentBonus || 0}</td>
             <td><strong>${row.totalScore || 0}</strong></td>
@@ -1623,14 +1679,14 @@
             <td><button type="button" class="secondary full-poem-details" data-image-id="${escapeHtml(row.imageId || '')}">${expandedFullPoemId === row.imageId ? 'Hide' : (row.flagged ? 'Flag details' : 'How scored')}</button></td>
           </tr>
           ${expandedFullPoemId === row.imageId ? renderFullPoemScoreDetail(row) : ''}
-        `).join('') : '<tr><td colspan="12"><div class="empty">No full poems match the current filters.</div></td></tr>';
+        `).join('') : '<tr><td colspan="14"><div class="empty">No full poems match the current filters.</div></td></tr>';
     }
 
     function renderFullPoemScoreDetail(row) {
       const breakdown = row.scoreBreakdown || {};
       const connected = row.connectedItems || [];
       const flags = row.flags || [];
-      return `<tr class="detail-row"><td colspan="12">
+      return `<tr class="detail-row"><td colspan="14">
         <div style="padding:14px 4px;">
           ${row.flagged ? `<div class="status error" style="margin-bottom:12px;"><strong>Excluded from active review because this full poem is flagged.</strong>${flags.map((flag) => `<div style="margin-top:6px;">${escapeHtml(flag.note || flag.qualityLane || 'No reason supplied.')}${flag.flaggedByEmail ? ` <span class="meta">Flagged by ${escapeHtml(flag.flaggedByEmail)}</span>` : ''}</div>`).join('')}<div style="margin-top:8px;"><a href="/admin" target="_blank" rel="noopener noreferrer">Open Flagged Content</a></div></div>` : ''}
           <strong>Score equation:</strong>
@@ -1691,8 +1747,15 @@
         if (fullPoemsContainer.style.display === '' || bookRankingsContainer.style.display === '') loadFullPoemRanking();
         else filterData();
       });
-      document.getElementById('characterCountMin').addEventListener('input', filterData);
-      document.getElementById('characterCountMax').addEventListener('input', filterData);
+      const handleLengthFilterChange = () => {
+        if (fullPoemsContainer.style.display === '') loadFullPoemRanking();
+        else filterData();
+      };
+      document.getElementById('characterCountMin').addEventListener('change', handleLengthFilterChange);
+      document.getElementById('characterCountMax').addEventListener('change', handleLengthFilterChange);
+      document.getElementById('lineCountMin').addEventListener('change', handleLengthFilterChange);
+      document.getElementById('lineCountMax').addEventListener('change', handleLengthFilterChange);
+      document.getElementById('lengthIncludeMetadata').addEventListener('change', handleLengthFilterChange);
       document.getElementById('filterZeroVotes').addEventListener('change', filterData);
       document.getElementById('bookStatusDropdown').addEventListener('change', () => {
         if (bookRankingsContainer.style.display === '') renderPoemBookSummary();

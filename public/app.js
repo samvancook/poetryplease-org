@@ -866,6 +866,51 @@ function updateUserStatusUI() {
   updateResetControlsVisibility();
 }
 
+function parseOptionalCount(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? String(Math.floor(parsed)) : '';
+}
+
+function normalizePoemTextForLength(value = '') {
+  return String(value ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+}
+
+function buildPoemLengthText(item = {}, includeMetadata = false) {
+  const poemText = normalizePoemTextForLength(item.excerpt || item.fullText || item.text || '');
+  if (!includeMetadata) return poemText;
+  return [item.author || '', item.title || item.poem || '', poemText]
+    .map(normalizePoemTextForLength)
+    .filter(Boolean)
+    .join('\n');
+}
+
+function poemCharacterCount(item = {}, includeMetadata = false) {
+  return buildPoemLengthText(item, includeMetadata).length;
+}
+
+function poemLineCount(item = {}, includeMetadata = false) {
+  const text = buildPoemLengthText(item, includeMetadata);
+  return text ? text.split('\n').length : 0;
+}
+
+function ensureFullPoemLengthControls() {
+  const existing = document.getElementById('fp-length-filter-container');
+  if (existing) return existing;
+  const typeContainer = document.getElementById('type-filter-container');
+  if (!typeContainer) return null;
+  const container = document.createElement('div');
+  container.id = 'fp-length-filter-container';
+  container.style.cssText = 'display:none;gap:8px;align-items:flex-end;flex-wrap:wrap;';
+  container.innerHTML = '<label>Max characters <input id="fp-max-characters" type="number" min="0" step="1" inputmode="numeric" placeholder="Any" aria-label="Maximum full poem characters"></label><label>Max lines <input id="fp-max-lines" type="number" min="0" step="1" inputmode="numeric" placeholder="Any" aria-label="Maximum full poem lines"></label><label title="When checked, author and title are prepended as separate lines before both counts are calculated."><input id="fp-length-include-metadata" type="checkbox"> Include author + title in counts</label>';
+  typeContainer.insertAdjacentElement('afterend', container);
+  document.getElementById('fp-max-characters')?.addEventListener('change', (event) => setFullPoemLengthFilter('characters', event.target.value));
+  document.getElementById('fp-max-lines')?.addEventListener('change', (event) => setFullPoemLengthFilter('lines', event.target.value));
+  document.getElementById('fp-length-include-metadata')?.addEventListener('change', (event) => setFullPoemLengthFilter('metadata', event.target.checked));
+  return container;
+}
+
 function updateFilterControlsVisibility() {
   const canSeeDropdownFilters = currentUserIsTeamOrAdmin();
   const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
@@ -874,6 +919,7 @@ function updateFilterControlsVisibility() {
   const catalogContainer = document.getElementById('catalog-filter-container');
   const bookContainer = document.getElementById('book-filter-container');
   const queueModeContainer = document.getElementById('queue-mode-container');
+  const lengthContainer = ensureFullPoemLengthControls();
   if (typeContainer) {
     if (canSeeTypeFilter) typeContainer.style.removeProperty('display');
     else typeContainer.style.display = 'none';
@@ -889,6 +935,10 @@ function updateFilterControlsVisibility() {
   if (queueModeContainer) {
     if (canSeeDropdownFilters) queueModeContainer.style.removeProperty('display');
     else queueModeContainer.style.display = 'none';
+  }
+  if (lengthContainer) {
+    const showLengthFilters = canSeeDropdownFilters && normalizeFilterValue(selectedType) === 'fp' && !IS_EMBED_UI;
+    lengthContainer.style.display = showLengthFilters ? 'flex' : 'none';
   }
 }
 
@@ -1651,6 +1701,9 @@ let filterByAuthor = false;
 let filterByBook   = false;
 let selectedType   = '';
 let selectedCatalog= '';
+let selectedMaxCharacters = '';
+let selectedMaxLines = '';
+let selectedLengthIncludesMetadata = false;
 let selectedAuthor = '';
 let selectedBook = '';
 let selectedEvent = '';
@@ -1715,6 +1768,9 @@ function readRouteState() {
     author: params.get('author') || '',
     book: params.get('book') || '',
     event: params.get('event') || '',
+    maxCharacters: params.get('maxChars') || '',
+    maxLines: params.get('maxLines') || '',
+    includeLengthMetadata: params.get('includeLengthMetadata') || '',
     locked: params.get('locked') || params.get('laneLocked') || '',
     authorPreview: params.get('authorPreview') || ''
   };
@@ -1729,6 +1785,9 @@ function writeRouteState() {
     author: filterByAuthor ? selectedAuthor : '',
     book: filterByBook ? selectedBook : '',
     event: selectedEvent,
+    maxChars: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxCharacters : '',
+    maxLines: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxLines : '',
+    includeLengthMetadata: normalizeFilterValue(selectedType) === 'fp' && selectedLengthIncludesMetadata ? '1' : '',
     locked: lockedLane ? '1' : ''
   };
 
@@ -1749,12 +1808,19 @@ function syncFilterControls() {
   const bookSel = document.getElementById('book-filter');
   const eventSel = document.getElementById('event-filter');
   const queueModeSel = document.getElementById('queue-mode-filter');
+  ensureFullPoemLengthControls();
+  const maxCharactersInput = document.getElementById('fp-max-characters');
+  const maxLinesInput = document.getElementById('fp-max-lines');
+  const includeMetadataInput = document.getElementById('fp-length-include-metadata');
   if (typeSel) typeSel.value = selectedType;
   if (catalogSel) catalogSel.value = selectedCatalog;
   if (bookSel) bookSel.value = filterByBook ? selectedBook : '';
   if (eventSel) eventSel.value = selectedEvent;
   if (queueModeSel) queueModeSel.value = selectedQueueMode;
-  [typeSel, catalogSel, bookSel, eventSel, queueModeSel].forEach((control) => {
+  if (maxCharactersInput) maxCharactersInput.value = selectedMaxCharacters;
+  if (maxLinesInput) maxLinesInput.value = selectedMaxLines;
+  if (includeMetadataInput) includeMetadataInput.checked = selectedLengthIncludesMetadata;
+  [typeSel, catalogSel, bookSel, eventSel, queueModeSel, maxCharactersInput, maxLinesInput, includeMetadataInput].forEach((control) => {
     if (control) control.disabled = !!lockedLane;
   });
 }
@@ -1770,6 +1836,9 @@ function initializeRouteState() {
   selectedAuthor = route.author.trim();
   selectedBook = route.book.trim();
   selectedEvent = route.event.trim();
+  selectedMaxCharacters = parseOptionalCount(route.maxCharacters);
+  selectedMaxLines = parseOptionalCount(route.maxLines);
+  selectedLengthIncludesMetadata = ['1', 'true', 'yes'].includes(String(route.includeLengthMetadata || '').trim().toLowerCase());
   lockedLane = ['1', 'true', 'yes', 'locked'].includes(String(route.locked || '').trim().toLowerCase());
   authorPreviewMode = ['1', 'true', 'yes', 'preview'].includes(String(route.authorPreview || '').trim().toLowerCase()) && !!selectedAuthor;
   if (authorPreviewMode) lockedLane = true;
@@ -1784,6 +1853,21 @@ function setTypeFilter(value) {
     return;
   }
   selectedType = String(value || '').trim();
+  syncFilterControls();
+  updateFilterControlsVisibility();
+  writeRouteState();
+  ensureFilterReadyThenRebuild();
+}
+
+function setFullPoemLengthFilter(kind, value) {
+  if (lockedLane) {
+    syncFilterControls();
+    flashMessage('Finish this set first, then choose new settings.');
+    return;
+  }
+  if (kind === 'characters') selectedMaxCharacters = parseOptionalCount(value);
+  if (kind === 'lines') selectedMaxLines = parseOptionalCount(value);
+  if (kind === 'metadata') selectedLengthIncludesMetadata = value === true;
   syncFilterControls();
   writeRouteState();
   ensureFilterReadyThenRebuild();
@@ -1875,6 +1959,9 @@ function setQueueMode(value) {
 }
 
 initializeRouteState();
+ensureFullPoemLengthControls();
+syncFilterControls();
+updateFilterControlsVisibility();
 
 // ---- Shim for mobile.html to call desktop logic & expose state ----
 (function exposePP(){
@@ -2372,7 +2459,7 @@ async function fetchLatestBatch() {
 }
 
 function hasActiveFeedFilters() {
-  return !!(selectedType || selectedCatalog || selectedEvent || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook));
+  return !!(selectedType || selectedCatalog || selectedEvent || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook) || (normalizeFilterValue(selectedType) === 'fp' && (selectedMaxCharacters || selectedMaxLines)));
 }
 
 function getActiveFilterPayload(extra = {}) {
@@ -2382,6 +2469,9 @@ function getActiveFilterPayload(extra = {}) {
     author: filterByAuthor ? selectedAuthor : '',
     book: filterByBook ? selectedBook : '',
     event: selectedEvent,
+    maxCharacters: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxCharacters : '',
+    maxLines: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxLines : '',
+    includeLengthMetadata: normalizeFilterValue(selectedType) === 'fp' && selectedLengthIncludesMetadata,
     ...extra,
   };
 }
@@ -2615,6 +2705,12 @@ function buildFilteredList(data) {
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
     if (selectedEvent && !valuesMatch(g.sourceEvent, selectedEvent) && !valuesMatch(g.sourceEventLabel, selectedEvent)) return false;
+    if (normalizeFilterValue(selectedType) === 'fp') {
+      const maxCharacters = selectedMaxCharacters === '' ? null : Number(selectedMaxCharacters);
+      const maxLines = selectedMaxLines === '' ? null : Number(selectedMaxLines);
+      if (Number.isFinite(maxCharacters) && poemCharacterCount(g, selectedLengthIncludesMetadata) > maxCharacters) return false;
+      if (Number.isFinite(maxLines) && poemLineCount(g, selectedLengthIncludesMetadata) > maxLines) return false;
+    }
     return true;
   });
 
@@ -2692,7 +2788,7 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','type-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
+  const ids = ['user-status','type-filter-container','fp-length-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
   const mediaWrap = document.getElementById('media-wrap');
   const nodes = [
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
