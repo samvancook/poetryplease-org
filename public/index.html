@@ -175,10 +175,12 @@
     <h1>Welcome to Poetry, Please!</h1>
     <button id="login-google">Log in with Google</button>
     <form id="email-login-form">
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Password" required />
+      <input type="email" id="email" placeholder="Email" autocomplete="email" required />
+      <input type="password" id="password" placeholder="Password" autocomplete="current-password" required />
       <button type="submit">Log in</button>
     </form>
+    <button id="forgot-password" type="button">Reset password</button>
+    <div id="password-reset-status" role="status" aria-live="polite"></div>
     <button id="show-registration">Create an Account</button>
   </div>
 
