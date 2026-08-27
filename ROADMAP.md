@@ -239,7 +239,8 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - create an Admin dashboard for author onboarding, claimed accounts, associated work, feedback, and public profile readiness
   - show author profile statuses: `not invited`, `invited`, `claimed`, `profile incomplete`, `ready for review`, and `published`
   - add a per-author detail panel with invite status, claimed user, email mismatch warnings, associated content count, featured picks, unresolved author notes, and public/private state
-  - send author invites directly from the tool, including email entry, message/template support, send status, resend, copy-link fallback, expiration, and claimed-state visibility
+  - interim: open author invitations in browser-based Gmail with recipient, subject, message, expiration note, and secure link prefilled; keep the link copied as a fallback
+  - later: send author invites directly from Poetry Please through an approved transactional provider, including email entry, reusable templates, delivery status, resend, copy-link fallback, expiration, and claimed-state visibility
   - consolidate author feedback workflow: `not mine`, `typo`, `wrong book`, `don't feature`, and `missing work`, grouped by author with resolve buttons
   - add content association cleanup controls showing whether content is tied by author name, claimed ids, or manual association, with remove/add association actions
   - add a public profile readiness checklist covering bio, social links, featured work or fallback, profile published state, and review queue link readiness
