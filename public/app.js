@@ -1010,6 +1010,35 @@ async function handleEmailLogin(e) {
   try { await firebase.auth().signInWithEmailAndPassword($('#email')?.value, $('#password')?.value); }
   catch (e2) { alert('Login error: ' + e2.message); }
 }
+
+async function handlePasswordReset() {
+  const emailInput = $('#email');
+  const email = (emailInput?.value || '').trim();
+  const button = $('#forgot-password');
+  const status = $('#password-reset-status');
+  if (!email) {
+    if (status) status.textContent = 'Enter your email address first.';
+    emailInput?.focus();
+    return;
+  }
+
+  if (button) button.disabled = true;
+  if (status) status.textContent = 'Sending password reset email…';
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    if (status) status.textContent = 'If this email has an account, a password reset message is on the way.';
+  } catch (err) {
+    if (err?.code === 'auth/user-not-found') {
+      if (status) status.textContent = 'If this email has an account, a password reset message is on the way.';
+    } else {
+      console.error('Password reset failed:', err);
+      if (status) status.textContent = 'Password reset could not be sent. Please try again or contact support@buttonpoetry.com.';
+    }
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function handleRegistration(e) {
   e?.preventDefault();
   try { await firebase.auth().createUserWithEmailAndPassword($('#reg-email')?.value, $('#reg-password')?.value); }
@@ -3679,6 +3708,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Wire login UI if present (works for both desktop & mobile)
   on(document.getElementById('login-google'), 'click', signInWithGoogle);
   on(document.getElementById('email-login-form'), 'submit', handleEmailLogin);
+  on(document.getElementById('forgot-password'), 'click', handlePasswordReset);
   on(document.getElementById('registration-form'), 'submit', handleRegistration);
   on(document.getElementById('show-registration'), 'click', showRegistrationForm);
   on(document.getElementById('show-login'), 'click', showLoginScreen);
