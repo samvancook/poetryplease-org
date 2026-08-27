@@ -856,8 +856,8 @@ function updateUserStatusUI() {
     syncAdminViewToggle(isAdmin);
   } else {
     if (div) {
-      div.innerHTML = "<button id='login-google'>Log in with Google</button> or continue anonymously";
-      on($('#login-google'), 'click', signInWithGoogle);
+      div.innerHTML = "<button id='open-login-options'>Log in or create account</button> or continue anonymously";
+      on($('#open-login-options'), 'click', showLoginScreen);
     }
     if (loadBtn) loadBtn.disabled = false;
     syncAdminViewToggle(false);
@@ -974,8 +974,42 @@ async function mergeAnonymousVotesIntoAccount() {
     console.warn('Failed to merge anonymous votes into account', err);
   }
 }
-function showLoginScreen() { show($('#registration-screen'), false); show($('#login-screen'), true); }
-function showRegistrationForm() { show($('#login-screen'), false); show($('#registration-screen'), true); }
+function showAppScreen() {
+  show($('#login-screen'), false);
+  show($('#registration-screen'), false);
+  show($('#poetry-screen'), true);
+}
+
+function showLoginScreen() {
+  hideWelcomeChoice();
+  show($('#registration-screen'), false);
+  show($('#login-screen'), true);
+  show($('#poetry-screen'), false);
+  $('#email')?.focus();
+}
+
+function showRegistrationForm() {
+  hideWelcomeChoice();
+  show($('#login-screen'), false);
+  show($('#registration-screen'), true);
+  show($('#poetry-screen'), false);
+  $('#reg-email')?.focus();
+}
+
+function setLoginStatus(message = '') {
+  const status = $('#login-status');
+  if (status) status.textContent = message;
+}
+
+function reportGoogleSignInError(err) {
+  const code = err?.code || 'unknown-error';
+  console.error('Google sign-in failed:', err);
+  const message = code === 'auth/unauthorized-domain'
+    ? `Google sign-in is not authorized for this preview domain (${code}).`
+    : `Google sign-in failed (${code}). Please try again or use email and password.`;
+  setLoginStatus(message);
+}
+
 async function signInWithGoogle() {
   hideWelcomeChoice();
   const auth = firebase.auth();
@@ -984,12 +1018,14 @@ async function signInWithGoogle() {
   // Prefer redirect on mobile; try popup on desktop and fallback to redirect
   const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
+  setLoginStatus('Opening Google sign-in…');
   try {
     if (isMobileUA) {
       await auth.signInWithRedirect(provider);
       return; // redirect flow takes over
     }
     await auth.signInWithPopup(provider);
+    setLoginStatus('');
   } catch (err) {
     // COOP/popup blockers → seamless fallback
     if (
@@ -997,10 +1033,13 @@ async function signInWithGoogle() {
       err?.code === 'auth/cancelled-popup-request' ||
       /opener|blocked|closed|COOP/i.test(err?.message || '')
     ) {
-      await auth.signInWithRedirect(provider);
+      try {
+        await auth.signInWithRedirect(provider);
+      } catch (redirectErr) {
+        reportGoogleSignInError(redirectErr);
+      }
     } else {
-      console.error('Google sign-in failed:', err);
-      alert('Google sign-in failed. Please try again.');
+      reportGoogleSignInError(err);
     }
   }
 }
@@ -1091,7 +1130,7 @@ function showWelcomeChoice() {
       <p>Votes are welcome either way. Log in when you want them saved across devices.</p>
       <div class="pp-welcome-actions">
         <button id="pp-welcome-continue" class="pp-welcome-primary" type="button">Continue without logging in</button>
-        <button id="pp-welcome-login" class="pp-welcome-secondary" type="button">Log in with Google</button>
+        <button id="pp-welcome-login" class="pp-welcome-secondary" type="button">Log in or create account</button>
       </div>
     </div>
   `;
@@ -1100,7 +1139,7 @@ function showWelcomeChoice() {
     hideWelcomeChoice();
     if (!currentItem) ppAutoloadFirstItem();
   });
-  document.getElementById('pp-welcome-login')?.addEventListener('click', signInWithGoogle);
+  document.getElementById('pp-welcome-login')?.addEventListener('click', showLoginScreen);
   el.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') hideWelcomeChoice();
   });
@@ -3673,7 +3712,10 @@ firebase.auth().onAuthStateChanged(async (user) => {
   if (currentItem) renderMetaRows(currentItem);
   dispatchEvent(new CustomEvent('pp:state'));
   ppAutoloadFirstItem();
-  if (!visibleUser) scheduleWelcomeChoice();
+  if (!visibleUser) {
+    if (readAuthorInviteToken()) showLoginScreen();
+    else scheduleWelcomeChoice();
+  }
 
   if (visibleUser) {
     redeemAuthorInviteIfPresent().catch((err) => {
@@ -3712,6 +3754,7 @@ window.addEventListener('DOMContentLoaded', () => {
   on(document.getElementById('registration-form'), 'submit', handleRegistration);
   on(document.getElementById('show-registration'), 'click', showRegistrationForm);
   on(document.getElementById('show-login'), 'click', showLoginScreen);
+  on(document.getElementById('continue-without-login'), 'click', showAppScreen);
   on(document.getElementById('btn-mobile-moved'),  'click', () => onVoteAny('moved me'));
   on(document.getElementById('btn-mobile-meh'),    'click', () => onVoteAny('meh'));
   on(document.getElementById('btn-mobile-like'),   'click', () => onVoteAny('like'));
