@@ -1523,6 +1523,43 @@
       }
     }
 
+    function authorInviteGmailUrl({ email = '', authorName = '', inviteUrl = '', expiresInDays = 14 } = {}) {
+      const cleanName = String(authorName || '').trim();
+      const greeting = cleanName && !cleanName.includes('@') ? `Hi ${cleanName},` : 'Hello,';
+      const subject = 'Your Poetry Please author invitation';
+      const body = [
+        greeting,
+        '',
+        "You're invited to claim your Poetry Please author account. This will let you review your work and help us keep your Poetry Please profile accurate.",
+        '',
+        'Open your secure invitation:',
+        inviteUrl,
+        '',
+        `This invitation link expires in ${expiresInDays} days.`,
+        '',
+        '— Poetry Please',
+      ].join('\n');
+      const params = new URLSearchParams({
+        view: 'cm',
+        fs: '1',
+        tf: '1',
+        to: String(email || '').trim(),
+        su: subject,
+        body,
+      });
+      return `https://mail.google.com/mail/?${params.toString()}`;
+    }
+
+    function openAuthorInviteInGmail(options = {}, preparedWindow = null) {
+      const url = authorInviteGmailUrl(options);
+      if (preparedWindow && !preparedWindow.closed) {
+        preparedWindow.opener = null;
+        preparedWindow.location.replace(url);
+        return true;
+      }
+      return !!window.open(url, '_blank', 'noopener,noreferrer');
+    }
+
     async function createInvite() {
       const email = (document.getElementById("invite-email").value || "").trim();
       const expiresInDays = Number(document.getElementById("invite-days").value || 14);
@@ -1548,8 +1585,16 @@
           <div class="copy-row">
             <code id="latest-invite-link">${payload.inviteUrl}</code>
             <button id="copy-invite-link" type="button" class="secondary">Copy link</button>
+            <button id="open-invite-gmail" type="button">Open Gmail invite</button>
           </div>
         `;
+        document.getElementById("open-invite-gmail")?.addEventListener("click", () => {
+          const opened = openAuthorInviteInGmail({ email: payload.email, inviteUrl: payload.inviteUrl, expiresInDays });
+          statusEl.textContent = opened
+            ? `Invite created for ${payload.email}. Gmail compose opened.`
+            : `Invite created for ${payload.email}. Allow pop-ups, then try Open Gmail invite again.`;
+          statusEl.className = opened ? 'status' : 'status error';
+        });
         document.getElementById("copy-invite-link")?.addEventListener("click", async () => {
           try {
             await navigator.clipboard.writeText(payload.inviteUrl);
@@ -1811,7 +1856,7 @@
                       ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ''}
                       ${profile.slug ? ` · <a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ''}
                       ${invite.email ? ` · <button type="button" class="secondary copy-author-invite-email" data-email="${escapeHtml(invite.email)}">Copy email</button>` : ''}
-                      ${canGenerateInvite ? ` · <button type="button" class="secondary regenerate-author-invite" data-invite-id="${escapeHtml(invite.id)}">Generate link</button>` : ''}
+                      ${canGenerateInvite ? ` · <button type="button" class="secondary regenerate-author-invite" data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || '')}" data-author-name="${escapeHtml(profile.displayName || '')}" title="Generate a fresh secure link, copy it, and open a prefilled Gmail message.">Open Gmail invite</button>` : ''}
                     </td>
                   </tr>
                 `;
@@ -1831,18 +1876,31 @@
       });
       container.querySelectorAll('.regenerate-author-invite').forEach((button) => {
         button.addEventListener('click', async () => {
+          const gmailWindow = window.open('', '_blank');
           button.disabled = true;
-          button.textContent = 'Generating…';
+          button.textContent = 'Preparing Gmail…';
           try {
             const payload = await api(`admin/authorInvites/${encodeURIComponent(button.dataset.inviteId || '')}/regenerate`, { method: 'POST', body: { expiresInDays: 14 } });
-            await navigator.clipboard.writeText(payload.inviteUrl || '');
-            button.textContent = 'Copied new link';
+            await navigator.clipboard.writeText(payload.inviteUrl || '').catch(() => {});
+            const opened = openAuthorInviteInGmail({
+              email: payload.email || button.dataset.email || '',
+              authorName: button.dataset.authorName || '',
+              inviteUrl: payload.inviteUrl || '',
+              expiresInDays: 14,
+            }, gmailWindow);
+            button.textContent = opened ? 'Gmail opened' : 'Copy link';
+            const statusEl = document.getElementById('author-command-center-status');
+            statusEl.textContent = opened
+              ? 'Gmail compose opened with a fresh invitation link. The link was also copied.'
+              : 'The invitation link was copied, but Gmail was blocked. Allow pop-ups and try again.';
+            statusEl.className = opened ? 'status' : 'status error';
             await Promise.all([loadAuthorCommandCenter(), loadInvites()]);
           } catch (err) {
+            if (gmailWindow && !gmailWindow.closed) gmailWindow.close();
             console.error(err);
             button.disabled = false;
             button.textContent = 'Try again';
-            document.getElementById('author-command-center-status').textContent = err.message || 'Could not generate invite link.';
+            document.getElementById('author-command-center-status').textContent = err.message || 'Could not prepare the Gmail invitation.';
             document.getElementById('author-command-center-status').className = 'status error';
           }
         });
