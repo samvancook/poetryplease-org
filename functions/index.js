@@ -1546,6 +1546,13 @@ function filterContentByFeedFilters(items, filters = {}) {
     if (!matchesFilterValue(item?.author, filters.author)) return false;
     if (!matchesFilterValue(item?.book, filters.book)) return false;
     if (!matchesFilterValue(item?.sourceEvent, filters.event) && !matchesFilterValue(item?.sourceEventLabel, filters.event)) return false;
+    if (normalizeText(filters.type).toUpperCase() === "FP") {
+      const maxCharacters = parseOptionalCount(filters.maxCharacters);
+      const maxLines = parseOptionalCount(filters.maxLines);
+      const includeMetadata = parseBoolean(filters.includeLengthMetadata);
+      if (maxCharacters !== null && countPoemCharacters(item, includeMetadata) > maxCharacters) return false;
+      if (maxLines !== null && countPoemLines(item, includeMetadata) > maxLines) return false;
+    }
     return true;
   });
 }
@@ -1915,8 +1922,36 @@ function buildWeaverGraphicsImportItems(rawPayload, options = {}) {
     .filter((item) => item.docId && item.imageUrl);
 }
 
-function countCharacters(parts = []) {
-  return normalizeTextBody(parts.join(" ")).length;
+function normalizeLengthText(value = "") {
+  return String(value ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+}
+
+function buildPoemLengthText(item = {}, includeMetadata = false) {
+  const poemText = normalizeLengthText(item.excerpt || item.fullText || item.text || item.ocrText || "");
+  if (!includeMetadata) return poemText;
+  return [item.author || "", item.title || item.poem || "", poemText]
+    .map(normalizeLengthText)
+    .filter(Boolean)
+    .join("\n");
+}
+
+function countPoemCharacters(item = {}, includeMetadata = false) {
+  return buildPoemLengthText(item, includeMetadata).length;
+}
+
+function countPoemLines(item = {}, includeMetadata = false) {
+  const text = buildPoemLengthText(item, includeMetadata);
+  return text ? text.split("\n").length : 0;
+}
+
+function parseOptionalCount(value) {
+  if (value === undefined || value === null || normalizeText(value) === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.floor(parsed) : null;
+}
+
+function parseBoolean(value) {
+  return value === true || ["1", "true", "yes"].includes(normalizeText(value).toLowerCase());
 }
 
 function resolveScoreboardBookTitle(item = {}) {
@@ -2286,7 +2321,10 @@ async function buildScoreboardPayload() {
       type: item.imageType || "",
       excerpt: item.excerpt || "",
       releaseCatalog: canonicalCatalog.releaseCatalog || item.releaseCatalog || "",
-      charCount: countCharacters([item.author || "", item.title || item.poem || "", item.excerpt || ""]),
+      charCount: countPoemCharacters(item, false),
+      lineCount: countPoemLines(item, false),
+      charCountWithMetadata: countPoemCharacters(item, true),
+      lineCountWithMetadata: countPoemLines(item, true),
     };
     keys.forEach((key) => metaMap.set(normalizeKey(key), payload));
   };
@@ -2585,6 +2623,10 @@ async function buildRankedTextsPayload({
         title: item.title || "",
         book: item.book || "",
         text,
+        charCount: countPoemCharacters({ ...item, text }, false),
+        lineCount: countPoemLines({ ...item, text }, false),
+        charCountWithMetadata: countPoemCharacters({ ...item, text }, true),
+        lineCountWithMetadata: countPoemLines({ ...item, text }, true),
         releaseCatalog: item.releaseCatalog || "",
         bookLink: item.bookLink || "",
         score: Number(voteStats.score || 0),
@@ -3111,8 +3153,11 @@ function applyScoreboardQuery(payload = {}, query = {}) {
   const book = normalizeText(query.book).toLowerCase();
   const catalog = normalizeText(query.catalog).toLowerCase();
   const hideZero = normalizeText(query.hideZero) !== "false";
-  const charMin = query.charMin === undefined || query.charMin === "" ? null : Number(query.charMin);
-  const charMax = query.charMax === undefined || query.charMax === "" ? null : Number(query.charMax);
+  const charMin = parseOptionalCount(query.charMin);
+  const charMax = parseOptionalCount(query.charMax);
+  const lineMin = parseOptionalCount(query.lineMin);
+  const lineMax = parseOptionalCount(query.lineMax);
+  const includeMetadata = parseBoolean(query.includeLengthMetadata);
   const source = user
     ? (payload.rawVotes || []).filter((row) => (
         user === "__anon_local__"
@@ -3120,16 +3165,30 @@ function applyScoreboardQuery(payload = {}, query = {}) {
           : normalizeText(row.user).toLowerCase() === user
       ))
     : [...(payload.aggregated || [])];
-  let rows = source;
+  let rows = includeMetadata
+    ? source.map((row) => ({
+        ...row,
+        charCount: Number(row.charCountWithMetadata || 0) || 0,
+        lineCount: Number(row.lineCountWithMetadata || 0) || 0,
+      }))
+    : source;
   if (!user && hideZero) rows = rows.filter((row) => Number(row.totalVotes || 0) > 0);
   if (type) rows = rows.filter((row) => normalizeScoreboardType(row.type) === type);
   if (book) rows = rows.filter((row) => normalizeText(row.bookTitle).toLowerCase() === book);
   if (catalog) rows = rows.filter((row) => normalizeText(row.releaseCatalog).toLowerCase() === catalog);
-  if ((type === "fp" || type === "exc") && (Number.isFinite(charMin) || Number.isFinite(charMax))) {
+  if ((type === "fp" || type === "exc") && (charMin !== null || charMax !== null)) {
     rows = rows.filter((row) => {
       const count = Number(row.charCount || 0) || 0;
-      if (Number.isFinite(charMin) && count < charMin) return false;
-      if (Number.isFinite(charMax) && count > charMax) return false;
+      if (charMin !== null && count < charMin) return false;
+      if (charMax !== null && count > charMax) return false;
+      return true;
+    });
+  }
+  if (type === "fp" && (lineMin !== null || lineMax !== null)) {
+    rows = rows.filter((row) => {
+      const count = Number(row.lineCount || 0) || 0;
+      if (lineMin !== null && count < lineMin) return false;
+      if (lineMax !== null && count > lineMax) return false;
       return true;
     });
   }
@@ -3138,7 +3197,7 @@ function applyScoreboardQuery(payload = {}, query = {}) {
 
 function sortScoreboardRows(rows = [], sortKey = "bookTitle", sortDir = 1) {
   const dir = Number(sortDir) < 0 ? -1 : 1;
-  const allowed = new Set(["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score", "scorePerVote", "movedMeRate", "vote"]);
+  const allowed = new Set(["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "lineCount", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score", "scorePerVote", "movedMeRate", "vote"]);
   const key = allowed.has(sortKey) ? sortKey : "bookTitle";
   const readValue = (row) => {
     if (key === "scorePerVote") {
@@ -4438,6 +4497,10 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     catalog: normalizeText(req.body?.catalog),
     author: normalizeText(req.body?.author),
     book: normalizeText(req.body?.book),
+    event: normalizeText(req.body?.event),
+    maxCharacters: req.body?.maxCharacters,
+    maxLines: req.body?.maxLines,
+    includeLengthMetadata: req.body?.includeLengthMetadata,
   };
   const limit = Math.max(10, Math.min(Number(req.body?.limit) || 500, 5000));
 
@@ -4655,6 +4718,11 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   if (!ctx) return;
   const requestedBook = normalizeText(req.query?.book);
   const requestedCatalog = normalizeText(req.query?.catalog);
+  const charMin = parseOptionalCount(req.query?.charMin);
+  const charMax = parseOptionalCount(req.query?.charMax);
+  const lineMin = parseOptionalCount(req.query?.lineMin);
+  const lineMax = parseOptionalCount(req.query?.lineMax);
+  const includeMetadata = parseBoolean(req.query?.includeLengthMetadata);
 
   const [result, fullPoemItems, allContent, flagSnap] = await Promise.all([
     getScoreboardPayloadFromSnapshot(),
@@ -4778,6 +4846,15 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   const fullPoems = fullPoemItems
     .filter((item) => !requestedBookKey || normalizeCatalogLookupKey(resolveScoreboardBookTitle(item)) === requestedBookKey)
     .filter((item) => !requestedCatalogKey || normalizeCatalogLookupKey(item.releaseCatalog) === requestedCatalogKey)
+    .filter((item) => {
+      const characterCount = countPoemCharacters(item, includeMetadata);
+      const lineCount = countPoemLines(item, includeMetadata);
+      if (charMin !== null && characterCount < charMin) return false;
+      if (charMax !== null && characterCount > charMax) return false;
+      if (lineMin !== null && lineCount < lineMin) return false;
+      if (lineMax !== null && lineCount > lineMax) return false;
+      return true;
+    })
     .map((item) => {
       const row = scoredByImageId.get(normalizeKey(item.imageId)) || {
         imageId: item.imageId || "",
@@ -4820,6 +4897,9 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
         title: row.poemTitle || "",
         book: row.bookTitle || requestedBook,
         catalog: item.releaseCatalog || row.releaseCatalog || "",
+        charCount: countPoemCharacters(item, includeMetadata),
+        lineCount: countPoemLines(item, includeMetadata),
+        lengthIncludesMetadata: includeMetadata,
         flagged: flags.length > 0,
         flags: flags.map((flag) => ({
           id: flag.id,
