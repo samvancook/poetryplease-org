@@ -985,6 +985,15 @@ function showLoginScreen() {
   show($('#registration-screen'), false);
   show($('#login-screen'), true);
   show($('#poetry-screen'), false);
+  const googleButton = $('#login-google');
+  if (googleButton) {
+    const unavailable = isFirebasePreviewChannel();
+    googleButton.disabled = unavailable;
+    googleButton.textContent = unavailable ? 'Google sign-in unavailable in this preview' : 'Continue with Google';
+  }
+  if (isFirebasePreviewChannel()) {
+    setLoginStatus('This Firebase preview channel does not complete Google authentication. Use email and password to test this preview; the production Google flow is unchanged.');
+  }
   $('#email')?.focus();
 }
 
@@ -1001,34 +1010,41 @@ function setLoginStatus(message = '') {
   if (status) status.textContent = message;
 }
 
-function reportGoogleSignInError(err) {
-  const code = err?.code || 'unknown-error';
-  console.error('Google sign-in failed:', err);
-  const message = code === 'auth/unauthorized-domain'
-    ? `Google sign-in is not authorized for this preview domain (${code}).`
-    : `Google sign-in failed (${code}). Please try again or use email and password.`;
-  setLoginStatus(message);
+function isFirebasePreviewChannel() {
+  return /^poetryplease-org--.+\.web\.app$/i.test(window.location.hostname);
 }
 
 async function signInWithGoogle() {
   hideWelcomeChoice();
+  if (isFirebasePreviewChannel()) {
+    showLoginScreen();
+    return;
+  }
+
   const auth = firebase.auth();
   const provider = new firebase.auth.GoogleAuthProvider();
-  setLoginStatus('Opening Google sign-in…');
-  try {
-    await auth.signInWithRedirect(provider);
-  } catch (err) {
-    reportGoogleSignInError(err);
-  }
-}
 
-async function completeGoogleRedirectSignIn() {
+  // Preserve the production behavior: redirect on mobile, popup on desktop,
+  // and redirect fallback when the popup is blocked or unavailable.
+  const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
   try {
-    const result = await firebase.auth().getRedirectResult();
-    if (result?.user) setLoginStatus('Google sign-in complete.');
+    if (isMobileUA) {
+      await auth.signInWithRedirect(provider);
+      return;
+    }
+    await auth.signInWithPopup(provider);
   } catch (err) {
-    showLoginScreen();
-    reportGoogleSignInError(err);
+    if (
+      err?.code === 'auth/popup-blocked' ||
+      err?.code === 'auth/cancelled-popup-request' ||
+      /opener|blocked|closed|COOP/i.test(err?.message || '')
+    ) {
+      await auth.signInWithRedirect(provider);
+    } else {
+      console.error('Google sign-in failed:', err);
+      setLoginStatus(`Google sign-in failed (${err?.code || 'unknown-error'}). Please try again or use email and password.`);
+    }
   }
 }
 
@@ -3716,10 +3732,6 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
-  completeGoogleRedirectSignIn().catch((err) => {
-    showLoginScreen();
-    reportGoogleSignInError(err);
-  });
   if (!currentItem) ppAutoloadFirstItem();
   window.setTimeout(() => {
     // If Firebase auth never fires, keep Poetry Please usable instead of
