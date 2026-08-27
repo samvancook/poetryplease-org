@@ -1022,6 +1022,16 @@ async function signInWithGoogle() {
   }
 }
 
+async function completeGoogleRedirectSignIn() {
+  try {
+    const result = await firebase.auth().getRedirectResult();
+    if (result?.user) setLoginStatus('Google sign-in complete.');
+  } catch (err) {
+    showLoginScreen();
+    reportGoogleSignInError(err);
+  }
+}
+
 async function handleEmailLogin(e) {
   e?.preventDefault();
   try { await firebase.auth().signInWithEmailAndPassword($('#email')?.value, $('#password')?.value); }
@@ -3706,6 +3716,10 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
+  completeGoogleRedirectSignIn().catch((err) => {
+    showLoginScreen();
+    reportGoogleSignInError(err);
+  });
   if (!currentItem) ppAutoloadFirstItem();
   window.setTimeout(() => {
     // If Firebase auth never fires, keep Poetry Please usable instead of
