@@ -384,18 +384,32 @@
       el.className = `status${kind ? ` ${kind}` : ""}`;
     }
 
+    function reportAuthorGoogleSignInError(err) {
+      const code = err?.code || "unknown-error";
+      console.error(err);
+      const message = code === "auth/unauthorized-domain"
+        ? `Google sign-in is not authorized for this preview domain (${code}).`
+        : `Google sign-in failed (${code}). Please try again or use email and password.`;
+      setAuthorLoginStatus(message, "error");
+    }
+
     async function signInWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
       setAuthorLoginStatus("Opening Google sign-in…");
       try {
         await firebase.auth().signInWithRedirect(provider);
       } catch (err) {
-        const code = err?.code || "unknown-error";
-        console.error(err);
-        const message = code === "auth/unauthorized-domain"
-          ? `Google sign-in is not authorized for this preview domain (${code}).`
-          : `Google sign-in failed (${code}). Please try again or use email and password.`;
-        setAuthorLoginStatus(message, "error");
+        reportAuthorGoogleSignInError(err);
+      }
+    }
+
+    async function completeGoogleRedirectSignIn() {
+      try {
+        const result = await firebase.auth().getRedirectResult();
+        if (result?.user) setAuthorLoginStatus("Google sign-in complete.", "ok");
+      } catch (err) {
+        setAccessUI({ signedIn: false });
+        reportAuthorGoogleSignInError(err);
       }
     }
 
@@ -1017,6 +1031,10 @@
 
     async function init() {
       initCollapsiblePanels();
+      completeGoogleRedirectSignIn().catch((err) => {
+        setAccessUI({ signedIn: false });
+        reportAuthorGoogleSignInError(err);
+      });
       firebase.auth().onAuthStateChanged(async (user) => {
         if (!user) {
           setAccessUI({ signedIn: false });
