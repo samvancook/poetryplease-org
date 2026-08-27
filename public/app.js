@@ -1014,33 +1014,11 @@ async function signInWithGoogle() {
   hideWelcomeChoice();
   const auth = firebase.auth();
   const provider = new firebase.auth.GoogleAuthProvider();
-
-  // Prefer redirect on mobile; try popup on desktop and fallback to redirect
-  const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
   setLoginStatus('Opening Google sign-in…');
   try {
-    if (isMobileUA) {
-      await auth.signInWithRedirect(provider);
-      return; // redirect flow takes over
-    }
-    await auth.signInWithPopup(provider);
-    setLoginStatus('');
+    await auth.signInWithRedirect(provider);
   } catch (err) {
-    // COOP/popup blockers → seamless fallback
-    if (
-      err?.code === 'auth/popup-blocked' ||
-      err?.code === 'auth/cancelled-popup-request' ||
-      /opener|blocked|closed|COOP/i.test(err?.message || '')
-    ) {
-      try {
-        await auth.signInWithRedirect(provider);
-      } catch (redirectErr) {
-        reportGoogleSignInError(redirectErr);
-      }
-    } else {
-      reportGoogleSignInError(err);
-    }
+    reportGoogleSignInError(err);
   }
 }
 
