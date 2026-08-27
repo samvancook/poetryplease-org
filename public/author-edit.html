@@ -384,32 +384,25 @@
       el.className = `status${kind ? ` ${kind}` : ""}`;
     }
 
-    function reportAuthorGoogleSignInError(err) {
-      const code = err?.code || "unknown-error";
-      console.error(err);
-      const message = code === "auth/unauthorized-domain"
-        ? `Google sign-in is not authorized for this preview domain (${code}).`
-        : `Google sign-in failed (${code}). Please try again or use email and password.`;
-      setAuthorLoginStatus(message, "error");
+    function isFirebasePreviewChannel() {
+      return /^poetryplease-org--.+\.web\.app$/i.test(window.location.hostname);
     }
 
     async function signInWithGoogle() {
-      const provider = new firebase.auth.GoogleAuthProvider();
-      setAuthorLoginStatus("Opening Google sign-in…");
-      try {
-        await firebase.auth().signInWithRedirect(provider);
-      } catch (err) {
-        reportAuthorGoogleSignInError(err);
+      if (isFirebasePreviewChannel()) {
+        setAuthorLoginStatus("This Firebase preview channel does not complete Google authentication. Use email and password here; the production Google flow is unchanged.", "error");
+        return;
       }
-    }
 
-    async function completeGoogleRedirectSignIn() {
+      const provider = new firebase.auth.GoogleAuthProvider();
       try {
-        const result = await firebase.auth().getRedirectResult();
-        if (result?.user) setAuthorLoginStatus("Google sign-in complete.", "ok");
+        await firebase.auth().signInWithPopup(provider);
       } catch (err) {
-        setAccessUI({ signedIn: false });
-        reportAuthorGoogleSignInError(err);
+        if (err?.code === "auth/popup-blocked" || err?.code === "auth/popup-closed-by-user") {
+          await firebase.auth().signInWithRedirect(provider);
+          return;
+        }
+        throw err;
       }
     }
 
@@ -460,10 +453,18 @@
 
     function setAccessUI({ signedIn = false, isAdmin = false } = {}) {
       document.getElementById("login-google").classList.toggle("is-hidden", signedIn);
-      document.getElementById("author-login-google").classList.toggle("is-hidden", signedIn);
+      const authorGoogleButton = document.getElementById("author-login-google");
+      authorGoogleButton.classList.toggle("is-hidden", signedIn);
+      authorGoogleButton.disabled = !signedIn && isFirebasePreviewChannel();
+      authorGoogleButton.textContent = authorGoogleButton.disabled
+        ? "Google sign-in unavailable in this preview"
+        : "Continue with Google";
       document.getElementById("author-login-panel").classList.toggle("is-hidden", signedIn);
       document.getElementById("logout").classList.toggle("is-hidden", !signedIn);
       document.getElementById("admin-link").classList.toggle("is-hidden", !isAdmin);
+      if (!signedIn && isFirebasePreviewChannel()) {
+        setAuthorLoginStatus("This Firebase preview channel does not complete Google authentication. Use email and password here; the production Google flow is unchanged.", "error");
+      }
     }
 
     function updatePreviewStatus() {
@@ -1031,10 +1032,6 @@
 
     async function init() {
       initCollapsiblePanels();
-      completeGoogleRedirectSignIn().catch((err) => {
-        setAccessUI({ signedIn: false });
-        reportAuthorGoogleSignInError(err);
-      });
       firebase.auth().onAuthStateChanged(async (user) => {
         if (!user) {
           setAccessUI({ signedIn: false });
