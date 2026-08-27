@@ -386,19 +386,16 @@
 
     async function signInWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
+      setAuthorLoginStatus("Opening Google sign-in…");
       try {
-        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        if (isMobileUA) {
-          await firebase.auth().signInWithRedirect(provider);
-          return;
-        }
-        await firebase.auth().signInWithPopup(provider);
+        await firebase.auth().signInWithRedirect(provider);
       } catch (err) {
-        if (err?.code === "auth/popup-blocked" || err?.code === "auth/popup-closed-by-user") {
-          await firebase.auth().signInWithRedirect(provider);
-          return;
-        }
-        throw err;
+        const code = err?.code || "unknown-error";
+        console.error(err);
+        const message = code === "auth/unauthorized-domain"
+          ? `Google sign-in is not authorized for this preview domain (${code}).`
+          : `Google sign-in failed (${code}). Please try again or use email and password.`;
+        setAuthorLoginStatus(message, "error");
       }
     }
 
