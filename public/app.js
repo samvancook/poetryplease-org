@@ -856,8 +856,8 @@ function updateUserStatusUI() {
     syncAdminViewToggle(isAdmin);
   } else {
     if (div) {
-      div.innerHTML = "<button id='login-google'>Log in with Google</button> or continue anonymously";
-      on($('#login-google'), 'click', signInWithGoogle);
+      div.innerHTML = "<button id='open-login-options'>Log in or create account</button> or continue anonymously";
+      on($('#open-login-options'), 'click', showLoginScreen);
     }
     if (loadBtn) loadBtn.disabled = false;
     syncAdminViewToggle(false);
@@ -974,24 +974,67 @@ async function mergeAnonymousVotesIntoAccount() {
     console.warn('Failed to merge anonymous votes into account', err);
   }
 }
-function showLoginScreen() { show($('#registration-screen'), false); show($('#login-screen'), true); }
-function showRegistrationForm() { show($('#login-screen'), false); show($('#registration-screen'), true); }
+function showAppScreen() {
+  show($('#login-screen'), false);
+  show($('#registration-screen'), false);
+  show($('#poetry-screen'), true);
+}
+
+function showLoginScreen() {
+  hideWelcomeChoice();
+  show($('#registration-screen'), false);
+  show($('#login-screen'), true);
+  show($('#poetry-screen'), false);
+  const googleButton = $('#login-google');
+  if (googleButton) {
+    const unavailable = isFirebasePreviewChannel();
+    googleButton.disabled = unavailable;
+    googleButton.textContent = unavailable ? 'Google sign-in unavailable in this preview' : 'Continue with Google';
+  }
+  if (isFirebasePreviewChannel()) {
+    setLoginStatus('This Firebase preview channel does not complete Google authentication. Use email and password to test this preview; the production Google flow is unchanged.');
+  }
+  $('#email')?.focus();
+}
+
+function showRegistrationForm() {
+  hideWelcomeChoice();
+  show($('#login-screen'), false);
+  show($('#registration-screen'), true);
+  show($('#poetry-screen'), false);
+  $('#reg-email')?.focus();
+}
+
+function setLoginStatus(message = '') {
+  const status = $('#login-status');
+  if (status) status.textContent = message;
+}
+
+function isFirebasePreviewChannel() {
+  return /^poetryplease-org--.+\.web\.app$/i.test(window.location.hostname);
+}
+
 async function signInWithGoogle() {
   hideWelcomeChoice();
+  if (isFirebasePreviewChannel()) {
+    showLoginScreen();
+    return;
+  }
+
   const auth = firebase.auth();
   const provider = new firebase.auth.GoogleAuthProvider();
 
-  // Prefer redirect on mobile; try popup on desktop and fallback to redirect
+  // Preserve the production behavior: redirect on mobile, popup on desktop,
+  // and redirect fallback when the popup is blocked or unavailable.
   const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   try {
     if (isMobileUA) {
       await auth.signInWithRedirect(provider);
-      return; // redirect flow takes over
+      return;
     }
     await auth.signInWithPopup(provider);
   } catch (err) {
-    // COOP/popup blockers → seamless fallback
     if (
       err?.code === 'auth/popup-blocked' ||
       err?.code === 'auth/cancelled-popup-request' ||
@@ -1000,7 +1043,7 @@ async function signInWithGoogle() {
       await auth.signInWithRedirect(provider);
     } else {
       console.error('Google sign-in failed:', err);
-      alert('Google sign-in failed. Please try again.');
+      setLoginStatus(`Google sign-in failed (${err?.code || 'unknown-error'}). Please try again or use email and password.`);
     }
   }
 }
@@ -1010,6 +1053,35 @@ async function handleEmailLogin(e) {
   try { await firebase.auth().signInWithEmailAndPassword($('#email')?.value, $('#password')?.value); }
   catch (e2) { alert('Login error: ' + e2.message); }
 }
+
+async function handlePasswordReset() {
+  const emailInput = $('#email');
+  const email = (emailInput?.value || '').trim();
+  const button = $('#forgot-password');
+  const status = $('#password-reset-status');
+  if (!email) {
+    if (status) status.textContent = 'Enter your email address first.';
+    emailInput?.focus();
+    return;
+  }
+
+  if (button) button.disabled = true;
+  if (status) status.textContent = 'Sending password reset email…';
+  try {
+    await firebase.auth().sendPasswordResetEmail(email);
+    if (status) status.textContent = 'If this email has an account, a password reset message is on the way.';
+  } catch (err) {
+    if (err?.code === 'auth/user-not-found') {
+      if (status) status.textContent = 'If this email has an account, a password reset message is on the way.';
+    } else {
+      console.error('Password reset failed:', err);
+      if (status) status.textContent = 'Password reset could not be sent. Please try again or contact support@buttonpoetry.com.';
+    }
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 async function handleRegistration(e) {
   e?.preventDefault();
   try { await firebase.auth().createUserWithEmailAndPassword($('#reg-email')?.value, $('#reg-password')?.value); }
@@ -1062,7 +1134,7 @@ function showWelcomeChoice() {
       <p>Votes are welcome either way. Log in when you want them saved across devices.</p>
       <div class="pp-welcome-actions">
         <button id="pp-welcome-continue" class="pp-welcome-primary" type="button">Continue without logging in</button>
-        <button id="pp-welcome-login" class="pp-welcome-secondary" type="button">Log in with Google</button>
+        <button id="pp-welcome-login" class="pp-welcome-secondary" type="button">Log in or create account</button>
       </div>
     </div>
   `;
@@ -1071,7 +1143,7 @@ function showWelcomeChoice() {
     hideWelcomeChoice();
     if (!currentItem) ppAutoloadFirstItem();
   });
-  document.getElementById('pp-welcome-login')?.addEventListener('click', signInWithGoogle);
+  document.getElementById('pp-welcome-login')?.addEventListener('click', showLoginScreen);
   el.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') hideWelcomeChoice();
   });
@@ -3644,7 +3716,10 @@ firebase.auth().onAuthStateChanged(async (user) => {
   if (currentItem) renderMetaRows(currentItem);
   dispatchEvent(new CustomEvent('pp:state'));
   ppAutoloadFirstItem();
-  if (!visibleUser) scheduleWelcomeChoice();
+  if (!visibleUser) {
+    if (readAuthorInviteToken()) showLoginScreen();
+    else scheduleWelcomeChoice();
+  }
 
   if (visibleUser) {
     redeemAuthorInviteIfPresent().catch((err) => {
@@ -3679,9 +3754,11 @@ window.addEventListener('DOMContentLoaded', () => {
   // Wire login UI if present (works for both desktop & mobile)
   on(document.getElementById('login-google'), 'click', signInWithGoogle);
   on(document.getElementById('email-login-form'), 'submit', handleEmailLogin);
+  on(document.getElementById('forgot-password'), 'click', handlePasswordReset);
   on(document.getElementById('registration-form'), 'submit', handleRegistration);
   on(document.getElementById('show-registration'), 'click', showRegistrationForm);
   on(document.getElementById('show-login'), 'click', showLoginScreen);
+  on(document.getElementById('continue-without-login'), 'click', showAppScreen);
   on(document.getElementById('btn-mobile-moved'),  'click', () => onVoteAny('moved me'));
   on(document.getElementById('btn-mobile-meh'),    'click', () => onVoteAny('meh'));
   on(document.getElementById('btn-mobile-like'),   'click', () => onVoteAny('like'));
