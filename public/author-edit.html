@@ -110,8 +110,17 @@
       font-weight: 700;
     }
     .author-view-back { display: inline-block; margin-top: 10px; color: var(--accent); font-weight: 700; text-decoration: none; }
+    .author-login-form {
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+      gap: 12px;
+      align-items: end;
+    }
+    .author-login-form .actions { grid-column: 1 / -1; margin-top: 0; }
     @media (max-width: 720px) {
       .author-view-banner { grid-template-columns: 1fr; }
+      .author-login-form { grid-template-columns: 1fr; }
+      .author-login-form .actions { grid-column: auto; }
     }
     .is-hidden { display: none !important; }
   </style>
@@ -129,6 +138,29 @@
 
     <h1>Author Profile Editor</h1>
     <p class="lede">This editor controls the public author page, social links, and featured work. Slugs are generated automatically, and featured content comes from the content we currently associate with the author.</p>
+
+    <section id="author-login-panel" class="card is-hidden" aria-label="Author account sign in">
+      <h2>Sign in to your author account</h2>
+      <p class="hint">Button Authors should use the same email address that received the invitation.</p>
+      <div class="actions" style="margin-bottom:14px;">
+        <button id="author-login-google" type="button">Continue with Google</button>
+      </div>
+      <form id="author-email-login" class="author-login-form">
+        <label>
+          Email
+          <input id="author-login-email" type="email" autocomplete="email" required />
+        </label>
+        <label>
+          Password
+          <input id="author-login-password" type="password" autocomplete="current-password" required />
+        </label>
+        <div class="actions">
+          <button type="submit">Log in with email</button>
+          <button id="author-reset-password" class="ghost" type="button">Reset password</button>
+        </div>
+      </form>
+      <div id="author-login-status" class="status" role="status" aria-live="polite"></div>
+    </section>
 
     <section id="admin-author-view" class="author-view-banner is-hidden" aria-label="Admin author preview controls">
       <div>
@@ -355,6 +387,11 @@
     async function signInWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
       try {
+        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        if (isMobileUA) {
+          await firebase.auth().signInWithRedirect(provider);
+          return;
+        }
         await firebase.auth().signInWithPopup(provider);
       } catch (err) {
         if (err?.code === "auth/popup-blocked" || err?.code === "auth/popup-closed-by-user") {
@@ -365,8 +402,55 @@
       }
     }
 
+    function setAuthorLoginStatus(message, kind = "") {
+      const el = document.getElementById("author-login-status");
+      el.textContent = message;
+      el.className = `status${kind ? ` ${kind}` : ""}`;
+    }
+
+    async function signInWithEmail(event) {
+      event?.preventDefault();
+      const email = document.getElementById("author-login-email").value.trim();
+      const password = document.getElementById("author-login-password").value;
+      setAuthorLoginStatus("Signing in…");
+      try {
+        await firebase.auth().signInWithEmailAndPassword(email, password);
+      } catch (err) {
+        setAuthorLoginStatus(err.message || "Email sign-in failed.", "error");
+      }
+    }
+
+    async function resetAuthorPassword() {
+      const emailInput = document.getElementById("author-login-email");
+      const email = emailInput.value.trim();
+      const button = document.getElementById("author-reset-password");
+      if (!email) {
+        setAuthorLoginStatus("Enter your email address first.", "error");
+        emailInput.focus();
+        return;
+      }
+
+      button.disabled = true;
+      setAuthorLoginStatus("Sending password reset email…");
+      try {
+        await firebase.auth().sendPasswordResetEmail(email);
+        setAuthorLoginStatus("If this email has an account, a password reset message is on the way.", "ok");
+      } catch (err) {
+        if (err?.code === "auth/user-not-found") {
+          setAuthorLoginStatus("If this email has an account, a password reset message is on the way.", "ok");
+        } else {
+          console.error(err);
+          setAuthorLoginStatus("Password reset could not be sent. Please try again or contact support@buttonpoetry.com.", "error");
+        }
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     function setAccessUI({ signedIn = false, isAdmin = false } = {}) {
       document.getElementById("login-google").classList.toggle("is-hidden", signedIn);
+      document.getElementById("author-login-google").classList.toggle("is-hidden", signedIn);
+      document.getElementById("author-login-panel").classList.toggle("is-hidden", signedIn);
       document.getElementById("logout").classList.toggle("is-hidden", !signedIn);
       document.getElementById("admin-link").classList.toggle("is-hidden", !isAdmin);
     }
@@ -963,6 +1047,9 @@
 
       document.getElementById("save").addEventListener("click", () => saveProfile());
       document.getElementById("login-google").addEventListener("click", () => signInWithGoogle().catch((err) => setStatus(err.message || "Sign-in failed.", "error")));
+      document.getElementById("author-login-google").addEventListener("click", () => signInWithGoogle().catch((err) => setAuthorLoginStatus(err.message || "Sign-in failed.", "error")));
+      document.getElementById("author-email-login").addEventListener("submit", signInWithEmail);
+      document.getElementById("author-reset-password").addEventListener("click", resetAuthorPassword);
       document.getElementById("upload-photo").addEventListener("click", () => uploadAuthorPhoto());
       document.getElementById("displayName").addEventListener("input", () => updateSlugUI());
       document.getElementById("slug").addEventListener("input", () => {
