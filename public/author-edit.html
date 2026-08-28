@@ -117,6 +117,17 @@
       align-items: end;
     }
     .author-login-form .actions { grid-column: 1 / -1; margin-top: 0; }
+    .author-login-form input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--ink);
+      font: inherit;
+    }
+    #author-login-panel button { min-height: 44px; }
     @media (max-width: 720px) {
       .author-view-banner { grid-template-columns: 1fr; }
       .author-login-form { grid-template-columns: 1fr; }
@@ -131,7 +142,6 @@
       <a href="/">Back to app</a>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
         <a id="admin-link" href="/admin" class="is-hidden">Admin</a>
-        <button id="login-google" class="ghost is-hidden" type="button">Log in with Google</button>
         <button id="logout" class="secondary" type="button">Log out</button>
       </div>
     </div>
@@ -451,8 +461,7 @@
       }
     }
 
-    function setAccessUI({ signedIn = false, isAdmin = false } = {}) {
-      document.getElementById("login-google").classList.toggle("is-hidden", signedIn);
+    function setAccessUI({ signedIn = false, isAdmin = false, canEdit = false } = {}) {
       const authorGoogleButton = document.getElementById("author-login-google");
       authorGoogleButton.classList.toggle("is-hidden", signedIn);
       authorGoogleButton.disabled = !signedIn && isFirebasePreviewChannel();
@@ -462,6 +471,10 @@
       document.getElementById("author-login-panel").classList.toggle("is-hidden", signedIn);
       document.getElementById("logout").classList.toggle("is-hidden", !signedIn);
       document.getElementById("admin-link").classList.toggle("is-hidden", !isAdmin);
+      document.querySelectorAll("main.shell section.card:not(#author-login-panel)").forEach((section) => {
+        section.classList.toggle("is-hidden", !canEdit);
+        section.setAttribute("aria-hidden", canEdit ? "false" : "true");
+      });
       if (!signedIn && isFirebasePreviewChannel()) {
         setAuthorLoginStatus("This Firebase preview channel does not complete Google authentication. Use email and password here; the production Google flow is unchanged.", "error");
       }
@@ -1047,9 +1060,9 @@
           return;
         }
         state.isAdmin = !!state.me?.roles?.includes("admin");
-        setAccessUI({ signedIn: true, isAdmin: state.isAdmin });
         const canPreview = !!state.reviewAuthor && state.me?.roles?.some((role) => role === "team" || role === "admin");
         const canEdit = state.me?.roles?.some((role) => role === "author" || role === "admin");
+        setAccessUI({ signedIn: true, isAdmin: state.isAdmin, canEdit: canPreview || canEdit });
         if (!canPreview && !canEdit) {
           setStatus("You need author or admin access to edit author profiles.", "error");
           return;
@@ -1058,7 +1071,6 @@
       });
 
       document.getElementById("save").addEventListener("click", () => saveProfile());
-      document.getElementById("login-google").addEventListener("click", () => signInWithGoogle().catch((err) => setStatus(err.message || "Sign-in failed.", "error")));
       document.getElementById("author-login-google").addEventListener("click", () => signInWithGoogle().catch((err) => setAuthorLoginStatus(err.message || "Sign-in failed.", "error")));
       document.getElementById("author-email-login").addEventListener("submit", signInWithEmail);
       document.getElementById("author-reset-password").addEventListener("click", resetAuthorPassword);
