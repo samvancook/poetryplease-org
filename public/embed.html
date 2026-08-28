@@ -292,6 +292,7 @@
       const endpoint = new URL("/api/embedBookLead", location.origin);
       if (book) endpoint.searchParams.set("book", book);
       endpoint.searchParams.set("month", month);
+      endpoint.searchParams.set("embedVersion", "2");
       if (catalog) endpoint.searchParams.set("catalog", catalog);
       if (type) endpoint.searchParams.set("type", type);
 

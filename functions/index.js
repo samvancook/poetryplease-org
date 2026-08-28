@@ -4608,9 +4608,11 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
     totalVotes: Number(rating.total) || 0,
   }));
 
-  // The month is part of the request URL, so the shared cache pins one reviewed
-  // lead item per filtered selection while naturally refreshing it each month.
-  res.set("Cache-Control", "public, max-age=300, s-maxage=2592000, stale-while-revalidate=86400");
+  // Cache populated selections for the monthly rotation, but keep empty results
+  // short-lived so a later content import can populate the same embed URL.
+  res.set("Cache-Control", pool.length
+    ? "public, max-age=300, s-maxage=2592000, stale-while-revalidate=86400"
+    : "public, max-age=15, s-maxage=60");
   res.set("X-Poetry-Please-Embed-Month", selectionMonth);
   return res.json({
     ok: true,
