@@ -4551,16 +4551,16 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
 
 app.get(getBoth("/embedBookLead"), async (req, res) => {
   const book = normalizeText(req.query?.book);
-  if (!book) return res.status(400).json({ error: "missing_book" });
+  const catalog = normalizeText(req.query?.catalog);
+  const type = normalizeText(req.query?.type);
+  if (!book && !catalog && !type) {
+    return res.status(400).json({ error: "missing_embed_filter" });
+  }
 
   const selectionMonth = /^\d{4}-\d{2}$/.test(normalizeText(req.query?.month))
     ? normalizeText(req.query.month)
     : new Date().toISOString().slice(0, 7);
-  const filters = {
-    book,
-    catalog: normalizeText(req.query?.catalog),
-    type: normalizeText(req.query?.type),
-  };
+  const filters = { book, catalog, type };
 
   const [allContent, flaggedIds, ratingsSummary] = await Promise.all([
     getAllContentCached(),
@@ -4596,6 +4596,7 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
     imageType: normalizeText(item.imageType || item.contentType || item.type),
     author: normalizeText(item.author),
     book: normalizeText(item.book),
+    releaseCatalog: normalizeText(item.releaseCatalog),
     title: normalizeText(item.title || item.poemTitle),
     excerpt: normalizeText(item.excerpt || item.fullText || item.text || item.ocrText),
     mediaUrl: normalizeText(
@@ -4608,12 +4609,14 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   }));
 
   // The month is part of the request URL, so the shared cache pins one reviewed
-  // lead item per book while naturally refreshing the selection each month.
+  // lead item per filtered selection while naturally refreshing it each month.
   res.set("Cache-Control", "public, max-age=300, s-maxage=2592000, stale-while-revalidate=86400");
   res.set("X-Poetry-Please-Embed-Month", selectionMonth);
   return res.json({
     ok: true,
     book,
+    catalog,
+    type,
     selectionMonth,
     lead: pool[0] || null,
     pool,
