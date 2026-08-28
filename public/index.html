@@ -197,6 +197,10 @@
       line-height: 1.4;
     }
     @media (max-width: 600px) {
+      body:has(#login-screen[style*="display: block"]) #user-status,
+      body:has(#registration-screen[style*="display: block"]) #user-status {
+        display: none !important;
+      }
       #login-screen,
       #registration-screen {
         width: calc(100vw - 24px);
