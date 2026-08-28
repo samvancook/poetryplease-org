@@ -1128,6 +1128,11 @@
       return Number.isNaN(parsed.getTime()) ? null : parsed;
     }
 
+    function formatDate(value) {
+      const date = normalizeTimestamp(value);
+      return date ? date.toLocaleString() : "—";
+    }
+
     function formatLastActive(value) {
       const date = normalizeTimestamp(value);
       if (!date) return "No activity recorded yet";
