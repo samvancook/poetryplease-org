@@ -4599,6 +4599,8 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
     releaseCatalog: normalizeText(item.releaseCatalog),
     title: normalizeText(item.title || item.poemTitle),
     excerpt: normalizeText(item.excerpt || item.fullText || item.text || item.ocrText),
+    driveLink: normalizeText(item.driveLink),
+    videoUrl: normalizeText(item.videoUrl || item.url),
     mediaUrl: normalizeText(
       item.imageUrl || item.videoUrl || item.youtubeUrl || item.url ||
       item.driveLink || item.thumbnailUrl
