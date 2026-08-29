@@ -221,7 +221,7 @@
           node.appendChild(document.createTextNode(excerpt));
         } else {
           const youtube = youtubeEmbed(mediaUrl);
-          const drive = drivePreview(mediaUrl);
+          const drive = drivePreview(text(item.driveLink) || mediaUrl);
           if (youtube || kind === "YT") {
             node = document.createElement("iframe");
             node.className = "media-video";
@@ -230,12 +230,22 @@
             node.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
             node.allowFullscreen = true;
           } else if (kind === "VV" && (drive || mediaUrl)) {
-            node = document.createElement("iframe");
-            node.className = "media-frame";
-            node.src = drive || mediaUrl;
-            node.title = text(item.title) || "Poetry video";
-            node.allow = "autoplay; encrypted-media";
-            node.allowFullscreen = true;
+            if (drive) {
+              node = document.createElement("iframe");
+              node.className = "media-frame";
+              node.src = drive;
+              node.title = text(item.title) || "Poetry video";
+              node.allow = "autoplay; encrypted-media";
+              node.allowFullscreen = true;
+            } else {
+              node = document.createElement("video");
+              node.className = "media-video";
+              node.src = mediaUrl;
+              node.title = text(item.title) || "Poetry video";
+              node.controls = true;
+              node.playsInline = true;
+              node.preload = "metadata";
+            }
           } else if (mediaUrl) {
             node = document.createElement("img");
             node.className = "media-image";
@@ -292,7 +302,7 @@
       const endpoint = new URL("/api/embedBookLead", location.origin);
       if (book) endpoint.searchParams.set("book", book);
       endpoint.searchParams.set("month", month);
-      endpoint.searchParams.set("embedVersion", "2");
+      endpoint.searchParams.set("embedVersion", "3");
       if (catalog) endpoint.searchParams.set("catalog", catalog);
       if (type) endpoint.searchParams.set("type", type);
 
