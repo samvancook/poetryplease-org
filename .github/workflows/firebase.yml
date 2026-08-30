@@ -34,7 +34,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test uploader-helpers.test.js
+        run: node --test uploader-helpers.test.js manuscript-reconciliation.test.js
 
   deploy:
     if: github.ref == 'refs/heads/main'
