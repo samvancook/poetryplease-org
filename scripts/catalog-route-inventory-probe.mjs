@@ -7,7 +7,7 @@ const MAX_ENDPOINT_BYTES = 65536;
 const MAX_PROBE_BYTES = 1048576;
 const MAX_OUTPUT_BYTES = 16384;
 const METHODS = new Set(["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]);
-const SAFE_PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@%{}<>\-/]*$/;
+const SAFE_PATH = /^\/[\x21-\x7E]*$/;
 const READ_METHODS = new Set(["GET"]);
 const RELATED = /(reconcil|resolution)/i;
 
@@ -37,7 +37,7 @@ function validateDiscovery(value) {
     }
     const method = item.method.toUpperCase();
     if (!METHODS.has(method)) throw new Error("Unapproved HTTP method at " + index);
-    if (!SAFE_PATH.test(item.path) || item.path.includes("?") || item.path.includes("#")) {
+    if (!SAFE_PATH.test(item.path) || /["\\\\]/.test(item.path)) {
       throw new Error("Unsafe path/template at " + index);
     }
     return { method, path: item.path };
