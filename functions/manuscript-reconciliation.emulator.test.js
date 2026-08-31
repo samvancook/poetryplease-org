@@ -35,7 +35,7 @@ async function getMe(idToken){
 test("isolated emulator verifies the Firebase Auth to /api/me roles-array contract",async t=>{
   assertDemoIsolation();
   const app=initializeApp({projectId:PROJECT_ID},"manuscript-reconciliation-emulator-test");
-  const db=getFirestore(app);
+  const db=getFirestore(app,"poetrypleasedatabase");
   try{
     await t.test("signed-out requests are denied",async()=>{
       const response=await getMe();
