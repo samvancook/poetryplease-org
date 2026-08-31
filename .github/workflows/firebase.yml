@@ -36,6 +36,12 @@ jobs:
         working-directory: functions
         run: node --test uploader-helpers.test.js manuscript-reconciliation.test.js
 
+      - name: Setup Java for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Install Firebase CLI for emulator tests
         run: npm install --global firebase-tools
 
