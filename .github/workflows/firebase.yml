@@ -37,13 +37,17 @@ jobs:
         run: node --test uploader-helpers.test.js manuscript-reconciliation.test.js
 
       - name: Setup Java for Firebase emulators
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Install Firebase CLI for emulator tests
         run: npm install --global firebase-tools
+
+      - name: Write synthetic emulator secret overrides
+        working-directory: functions
+        run: printf "%s\\n" "POETRY_PLEASE_API_KEY=emulator-only" "PIG_POETRY_PLEASE_API_KEY=emulator-only" > .secret.local
 
       - name: Run isolated authorization emulator integration test
         env:

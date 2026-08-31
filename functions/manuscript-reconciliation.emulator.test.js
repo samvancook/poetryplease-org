@@ -22,7 +22,7 @@ async function createSyntheticUser(db,label,roles){
     method:"POST",headers:{"content-type":"application/json"},
     body:JSON.stringify({email,password:"Synthetic-only-123!",returnSecureToken:true})
   });
-  assert.equal(response.ok,true,await response.text());
+  if(!response.ok)assert.fail(`Auth Emulator rejected synthetic user: ${await response.text()}`);
   const identity=await response.json();
   await db.collection("users").doc(identity.localId).set({email,displayName:`Synthetic ${label}`,roles,status:"active",automaticTeamAccess:false});
   return identity;
