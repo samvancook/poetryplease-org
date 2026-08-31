@@ -1,0 +1,66 @@
+{
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/"
+    },
+    {
+      "method": "GET",
+      "path": "/endpoints"
+    },
+    {
+      "method": "GET",
+      "path": "/health"
+    },
+    {
+      "method": "GET",
+      "path": "/summary"
+    },
+    {
+      "method": "GET",
+      "path": "/classification-summary"
+    },
+    {
+      "method": "GET",
+      "path": "/search?query=<term>&limit=20"
+    },
+    {
+      "method": "GET",
+      "path": "/poems/by-character-count?min=<n>&max=<n>&limit=50&include_noncanonical=false"
+    },
+    {
+      "method": "GET",
+      "path": "/poems/by-content-kind?content_kind=poem&review_status=<status>&form_kind=<kind>&limit=100"
+    },
+    {
+      "method": "GET",
+      "path": "/books/<book>"
+    },
+    {
+      "method": "GET",
+      "path": "/books/<book>?include_poems=true&poem_limit=<n>"
+    },
+    {
+      "method": "GET",
+      "path": "/books/<book>/status"
+    },
+    {
+      "method": "GET",
+      "path": "/books/<book>/sources"
+    },
+    {
+      "method": "GET",
+      "path": "/books/<book>/poems?limit=<n>"
+    },
+    {
+      "method": "GET",
+      "path": "/books/<book>/poems/<poem_title>"
+    }
+  ],
+  "reconciliationRelated": {
+    "probes": [],
+    "individualResolutionTemplatesNotProbed": [],
+    "nonGetRelatedTemplatesNotProbed": [],
+    "unresolvedRelatedTemplatesNotProbed": []
+  }
+}
