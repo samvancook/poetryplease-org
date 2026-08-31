@@ -191,6 +191,9 @@ const BOOK_CATALOG_LOOKUP_ROWS = JSON.parse(
 const BROKEN_QI_MANIFEST = JSON.parse(
   readFileSync(path.join(__dirname, "broken-qi-ids.json"), "utf8")
 );
+const MANUSCRIPT_RECONCILIATION_FIXTURE_MANIFEST = JSON.parse(
+  readFileSync(path.join(__dirname, "manuscript-reconciliation-fixture-manifest.json"), "utf8")
+);
 const BOOK_CATALOG_LOOKUP = new Map();
 const BOOK_CATALOG_SHORTENER_LOOKUP = new Map();
 const BOOK_CATALOG_TITLE_BUCKETS = new Map();
@@ -639,6 +642,74 @@ async function getDriveReadAccessToken() {
     throw err;
   }
   return token;
+}
+
+async function fetchManuscriptReconciliationFixture(reconciliationId) {
+  const manifest = MANUSCRIPT_RECONCILIATION_FIXTURE_MANIFEST;
+  if (String(reconciliationId) !== String(manifest.reconciliationId)) return null;
+  const token = await getDriveReadAccessToken();
+  const headers = { Authorization: `Bearer ${token}` };
+  const encodedId = encodeURIComponent(manifest.fileId);
+  const metadataResponse = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodedId}?supportsAllDrives=true&fields=id,name,mimeType,size`,
+    { headers, signal: AbortSignal.timeout(30000) },
+  );
+  if (!metadataResponse.ok) {
+    const err = new Error(`reconciliation_fixture_metadata_${metadataResponse.status}`);
+    err.status = 502;
+    throw err;
+  }
+  const metadata = await metadataResponse.json();
+  if (normalizeText(metadata.mimeType).toLowerCase() !== "application/json") {
+    const err = new Error("reconciliation_fixture_mime_mismatch");
+    err.status = 502;
+    throw err;
+  }
+  if (Number(metadata.size) !== Number(manifest.bytes)) {
+    const err = new Error("reconciliation_fixture_size_mismatch");
+    err.status = 502;
+    throw err;
+  }
+  const response = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${encodedId}?alt=media&supportsAllDrives=true`,
+    { headers, signal: AbortSignal.timeout(30000) },
+  );
+  if (!response.ok) {
+    const err = new Error(`reconciliation_fixture_fetch_${response.status}`);
+    err.status = 502;
+    throw err;
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  if (sha256 !== manifest.sha256) {
+    const err = new Error("reconciliation_fixture_checksum_mismatch");
+    err.status = 502;
+    throw err;
+  }
+  let payload;
+  try {
+    payload = JSON.parse(bytes.toString("utf8"));
+  } catch (_err) {
+    const err = new Error("reconciliation_fixture_json_invalid");
+    err.status = 502;
+    throw err;
+  }
+  const totals = payload?.reconciliation?.totals;
+  if (
+    payload?.fixtureMode !== true
+    || payload?.readOnly !== true
+    || Number(payload?.reconciliation?.id) !== Number(manifest.reconciliationId)
+    || !Array.isArray(payload?.rows)
+    || payload.rows.length !== Number(manifest.counts.resolutionRows)
+    || Number(totals?.autoApproved) !== Number(manifest.counts.autoApproved)
+    || Number(totals?.pending) !== Number(manifest.counts.pending)
+    || Number(payload?.reconciliation?.expectedResolvedCount) !== Number(manifest.counts.expectedResolvedCount)
+  ) {
+    const err = new Error("reconciliation_fixture_contract_mismatch");
+    err.status = 502;
+    throw err;
+  }
+  return payload;
 }
 
 async function fetchAuthenticatedGoogleDriveMedia(fileId, sourceUrl, rules, body = {}) {
@@ -4419,6 +4490,25 @@ app.get("/", (_req, res) => {
 const getBoth = (p) => [p, `/api${p}`];
 
 app.get(getBoth("/healthz"), (_req, res) => res.json({ ok: true }));
+
+app.get(getBoth("/admin/manuscriptReconciliations/:reconciliationId"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  if (String(req.params.reconciliationId) !== String(MANUSCRIPT_RECONCILIATION_FIXTURE_MANIFEST.reconciliationId)) {
+    return res.status(404).json({ error: "fixture_reconciliation_not_found" });
+  }
+  try {
+    const fixture = await fetchManuscriptReconciliationFixture(req.params.reconciliationId);
+    res.set("Cache-Control", "private, no-store");
+    res.json(fixture);
+  } catch (err) {
+    console.error("manuscript_reconciliation_fixture_failed", err?.message || err);
+    res.status(err?.status || 502).json({
+      error: "reconciliation_fixture_unavailable",
+      message: "The read-only reconciliation fixture could not be loaded.",
+    });
+  }
+});
 
 // imageTypes
 app.get(getBoth("/imageTypes"), async (_req, res) => {

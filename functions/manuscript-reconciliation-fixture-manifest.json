@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "fixtureMode": true,
+  "fileId": "1sJNtIpkvH7Vihd-M8_S1k_ELXjmtsCEG",
+  "fileName": "Poetry Please - LABC Reconciliation 2 - Phase 1 Fixture.json",
+  "mimeType": "application/json",
+  "sha256": "454f939499745fa0f1831201a4cc5a2b63834229f6cf6837d354443f4ce16068",
+  "bytes": 225150,
+  "reconciliationId": 2,
+  "sourceIds": {
+    "preferredLegacy": 4,
+    "prior": 7,
+    "candidate": 8
+  },
+  "counts": {
+    "resolutionRows": 49,
+    "autoApproved": 24,
+    "pending": 25,
+    "expectedResolvedCount": 45,
+    "warningRows": 2
+  }
+}

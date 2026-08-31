@@ -8,6 +8,7 @@ const PROJECT_ID="demo-poetry-please";
 const AUTH_HOST=process.env.FIREBASE_AUTH_EMULATOR_HOST;
 const FIRESTORE_HOST=process.env.FIRESTORE_EMULATOR_HOST;
 const FUNCTION_URL=`http://127.0.0.1:5001/${PROJECT_ID}/us-central1/api/api/me`;
+const FIXTURE_URL=`http://127.0.0.1:5001/${PROJECT_ID}/us-central1/api/api/admin/manuscriptReconciliations/2`;
 
 function assertDemoIsolation(){
   assert.equal(process.env.GCLOUD_PROJECT,PROJECT_ID);
@@ -31,6 +32,9 @@ async function createSyntheticUser(db,label,roles){
 async function getMe(idToken){
   return fetch(FUNCTION_URL,{headers:idToken?{authorization:`Bearer ${idToken}`}:{}});
 }
+async function getFixture(idToken){
+  return fetch(FIXTURE_URL,{headers:idToken?{authorization:`Bearer ${idToken}`}:{}});
+}
 
 test("isolated emulator verifies the Firebase Auth to /api/me roles-array contract",async t=>{
   assertDemoIsolation();
@@ -41,6 +45,9 @@ test("isolated emulator verifies the Firebase Auth to /api/me roles-array contra
       const response=await getMe();
       assert.equal(response.status,401);
       assert.deepEqual(await response.json(),{error:"auth"});
+      const fixtureResponse=await getFixture();
+      assert.equal(fixtureResponse.status,401);
+      assert.deepEqual(await fixtureResponse.json(),{error:"auth"});
     });
     const identities={};
     for(const [label,roles] of [["viewer",["user"]],["team",["team"]],["admin",["admin"]]])identities[label]=await createSyntheticUser(db,label,roles);
@@ -50,6 +57,9 @@ test("isolated emulator verifies the Firebase Auth to /api/me roles-array contra
       const profile=await response.json();
       assert.ok(Array.isArray(profile.roles));
       assert.equal(isTeamProfile(profile),false);
+      const fixtureResponse=await getFixture(identities.viewer.idToken);
+      assert.equal(fixtureResponse.status,403);
+      assert.deepEqual(await fixtureResponse.json(),{error:"forbidden",requiredRoles:["team","admin"]});
     });
     for(const role of["team","admin"])await t.test(`synthetic ${role} passes the existing roles-array contract`,async()=>{
       const response=await getMe(identities[role].idToken);
