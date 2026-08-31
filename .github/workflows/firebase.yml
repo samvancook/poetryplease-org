@@ -36,6 +36,15 @@ jobs:
         working-directory: functions
         run: node --test uploader-helpers.test.js manuscript-reconciliation.test.js
 
+      - name: Install Firebase CLI for emulator tests
+        run: npm install --global firebase-tools
+
+      - name: Run isolated authorization emulator integration test
+        env:
+          GCLOUD_PROJECT: demo-poetry-please
+          FIREBASE_CONFIG: '{"projectId":"demo-poetry-please"}'
+        run: firebase emulators:exec --project demo-poetry-please --only auth,firestore,functions "node --test functions/manuscript-reconciliation.emulator.test.js"
+
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
