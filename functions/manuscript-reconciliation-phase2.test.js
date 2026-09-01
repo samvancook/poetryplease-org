@@ -196,6 +196,8 @@ test("Phase 2 does not duplicate decisions and reads secrets without mutation", 
   assert.match(server, /versions\/latest:access/);
   assert.match(server, /method: "GET"/);
   assert.doesNotMatch(server, /method: "POST"[\s\S]{0,120}secretmanager/);
+  const index = fs.readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  assert.match(index, /manuscriptreconciliationphase2preview[\s\S]{0,240}invoker: "public"[\s\S]{0,240}manuscript-phase2-preview@poetry-please/);
 });
 
 test("Phase 2 mapper rejects read-only or wrong-fixture payloads", () => {
