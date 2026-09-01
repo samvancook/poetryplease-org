@@ -267,8 +267,8 @@ jobs:
       - name: Verify canonical Catalog integration through preview function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         run: |
-          response="$(curl --fail --silent --show-error --retry 8 --retry-delay 10 \
-            "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationphase2preview/healthz")"
+          response="$(curl --fail --silent --show-error --retry 8 --retry-all-errors --retry-delay 10 \
+            "https://manuscriptreconciliationphase2preview-ydczirftza-uc.a.run.app/healthz")"
           node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-phase2-preview-350789123099.us-central1.run.app"||typeof p.revision!=="string"||!p.revision.startsWith("manuscriptreconciliationphase2preview-")||p.reconciliationId!==1||p.safeWritableResolutionId!==900001||!Number.isInteger(p.writeRevision)) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,revision:p.revision,reconciliationId:p.reconciliationId,safeWritableResolutionId:p.safeWritableResolutionId,writeRevision:p.writeRevision}))' "$response"
 
       - name: Route only the isolated Hosting channel to the Phase 2 function
