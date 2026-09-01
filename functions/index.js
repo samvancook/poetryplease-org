@@ -4519,6 +4519,7 @@ manuscriptReconciliationPreviewApp.get("/healthz", async (_req, res) => {
       ok: true,
       fixtureMode: payload.fixtureMode,
       liveCatalogIntegration: payload.dataSource?.liveCatalogIntegration === true,
+      catalogBase: payload.dataSource?.catalogBase || null,
       reconciliationId: payload.reconciliation?.id || null,
       resolutionRows: Array.isArray(payload.rows) ? payload.rows.length : null,
     });
