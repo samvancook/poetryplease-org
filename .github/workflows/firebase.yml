@@ -228,7 +228,7 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
           echo "Key written to $RUNNER_TEMP/gcloud-key.json"
 
-      - name: Verify an isolated Phase 2 runtime identity exists
+      - name: Verify the isolated Phase 2 runtime identity exists
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
@@ -236,17 +236,7 @@ jobs:
           set -euo pipefail
           gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
           runtime_sa="manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
-          echo "Existing Poetry Please service-account emails:"
-          gcloud iam service-accounts list --project poetry-please --format='value(email)'
-          echo "Cloud Run services and runtime identities:"
-          gcloud run services list --project poetry-please --region us-central1 --format='table(metadata.name,spec.template.spec.serviceAccountName)'
-          echo "IAM roles attached to the possible existing dedicated identity:"
-          gcloud projects get-iam-policy poetry-please --flatten='bindings[].members' --filter='bindings.members:serviceAccount:poetryplease@poetry-please.iam.gserviceaccount.com' --format='value(bindings.role)'
-          if ! gcloud iam service-accounts describe "$runtime_sa" --project poetry-please >/dev/null 2>&1; then
-            echo "Required isolated runtime identity is absent: $runtime_sa"
-            exit 7
-          fi
-          echo "Required isolated runtime identity exists."
+          gcloud iam service-accounts describe "$runtime_sa" --project poetry-please --format='value(email)'
           echo "IAM bindings are managed separately; this workflow does not broaden them."
 
       - name: Deploy isolated manuscript reconciliation preview function
@@ -263,7 +253,13 @@ jobs:
             "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationphase2preview/healthz")"
           node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-phase2-preview-350789123099.us-central1.run.app"||typeof p.revision!=="string"||!p.revision.startsWith("manuscriptreconciliationphase2preview-")||p.reconciliationId!==1||p.safeWritableResolutionId!==900001||!Number.isInteger(p.writeRevision)) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,revision:p.revision,reconciliationId:p.reconciliationId,safeWritableResolutionId:p.safeWritableResolutionId,writeRevision:p.writeRevision}))' "$response"
 
+      - name: Route only the isolated Hosting channel to the Phase 2 function
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
+        run: |
+          node -e 'const fs=require("fs"); const path="firebase.json"; const source=fs.readFileSync(path,"utf8"); const from="\\\"functionId\\\": \\\"manuscriptreconciliationpreview\\\""; const to="\\\"functionId\\\": \\\"manuscriptreconciliationphase2preview\\\""; if(!source.includes(from)) process.exit(2); fs.writeFileSync(path,source.replace(from,to));'
+
       - name: Deploy Hosting Preview (branch channel)
+        if: github.event_name == 'push'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
