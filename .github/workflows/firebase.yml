@@ -1,5 +1,9 @@
 name: Deploy to Firebase
 
+concurrency:
+  group: firebase-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 on:
   push:
     branches:
@@ -245,6 +249,9 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           firebase --project poetry-please deploy --only functions:manuscriptreconciliationphase2preview
+          deployed_sa="$(gcloud functions describe manuscriptreconciliationphase2preview --gen2 --project poetry-please --region us-central1 --format='value(serviceConfig.serviceAccountEmail)')"
+          test "$deployed_sa" = "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
+          echo "Verified the deployed function uses the isolated runtime identity."
 
       - name: Verify canonical Catalog integration through preview function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
