@@ -247,12 +247,7 @@ jobs:
             exit 7
           fi
           echo "Required isolated runtime identity exists."
-          deployer="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
-          gcloud iam service-accounts add-iam-policy-binding "$runtime_sa" --project poetry-please --member="serviceAccount:$deployer" --role="roles/iam.serviceAccountUser" >/dev/null
-          for secret in catalog-reconciliation-api-key catalog-reconciliation-write-api-key catalog-reviewer-signature-key; do
-            gcloud secrets add-iam-policy-binding "$secret" --project button-poetry-catalog --member="serviceAccount:$runtime_sa" --role="roles/secretmanager.secretAccessor" >/dev/null
-          done
-          echo "Only the required service-account attachment and three per-secret grants were applied."
+          echo "IAM bindings are managed separately; this workflow does not broaden them."
 
       - name: Deploy isolated manuscript reconciliation preview function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
