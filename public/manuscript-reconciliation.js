@@ -20,6 +20,24 @@ export const isTeamProfile = (profile) => Array.isArray(profile?.roles)
 export const available = (value, fallback = "Unavailable") => value === null || value === undefined || value === "" ? fallback : value;
 export const preserveText = (value) => String(value ?? "").replace(/\r\n?/g, "\n");
 export const normalizeWhitespace = (value) => preserveText(value).split("\n").map((line) => line.replace(/[ \t]+/g, " ").trimEnd()).join("\n");
+export const rowMatchesSearch = (row, query) => {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return true;
+  return [
+    row?.identity, row?.priorTitle, row?.candidateTitle, row?.canonicalTitle, row?.status,
+    ...(row?.buckets || []), ...(row?.warnings || []),
+  ].filter(Boolean).join(" ").toLowerCase().includes(q);
+};
+const displayImpact = (value) => {
+  if (value === null || value === undefined || value === "") return "No downstream impact supplied.";
+  if (typeof value === "string") return value;
+  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+};
+const warningLabel = (value) => ({
+  pdf_possible_image_backed_poem: "The PDF may store this poem as an image; OCR means recovering readable text from that image.",
+  pdf_suspicious_short_poem: "The extracted poem text is suspiciously short and needs human review.",
+  parser_reading_order_problem: "The parser may have included text in the wrong reading order.",
+}[value] || String(value || ""));
 export const nextRowId = (rows, currentId) => {
   const index = rows.findIndex((row) => Number(row.resolutionId) === Number(currentId));
   return rows[index + 1]?.resolutionId ?? rows[0]?.resolutionId ?? null;
@@ -130,17 +148,17 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
     selected: SAFE_WRITABLE_RESOLUTION_ID,
     mode: "exact",
     search: "",
+    searchDraft: "",
     saving: false,
     message: "",
     stale: false,
     retry: null,
   };
-  const rows = () => data.rows.filter((row) => {
-    const q = state.search.trim().toLowerCase();
-    return !q || [row.identity, row.priorTitle, row.candidateTitle, row.status, ...(row.buckets || [])]
-      .filter(Boolean).join(" ").toLowerCase().includes(q);
-  });
-  const selected = () => data.rows.find((row) => Number(row.resolutionId) === Number(state.selected)) || rows()[0] || null;
+  const rows = () => data.rows.filter((row) => rowMatchesSearch(row, state.search));
+  const selected = () => {
+    const visible = rows();
+    return visible.find((row) => Number(row.resolutionId) === Number(state.selected)) || visible[0] || null;
+  };
   const decisionFromForm = (row) => ({
     expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),
     reviewStatus: root.querySelector("#review-status")?.value || row.status || "pending",
@@ -222,18 +240,28 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
         <p class="eyebrow">Reconciliation ${esc(rec.id)} · revision ${esc(rec.writeRevision)}</p>
         <h1>${esc(available(rec.bookTitle))}</h1>
         <p>Signed in reviewer: ${esc(data.currentReviewer?.email)} · roles ${esc((data.currentReviewer?.roles || []).join(", "))}</p>
-        <div class="stats"><b>${available(rec.totals?.resolutionRows, 0)}<span>rows</span></b><b>${available(rec.totals?.autoApproved, 0)}<span>auto-approved</span></b><b>${available(rec.totals?.pending, 0)}<span>pending</span></b><b>${available(rec.writeRevision, 0)}<span>write revision</span></b></div>
+        <div class="stats"><b>${available(rec.totals?.resolutionRows, 0)}<span>comparison records</span></b><b>${available(rec.totals?.autoApproved, 0)}<span>low-risk matches already approved</span></b><b>${available(rec.totals?.pending, 0)}<span>decisions still needed</span></b><b>${available(rec.writeRevision, 0)}<span>Catalog decision revision</span></b></div>
+        <details class="glossary"><summary>What do these terms mean?</summary><dl>
+          <dt>Prior source</dt><dd>The earlier manuscript used for comparison.</dd>
+          <dt>Candidate source</dt><dd>The proposed replacement. It is not assumed to be correct until a reviewer decides.</dd>
+          <dt>Auto-approved</dt><dd>A low-risk match approved by Catalog rules; it remains reviewable.</dd>
+          <dt>Rebroken only</dt><dd>The words match, but line breaks, stanzas, indentation, or layout changed.</dd>
+          <dt>Image-backed / OCR</dt><dd>The PDF may contain the poem as an image. OCR recovers readable text, which must then be checked.</dd>
+          <dt>Comparison record</dt><dd>One reconciliation decision to review—not necessarily one final poem.</dd>
+        </dl></details>
       </section>
       <section class="workspace">
         <aside class="panel">
           <h2>Review queue</h2>
-          <label>Search<input id="search" type="search" value="${esc(state.search)}"></label>
-          <p>${visible.length} rows · fixture row is marked writable</p>
+          <form id="search-form"><label for="search">Search titles, warnings, and statuses</label><div class="search-row"><input id="search" type="search" value="${esc(state.searchDraft)}"><button type="submit">Search</button><button type="button" id="clear-search">Clear</button></div></form>
+          <p class="help">Search runs when you press Search or Enter, so you can finish typing first.</p>
+          <p>${visible.length} comparison records · fixture record is marked writable</p>
           <div class="list">${visible.map((item) => `<button data-row="${item.resolutionId}" class="${Number(item.resolutionId) === SAFE_WRITABLE_RESOLUTION_ID ? "writable-row" : ""}"><span>${esc(item.identity)}</span><small>#${item.resolutionId} · ${esc(item.status)}${Number(item.resolutionId) === SAFE_WRITABLE_RESOLUTION_ID ? " · writable fixture" : " · view only"}</small></button>`).join("")}</div>
         </aside>
         <main class="panel comparison">
-          ${row ? `<div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact">Exact</button><button data-mode="normalized">Normalized</button></div></div>
-          <div class="texts"><article><h3>Prior · ${esc(available(row.priorTitle))}</h3><div class="poem">${poemLines(row.prior?.text, state.mode === "normalized")}</div></article><article><h3>Candidate · ${esc(available(row.candidateTitle))}</h3><div class="poem">${poemLines(row.candidate?.text, state.mode === "normalized")}</div></article></div>` : '<div class="empty">No resolution selected.</div>'}
+          ${row ? `<div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${state.mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${state.mode === "normalized"}">Spacing-normalized text</button></div></div>
+          <p class="help">${state.mode === "exact" ? "Source text preserves the extracted spaces and line breaks." : "Spacing-normalized text removes repeated spaces and trailing whitespace for comparison; it does not change Catalog data."}</p>
+          <div class="texts"><article><h3>Earlier source · ${esc(available(row.priorTitle))}</h3><div class="poem">${poemLines(row.prior?.text, state.mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(available(row.candidateTitle))}</h3><p class="help">Proposed does not mean correct; choose the wording and formatting sources after review.</p><div class="poem">${poemLines(row.candidate?.text, state.mode === "normalized")}</div></article></div>` : `<div class="empty">${state.search ? "No comparison records match this search. Clear or revise the search to continue." : "No comparison record selected."}</div>`}
         </main>
         <aside class="panel detail">
           ${row ? `<h2>Decision</h2>
@@ -245,11 +273,13 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
           <label>Wording source<select id="text-source" ${writable ? "" : "disabled"}>${sourceOptions(row, currentTextSource)}</select></label>
           <label>Formatting source<select id="format-source" ${writable ? "" : "disabled"}>${sourceOptions(row, currentFormatSource)}</select></label>
           <label>Reviewer notes<textarea id="review-notes" rows="5" ${writable ? "" : "disabled"}>${esc(row.existingReviewNotes || "")}</textarea></label>
+          <p class="notice">If the candidate contains a stray page number, neighboring title, missing text, or incorrect reading order, choose “Needs parser correction” and describe the problem here.</p>
+          <h3>Downstream impact</h3><pre class="impact">${esc(displayImpact(row.downstreamImpact || row.downstreamArtifacts))}</pre>
           <div class="save-actions"><button id="save" ${writable && !state.saving ? "" : "disabled"}>Save</button><button id="save-advance" ${writable && !state.saving ? "" : "disabled"}>Save and advance</button></div>
           <p class="status-message" role="status">${esc(state.message)}</p>
           <h3>Current reviewer and audit history</h3>
           ${audits.length ? `<ol class="audit">${audits.slice().reverse().map((event) => `<li><b>${esc(event.reviewer)}</b><small>${esc(event.timestamp || "Time unavailable")}${event.revision ? ` · revision ${event.revision}` : ""}</small><p>${esc(event.notes || "No notes")}</p></li>`).join("")}</ol>` : "<p>No audit history supplied.</p>"}
-          <h3>Warnings</h3><p>${row.warnings?.length ? row.warnings.map(esc).join(" · ") : "None supplied."}</p>` : '<div class="empty">No detail available.</div>'}
+          <h3>Warnings</h3><ul class="warnings">${row.warnings?.length ? row.warnings.map((warning) => `<li>${esc(warningLabel(warning))}</li>`).join("") : "<li>None supplied.</li>"}</ul>` : '<div class="empty">No detail available.</div>'}
         </aside>
       </section>`;
     bind();
@@ -257,7 +287,20 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
 
   function bind() {
     root.querySelector("#search")?.addEventListener("input", (event) => {
-      state.search = event.target.value;
+      state.searchDraft = event.target.value;
+    });
+    root.querySelector("#search-form")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      state.searchDraft = root.querySelector("#search")?.value || "";
+      state.search = state.searchDraft;
+      const visible = rows();
+      state.selected = visible[0]?.resolutionId ?? null;
+      render();
+    });
+    root.querySelector("#clear-search")?.addEventListener("click", () => {
+      state.search = "";
+      state.searchDraft = "";
+      state.selected = data.rows[0]?.resolutionId ?? null;
       render();
     });
     for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => {
