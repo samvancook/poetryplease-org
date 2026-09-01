@@ -256,7 +256,7 @@ jobs:
       - name: Route only the isolated Hosting channel to the Phase 2 function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         run: |
-          node -e 'const fs=require("fs"); const path="firebase.json"; const source=fs.readFileSync(path,"utf8"); const from="\\\"functionId\\\": \\\"manuscriptreconciliationpreview\\\""; const to="\\\"functionId\\\": \\\"manuscriptreconciliationphase2preview\\\""; if(!source.includes(from)) process.exit(2); fs.writeFileSync(path,source.replace(from,to));'
+          node -e 'const fs=require("fs"); const path="firebase.json"; const config=JSON.parse(fs.readFileSync(path,"utf8")); const rule=config.hosting.rewrites.find((item)=>item.source==="/api/admin/manuscriptReconciliations/**"); if(rule?.function?.functionId!=="manuscriptreconciliationpreview") process.exit(2); rule.function.functionId="manuscriptreconciliationphase2preview"; fs.writeFileSync(path,JSON.stringify(config,null,2)+"\\n");'
 
       - name: Deploy Hosting Preview (branch channel)
         if: github.event_name == 'push'
