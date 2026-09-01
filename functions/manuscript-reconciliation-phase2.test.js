@@ -189,10 +189,13 @@ test("proxy accepts only the guarded fixture and never production reconciliation
   assert.equal(SAFE_WRITABLE_RESOLUTION_ID, 900001);
 });
 
-test("Phase 2 does not duplicate reconciliation decisions in Firestore", () => {
+test("Phase 2 does not duplicate decisions and reads secrets without mutation", () => {
   const server = fs.readFileSync(new URL("./manuscript-reconciliation-phase2.js", import.meta.url), "utf8");
   assert.doesNotMatch(server, /getFirestore|\.collection\(|firestore/i);
   assert.match(server, /authoritativeResolution/);
+  assert.match(server, /versions\/latest:access/);
+  assert.match(server, /method: "GET"/);
+  assert.doesNotMatch(server, /method: "POST"[\s\S]{0,120}secretmanager/);
 });
 
 test("Phase 2 mapper rejects read-only or wrong-fixture payloads", () => {
