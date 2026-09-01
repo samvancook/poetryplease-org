@@ -239,7 +239,7 @@ jobs:
         run: |
           response="$(curl --fail --silent --show-error --retry 8 --retry-delay 10 \
             "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationpreview/healthz")"
-          node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-350789123099.us-central1.run.app"||p.reconciliationId!==2||p.resolutionRows!==49) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,reconciliationId:p.reconciliationId,resolutionRows:p.resolutionRows}))' "$response"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-350789123099.us-central1.run.app"||typeof p.revision!=="string"||!p.revision.startsWith("manuscriptreconciliationpreview-")||p.reconciliationId!==2||p.resolutionRows!==49) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,revision:p.revision,reconciliationId:p.reconciliationId,resolutionRows:p.resolutionRows}))' "$response"
 
       - name: Deploy Hosting Preview (branch channel)
         env:
