@@ -210,7 +210,7 @@ jobs:
           node-version: '20'
 
       - name: Install preview function dependencies
-        if: github.event_name == 'pull_request' && github.event.pull_request.number == 27
+        if: (github.event_name == 'pull_request' && github.event.pull_request.number == 27) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation')
         working-directory: functions
         run: npm install --no-audit --no-fund
 
@@ -228,7 +228,7 @@ jobs:
           echo "Key written to $RUNNER_TEMP/gcloud-key.json"
 
       - name: Deploy isolated manuscript reconciliation preview function
-        if: github.event_name == 'pull_request' && github.event.pull_request.number == 27
+        if: (github.event_name == 'pull_request' && github.event.pull_request.number == 27) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation')
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
