@@ -253,6 +253,22 @@ jobs:
           test "$deployed_sa" = "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
           echo "Verified the deployed function uses the isolated runtime identity."
 
+      - name: Allow HTTPS invocation of only the isolated preview function
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          set -euo pipefail
+          gcloud run services add-iam-policy-binding manuscriptreconciliationphase2preview \\
+            --project poetry-please \\
+            --region us-central1 \\
+            --member=allUsers \\
+            --role=roles/run.invoker \\
+            --quiet
+          invoker="$(gcloud run services get-iam-policy manuscriptreconciliationphase2preview --project poetry-please --region us-central1 --flatten='bindings[].members' --filter='bindings.role=roles/run.invoker AND bindings.members=allUsers' --format='value(bindings.members)')"
+          test "$invoker" = "allUsers"
+          echo "Verified public HTTPS invocation for the isolated preview function; application routes still enforce Firebase team/admin authorization."
+
       - name: Verify canonical Catalog integration through preview function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         run: |
