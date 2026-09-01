@@ -19,6 +19,7 @@ import {
   decisionNeedsNotes,
   mapPhase2Payload,
   nextRowId,
+  rowMatchesSearch,
   saveDecision,
 } from "../public/manuscript-reconciliation.js";
 
@@ -198,6 +199,26 @@ test("Phase 2 does not duplicate decisions and reads secrets without mutation", 
   assert.doesNotMatch(server, /method: "POST"[\s\S]{0,120}secretmanager/);
   const index = fs.readFileSync(new URL("./index.js", import.meta.url), "utf8");
   assert.match(index, /manuscriptreconciliationphase2preview[\s\S]{0,240}invoker: "public"[\s\S]{0,240}manuscript-phase2-preview@poetry-please/);
+});
+
+test("review feedback improvements preserve deliberate search and readable text", () => {
+  const row = {
+    identity: "yaarburnee",
+    priorTitle: "Ya'arburnee",
+    candidateTitle: "Ya’arburnee",
+    warnings: ["pdf_possible_image_backed_poem"],
+    buckets: ["image_backed_or_ocr_required"],
+  };
+  assert.equal(rowMatchesSearch(row, "Ya’arburnee"), true);
+  assert.equal(rowMatchesSearch(row, "image_backed"), true);
+  assert.equal(rowMatchesSearch(row, "unrelated"), false);
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation.js", import.meta.url), "utf8");
+  const html = fs.readFileSync(new URL("../public/manuscript-reconciliation.html", import.meta.url), "utf8");
+  assert.match(client, /Search runs when you press Search or Enter/);
+  assert.match(client, /Candidate source[\s\S]{0,180}not assumed to be correct/);
+  assert.match(client, /Needs parser correction/);
+  assert.match(html, /white-space:pre-wrap/);
+  assert.match(html, /overflow-wrap:anywhere/);
 });
 
 test("Phase 2 mapper rejects read-only or wrong-fixture payloads", () => {
