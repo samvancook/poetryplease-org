@@ -243,20 +243,6 @@ jobs:
           gcloud iam service-accounts describe "$runtime_sa" --project poetry-please --format='value(email)'
           echo "Runtime identity exists."
 
-      - name: Grant the isolated runtime access to only the three Catalog preview secrets
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          set -euo pipefail
-          runtime_member="serviceAccount:manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
-          for secret in catalog-reconciliation-api-key catalog-reconciliation-write-api-key catalog-reviewer-signature-key; do
-            gcloud secrets add-iam-policy-binding "$secret" --project button-poetry-catalog --member="$runtime_member" --role=roles/secretmanager.secretAccessor --quiet >/dev/null
-            bound_member="$(gcloud secrets get-iam-policy "$secret" --project button-poetry-catalog --flatten='bindings[].members' --filter="bindings.role=roles/secretmanager.secretAccessor AND bindings.members=$runtime_member" --format='value(bindings.members)')"
-            test "$bound_member" = "$runtime_member"
-            echo "Verified isolated runtime access on $secret."
-          done
-
       - name: Deploy isolated manuscript reconciliation preview function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         env:
