@@ -238,8 +238,10 @@ jobs:
           runtime_sa="manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
           echo "Existing Poetry Please service-account emails:"
           gcloud iam service-accounts list --project poetry-please --format='value(email)'
-          echo "Current Phase 1 reconciliation runtime identity:"
-          gcloud run services describe manuscriptreconciliationpreview --project poetry-please --region us-central1 --format='value(spec.template.spec.serviceAccountName)'
+          echo "Cloud Run services and runtime identities:"
+          gcloud run services list --project poetry-please --region us-central1 --format='table(metadata.name,spec.template.spec.serviceAccountName)'
+          echo "IAM roles attached to the possible existing dedicated identity:"
+          gcloud projects get-iam-policy poetry-please --flatten='bindings[].members' --filter='bindings.members:serviceAccount:poetryplease@poetry-please.iam.gserviceaccount.com' --format='value(bindings.role)'
           if ! gcloud iam service-accounts describe "$runtime_sa" --project poetry-please >/dev/null 2>&1; then
             echo "Required isolated runtime identity is absent: $runtime_sa"
             exit 7
