@@ -4520,6 +4520,7 @@ manuscriptReconciliationPreviewApp.get("/healthz", async (_req, res) => {
       fixtureMode: payload.fixtureMode,
       liveCatalogIntegration: payload.dataSource?.liveCatalogIntegration === true,
       catalogBase: payload.dataSource?.catalogBase || null,
+      revision: process.env.K_REVISION || null,
       reconciliationId: payload.reconciliation?.id || null,
       resolutionRows: Array.isArray(payload.rows) ? payload.rows.length : null,
     });
