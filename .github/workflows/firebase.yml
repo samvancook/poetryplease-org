@@ -210,7 +210,7 @@ jobs:
           node-version: '20'
 
       - name: Install preview function dependencies
-        if: (github.event_name == 'pull_request' && github.event.pull_request.number == 27) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
         working-directory: functions
         run: npm install --no-audit --no-fund
 
@@ -228,11 +228,18 @@ jobs:
           echo "Key written to $RUNNER_TEMP/gcloud-key.json"
 
       - name: Deploy isolated manuscript reconciliation preview function
-        if: (github.event_name == 'pull_request' && github.event.pull_request.number == 27) || (github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           firebase --project poetry-please deploy --only functions:manuscriptreconciliationpreview
+
+      - name: Verify canonical Catalog integration through preview function
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
+        run: |
+          response="$(curl --fail --silent --show-error --retry 8 --retry-delay 10 \
+            "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationpreview/healthz")"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-350789123099.us-central1.run.app"||p.reconciliationId!==2||p.resolutionRows!==49) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,reconciliationId:p.reconciliationId,resolutionRows:p.resolutionRows}))' "$response"
 
       - name: Deploy Hosting Preview (branch channel)
         env:
