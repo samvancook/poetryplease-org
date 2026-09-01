@@ -56,7 +56,7 @@
       {
         "source": "/api/admin/manuscriptReconciliations/**",
         "function": {
-          "functionId": "manuscriptreconciliationphase2preview"
+          "functionId": "manuscriptreconciliationpreview"
         }
       },
       {
