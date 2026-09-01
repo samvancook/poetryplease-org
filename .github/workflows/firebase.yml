@@ -31,10 +31,11 @@ jobs:
         run: |
           node --check index.js
           node --check import-jobs.js
+          node --check manuscript-reconciliation-phase2.js
 
       - name: Run function tests
         working-directory: functions
-        run: node --test uploader-helpers.test.js manuscript-reconciliation.test.js
+        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js
 
       - name: Setup Java for Firebase emulators
         uses: actions/setup-java@v5
@@ -210,7 +211,7 @@ jobs:
           node-version: '20'
 
       - name: Install preview function dependencies
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         working-directory: functions
         run: npm install --no-audit --no-fund
 
@@ -227,19 +228,38 @@ jobs:
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
           echo "Key written to $RUNNER_TEMP/gcloud-key.json"
 
-      - name: Deploy isolated manuscript reconciliation preview function
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
+      - name: Provision least-privilege Phase 2 runtime identity
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
-          firebase --project poetry-please deploy --only functions:manuscriptreconciliationpreview
+          set -euo pipefail
+          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
+          runtime_sa="manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
+          if ! gcloud iam service-accounts describe "$runtime_sa" --project poetry-please >/dev/null 2>&1; then
+            gcloud iam service-accounts create manuscript-phase2-preview --project poetry-please --display-name="Manuscript reconciliation Phase 2 preview"
+          fi
+          deployer="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' --limit=1)"
+          gcloud iam service-accounts add-iam-policy-binding "$runtime_sa" --project poetry-please --member="serviceAccount:$deployer" --role="roles/iam.serviceAccountUser" >/dev/null
+          for secret in catalog-reconciliation-api-key catalog-reconciliation-write-api-key catalog-reviewer-signature-key; do
+            gcloud secrets describe "$secret" --project button-poetry-catalog >/dev/null
+            gcloud secrets add-iam-policy-binding "$secret" --project button-poetry-catalog --member="serviceAccount:$runtime_sa" --role="roles/secretmanager.secretAccessor" >/dev/null
+          done
+          echo "Dedicated Phase 2 runtime identity has name-only access to the three required Catalog secrets."
+
+      - name: Deploy isolated manuscript reconciliation preview function
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          firebase --project poetry-please deploy --only functions:manuscriptreconciliationphase2preview
 
       - name: Verify canonical Catalog integration through preview function
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         run: |
           response="$(curl --fail --silent --show-error --retry 8 --retry-delay 10 \
-            "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationpreview/healthz")"
-          node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-350789123099.us-central1.run.app"||typeof p.revision!=="string"||!p.revision.startsWith("manuscriptreconciliationpreview-")||p.reconciliationId!==2||p.resolutionRows!==49) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,revision:p.revision,reconciliationId:p.reconciliationId,resolutionRows:p.resolutionRows}))' "$response"
+            "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationphase2preview/healthz")"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-phase2-preview-350789123099.us-central1.run.app"||typeof p.revision!=="string"||!p.revision.startsWith("manuscriptreconciliationphase2preview-")||p.reconciliationId!==1||p.safeWritableResolutionId!==900001||!Number.isInteger(p.writeRevision)) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,revision:p.revision,reconciliationId:p.reconciliationId,safeWritableResolutionId:p.safeWritableResolutionId,writeRevision:p.writeRevision}))' "$response"
 
       - name: Deploy Hosting Preview (branch channel)
         env:
