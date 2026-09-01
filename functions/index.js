@@ -4491,7 +4491,7 @@ const getBoth = (p) => [p, `/api${p}`];
 
 app.get(getBoth("/healthz"), (_req, res) => res.json({ ok: true }));
 
-app.get(getBoth("/admin/manuscriptReconciliations/:reconciliationId"), async (req, res) => {
+async function handleManuscriptReconciliationFixture(req, res) {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
   if (String(req.params.reconciliationId) !== String(MANUSCRIPT_RECONCILIATION_FIXTURE_MANIFEST.reconciliationId)) {
@@ -4508,6 +4508,17 @@ app.get(getBoth("/admin/manuscriptReconciliations/:reconciliationId"), async (re
       message: "The read-only reconciliation fixture could not be loaded.",
     });
   }
+}
+
+app.get(getBoth("/admin/manuscriptReconciliations/:reconciliationId"), handleManuscriptReconciliationFixture);
+
+const manuscriptReconciliationPreviewApp = express();
+manuscriptReconciliationPreviewApp.get(
+  getBoth("/admin/manuscriptReconciliations/:reconciliationId"),
+  handleManuscriptReconciliationFixture,
+);
+manuscriptReconciliationPreviewApp.use((_req, res) => {
+  res.status(404).json({ error: "not_found" });
 });
 
 // imageTypes
@@ -9832,6 +9843,12 @@ export const qilibraryyearworker = onTaskDispatched({
 }, async (request) => {
   await importJobController.runQiLibraryYearTask(request.data || {});
 });
+
+export const manuscriptreconciliationpreview = onRequest({
+  region: "us-central1",
+  memory: "256MiB",
+  timeoutSeconds: 60,
+}, manuscriptReconciliationPreviewApp);
 
 // Keep this LAST
 export const api = onRequest({

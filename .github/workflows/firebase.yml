@@ -209,6 +209,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install preview function dependencies
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 27
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
       - name: Install Firebase CLI
         run: npm i -g firebase-tools
 
@@ -221,6 +226,13 @@ jobs:
           fi
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
           echo "Key written to $RUNNER_TEMP/gcloud-key.json"
+
+      - name: Deploy isolated manuscript reconciliation preview function
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 27
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          firebase --project poetry-please deploy --only functions:manuscriptreconciliationpreview
 
       - name: Deploy Hosting Preview (branch channel)
         env:

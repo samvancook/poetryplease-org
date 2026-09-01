@@ -54,6 +54,12 @@
     ],
     "rewrites": [
       {
+        "source": "/api/admin/manuscriptReconciliations/**",
+        "function": {
+          "functionId": "manuscriptreconciliationpreview"
+        }
+      },
+      {
         "source": "/api/**",
         "function": {
           "functionId": "api"

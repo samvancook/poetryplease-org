@@ -8,7 +8,7 @@ const PROJECT_ID="demo-poetry-please";
 const AUTH_HOST=process.env.FIREBASE_AUTH_EMULATOR_HOST;
 const FIRESTORE_HOST=process.env.FIRESTORE_EMULATOR_HOST;
 const FUNCTION_URL=`http://127.0.0.1:5001/${PROJECT_ID}/us-central1/api/api/me`;
-const FIXTURE_URL=`http://127.0.0.1:5001/${PROJECT_ID}/us-central1/api/api/admin/manuscriptReconciliations/2`;
+const FIXTURE_URL=`http://127.0.0.1:5001/${PROJECT_ID}/us-central1/manuscriptreconciliationpreview/api/admin/manuscriptReconciliations/2`;
 
 function assertDemoIsolation(){
   assert.equal(process.env.GCLOUD_PROJECT,PROJECT_ID);
