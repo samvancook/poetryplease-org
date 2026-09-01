@@ -10,6 +10,7 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { GoogleAuth, Impersonated } from "google-auth-library";
 import { registerImportJobRoutes } from "./import-jobs.js";
+import { createManuscriptReconciliationPhase2App } from "./manuscript-reconciliation-phase2.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -4535,6 +4536,10 @@ manuscriptReconciliationPreviewApp.get(
 );
 manuscriptReconciliationPreviewApp.use((_req, res) => {
   res.status(404).json({ error: "not_found" });
+});
+
+const manuscriptReconciliationPhase2App = createManuscriptReconciliationPhase2App({
+  verifyReviewer: (req, res) => requireRole(req, res, ["team", "admin"]),
 });
 
 // imageTypes
@@ -9866,6 +9871,13 @@ export const manuscriptreconciliationpreview = onRequest({
   timeoutSeconds: 60,
   secrets: [CATALOG_RECONCILIATION_API_KEY_SECRET],
 }, manuscriptReconciliationPreviewApp);
+
+export const manuscriptreconciliationphase2preview = onRequest({
+  region: "us-central1",
+  memory: "256MiB",
+  timeoutSeconds: 60,
+  serviceAccount: "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com",
+}, manuscriptReconciliationPhase2App);
 
 // Keep this LAST
 export const api = onRequest({
