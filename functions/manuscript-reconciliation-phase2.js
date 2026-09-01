@@ -125,7 +125,7 @@ export async function accessCatalogSecret(name) {
   const resource = `projects/${CATALOG_SECRET_PROJECT}/secrets/${name}/versions/latest:access`;
   const response = await client.request({
     url: `https://secretmanager.googleapis.com/v1/${resource}`,
-    method: "POST",
+    method: "GET",
   });
   const encoded = response?.data?.payload?.data;
   const value = encoded ? Buffer.from(encoded, "base64").toString("utf8").trim() : "";
