@@ -4513,6 +4513,23 @@ async function handleManuscriptReconciliationFixture(req, res) {
 app.get(getBoth("/admin/manuscriptReconciliations/:reconciliationId"), handleManuscriptReconciliationFixture);
 
 const manuscriptReconciliationPreviewApp = express();
+manuscriptReconciliationPreviewApp.get("/healthz", async (_req, res) => {
+  try {
+    const fixture = await fetchManuscriptReconciliationFixture(
+      MANUSCRIPT_RECONCILIATION_FIXTURE_MANIFEST.reconciliationId,
+    );
+    res.set("Cache-Control", "no-store");
+    res.json({
+      ok: true,
+      fixtureMode: fixture?.fixtureMode === true,
+      reconciliationId: fixture?.reconciliation?.id || null,
+      resolutionRows: Array.isArray(fixture?.rows) ? fixture.rows.length : null,
+    });
+  } catch (err) {
+    console.error("manuscript_reconciliation_preview_health_failed", err?.message || err);
+    res.status(503).json({ ok: false, error: "fixture_unavailable" });
+  }
+});
 manuscriptReconciliationPreviewApp.get(
   getBoth("/admin/manuscriptReconciliations/:reconciliationId"),
   handleManuscriptReconciliationFixture,
