@@ -21,6 +21,7 @@ import { getStorage, getDownloadURL } from "firebase-admin/storage";
 /** ====== CONFIG / CONSTANTS ====== */
 const POETRY_PLEASE_API_KEY_SECRET = defineSecret("POETRY_PLEASE_API_KEY");
 const PIG_POETRY_PLEASE_API_KEY_SECRET = defineSecret("PIG_POETRY_PLEASE_API_KEY");
+const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATION_API_KEY");
 const COLLECTIONS = {
   graphics: "graphics",
   excerpts: "excerpts",
@@ -111,6 +112,7 @@ const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
 const SCOREBOARD_SNAPSHOT_VERSION = 4;
 const CANONICAL_CATALOG_API = "https://button-poetry-catalog-350789123099.us-central1.run.app";
+const CATALOG_RECONCILIATION_PREVIEW_API = "https://button-poetry-catalog-reconciliation-preview-svz4yyc7gq-uc.a.run.app";
 const CANONICAL_POEM_COUNT_TTL_MS = 6 * 60 * 60 * 1000;
 const canonicalPoemCountCache = new Map();
 let contentCache = {
@@ -642,6 +644,73 @@ async function getDriveReadAccessToken() {
     throw err;
   }
   return token;
+}
+
+async function fetchCatalogReconciliation(reconciliationId, catalogBase) {
+  const apiKey = String(CATALOG_RECONCILIATION_API_KEY_SECRET.value() || "").trim();
+  if (!apiKey) {
+    const err = new Error("catalog_reconciliation_auth_unavailable");
+    err.status = 503;
+    throw err;
+  }
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+  const encodedId = encodeURIComponent(reconciliationId);
+  const [detailResponse, resolutionsResponse] = await Promise.all([
+    fetch(`${catalogBase}/reconciliations/${encodedId}`, {
+      headers,
+      signal: AbortSignal.timeout(30000),
+    }),
+    fetch(`${catalogBase}/reconciliations/${encodedId}/resolutions`, {
+      headers,
+      signal: AbortSignal.timeout(30000),
+    }),
+  ]);
+  if (!detailResponse.ok || !resolutionsResponse.ok) {
+    const err = new Error(
+      `catalog_reconciliation_fetch_${detailResponse.status}_${resolutionsResponse.status}`
+    );
+    err.status = 502;
+    throw err;
+  }
+  const [reconciliation, rows] = await Promise.all([
+    detailResponse.json(),
+    resolutionsResponse.json(),
+  ]);
+  if (!reconciliation || !Array.isArray(rows)) {
+    const err = new Error("catalog_reconciliation_shape_invalid");
+    err.status = 502;
+    throw err;
+  }
+  const totals = reconciliation.totals || {};
+  const autoApproved = rows.filter((row) => row?.status === "auto_approved").length;
+  const pending = rows.filter((row) => row?.status === "pending").length;
+  if (
+    Number(totals.resolutionRows) !== rows.length
+    || Number(totals.autoApproved) !== autoApproved
+    || Number(totals.pending) !== pending
+  ) {
+    const err = new Error("catalog_reconciliation_totals_invalid");
+    err.status = 502;
+    throw err;
+  }
+  return {
+    fixtureMode: false,
+    readOnly: true,
+    dataSource: {
+      type: "live_catalog_api",
+      catalogAuthority: "Button Poetry Catalog",
+      liveCatalogIntegration: true,
+      catalogBase,
+    },
+    reconciliation,
+    rows,
+    contractGaps: Array.isArray(reconciliation.contractGaps)
+      ? reconciliation.contractGaps
+      : [],
+  };
 }
 
 async function fetchManuscriptReconciliationFixture(reconciliationId) {
@@ -4491,48 +4560,47 @@ const getBoth = (p) => [p, `/api${p}`];
 
 app.get(getBoth("/healthz"), (_req, res) => res.json({ ok: true }));
 
-async function handleManuscriptReconciliationFixture(req, res) {
+async function handleManuscriptReconciliation(req, res, catalogBase) {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
-  if (String(req.params.reconciliationId) !== String(MANUSCRIPT_RECONCILIATION_FIXTURE_MANIFEST.reconciliationId)) {
-    return res.status(404).json({ error: "fixture_reconciliation_not_found" });
-  }
   try {
-    const fixture = await fetchManuscriptReconciliationFixture(req.params.reconciliationId);
+    const payload = await fetchCatalogReconciliation(req.params.reconciliationId, catalogBase);
     res.set("Cache-Control", "private, no-store");
-    res.json(fixture);
+    res.json(payload);
   } catch (err) {
-    console.error("manuscript_reconciliation_fixture_failed", err?.message || err);
+    console.error("manuscript_reconciliation_catalog_failed", err?.message || err);
     res.status(err?.status || 502).json({
-      error: "reconciliation_fixture_unavailable",
-      message: "The read-only reconciliation fixture could not be loaded.",
+      error: "catalog_reconciliation_unavailable",
+      message: "The read-only Catalog reconciliation could not be loaded.",
     });
   }
 }
 
-app.get(getBoth("/admin/manuscriptReconciliations/:reconciliationId"), handleManuscriptReconciliationFixture);
+app.get(
+  getBoth("/admin/manuscriptReconciliations/:reconciliationId"),
+  (req, res) => handleManuscriptReconciliation(req, res, CANONICAL_CATALOG_API),
+);
 
 const manuscriptReconciliationPreviewApp = express();
 manuscriptReconciliationPreviewApp.get("/healthz", async (_req, res) => {
   try {
-    const fixture = await fetchManuscriptReconciliationFixture(
-      MANUSCRIPT_RECONCILIATION_FIXTURE_MANIFEST.reconciliationId,
-    );
+    const payload = await fetchCatalogReconciliation(2, CATALOG_RECONCILIATION_PREVIEW_API);
     res.set("Cache-Control", "no-store");
     res.json({
       ok: true,
-      fixtureMode: fixture?.fixtureMode === true,
-      reconciliationId: fixture?.reconciliation?.id || null,
-      resolutionRows: Array.isArray(fixture?.rows) ? fixture.rows.length : null,
+      fixtureMode: payload.fixtureMode,
+      liveCatalogIntegration: payload.dataSource?.liveCatalogIntegration === true,
+      reconciliationId: payload.reconciliation?.id || null,
+      resolutionRows: Array.isArray(payload.rows) ? payload.rows.length : null,
     });
   } catch (err) {
     console.error("manuscript_reconciliation_preview_health_failed", err?.message || err);
-    res.status(503).json({ ok: false, error: "fixture_unavailable" });
+    res.status(503).json({ ok: false, error: "catalog_reconciliation_unavailable" });
   }
 });
 manuscriptReconciliationPreviewApp.get(
   getBoth("/admin/manuscriptReconciliations/:reconciliationId"),
-  handleManuscriptReconciliationFixture,
+  (req, res) => handleManuscriptReconciliation(req, res, CATALOG_RECONCILIATION_PREVIEW_API),
 );
 manuscriptReconciliationPreviewApp.use((_req, res) => {
   res.status(404).json({ error: "not_found" });
@@ -9865,6 +9933,7 @@ export const manuscriptreconciliationpreview = onRequest({
   region: "us-central1",
   memory: "256MiB",
   timeoutSeconds: 60,
+  secrets: [CATALOG_RECONCILIATION_API_KEY_SECRET],
 }, manuscriptReconciliationPreviewApp);
 
 // Keep this LAST
@@ -9873,5 +9942,5 @@ export const api = onRequest({
   memory: "1GiB",
   minInstances: 1,
   timeoutSeconds: 540,
-  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET],
+  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET, CATALOG_RECONCILIATION_API_KEY_SECRET],
 }, app);
