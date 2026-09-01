@@ -9876,6 +9876,7 @@ export const manuscriptreconciliationphase2preview = onRequest({
   region: "us-central1",
   memory: "256MiB",
   timeoutSeconds: 60,
+  invoker: "public",
   serviceAccount: "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com",
 }, manuscriptReconciliationPhase2App);
 
