@@ -21,6 +21,7 @@ import { getStorage, getDownloadURL } from "firebase-admin/storage";
 /** ====== CONFIG / CONSTANTS ====== */
 const POETRY_PLEASE_API_KEY_SECRET = defineSecret("POETRY_PLEASE_API_KEY");
 const PIG_POETRY_PLEASE_API_KEY_SECRET = defineSecret("PIG_POETRY_PLEASE_API_KEY");
+const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATION_API_KEY");
 const COLLECTIONS = {
   graphics: "graphics",
   excerpts: "excerpts",
@@ -111,6 +112,7 @@ const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
 const SCOREBOARD_SNAPSHOT_VERSION = 4;
 const CANONICAL_CATALOG_API = "https://button-poetry-catalog-350789123099.us-central1.run.app";
+const CATALOG_RECONCILIATION_PREVIEW_API = CANONICAL_CATALOG_API;
 const CANONICAL_POEM_COUNT_TTL_MS = 6 * 60 * 60 * 1000;
 const canonicalPoemCountCache = new Map();
 let contentCache = {
@@ -639,6 +641,73 @@ async function getDriveReadAccessToken() {
     throw err;
   }
   return token;
+}
+
+async function fetchCatalogReconciliation(reconciliationId, catalogBase) {
+  const apiKey = String(CATALOG_RECONCILIATION_API_KEY_SECRET.value() || "").trim();
+  if (!apiKey) {
+    const err = new Error("catalog_reconciliation_auth_unavailable");
+    err.status = 503;
+    throw err;
+  }
+  const headers = {
+    Accept: "application/json",
+    Authorization: `Bearer ${apiKey}`,
+  };
+  const encodedId = encodeURIComponent(reconciliationId);
+  const [detailResponse, resolutionsResponse] = await Promise.all([
+    fetch(`${catalogBase}/reconciliations/${encodedId}`, {
+      headers,
+      signal: AbortSignal.timeout(30000),
+    }),
+    fetch(`${catalogBase}/reconciliations/${encodedId}/resolutions`, {
+      headers,
+      signal: AbortSignal.timeout(30000),
+    }),
+  ]);
+  if (!detailResponse.ok || !resolutionsResponse.ok) {
+    const err = new Error(
+      `catalog_reconciliation_fetch_${detailResponse.status}_${resolutionsResponse.status}`
+    );
+    err.status = 502;
+    throw err;
+  }
+  const [reconciliation, rows] = await Promise.all([
+    detailResponse.json(),
+    resolutionsResponse.json(),
+  ]);
+  if (!reconciliation || !Array.isArray(rows)) {
+    const err = new Error("catalog_reconciliation_shape_invalid");
+    err.status = 502;
+    throw err;
+  }
+  const totals = reconciliation.totals || {};
+  const autoApproved = rows.filter((row) => row?.status === "auto_approved").length;
+  const pending = rows.filter((row) => row?.status === "pending").length;
+  if (
+    Number(totals.resolutionRows) !== rows.length
+    || Number(totals.autoApproved) !== autoApproved
+    || Number(totals.pending) !== pending
+  ) {
+    const err = new Error("catalog_reconciliation_totals_invalid");
+    err.status = 502;
+    throw err;
+  }
+  return {
+    fixtureMode: false,
+    readOnly: true,
+    dataSource: {
+      type: "live_catalog_api",
+      catalogAuthority: "Button Poetry Catalog",
+      liveCatalogIntegration: true,
+      catalogBase,
+    },
+    reconciliation,
+    rows,
+    contractGaps: Array.isArray(reconciliation.contractGaps)
+      ? reconciliation.contractGaps
+      : [],
+  };
 }
 
 async function fetchAuthenticatedGoogleDriveMedia(fileId, sourceUrl, rules, body = {}) {
@@ -4419,6 +4488,54 @@ app.get("/", (_req, res) => {
 const getBoth = (p) => [p, `/api${p}`];
 
 app.get(getBoth("/healthz"), (_req, res) => res.json({ ok: true }));
+
+async function handleManuscriptReconciliation(req, res, catalogBase) {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  try {
+    const payload = await fetchCatalogReconciliation(req.params.reconciliationId, catalogBase);
+    res.set("Cache-Control", "private, no-store");
+    res.json(payload);
+  } catch (err) {
+    console.error("manuscript_reconciliation_catalog_failed", err?.message || err);
+    res.status(err?.status || 502).json({
+      error: "catalog_reconciliation_unavailable",
+      message: "The read-only Catalog reconciliation could not be loaded.",
+    });
+  }
+}
+
+app.get(
+  getBoth("/admin/manuscriptReconciliations/:reconciliationId"),
+  (req, res) => handleManuscriptReconciliation(req, res, CANONICAL_CATALOG_API),
+);
+
+const manuscriptReconciliationPreviewApp = express();
+manuscriptReconciliationPreviewApp.get("/healthz", async (_req, res) => {
+  try {
+    const payload = await fetchCatalogReconciliation(2, CATALOG_RECONCILIATION_PREVIEW_API);
+    res.set("Cache-Control", "no-store");
+    res.json({
+      ok: true,
+      fixtureMode: payload.fixtureMode,
+      liveCatalogIntegration: payload.dataSource?.liveCatalogIntegration === true,
+      catalogBase: payload.dataSource?.catalogBase || null,
+      revision: process.env.K_REVISION || null,
+      reconciliationId: payload.reconciliation?.id || null,
+      resolutionRows: Array.isArray(payload.rows) ? payload.rows.length : null,
+    });
+  } catch (err) {
+    console.error("manuscript_reconciliation_preview_health_failed", err?.message || err);
+    res.status(503).json({ ok: false, error: "catalog_reconciliation_unavailable" });
+  }
+});
+manuscriptReconciliationPreviewApp.get(
+  getBoth("/admin/manuscriptReconciliations/:reconciliationId"),
+  (req, res) => handleManuscriptReconciliation(req, res, CATALOG_RECONCILIATION_PREVIEW_API),
+);
+manuscriptReconciliationPreviewApp.use((_req, res) => {
+  res.status(404).json({ error: "not_found" });
+});
 
 // imageTypes
 app.get(getBoth("/imageTypes"), async (_req, res) => {
@@ -9743,11 +9860,18 @@ export const qilibraryyearworker = onTaskDispatched({
   await importJobController.runQiLibraryYearTask(request.data || {});
 });
 
+export const manuscriptreconciliationpreview = onRequest({
+  region: "us-central1",
+  memory: "256MiB",
+  timeoutSeconds: 60,
+  secrets: [CATALOG_RECONCILIATION_API_KEY_SECRET],
+}, manuscriptReconciliationPreviewApp);
+
 // Keep this LAST
 export const api = onRequest({
   region: "us-central1",
   memory: "1GiB",
   minInstances: 1,
   timeoutSeconds: 540,
-  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET],
+  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET, CATALOG_RECONCILIATION_API_KEY_SECRET],
 }, app);

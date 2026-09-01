@@ -34,7 +34,26 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test uploader-helpers.test.js
+        run: node --test uploader-helpers.test.js manuscript-reconciliation.test.js
+
+      - name: Setup Java for Firebase emulators
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Firebase CLI for emulator tests
+        run: npm install --global firebase-tools
+
+      - name: Write synthetic emulator secret overrides
+        working-directory: functions
+        run: printf "%s\\n" "POETRY_PLEASE_API_KEY=emulator-only" "PIG_POETRY_PLEASE_API_KEY=emulator-only" > .secret.local
+
+      - name: Run isolated authorization emulator integration test
+        env:
+          GCLOUD_PROJECT: demo-poetry-please
+          FIREBASE_CONFIG: '{"projectId":"demo-poetry-please"}'
+        run: firebase emulators:exec --project demo-poetry-please --only auth,firestore,functions "node --test functions/manuscript-reconciliation.emulator.test.js"
 
   deploy:
     if: github.ref == 'refs/heads/main'
@@ -190,6 +209,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install preview function dependencies
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
       - name: Install Firebase CLI
         run: npm i -g firebase-tools
 
@@ -202,6 +226,20 @@ jobs:
           fi
           echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
           echo "Key written to $RUNNER_TEMP/gcloud-key.json"
+
+      - name: Deploy isolated manuscript reconciliation preview function
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          firebase --project poetry-please deploy --only functions:manuscriptreconciliationpreview
+
+      - name: Verify canonical Catalog integration through preview function
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260830-001-manuscript-reconciliation'
+        run: |
+          response="$(curl --fail --silent --show-error --retry 8 --retry-delay 10 \
+            "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationpreview/healthz")"
+          node -e 'const p=JSON.parse(process.argv[1]); if(p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-350789123099.us-central1.run.app"||typeof p.revision!=="string"||!p.revision.startsWith("manuscriptreconciliationpreview-")||p.reconciliationId!==2||p.resolutionRows!==49) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,revision:p.revision,reconciliationId:p.reconciliationId,resolutionRows:p.resolutionRows}))' "$response"
 
       - name: Deploy Hosting Preview (branch channel)
         env:
