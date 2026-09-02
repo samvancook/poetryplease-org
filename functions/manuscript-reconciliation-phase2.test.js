@@ -20,6 +20,7 @@ import {
   decisionNeedsNotes,
   mapPhase2Payload,
   nextRowId,
+  normalizePhase2Row,
   rowMatchesSearch,
   saveDecision,
 } from "../public/manuscript-reconciliation.js";
@@ -264,6 +265,25 @@ test("review feedback improvements preserve deliberate search and readable text"
   assert.match(client, /Needs parser correction/);
   assert.match(html, /white-space:pre-wrap/);
   assert.match(html, /overflow-wrap:anywhere/);
+});
+
+test("Phase 2 mapper preserves authoritative sourcePoemId values for form selections", () => {
+  const row = normalizePhase2Row({
+    resolutionId: 900001,
+    prior: { sourcePoemId: 101, title: "Prior" },
+    candidate: { sourcePoemId: 202, title: "Candidate" },
+  });
+  assert.equal(row.prior.id, 101);
+  assert.equal(row.candidate.id, 202);
+  const mapped = mapPhase2Payload({
+    readOnly: false,
+    writeEnabled: true,
+    safeWritableResolutionId: 900001,
+    reconciliation: { id: 1 },
+    rows: [row],
+  });
+  assert.equal(mapped.rows[0].prior.id, 101);
+  assert.equal(mapped.rows[0].candidate.id, 202);
 });
 
 test("Phase 2 mapper rejects read-only or wrong-fixture payloads", () => {
