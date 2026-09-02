@@ -803,7 +803,7 @@ function updateUserStatusUI() {
         ? ' <a id="admin-badge" href="/admin.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
         : '';
       const teamBadge = isTeam
-        ? ' <span style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#efe3ff;color:#5f3b88;font-size:12px;font-weight:600;">Team</span>'
+        ? ' <a id="team-admin-badge" href="/admin.html" title="Open team and admin tools" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#efe3ff;color:#5f3b88;font-size:12px;font-weight:600;text-decoration:none;">Team tools</a>'
         : '';
       const profileHref = authorPreviewMode && selectedAuthor ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
       const profileBadge = canEditAuthorProfile
