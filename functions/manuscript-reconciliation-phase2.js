@@ -3,6 +3,7 @@ import { createHash, createHmac } from "node:crypto";
 import { GoogleAuth } from "google-auth-library";
 
 export const CATALOG_PHASE2_PREVIEW_API = "https://button-poetry-catalog-phase2-preview-350789123099.us-central1.run.app";
+export const POETRY_PLEASE_REVIEWER_AUTHORITY = "https://poetryplease.org";
 export const SAFE_PREVIEW_RECONCILIATION_ID = 1;
 export const SAFE_PREVIEW_RESOLUTION_ID = 900001;
 export const CATALOG_SECRET_PROJECT = "button-poetry-catalog";
@@ -25,6 +26,49 @@ const ALLOWED_FIELDS = Object.freeze([
 const WRITE_ROLES = new Set(["admin", "team"]);
 const secretCache = new Map();
 const cloudAuth = new GoogleAuth({ scopes: ["https://www.googleapis.com/auth/cloud-platform"] });
+
+export async function verifyReviewerViaPoetryPleaseApi(
+  req,
+  res,
+  { fetcher = fetch, authority = POETRY_PLEASE_REVIEWER_AUTHORITY } = {},
+) {
+  const authorization = String(req?.get?.("Authorization") || req?.headers?.authorization || "").trim();
+  if (!/^Bearer\s+\S+/i.test(authorization)) {
+    res.status(401).json({ error: "auth" });
+    return null;
+  }
+
+  let response;
+  try {
+    response = await fetcher(`${authority}/api/me`, {
+      headers: { Accept: "application/json", Authorization: authorization },
+      signal: AbortSignal.timeout(30000),
+    });
+  } catch {
+    res.status(502).json({ error: "reviewer_authority_unavailable" });
+    return null;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const status = response.status === 401 || response.status === 403 ? response.status : 502;
+    res.status(status).json({ error: status === 401 ? "auth" : status === 403 ? "forbidden" : "reviewer_authority_unavailable" });
+    return null;
+  }
+
+  const uid = String(payload?.uid || "").trim();
+  const email = String(payload?.email || "").trim().toLowerCase();
+  const roles = Array.isArray(payload?.roles) ? payload.roles : [];
+  if (!uid || !email || !email.includes("@")) {
+    res.status(502).json({ error: "reviewer_authority_shape_invalid" });
+    return null;
+  }
+
+  return {
+    decoded: { uid, email, name: String(payload?.displayName || "").trim() },
+    userRecord: { roles },
+  };
+}
 
 export function normalizeReviewer(ctx) {
   const uid = String(ctx?.decoded?.uid || "").trim();
