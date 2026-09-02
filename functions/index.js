@@ -10,7 +10,7 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { GoogleAuth, Impersonated } from "google-auth-library";
 import { registerImportJobRoutes } from "./import-jobs.js";
-import { createManuscriptReconciliationPhase2App } from "./manuscript-reconciliation-phase2.js";
+import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -4539,7 +4539,7 @@ manuscriptReconciliationPreviewApp.use((_req, res) => {
 });
 
 const manuscriptReconciliationPhase2App = createManuscriptReconciliationPhase2App({
-  verifyReviewer: (req, res) => requireRole(req, res, ["team", "admin"]),
+  verifyReviewer: (req, res) => verifyReviewerViaPoetryPleaseApi(req, res),
 });
 
 // imageTypes
