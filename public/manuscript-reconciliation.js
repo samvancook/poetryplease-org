@@ -80,6 +80,14 @@ const poemLines = (text, normalized) => (normalized ? normalizeWhitespace(text) 
   .map((line, index) => `<span class="line"><i>${index + 1}</i><b>${line ? esc(line) : "&nbsp;"}</b></span>`)
   .join("");
 
+export function normalizePhase2Row(row) {
+  if (!row || typeof row !== "object") return row;
+  const withId = (poem) => poem && typeof poem === "object"
+    ? { ...poem, id: poem.id ?? poem.sourcePoemId }
+    : poem;
+  return { ...row, prior: withId(row.prior), candidate: withId(row.candidate) };
+}
+
 export function mapPhase2Payload(payload) {
   if (!payload || payload.writeEnabled !== true || payload.readOnly !== false || !payload.reconciliation || !Array.isArray(payload.rows)) {
     throw Error("Unsupported Catalog Phase 2 proxy response.");
@@ -87,7 +95,7 @@ export function mapPhase2Payload(payload) {
   if (Number(payload.safeWritableResolutionId) !== SAFE_WRITABLE_RESOLUTION_ID) {
     throw Error("The isolated write fixture is unavailable.");
   }
-  return payload;
+  return { ...payload, rows: payload.rows.map(normalizePhase2Row) };
 }
 
 export async function authorizeTeam(fetcher = fetch) {
@@ -203,7 +211,7 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
         fetcher,
       });
       const index = data.rows.findIndex((item) => Number(item.resolutionId) === Number(row.resolutionId));
-      data.rows[index] = result.authoritativeResolution;
+      data.rows[index] = normalizePhase2Row(result.authoritativeResolution);
       data.reconciliation.writeRevision = result.reconciliationRevision;
       state.message = result.idempotent
         ? "Verified idempotent retry and authoritative readback."
