@@ -12,6 +12,7 @@ import {
   normalizeReviewer,
   sanitizeDecision,
   savePhase2Resolution,
+  verifyReviewerViaPoetryPleaseApi,
 } from "./manuscript-reconciliation-phase2.js";
 import {
   SAFE_WRITABLE_RESOLUTION_ID,
@@ -68,6 +69,48 @@ test("missing and unauthorized reviewer identity fail closed", () => {
     email: reviewer.email.toLowerCase(),
     roles: ["admin", "team"],
   });
+});
+
+test("isolated reviewer verification delegates to the canonical Poetry Please role authority", async () => {
+  const calls = [];
+  const responseState = { status: 0, payload: null };
+  const res = {
+    status(value) { responseState.status = value; return this; },
+    json(value) { responseState.payload = value; return this; },
+  };
+  const ctx = await verifyReviewerViaPoetryPleaseApi(
+    { get: (name) => name === "Authorization" ? "Bearer firebase-token" : "" },
+    res,
+    { fetcher: async (url, options) => {
+      calls.push({ url, options });
+      return new Response(JSON.stringify({
+        uid: reviewer.uid,
+        email: reviewer.email,
+        displayName: "Fixture Reviewer",
+        roles: ["team"],
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    } },
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, "https://poetryplease.org/api/me");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer firebase-token");
+  assert.deepEqual(ctx, {
+    decoded: { uid: reviewer.uid, email: reviewer.email.toLowerCase(), name: "Fixture Reviewer" },
+    userRecord: { roles: ["team"] },
+  });
+  assert.equal(responseState.status, 0);
+});
+
+test("isolated reviewer verification fails closed without a Firebase bearer", async () => {
+  const responseState = { status: 0, payload: null };
+  const res = {
+    status(value) { responseState.status = value; return this; },
+    json(value) { responseState.payload = value; return this; },
+  };
+  const ctx = await verifyReviewerViaPoetryPleaseApi({ get: () => "" }, res);
+  assert.equal(ctx, null);
+  assert.equal(responseState.status, 401);
+  assert.deepEqual(responseState.payload, { error: "auth" });
 });
 
 test("authenticated save supplies verified attribution and authoritative readback", async () => {
@@ -199,6 +242,8 @@ test("Phase 2 does not duplicate decisions and reads secrets without mutation", 
   assert.doesNotMatch(server, /method: "POST"[\s\S]{0,120}secretmanager/);
   const index = fs.readFileSync(new URL("./index.js", import.meta.url), "utf8");
   assert.match(index, /manuscriptreconciliationphase2preview[\s\S]{0,240}invoker: "public"[\s\S]{0,240}manuscript-phase2-preview@poetry-please/);
+  assert.match(index, /verifyReviewerViaPoetryPleaseApi/);
+  assert.doesNotMatch(index, /createManuscriptReconciliationPhase2App\(\{[\s\S]{0,180}requireRole/);
 });
 
 test("review feedback improvements preserve deliberate search and readable text", () => {
