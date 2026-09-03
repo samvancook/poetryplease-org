@@ -23,7 +23,7 @@ import {
   normalizePhase2Row,
   rowMatchesSearch,
   saveDecision,
-} from "../public/manuscript-reconciliation.js";
+} from "../public/manuscript-reconciliation-phase2-preview.js";
 
 const reviewer = { uid: "firebase-uid-1", email: "Reviewer@ButtonPoetry.com", roles: ["team", "admin"] };
 const decision = {
@@ -258,8 +258,8 @@ test("review feedback improvements preserve deliberate search and readable text"
   assert.equal(rowMatchesSearch(row, "Ya’arburnee"), true);
   assert.equal(rowMatchesSearch(row, "image_backed"), true);
   assert.equal(rowMatchesSearch(row, "unrelated"), false);
-  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation.js", import.meta.url), "utf8");
-  const html = fs.readFileSync(new URL("../public/manuscript-reconciliation.html", import.meta.url), "utf8");
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-phase2-preview.js", import.meta.url), "utf8");
+  const html = fs.readFileSync(new URL("../public/manuscript-reconciliation-phase2-preview.html", import.meta.url), "utf8");
   assert.match(client, /Search runs when you press Search or Enter/);
   assert.match(client, /Candidate source[\s\S]{0,180}not assumed to be correct/);
   assert.match(client, /Needs parser correction/);
