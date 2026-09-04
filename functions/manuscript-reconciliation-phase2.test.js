@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createHmac, createHash } from "node:crypto";
 import {
-  CATALOG_PHASE2_PREVIEW_API,
+  CATALOG_PHASE2_API,
   CATALOG_SECRET_NAMES,
   SAFE_PREVIEW_RECONCILIATION_ID,
   SAFE_PREVIEW_RESOLUTION_ID,
@@ -225,8 +225,8 @@ test("note policy catches destructive, identity, title, non-candidate, OCR, pars
   assert.equal(decisionNeedsNotes(row, { resolutionAction: "request_ocr", reviewStatus: "pending", canonicalTitle: "Title", stablePoemIdentity: "stable", textSourcePoemId: 2 }), true);
 });
 
-test("proxy accepts only the guarded fixture and never production reconciliation 2", () => {
-  assert.equal(CATALOG_PHASE2_PREVIEW_API.includes("phase2-preview"), true);
+test("production proxy accepts only the guarded fixture and never editorial reconciliation 2", () => {
+  assert.equal(CATALOG_PHASE2_API, "https://button-poetry-catalog-350789123099.us-central1.run.app");
   assert.equal(isSafePreviewTarget(1, 900001), true);
   assert.equal(isSafePreviewTarget(2, 900001), false);
   assert.equal(isSafePreviewTarget(1, 2), false);
