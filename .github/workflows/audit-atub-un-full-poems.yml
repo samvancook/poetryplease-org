@@ -48,13 +48,36 @@ jobs:
         working-directory: functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: node audit_atub_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-full-poems-audit.json"
+        run: |
+          set -euo pipefail
+          node audit_atub_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-full-poems-audit.json"
 
       - name: Run guarded migration dry-run
         working-directory: functions
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: node migrate_atub_to_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-migration-dry-run.json"
+        run: |
+          set -euo pipefail
+          node migrate_atub_to_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-migration-dry-run.json"
+
+      - name: Apply ATUB to UN migration
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[apply-atub-un]')
+        working-directory: functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+          APPLY_ATUB_UN_MIGRATION: YES
+        run: |
+          set -euo pipefail
+          node migrate_atub_to_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-migration-apply.json"
+
+      - name: Run independent post-apply audit
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[apply-atub-un]')
+        working-directory: functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: |
+          set -euo pipefail
+          node audit_atub_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-post-apply-audit.json"
 
       - name: Upload audit artifacts
         uses: actions/upload-artifact@v4
@@ -63,5 +86,7 @@ jobs:
           path: |
             ${{ runner.temp }}/atub-un-full-poems-audit.json
             ${{ runner.temp }}/atub-un-migration-dry-run.json
-          if-no-files-found: error
+            ${{ runner.temp }}/atub-un-migration-apply.json
+            ${{ runner.temp }}/atub-un-post-apply-audit.json
+          if-no-files-found: warn
           retention-days: 7
