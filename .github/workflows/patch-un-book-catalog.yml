@@ -1,0 +1,45 @@
+name: Clean UN catalog patch diff
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/patch-un-book-catalog.yml
+      - functions/book-catalog-lookup.json
+
+permissions:
+  contents: write
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ github.token }}
+      - name: Restore pre-existing JSON escape representation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('functions/book-catalog-lookup.json')
+          s = p.read_text()
+          old = '"title": "DON’T BE AFRAID TO BE BAD"'
+          new = '"title": "DON\\u2019T BE AFRAID TO BE BAD"'
+          if old not in s:
+              raise SystemExit('Expected literal-apostrophe line not found')
+          p.write_text(s.replace(old, new, 1))
+          PY
+      - name: Verify only intended encoding cleanup
+        run: |
+          grep -F '"title": "DON\u2019T BE AFRAID TO BE BAD"' functions/book-catalog-lookup.json
+          git diff --check
+      - name: Commit cleanup
+        run: |
+          if git diff --quiet -- functions/book-catalog-lookup.json; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add functions/book-catalog-lookup.json
+          git commit -m 'Keep UN catalog patch diff minimal'
+          git push origin HEAD:${{ github.head_ref }}
