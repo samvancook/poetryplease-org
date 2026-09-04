@@ -48,13 +48,14 @@
     "authorKey": "francis dylan waguespack"
   },
   {
-    "title": "all the ugly bits",
+    "title": "unreliable narrator",
     "author": "Ayanna Florence",
     "releaseCatalog": "Fall 2026",
-    "bookLink": "",
-    "bookShortener": "ATUB",
-    "pubDate": "08/04/2026",
+    "bookLink": "https://buttonpoetry.com/product/unreliable-narrator/",
+    "bookShortener": "UN",
+    "pubDate": "01/26/2027",
     "titleKeys": [
+      "unreliable narrator",
       "all the ugly bits"
     ],
     "authorKey": "ayanna florence"
@@ -84,7 +85,7 @@
     "authorKey": "gigi bella"
   },
   {
-    "title": "DON\u2019T BE AFRAID TO BE BAD",
+    "title": "DON’T BE AFRAID TO BE BAD",
     "author": "Ollie Schminkey",
     "releaseCatalog": "Spring 2026",
     "bookLink": "https://buttonpoetry.com/product/dont-be-afraid-to-be-bad-a-big-book-of-button-poetry-writing-prompts/",
