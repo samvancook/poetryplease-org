@@ -6,12 +6,14 @@ on:
       - audit/atub-un-full-poems
     paths:
       - functions/audit_atub_un_full_poems.js
+      - functions/migrate_atub_to_un_full_poems.js
       - .github/workflows/audit-atub-un-full-poems.yml
   pull_request:
     branches:
       - main
     paths:
       - functions/audit_atub_un_full_poems.js
+      - functions/migrate_atub_to_un_full_poems.js
       - .github/workflows/audit-atub-un-full-poems.yml
   workflow_dispatch:
 
@@ -48,10 +50,18 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: node audit_atub_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-full-poems-audit.json"
 
-      - name: Upload audit artifact
+      - name: Run guarded migration dry-run
+        working-directory: functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: node migrate_atub_to_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-migration-dry-run.json"
+
+      - name: Upload audit artifacts
         uses: actions/upload-artifact@v4
         with:
           name: atub-un-full-poems-audit
-          path: ${{ runner.temp }}/atub-un-full-poems-audit.json
+          path: |
+            ${{ runner.temp }}/atub-un-full-poems-audit.json
+            ${{ runner.temp }}/atub-un-migration-dry-run.json
           if-no-files-found: error
           retention-days: 7
