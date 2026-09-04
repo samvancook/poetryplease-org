@@ -18,7 +18,7 @@ const EXPECTED = {
 };
 const DEPENDENT_COLLECTIONS = ["votes", "contentFlags", "contentClaims", "contentDuplicates"];
 const TEXT_FIELDS = [
-  "servedText", "served_text", "cleanedText", "cleaned_text", "fullText", "full_text",
+  "contentText", "servedText", "served_text", "cleanedText", "cleaned_text", "fullText", "full_text",
   "poemText", "poem_text", "text", "body", "content",
 ];
 
@@ -37,9 +37,7 @@ function normalize(value) {
 }
 
 function first(data, keys) {
-  for (const key of keys) {
-    if (text(data?.[key])) return text(data[key]);
-  }
+  for (const key of keys) if (text(data?.[key])) return text(data[key]);
   return "";
 }
 
@@ -64,6 +62,10 @@ function bodyHash(data) {
   return value ? createHash("sha256").update(value).digest("hex") : "";
 }
 
+function refId(data) {
+  return text(data?.imageId || data?.imageID || data?.contentId);
+}
+
 function timestampMs(value) {
   if (!value) return 0;
   if (typeof value.toMillis === "function") return value.toMillis();
@@ -74,6 +76,15 @@ function timestampMs(value) {
   }
   if (typeof value === "object" && Number.isFinite(value._seconds)) return value._seconds * 1000 + Math.floor((value._nanoseconds || 0) / 1e6);
   return 0;
+}
+
+function rowTimestamp(row) {
+  return Math.max(
+    timestampMs(row.data.timestamp),
+    timestampMs(row.data.updatedAt),
+    timestampMs(row.data.createdAt),
+    timestampMs(row.data.dateAdded),
+  );
 }
 
 function serializable(value) {
@@ -122,14 +133,13 @@ function buildMapping(rows) {
     if (!target) fail("ATUB row has no UN title match", { id: oldRow.id, title: poemTitle(oldRow.data) });
     const oldHash = bodyHash(oldRow.data);
     const newHash = bodyHash(target.data);
-    if (!oldHash || !newHash) missingBody.push({ oldId: oldRow.id, targetId: target.id, oldFields: Object.keys(oldRow.data).sort(), newFields: Object.keys(target.data).sort() });
+    if (!oldHash || !newHash) missingBody.push({ oldId: oldRow.id, targetId: target.id });
     else if (oldHash !== newHash) bodyMismatches.push({ oldId: oldRow.id, targetId: target.id, title: poemTitle(oldRow.data), oldHash, newHash });
     mappings.push({ oldRow, target, key });
   }
 
   if (bodyMismatches.length) fail("ATUB and UN poem text mismatch", { bodyMismatches });
   if (missingBody.length) fail("Could not verify poem text for every mapping", { missingBody });
-
   return { atub, un, mappings, unByTitle };
 }
 
@@ -139,7 +149,7 @@ async function getDependencies(affectedIds) {
     const snap = await db.collection(name).get();
     out[name] = snap.docs
       .map((doc) => ({ ref: doc.ref, id: doc.id, data: doc.data() || {} }))
-      .filter((row) => affectedIds.has(text(row.data.imageId || row.data.imageID || row.data.contentId)));
+      .filter((row) => affectedIds.has(refId(row.data)));
   }
   const actual = {
     votes: out.votes.length,
@@ -155,11 +165,11 @@ async function getDependencies(affectedIds) {
 
 function chooseLatest(rows, targetId) {
   return [...rows].sort((a, b) => {
-    const ta = timestampMs(a.data.timestamp);
-    const tb = timestampMs(b.data.timestamp);
+    const ta = rowTimestamp(a);
+    const tb = rowTimestamp(b);
     if (tb !== ta) return tb - ta;
-    const aOnTarget = text(a.data.imageId) === targetId ? 1 : 0;
-    const bOnTarget = text(b.data.imageId) === targetId ? 1 : 0;
+    const aOnTarget = refId(a.data) === targetId ? 1 : 0;
+    const bOnTarget = refId(b.data) === targetId ? 1 : 0;
     if (bOnTarget !== aOnTarget) return bOnTarget - aOnTarget;
     return a.id.localeCompare(b.id);
   })[0];
@@ -168,7 +178,7 @@ function chooseLatest(rows, targetId) {
 function buildVotePlan(votes, oldToTarget) {
   const groups = new Map();
   for (const row of votes) {
-    const sourceId = text(row.data.imageId);
+    const sourceId = refId(row.data);
     const targetId = oldToTarget.get(sourceId) || sourceId;
     const userId = text(row.data.userId);
     if (!userId) fail("Affected vote missing userId", { voteId: row.id, sourceId });
@@ -195,83 +205,83 @@ function buildVotePlan(votes, oldToTarget) {
 }
 
 function buildFlagPlan(flags, oldToTarget) {
-  return flags.map((row) => {
-    const oldId = text(row.data.imageId);
+  const pendingGroups = new Map();
+  const retained = [];
+  for (const row of flags) {
+    const oldId = refId(row.data);
     const targetId = oldToTarget.get(oldId) || oldId;
-    return { row, oldId, targetId, needsMove: oldId !== targetId };
-  });
+    const status = normalize(row.data.status);
+    const entry = { row, oldId, targetId, needsMove: oldId !== targetId, status };
+    if (status === "pending") {
+      if (!pendingGroups.has(targetId)) pendingGroups.set(targetId, []);
+      pendingGroups.get(targetId).push(entry);
+    } else {
+      retained.push(entry);
+    }
+  }
+
+  const pendingWinners = [];
+  const pendingLosers = [];
+  for (const [targetId, entries] of pendingGroups.entries()) {
+    const winnerRow = chooseLatest(entries.map((entry) => entry.row), targetId);
+    const winner = entries.find((entry) => entry.row.id === winnerRow.id);
+    pendingWinners.push(winner);
+    entries.filter((entry) => entry.row.id !== winner.row.id).forEach((entry) => pendingLosers.push(entry));
+  }
+  return {
+    retained: [...retained, ...pendingWinners],
+    pendingLosers,
+    pendingConvergenceGroups: [...pendingGroups.values()].filter((entries) => entries.length > 1).length,
+  };
 }
 
 async function writeBackup({ rows, deps, summary }) {
   const root = db.collection("migrationBackups").doc(BACKUP_ID);
   const existing = await root.get();
-  if (existing.exists && existing.data()?.status === "complete") return;
+  if (existing.exists && ["complete", "applied"].includes(existing.data()?.status)) return;
 
-  await root.set({
-    migration: "ATUB to UN full poems",
-    status: "writing",
-    createdAt: FieldValue.serverTimestamp(),
-    summary,
-  }, { merge: true });
-
+  await root.set({ migration: "ATUB to UN full poems", status: "writing", createdAt: FieldValue.serverTimestamp(), summary }, { merge: true });
   const collections = [
-    ["fullPoems", rows],
-    ["votes", deps.votes],
-    ["contentFlags", deps.contentFlags],
-    ["contentClaims", deps.contentClaims],
-    ["contentDuplicates", deps.contentDuplicates],
+    ["fullPoems", rows], ["votes", deps.votes], ["contentFlags", deps.contentFlags],
+    ["contentClaims", deps.contentClaims], ["contentDuplicates", deps.contentDuplicates],
   ];
-
   for (const [name, items] of collections) {
     for (let i = 0; i < items.length; i += 350) {
       const batch = db.batch();
       for (const item of items.slice(i, i + 350)) {
-        batch.set(root.collection(name).doc(item.id), {
-          sourceCollection: name,
-          sourceId: item.id,
-          data: item.data,
-        });
+        batch.set(root.collection(name).doc(item.id), { sourceCollection: name, sourceId: item.id, data: item.data });
       }
       await batch.commit();
     }
   }
-
   await root.set({ status: "complete", completedAt: FieldValue.serverTimestamp() }, { merge: true });
 }
 
 async function applyPlan({ mapping, deps, votePlan, flagPlan, summary }) {
   await writeBackup({ rows: [...mapping.atub, ...mapping.un], deps, summary });
-
   const mutations = [];
+
   for (const entry of votePlan.winners) {
     const row = entry.winner;
-    const currentId = text(row.data.imageId);
+    const currentId = refId(row.data);
     if (currentId !== entry.targetId) {
-      mutations.push({ type: "update", ref: row.ref, data: {
-        imageId: entry.targetId,
-        previousImageId: currentId,
-        atubUnMigratedAt: FieldValue.serverTimestamp(),
-      }});
+      mutations.push({ type: "update", ref: row.ref, data: { imageId: entry.targetId, previousImageId: currentId, atubUnMigratedAt: FieldValue.serverTimestamp() } });
     }
   }
   for (const entry of votePlan.losers) mutations.push({ type: "delete", ref: entry.loser.ref });
 
-  for (const entry of flagPlan) {
+  for (const entry of flagPlan.retained) {
     if (!entry.needsMove) continue;
-    mutations.push({ type: "update", ref: entry.row.ref, data: {
-      imageId: entry.targetId,
-      previousImageId: entry.oldId,
-      atubUnMigratedAt: FieldValue.serverTimestamp(),
-    }});
+    mutations.push({ type: "update", ref: entry.row.ref, data: { imageId: entry.targetId, previousImageId: entry.oldId, atubUnMigratedAt: FieldValue.serverTimestamp() } });
   }
-
+  for (const entry of flagPlan.pendingLosers) mutations.push({ type: "delete", ref: entry.row.ref });
   for (const entry of mapping.mappings) mutations.push({ type: "delete", ref: entry.oldRow.ref });
 
   for (let i = 0; i < mutations.length; i += 350) {
     const batch = db.batch();
     for (const mutation of mutations.slice(i, i + 350)) {
       if (mutation.type === "update") batch.update(mutation.ref, mutation.data);
-      else if (mutation.type === "delete") batch.delete(mutation.ref);
+      else batch.delete(mutation.ref);
     }
     await batch.commit();
   }
@@ -280,30 +290,57 @@ async function applyPlan({ mapping, deps, votePlan, flagPlan, summary }) {
     db.collection("systemState").doc("scoreboardSnapshot").delete().catch(() => null),
     db.collection("systemState").doc("scoreboard").delete().catch(() => null),
   ]);
-
-  await db.collection("migrationBackups").doc(BACKUP_ID).set({
-    appliedAt: FieldValue.serverTimestamp(),
-    appliedSummary: summary,
-    status: "applied",
-  }, { merge: true });
+  await db.collection("migrationBackups").doc(BACKUP_ID).set({ appliedAt: FieldValue.serverTimestamp(), appliedSummary: summary, status: "applied" }, { merge: true });
 }
 
-async function verifyPostState() {
+async function verifyPostState(oldIds, expectedVoteCount) {
   const rows = await getAffectedFullPoems();
   const atub = rows.filter((row) => bookIdentity(row.data) === "ATUB");
   const un = rows.filter((row) => bookIdentity(row.data) === "UN");
-  const oldIds = new Set(atub.map((row) => row.id));
+  const unIds = new Set(un.map((row) => row.id));
   const dangling = {};
   for (const name of DEPENDENT_COLLECTIONS) {
     const snap = await db.collection(name).get();
-    dangling[name] = snap.docs.filter((doc) => oldIds.has(text(doc.data()?.imageId))).length;
+    dangling[name] = snap.docs.filter((doc) => oldIds.has(refId(doc.data() || {}))).length;
   }
-  return { atub: atub.length, un: un.length, dangling };
+
+  const votesSnap = await db.collection("votes").get();
+  const liveVotes = votesSnap.docs
+    .map((doc) => ({ id: doc.id, data: doc.data() || {} }))
+    .filter((row) => unIds.has(refId(row.data)));
+  const voteKeys = new Set();
+  let duplicateVoteKeys = 0;
+  for (const row of liveVotes) {
+    const key = `${refId(row.data)}\u0000${text(row.data.userId)}`;
+    if (voteKeys.has(key)) duplicateVoteKeys += 1;
+    voteKeys.add(key);
+  }
+
+  const flagsSnap = await db.collection("contentFlags").get();
+  const pendingByTarget = new Map();
+  for (const doc of flagsSnap.docs) {
+    const data = doc.data() || {};
+    const imageId = refId(data);
+    if (!unIds.has(imageId) || normalize(data.status) !== "pending") continue;
+    pendingByTarget.set(imageId, (pendingByTarget.get(imageId) || 0) + 1);
+  }
+  const duplicatePendingFlagTargets = [...pendingByTarget.values()].filter((count) => count > 1).length;
+
+  return {
+    atub: atub.length,
+    un: un.length,
+    dangling,
+    liveVotes: liveVotes.length,
+    expectedVoteCount,
+    duplicateVoteKeys,
+    duplicatePendingFlagTargets,
+  };
 }
 
 async function main() {
   const rows = await getAffectedFullPoems();
   const mapping = buildMapping(rows);
+  const oldIds = new Set(mapping.atub.map((row) => row.id));
   const affectedIds = new Set(rows.map((row) => row.id));
   const deps = await getDependencies(affectedIds);
   const oldToTarget = new Map(mapping.mappings.map((entry) => [entry.oldRow.id, entry.target.id]));
@@ -311,7 +348,7 @@ async function main() {
   const flagPlan = buildFlagPlan(deps.contentFlags, oldToTarget);
 
   const originMappings = mapping.mappings.filter((entry) => entry.key === "origin").map((entry) => ({ oldId: entry.oldRow.id, targetId: entry.target.id }));
-  const movedFlags = flagPlan.filter((entry) => entry.needsMove).length;
+  const movedFlags = flagPlan.retained.filter((entry) => entry.needsMove).length;
   const summary = {
     mode: APPLY ? "APPLY" : "DRY_RUN",
     backupId: BACKUP_ID,
@@ -323,7 +360,13 @@ async function main() {
       conflictingReviewerPoemGroups: votePlan.conflictingGroups,
       sameRatingDuplicateGroups: votePlan.sameRatingDuplicateGroups,
     },
-    flags: { before: deps.contentFlags.length, movedFromAtubToUn: movedFlags, retained: deps.contentFlags.length },
+    flags: {
+      before: deps.contentFlags.length,
+      movedFromAtubToUn: movedFlags,
+      pendingConvergenceGroups: flagPlan.pendingConvergenceGroups,
+      redundantPendingFlagsToArchiveAndRemove: flagPlan.pendingLosers.length,
+      finalRetained: flagPlan.retained.length,
+    },
     claims: deps.contentClaims.length,
     duplicates: deps.contentDuplicates.length,
   };
@@ -334,9 +377,15 @@ async function main() {
   }
 
   await applyPlan({ mapping, deps, votePlan, flagPlan, summary });
-
-  const post = await verifyPostState();
-  if (post.atub !== 0 || post.un !== EXPECTED.unFullPoems || Object.values(post.dangling).some((value) => value !== 0)) {
+  const post = await verifyPostState(oldIds, votePlan.winners.length);
+  if (
+    post.atub !== 0 ||
+    post.un !== EXPECTED.unFullPoems ||
+    Object.values(post.dangling).some((value) => value !== 0) ||
+    post.liveVotes !== post.expectedVoteCount ||
+    post.duplicateVoteKeys !== 0 ||
+    post.duplicatePendingFlagTargets !== 0
+  ) {
     fail("Post-migration verification failed", { post, summary });
   }
   console.log(JSON.stringify({ ok: true, ...summary, post }, null, 2));
