@@ -7,6 +7,12 @@ on:
     paths:
       - functions/audit_atub_un_full_poems.js
       - .github/workflows/audit-atub-un-full-poems.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - functions/audit_atub_un_full_poems.js
+      - .github/workflows/audit-atub-un-full-poems.yml
   workflow_dispatch:
 
 permissions:
