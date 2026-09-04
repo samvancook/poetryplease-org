@@ -6,6 +6,7 @@ export const CATALOG_PHASE2_API = "https://button-poetry-catalog-350789123099.us
 export const POETRY_PLEASE_REVIEWER_AUTHORITY = "https://poetryplease.org";
 export const SAFE_PREVIEW_RECONCILIATION_ID = 1;
 export const SAFE_PREVIEW_RESOLUTION_ID = 900001;
+export const LIVE_RECONCILIATION_ID = 2;
 export const CATALOG_SECRET_PROJECT = "button-poetry-catalog";
 export const CATALOG_SECRET_NAMES = Object.freeze({
   read: "catalog-reconciliation-api-key",
@@ -205,14 +206,21 @@ export async function readPhase2Reconciliation(reconciliationId, dependencies = 
     error.status = 502;
     throw error;
   }
+  const fixtureMode = Number(reconciliationId) === SAFE_PREVIEW_RECONCILIATION_ID;
+  const liveMode = Number(reconciliationId) === LIVE_RECONCILIATION_ID;
   return {
-    fixtureMode: Number(reconciliationId) === SAFE_PREVIEW_RECONCILIATION_ID,
-    fixtureLabel: "Catalog guarded write fixture · not editorial data",
-    readOnly: false,
-    writeEnabled: true,
-    safeWritableResolutionId: SAFE_PREVIEW_RESOLUTION_ID,
+    fixtureMode,
+    fixtureLabel: fixtureMode
+      ? "Catalog guarded write fixture · not editorial data"
+      : liveMode
+        ? "Live editorial reconciliation · decisions write to the production Catalog"
+        : "Read-only reconciliation",
+    readOnly: !fixtureMode && !liveMode,
+    writeEnabled: fixtureMode || liveMode,
+    writeScope: liveMode ? "reconciliation" : fixtureMode ? "single_resolution" : "none",
+    safeWritableResolutionId: fixtureMode ? SAFE_PREVIEW_RESOLUTION_ID : null,
     dataSource: {
-      type: "catalog_phase2_production_guarded",
+      type: liveMode ? "catalog_phase2_production_live" : "catalog_phase2_production_guarded",
       catalogAuthority: "Button Poetry Catalog",
       liveCatalogIntegration: true,
       catalogBase: CATALOG_PHASE2_API,
@@ -221,6 +229,22 @@ export async function readPhase2Reconciliation(reconciliationId, dependencies = 
     rows,
     contractGaps: Array.isArray(reconciliation.contractGaps) ? reconciliation.contractGaps : [],
   };
+}
+
+async function assertWritableTarget(reconciliationId, resolutionId, dependencies = {}) {
+  if (isSafePreviewTarget(reconciliationId, resolutionId)) return;
+  if (Number(reconciliationId) !== LIVE_RECONCILIATION_ID) {
+    const error = new Error("guarded_write_target_forbidden");
+    error.status = 403;
+    throw error;
+  }
+  const data = await readPhase2Reconciliation(reconciliationId, dependencies);
+  const belongsToReconciliation = data.rows.some((row) => Number(row?.resolutionId) === Number(resolutionId));
+  if (!belongsToReconciliation) {
+    const error = new Error("resolution_outside_live_reconciliation");
+    error.status = 403;
+    throw error;
+  }
 }
 
 export async function savePhase2Resolution({
@@ -233,11 +257,7 @@ export async function savePhase2Resolution({
   readSecret = accessCatalogSecret,
   signedAt = Math.floor(Date.now() / 1000),
 }) {
-  if (!isSafePreviewTarget(reconciliationId, resolutionId)) {
-    const error = new Error("guarded_write_target_forbidden");
-    error.status = 403;
-    throw error;
-  }
+  await assertWritableTarget(reconciliationId, resolutionId, { fetcher, readSecret });
   const verifiedReviewer = normalizeReviewer({ decoded: reviewer, userRecord: reviewer });
   const cleanPayload = sanitizeDecision(payload);
   const retryKey = normalizeIdempotencyKey(idempotencyKey);
@@ -297,14 +317,13 @@ export function createManuscriptReconciliationPhase2App({ verifyReviewer, fetche
 
   app.get("/healthz", async (_req, res) => {
     try {
-      const data = await readPhase2Reconciliation(SAFE_PREVIEW_RECONCILIATION_ID, { fetcher, readSecret });
-      const fixture = data.rows.find((row) => Number(row?.resolutionId) === SAFE_PREVIEW_RESOLUTION_ID);
+      const data = await readPhase2Reconciliation(LIVE_RECONCILIATION_ID, { fetcher, readSecret });
       res.set("Cache-Control", "no-store").json({
         ok: true,
         catalogBase: CATALOG_PHASE2_API,
         revision: process.env.K_REVISION || null,
-        reconciliationId: SAFE_PREVIEW_RECONCILIATION_ID,
-        safeWritableResolutionId: fixture?.resolutionId || null,
+        reconciliationId: LIVE_RECONCILIATION_ID,
+        writeScope: data.writeScope,
         writeRevision: data.reconciliation?.writeRevision || null,
       });
     } catch (error) {
