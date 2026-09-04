@@ -2,7 +2,7 @@ import express from "express";
 import { createHash, createHmac } from "node:crypto";
 import { GoogleAuth } from "google-auth-library";
 
-export const CATALOG_PHASE2_PREVIEW_API = "https://button-poetry-catalog-phase2-preview-350789123099.us-central1.run.app";
+export const CATALOG_PHASE2_API = "https://button-poetry-catalog-350789123099.us-central1.run.app";
 export const POETRY_PLEASE_REVIEWER_AUTHORITY = "https://poetryplease.org";
 export const SAFE_PREVIEW_RECONCILIATION_ID = 1;
 export const SAFE_PREVIEW_RESOLUTION_ID = 900001;
@@ -180,7 +180,7 @@ export async function accessCatalogSecret(name) {
 
 async function catalogJson(path, { fetcher = fetch, readSecret = accessCatalogSecret } = {}) {
   const credential = await readSecret(CATALOG_SECRET_NAMES.read);
-  const response = await fetcher(`${CATALOG_PHASE2_PREVIEW_API}${path}`, {
+  const response = await fetcher(`${CATALOG_PHASE2_API}${path}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${credential}` },
     signal: AbortSignal.timeout(30000),
   });
@@ -212,10 +212,10 @@ export async function readPhase2Reconciliation(reconciliationId, dependencies = 
     writeEnabled: true,
     safeWritableResolutionId: SAFE_PREVIEW_RESOLUTION_ID,
     dataSource: {
-      type: "catalog_phase2_durable_preview",
+      type: "catalog_phase2_production_guarded",
       catalogAuthority: "Button Poetry Catalog",
       liveCatalogIntegration: true,
-      catalogBase: CATALOG_PHASE2_PREVIEW_API,
+      catalogBase: CATALOG_PHASE2_API,
     },
     reconciliation,
     rows,
@@ -234,7 +234,7 @@ export async function savePhase2Resolution({
   signedAt = Math.floor(Date.now() / 1000),
 }) {
   if (!isSafePreviewTarget(reconciliationId, resolutionId)) {
-    const error = new Error("preview_write_target_forbidden");
+    const error = new Error("guarded_write_target_forbidden");
     error.status = 403;
     throw error;
   }
@@ -256,7 +256,7 @@ export async function savePhase2Resolution({
     writeCredential,
     signatureKey,
   });
-  const response = await fetcher(`${CATALOG_PHASE2_PREVIEW_API}${path}`, {
+  const response = await fetcher(`${CATALOG_PHASE2_API}${path}`, {
     method: "PATCH",
     headers,
     body: bodyBytes,
@@ -301,7 +301,7 @@ export function createManuscriptReconciliationPhase2App({ verifyReviewer, fetche
       const fixture = data.rows.find((row) => Number(row?.resolutionId) === SAFE_PREVIEW_RESOLUTION_ID);
       res.set("Cache-Control", "no-store").json({
         ok: true,
-        catalogBase: CATALOG_PHASE2_PREVIEW_API,
+        catalogBase: CATALOG_PHASE2_API,
         revision: process.env.K_REVISION || null,
         reconciliationId: SAFE_PREVIEW_RECONCILIATION_ID,
         safeWritableResolutionId: fixture?.resolutionId || null,

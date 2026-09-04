@@ -200,7 +200,7 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
       state.retry = { serialized, key: createIdempotencyKey() };
     }
     state.saving = true;
-    state.message = "Saving to the Catalog preview…";
+    state.message = "Saving to the production Catalog…";
     render();
     try {
       const result = await saveDecision({
@@ -243,7 +243,7 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
     const audits = auditSummary(row);
     root.innerHTML = `
       <div class="banner fixture">${esc(data.fixtureLabel)}</div>
-      <div class="banner readonly">Authenticated Phase 2 preview · only guarded fixture resolution ${SAFE_WRITABLE_RESOLUTION_ID} can be saved</div>
+      <div class="banner readonly">Authenticated Phase 2 production · only guarded fixture resolution ${SAFE_WRITABLE_RESOLUTION_ID} can be saved</div>
       <section class="dashboard">
         <p class="eyebrow">Reconciliation ${esc(rec.id)} · revision ${esc(rec.writeRevision)}</p>
         <h1>${esc(available(rec.bookTitle))}</h1>
@@ -273,7 +273,7 @@ export function createApp(root, initialData, authorization, { fetcher = fetch } 
         </main>
         <aside class="panel detail">
           ${row ? `<h2>Decision</h2>
-          ${writable ? "" : '<p class="notice">View only in this isolated preview. Select fixture resolution 900001 to test saving.</p>'}
+          ${writable ? "" : '<p class="notice">View only. Only guarded fixture resolution 900001 can be saved.</p>'}
           <label>Status<select id="review-status" ${writable ? "" : "disabled"}><option value="pending" ${row.status === "pending" ? "selected" : ""}>Needs review</option><option value="approved" ${row.status === "approved" ? "selected" : ""}>Approved</option><option value="rejected" ${row.status === "rejected" ? "selected" : ""}>Rejected</option></select></label>
           <label>Resolution action<select id="resolution-action" ${writable ? "" : "disabled"}>${ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
           <label>Canonical title<input id="canonical-title" value="${esc(currentTitle)}" ${writable ? "" : "disabled"}></label>
