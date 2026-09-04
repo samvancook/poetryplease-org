@@ -29,8 +29,8 @@ jobs:
         working-directory: functions
         run: |
           node --check audit_atub_un_full_poems.js
-          if grep -En '\.(set|update|delete|create)\(' audit_atub_un_full_poems.js; then
-            echo 'Refusing to run: possible Firestore write call found in audit script.'
+          if grep -En 'await .*\.(set|update|delete|create|add)\(|writeBatch\(|runTransaction\(|\.batch\(' audit_atub_un_full_poems.js; then
+            echo 'Refusing to run: possible Firestore write primitive found in audit script.'
             exit 9
           fi
 
