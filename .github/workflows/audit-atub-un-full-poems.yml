@@ -1,0 +1,51 @@
+name: Audit ATUB to UN full poems
+
+on:
+  push:
+    branches:
+      - audit/atub-un-full-poems
+    paths:
+      - functions/audit_atub_un_full_poems.js
+      - .github/workflows/audit-atub-un-full-poems.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install function dependencies
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
+      - name: Write service account key
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/gcloud-key.json"
+
+      - name: Run read-only full-poem audit
+        working-directory: functions
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+        run: node audit_atub_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-full-poems-audit.json"
+
+      - name: Upload audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atub-un-full-poems-audit
+          path: ${{ runner.temp }}/atub-un-full-poems-audit.json
+          if-no-files-found: error
+          retention-days: 7
