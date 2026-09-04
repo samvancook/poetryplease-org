@@ -10,6 +10,7 @@ const NEEDLES = [
   "all the ugly bits",
   "ayanna florence",
 ];
+const DEPENDENT_COLLECTIONS = ["votes", "contentFlags", "contentClaims", "contentDuplicates"];
 
 function text(value) {
   return String(value ?? "").trim();
@@ -90,6 +91,38 @@ for (const doc of snap.docs) {
 
 matches.sort((a, b) => a.normalizedTitle.localeCompare(b.normalizedTitle) || a.id.localeCompare(b.id));
 
+const affectedRows = matches.filter((row) => row.bookIdentity === "ATUB" || row.bookIdentity === "UN");
+const affectedIds = new Set(affectedRows.map((row) => row.id));
+const dependentReferences = {};
+
+for (const collectionName of DEPENDENT_COLLECTIONS) {
+  const depSnap = await db.collection(collectionName).get();
+  const countsByImageId = {};
+  const voteTypesByImageId = {};
+  let affectedReferenceCount = 0;
+
+  for (const doc of depSnap.docs) {
+    const data = doc.data() || {};
+    const imageId = text(data.imageId || data.imageID || data.contentId);
+    if (!affectedIds.has(imageId)) continue;
+    affectedReferenceCount += 1;
+    countsByImageId[imageId] = (countsByImageId[imageId] || 0) + 1;
+    if (collectionName === "votes") {
+      const voteType = text(data.voteType).toLowerCase() || "(blank)";
+      voteTypesByImageId[imageId] ||= {};
+      voteTypesByImageId[imageId][voteType] = (voteTypesByImageId[imageId][voteType] || 0) + 1;
+    }
+  }
+
+  dependentReferences[collectionName] = {
+    scanned: depSnap.size,
+    affectedReferenceCount,
+    affectedRecordIds: Object.keys(countsByImageId).length,
+    countsByImageId,
+    ...(collectionName === "votes" ? { voteTypesByImageId } : {}),
+  };
+}
+
 const byTitle = new Map();
 for (const row of matches) {
   const key = row.normalizedTitle || `__missing_title__:${row.id}`;
@@ -109,10 +142,18 @@ const summary = {
   collection: "fullPoems",
   scanned: snap.size,
   matched: matches.length,
+  affectedAyannaRecords: affectedRows.length,
+  affectedByBook: affectedRows.reduce((out, row) => {
+    out[row.bookIdentity] = (out[row.bookIdentity] || 0) + 1;
+    return out;
+  }, {}),
   duplicateTitleGroups: duplicateTitleGroups.length,
   exactNeedles: NEEDLES,
+  dependentReferenceTotals: Object.fromEntries(
+    Object.entries(dependentReferences).map(([name, value]) => [name, value.affectedReferenceCount])
+  ),
   generatedAt: new Date().toISOString(),
   mode: "READ_ONLY_NO_WRITES",
 };
 
-console.log(JSON.stringify({ summary, duplicateTitleGroups, matches }, null, 2));
+console.log(JSON.stringify({ summary, duplicateTitleGroups, dependentReferences, matches }, null, 2));
