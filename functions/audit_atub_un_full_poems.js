@@ -37,13 +37,27 @@ function scoreState(data) {
   for (const key of wanted) if (data?.[key] !== undefined) out[key] = serialize(data[key]);
   return out;
 }
+function provenance(data) {
+  return {
+    contentTextLength: text(data.contentText).length,
+    manuscriptSourceTextSha256: text(data.manuscriptSourceTextSha256),
+    manuscriptSourceFileId: text(data.manuscriptSourceFileId),
+    manuscriptSourceFileName: text(data.manuscriptSourceFileName),
+    manuscriptPageLabel: text(data.manuscriptPageLabel),
+    manuscriptPageNumber: data.manuscriptPageNumber ?? null,
+    driveTextImageId: text(data.driveTextImageId),
+    sourceFileId: text(data.sourceFileId),
+    sourceFileName: text(data.sourceFileName),
+    originalId: text(data.originalId),
+  };
+}
 
 const snap = await db.collection("fullPoems").get();
 const matches = [];
 for (const doc of snap.docs) {
   const data = doc.data() || {};
   if (!candidate(data)) continue;
-  matches.push({ id: doc.id, poemTitle: poemTitle(data), normalizedTitle: normalize(poemTitle(data)), bookIdentity: bookIdentity(data), author: author(data), state: scoreState(data), fields: Object.keys(data).sort(), data: serialize(data) });
+  matches.push({ id: doc.id, poemTitle: poemTitle(data), normalizedTitle: normalize(poemTitle(data)), bookIdentity: bookIdentity(data), author: author(data), state: scoreState(data), fields: Object.keys(data).sort(), provenance: provenance(data) });
 }
 matches.sort((a, b) => a.normalizedTitle.localeCompare(b.normalizedTitle) || a.id.localeCompare(b.id));
 
@@ -83,7 +97,11 @@ for (const row of affectedRows) {
   if (!byTitle.has(key)) byTitle.set(key, []);
   byTitle.get(key).push(row);
 }
-const duplicateTitleGroups = [...byTitle.entries()].filter(([, rows]) => rows.length > 1).map(([normalizedTitle, rows]) => ({ normalizedTitle, count: rows.length, records: rows.map(({ id, poemTitle, bookIdentity, author, state }) => ({ id, poemTitle, bookIdentity, author, state })) }));
+const duplicateTitleGroups = [...byTitle.entries()].filter(([, rows]) => rows.length > 1).map(([normalizedTitle, rows]) => ({
+  normalizedTitle,
+  count: rows.length,
+  records: rows.map(({ id, poemTitle, bookIdentity, author, state, provenance }) => ({ id, poemTitle, bookIdentity, author, state, provenance }))
+}));
 
 const idToTitle = new Map(affectedRows.map((row) => [row.id, row.normalizedTitle]));
 const idToBook = new Map(affectedRows.map((row) => [row.id, row.bookIdentity]));
