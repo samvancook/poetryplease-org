@@ -1,21 +1,16 @@
-name: Deploy to Firebase
-
-concurrency:
-  group: firebase-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+name: Audit ATUB to UN full poems
 
 on:
   push:
     branches:
-      - main
-      - '**'        # run on every branch push (for previews)
-  pull_request:
-    branches:
-      - '**'        # run on PRs too
-  workflow_dispatch:  # allow manual runs from the Actions tab
-  
+      - audit/atub-un-full-poems
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
-  test_functions:
+  audit_full_poems:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -30,262 +25,33 @@ jobs:
         working-directory: functions
         run: npm install --no-audit --no-fund
 
-      - name: Validate function modules
+      - name: Verify audit script is read-only
         working-directory: functions
         run: |
-          node --check index.js
-          node --check import-jobs.js
-          node --check manuscript-reconciliation-phase2.js
-
-      - name: Run function tests
-        working-directory: functions
-        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js
-
-      - name: Setup Java for Firebase emulators
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "21"
-
-      - name: Install Firebase CLI for emulator tests
-        run: npm install --global firebase-tools
-
-      - name: Write synthetic emulator secret overrides
-        working-directory: functions
-        run: printf "%s\\n" "POETRY_PLEASE_API_KEY=emulator-only" "PIG_POETRY_PLEASE_API_KEY=emulator-only" > .secret.local
-
-      - name: Run isolated authorization emulator integration test
-        env:
-          GCLOUD_PROJECT: demo-poetry-please
-          FIREBASE_CONFIG: '{"projectId":"demo-poetry-please"}'
-        run: firebase emulators:exec --project demo-poetry-please --only auth,firestore,functions "node --test functions/manuscript-reconciliation.emulator.test.js"
-
-  deploy:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Determine changed areas
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            functions:
-              - 'functions/**'
-              - '.github/workflows/firebase.yml'
-            hosting:
-              - 'public/**'
-              - 'firebase.json'
-              - '.firebaserc'
-              - 'index.html'
-              - 'mobile.html'
-              - 'detect.html'
-              - 'app.js'
-              - 'styles.css'
-
-      - name: Debug paths-filter outputs
-        run: |
-          echo "functions changed? -> ${{ steps.changes.outputs.functions }}"
-          echo "hosting   changed? -> ${{ steps.changes.outputs.hosting }}"
-          echo "Changed files vs previous commit:"
-          git --no-pager diff --name-only HEAD~1 HEAD || true
-
-      - name: Show repo tree (top level)
-        run: ls -la
-
-      - name: Print firebase.json and .firebaserc if present
-        run: |
-          test -f firebase.json && echo "=== firebase.json ===" && cat firebase.json || echo "firebase.json NOT FOUND"
-          test -f .firebaserc  && echo "=== .firebaserc  ===" && cat .firebaserc  || echo ".firebaserc NOT FOUND"
-
-      - name: Functions deps (if functions/ changed)
-        if: steps.changes.outputs.functions == 'true'
-        run: |
-          echo "Installing functions deps…"
-          cd functions
-          if [ -f package.json ]; then
-            npm install --no-audit --no-fund
-          else
-            echo "functions/package.json NOT FOUND"; exit 2
+          node --check audit_atub_un_full_poems.js
+          if grep -En '\.(set|update|delete|create)\(' audit_atub_un_full_poems.js; then
+            echo 'Refusing to run: possible Firestore write call found in audit script.'
+            exit 9
           fi
-
-      - name: Install Firebase CLI
-        run: npm i -g firebase-tools
 
       - name: Write service account key
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
         run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "Secret FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE is EMPTY or missing"; exit 3
-          fi
-          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
-          echo "Key written to $RUNNER_TEMP/gcloud-key.json"
-
-      - name: Verify production API-key secrets
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
           set -euo pipefail
-          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
-          gcloud config set project poetry-please --quiet
-          for secret in POETRY_PLEASE_API_KEY PIG_POETRY_PLEASE_API_KEY; do
-            gcloud secrets describe "$secret" --project poetry-please >/dev/null
-            test -n "$(gcloud secrets versions list "$secret" --project poetry-please --filter='state=ENABLED' --format='value(name)' --limit=1)"
-          done
-          echo "Required Poetry Please secret bindings are present."
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/gcloud-key.json"
 
-      - name: Firebase whoami / projects (sanity)
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          firebase --version
-          firebase projects:list --json || true
-          firebase use poetry-please || true
-
-      - name: Deploy Hosting (debug)
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          if [ -f firebase.json ]; then
-            echo "Deploying HOSTING…"
-            firebase --project poetry-please deploy --only hosting:poetryplease-org --debug
-          else
-            echo "Skipping hosting: firebase.json missing"; exit 4
-          fi
-
-      - name: Deploy Functions (debug)
-        if: steps.changes.outputs.functions == 'true'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          echo "Deploying FUNCTIONS…"
-          firebase --project poetry-please deploy --only functions --debug
-
-      - name: Authenticated internal API smoke tests
-        if: steps.changes.outputs.functions == 'true'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          set -euo pipefail
-          poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
-          pig_key="$(gcloud secrets versions access latest --secret=PIG_POETRY_PLEASE_API_KEY --project poetry-please)"
-          trap 'unset poetry_key pig_key' EXIT
-          curl --fail --silent --show-error --retry 6 --retry-delay 10             -H "x-api-key: $poetry_key"             "https://poetryplease.org/api/internal/repairRequests?status=requested" >/dev/null
-          curl --fail --silent --show-error --retry 6 --retry-delay 10             -H "x-api-key: $pig_key"             "https://poetryplease.org/api/internal/coverageCounts?lane=INT_FPI" >/dev/null
-          echo "Authenticated Poetry Please smoke tests passed."
-
-
-      - name: Apply safe P.I.G. ID hygiene migration
-        if: steps.changes.outputs.functions == 'true' && contains(github.event.head_commit.message, '[apply-pig-hygiene]')
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          set -euo pipefail
-          poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
-          trap 'unset poetry_key' EXIT
-          curl --fail --silent --show-error --retry 6 --retry-delay 10 \
-            -X POST \
-            -H "x-api-key: $poetry_key" \
-            "https://poetryplease.org/api/internal/idHygiene/applyPig"
-          echo
-          echo "Safe P.I.G. ID hygiene migration completed."
-
-
-  # ------------------------------------------------------------
-  # DEPLOY PREVIEW CHANNEL for non-main branches
-  # ------------------------------------------------------------
-  deploy_preview:
-    if: github.ref != 'refs/heads/main'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install preview function dependencies
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
+      - name: Run read-only production full-poem audit
         working-directory: functions
-        run: npm install --no-audit --no-fund
-
-      - name: Install Firebase CLI
-        run: npm i -g firebase-tools
-
-      - name: Write service account key
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
-        run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "Secret FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE is EMPTY or missing"; exit 3
-          fi
-          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
-          echo "Key written to $RUNNER_TEMP/gcloud-key.json"
-
-      - name: Verify the isolated Phase 2 runtime identity exists
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          set -euo pipefail
-          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
-          runtime_sa="manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
-          gcloud iam service-accounts describe "$runtime_sa" --project poetry-please --format='value(email)'
-          echo "Runtime identity exists."
+        run: node audit_atub_un_full_poems.js | tee "$RUNNER_TEMP/atub-un-full-poems-audit.json"
 
-      - name: Deploy isolated manuscript reconciliation preview function
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          firebase --project poetry-please deploy --only functions:manuscriptreconciliationphase2preview
-          deployed_sa="$(gcloud functions describe manuscriptreconciliationphase2preview --gen2 --project poetry-please --region us-central1 --format='value(serviceConfig.serviceAccountEmail)')"
-          test "$deployed_sa" = "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com"
-          echo "Verified the deployed function uses the isolated runtime identity."
-
-      - name: Allow HTTPS invocation of only the isolated preview function
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          set -euo pipefail
-          gcloud run services add-iam-policy-binding manuscriptreconciliationphase2preview --project poetry-please --region us-central1 --member=allUsers --role=roles/run.invoker --quiet
-          invoker="$(gcloud run services get-iam-policy manuscriptreconciliationphase2preview --project poetry-please --region us-central1 --flatten='bindings[].members' --filter='bindings.role=roles/run.invoker AND bindings.members=allUsers' --format='value(bindings.members)')"
-          test "$invoker" = "allUsers"
-          echo "Verified public HTTPS invocation for the isolated preview function; application routes still enforce Firebase team/admin authorization."
-
-      - name: Verify canonical Catalog integration through preview function
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        run: |
-          response_file="$RUNNER_TEMP/manuscript-phase2-health.json"
-          status="$(curl --silent --show-error --retry 3 --retry-all-errors --retry-delay 5 --output "$response_file" --write-out '%{http_code}' \
-            "https://us-central1-poetry-please.cloudfunctions.net/manuscriptreconciliationphase2preview/healthz")"
-          node -e 'const fs=require("fs"); const status=Number(process.argv[1]); const raw=fs.readFileSync(process.argv[2],"utf8"); let p={}; let responseType="json"; try{p=JSON.parse(raw)}catch{responseType="non_json"} const clean=(v)=>typeof v==="string"?v.slice(0,240):null; console.log(JSON.stringify({httpStatus:status,responseType,error:clean(p.error),message:clean(p.message)})); if(status!==200||p.ok!==true||p.catalogBase!=="https://button-poetry-catalog-phase2-preview-350789123099.us-central1.run.app"||typeof p.revision!=="string"||!p.revision.startsWith("manuscriptreconciliationphase2preview-")||p.reconciliationId!==1||p.safeWritableResolutionId!==900001||!Number.isInteger(p.writeRevision)) process.exit(1); console.log(JSON.stringify({ok:p.ok,catalogBase:p.catalogBase,revision:p.revision,reconciliationId:p.reconciliationId,safeWritableResolutionId:p.safeWritableResolutionId,writeRevision:p.writeRevision}))' "$status" "$response_file"
-
-      - name: Route only the isolated Hosting channel to the Phase 2 function
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        run: |
-          node -e 'const fs=require("fs"); const path="firebase.json"; const config=JSON.parse(fs.readFileSync(path,"utf8")); const rule=config.hosting.rewrites.find((item)=>item.source==="/api/admin/manuscriptReconciliations/**"); if(rule?.function?.functionId!=="manuscriptreconciliationpreview") process.exit(2); rule.function.functionId="manuscriptreconciliationphase2preview"; fs.writeFileSync(path,JSON.stringify(config,null,2)+"\n");'
-
-      - name: Deploy Hosting Preview (branch channel)
-        if: github.event_name == 'push'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
-        run: |
-          BRANCH="${{ github.ref_name }}"
-          CHANNEL=$(echo "$BRANCH" | tr '/_' '-' | tr -cd '[:alnum:]-' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-40)
-          if [ -z "$CHANNEL" ]; then
-            echo "Could not derive a valid preview channel from branch: $BRANCH"; exit 5
-          fi
-          echo "Deploying preview channel: $CHANNEL"
-          firebase hosting:channel:deploy "$CHANNEL" --project poetry-please --expires 7d
+      - name: Upload audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atub-un-full-poems-audit
+          path: ${{ runner.temp }}/atub-un-full-poems-audit.json
+          if-no-files-found: error
+          retention-days: 7
