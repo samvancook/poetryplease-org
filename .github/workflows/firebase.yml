@@ -63,6 +63,9 @@ jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -119,22 +122,26 @@ jobs:
       - name: Install Firebase CLI
         run: npm i -g firebase-tools
 
-      - name: Write service account key
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
-        run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "Secret FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE is EMPTY or missing"; exit 3
-          fi
-          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
-          echo "Key written to $RUNNER_TEMP/gcloud-key.json"
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/609992589187/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+          create_credentials_file: true
 
-      - name: Verify production API-key secrets
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
+      - name: Verify keyless deployment identity
         run: |
           set -euo pipefail
-          gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
+          test -n "${GOOGLE_APPLICATION_CREDENTIALS:-}"
+          test ! -f "$RUNNER_TEMP/gcloud-key.json"
+          node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,"utf8")); if(p.type!=="external_account") process.exit(1); if(!String(p.service_account_impersonation_url||"").includes("/serviceAccounts/firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com:generateAccessToken")) process.exit(1);'
+          gcloud auth print-access-token >/dev/null
+          echo "Verified keyless GitHub OIDC authentication."
+
+
+      - name: Verify production API-key secrets
+        run: |
+          set -euo pipefail
           gcloud config set project poetry-please --quiet
           for secret in POETRY_PLEASE_API_KEY PIG_POETRY_PLEASE_API_KEY; do
             gcloud secrets describe "$secret" --project poetry-please >/dev/null
@@ -143,16 +150,12 @@ jobs:
           echo "Required Poetry Please secret bindings are present."
 
       - name: Firebase whoami / projects (sanity)
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           firebase --version
           firebase projects:list --json || true
           firebase use poetry-please || true
 
       - name: Deploy Hosting (debug)
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           if [ -f firebase.json ]; then
             echo "Deploying HOSTING…"
@@ -163,16 +166,12 @@ jobs:
 
       - name: Deploy Functions (debug)
         if: steps.changes.outputs.functions == 'true'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           echo "Deploying FUNCTIONS…"
           firebase --project poetry-please deploy --only functions --debug
 
       - name: Authenticated internal API smoke tests
         if: steps.changes.outputs.functions == 'true'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           set -euo pipefail
           poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
@@ -185,8 +184,6 @@ jobs:
 
       - name: Apply safe P.I.G. ID hygiene migration
         if: steps.changes.outputs.functions == 'true' && contains(github.event.head_commit.message, '[apply-pig-hygiene]')
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           set -euo pipefail
           poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
@@ -203,8 +200,11 @@ jobs:
   # DEPLOY PREVIEW CHANNEL for non-main branches
   # ------------------------------------------------------------
   deploy_preview:
-    if: github.ref != 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -222,20 +222,25 @@ jobs:
       - name: Install Firebase CLI
         run: npm i -g firebase-tools
 
-      - name: Write service account key
-        env:
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/609992589187/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+          create_credentials_file: true
+
+      - name: Verify keyless deployment identity
         run: |
-          if [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
-            echo "Secret FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE is EMPTY or missing"; exit 3
-          fi
-          echo "$FIREBASE_SERVICE_ACCOUNT_JSON" > $RUNNER_TEMP/gcloud-key.json
-          echo "Key written to $RUNNER_TEMP/gcloud-key.json"
+          set -euo pipefail
+          test -n "${GOOGLE_APPLICATION_CREDENTIALS:-}"
+          test ! -f "$RUNNER_TEMP/gcloud-key.json"
+          node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,"utf8")); if(p.type!=="external_account") process.exit(1); if(!String(p.service_account_impersonation_url||"").includes("/serviceAccounts/firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com:generateAccessToken")) process.exit(1);'
+          gcloud auth print-access-token >/dev/null
+          echo "Verified keyless GitHub OIDC authentication."
+
 
       - name: Verify the isolated Phase 2 runtime identity exists
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           set -euo pipefail
           gcloud auth activate-service-account --key-file="$GOOGLE_APPLICATION_CREDENTIALS" --quiet
@@ -245,8 +250,6 @@ jobs:
 
       - name: Deploy isolated manuscript reconciliation preview function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           firebase --project poetry-please deploy --only functions:manuscriptreconciliationphase2preview
           deployed_sa="$(gcloud functions describe manuscriptreconciliationphase2preview --gen2 --project poetry-please --region us-central1 --format='value(serviceConfig.serviceAccountEmail)')"
@@ -255,8 +258,6 @@ jobs:
 
       - name: Allow HTTPS invocation of only the isolated preview function
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/pp-20260901-manuscript-reconciliation-phase-2'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           set -euo pipefail
           gcloud run services add-iam-policy-binding manuscriptreconciliationphase2preview --project poetry-please --region us-central1 --member=allUsers --role=roles/run.invoker --quiet
@@ -279,8 +280,6 @@ jobs:
 
       - name: Deploy Hosting Preview (branch channel)
         if: github.event_name == 'push'
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcloud-key.json
         run: |
           BRANCH="${{ github.ref_name }}"
           CHANNEL=$(echo "$BRANCH" | tr '/_' '-' | tr -cd '[:alnum:]-' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//' | cut -c1-40)
