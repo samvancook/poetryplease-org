@@ -15,6 +15,59 @@ on:
   workflow_dispatch:  # allow manual runs from the Actions tab
   
 jobs:
+  bootstrap_keyless_auth:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/keyless-gcp-auth'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authenticate once with the existing deploy key
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_POETRY_PLEASE }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          credentials="$RUNNER_TEMP/gcloud-key.json"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$credentials"
+          gcloud auth activate-service-account --key-file="$credentials" --quiet
+          gcloud config set project poetry-please --quiet
+
+      - name: Create restricted GitHub OIDC federation
+        run: |
+          set -euo pipefail
+          project_id="poetry-please"
+          expected_project_number="609992589187"
+          pool_id="github-actions"
+          provider_id="github"
+          deploy_service_account="firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com"
+          project_number="$(gcloud projects describe "$project_id" --format='value(projectNumber)')"
+          test "$project_number" = "$expected_project_number"
+          gcloud services enable iamcredentials.googleapis.com sts.googleapis.com --project "$project_id" --quiet
+          if ! gcloud iam workload-identity-pools describe "$pool_id" --project "$project_id" --location global >/dev/null 2>&1; then
+            gcloud iam workload-identity-pools create "$pool_id" --project "$project_id" --location global --display-name="GitHub Actions" --description="Keyless GitHub Actions authentication for samvancook/poetryplease-org" --quiet
+          fi
+          if ! gcloud iam workload-identity-pools providers describe "$provider_id" --project "$project_id" --location global --workload-identity-pool "$pool_id" >/dev/null 2>&1; then
+            gcloud iam workload-identity-pools providers create-oidc "$provider_id" \
+              --project "$project_id" \
+              --location global \
+              --workload-identity-pool "$pool_id" \
+              --display-name="poetryplease-org GitHub" \
+              --issuer-uri="https://token.actions.githubusercontent.com" \
+              --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository,attribute.ref=assertion.ref,attribute.workflow_ref=assertion.workflow_ref" \
+              --attribute-condition="assertion.repository=='samvancook/poetryplease-org' && assertion.workflow_ref.startsWith('samvancook/poetryplease-org/.github/workflows/firebase.yml@')" \
+              --quiet
+          fi
+          principal="principalSet://iam.googleapis.com/projects/$project_number/locations/global/workloadIdentityPools/$pool_id/attribute.repository/samvancook/poetryplease-org"
+          gcloud iam service-accounts add-iam-policy-binding "$deploy_service_account" \
+            --project "$project_id" \
+            --role="roles/iam.workloadIdentityUser" \
+            --member="$principal" \
+            --quiet
+          gcloud iam workload-identity-pools providers describe "$provider_id" \
+            --project "$project_id" \
+            --location global \
+            --workload-identity-pool "$pool_id" \
+            --format='yaml(name,state,attributeMapping,attributeCondition)'
+          echo "Keyless GitHub OIDC federation is ready."
+
   test_functions:
     runs-on: ubuntu-latest
     steps:
