@@ -134,8 +134,7 @@ jobs:
           set -euo pipefail
           test -n "${GOOGLE_APPLICATION_CREDENTIALS:-}"
           test ! -f "$RUNNER_TEMP/gcloud-key.json"
-          active_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
-          test "$active_account" = "firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com"
+          node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,"utf8")); if(p.type!=="external_account") process.exit(1); if(!String(p.service_account_impersonation_url||"").includes("/serviceAccounts/firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com:generateAccessToken")) process.exit(1);'
           gcloud auth print-access-token >/dev/null
           echo "Verified keyless GitHub OIDC authentication."
 
@@ -235,8 +234,7 @@ jobs:
           set -euo pipefail
           test -n "${GOOGLE_APPLICATION_CREDENTIALS:-}"
           test ! -f "$RUNNER_TEMP/gcloud-key.json"
-          active_account="$(gcloud auth list --filter=status:ACTIVE --format='value(account)')"
-          test "$active_account" = "firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com"
+          node -e 'const fs=require("fs"); const p=JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS,"utf8")); if(p.type!=="external_account") process.exit(1); if(!String(p.service_account_impersonation_url||"").includes("/serviceAccounts/firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com:generateAccessToken")) process.exit(1);'
           gcloud auth print-access-token >/dev/null
           echo "Verified keyless GitHub OIDC authentication."
 
