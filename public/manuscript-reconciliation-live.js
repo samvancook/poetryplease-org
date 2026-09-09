@@ -77,8 +77,8 @@ async function authorize() {
   return { token, profile };
 }
 
-export async function load(token) {
-  const response = await fetch(API, { headers: { Authorization: `Bearer ${token}` } });
+export async function load(token, fetcher = fetch) {
+  const response = await fetcher(API, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) throw Error(`Catalog reconciliation request failed with HTTP ${response.status}.`);
   const payload = await response.json();
   if (payload.writeEnabled !== true || payload.readOnly !== false || payload.writeScope !== "reconciliation" || Number(payload.reconciliation?.id) !== RECONCILIATION_ID || !Array.isArray(payload.rows)) {
