@@ -24,6 +24,10 @@ import {
   rowMatchesSearch,
   saveDecision,
 } from "../public/manuscript-reconciliation-phase2-preview.js";
+import {
+  candidateSourceMatches,
+  reloadIfCandidateChanged,
+} from "../public/manuscript-reconciliation-live.js";
 
 const reviewer = { uid: "firebase-uid-1", email: "Reviewer@ButtonPoetry.com", roles: ["team", "admin"] };
 const decision = {
@@ -289,4 +293,43 @@ test("Phase 2 mapper preserves authoritative sourcePoemId values for form select
 test("Phase 2 mapper rejects read-only or wrong-fixture payloads", () => {
   assert.throws(() => mapPhase2Payload({ readOnly: true, writeEnabled: false }), /Unsupported/);
   assert.throws(() => mapPhase2Payload({ readOnly: false, writeEnabled: true, reconciliation: {}, rows: [], safeWritableResolutionId: 3 }), /fixture is unavailable/);
+});
+test("candidate guard reloads and prevents a write when the reviewed source changed", async () => {
+  const calls = [];
+  const current = {
+    writeEnabled: true,
+    readOnly: false,
+    writeScope: "reconciliation",
+    reconciliation: { id: 2, writeRevision: 8 },
+    rows: [{ resolutionId: 42, candidate: { sourcePoemId: 102 } }],
+  };
+  const reload = await reloadIfCandidateChanged(
+    "firebase-token",
+    { resolutionId: 42, candidate: { id: 101 } },
+    async (url, options = {}) => {
+      calls.push({ url, options });
+      return new Response(JSON.stringify(current), { status: 200, headers: { "Content-Type": "application/json" } });
+    },
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.method, undefined);
+  assert.equal(reload.rows[0].candidate.id, 102);
+  assert.equal(candidateSourceMatches({ candidate: { id: 101 } }, reload.rows[0]), false);
+});
+
+test("candidate guard permits the same candidate source and fails closed on malformed source data", async () => {
+  const current = {
+    writeEnabled: true,
+    readOnly: false,
+    writeScope: "reconciliation",
+    reconciliation: { id: 2, writeRevision: 8 },
+    rows: [{ resolutionId: 42, candidate: { id: 101 } }],
+  };
+  const reload = await reloadIfCandidateChanged(
+    "firebase-token",
+    { resolutionId: 42, candidate: { sourcePoemId: 101 } },
+    async () => new Response(JSON.stringify(current), { status: 200, headers: { "Content-Type": "application/json" } }),
+  );
+  assert.equal(reload, null);
+  assert.equal(candidateSourceMatches({ candidate: { id: "not-an-id" } }, current.rows[0]), false);
 });

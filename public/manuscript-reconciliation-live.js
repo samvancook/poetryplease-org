@@ -46,6 +46,18 @@ const needsNotes = (row, decision) => {
 };
 const idempotencyKey = () => crypto.randomUUID?.() || [...crypto.getRandomValues(new Uint8Array(16))].map((v) => v.toString(16).padStart(2, "0")).join("");
 
+export const candidateSourceKey = (row) => {
+  if (!row || typeof row !== "object") return null;
+  if (row.candidate === null || row.candidate === undefined) return "none";
+  const candidateId = Number(row.candidate.id ?? row.candidate.sourcePoemId);
+  return Number.isInteger(candidateId) ? `source:${candidateId}` : null;
+};
+export const candidateSourceMatches = (reviewedRow, authoritativeRow) => {
+  const reviewed = candidateSourceKey(reviewedRow);
+  const authoritative = candidateSourceKey(authoritativeRow);
+  return reviewed !== null && authoritative !== null && reviewed === authoritative;
+};
+
 async function authorize() {
   if (!firebase.apps?.length) {
     const configResponse = await fetch("/__/firebase/init.json", { cache: "no-store" });
@@ -65,14 +77,20 @@ async function authorize() {
   return { token, profile };
 }
 
-async function load(token) {
-  const response = await fetch(API, { headers: { Authorization: `Bearer ${token}` } });
+export async function load(token, fetcher = fetch) {
+  const response = await fetcher(API, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) throw Error(`Catalog reconciliation request failed with HTTP ${response.status}.`);
   const payload = await response.json();
   if (payload.writeEnabled !== true || payload.readOnly !== false || payload.writeScope !== "reconciliation" || Number(payload.reconciliation?.id) !== RECONCILIATION_ID || !Array.isArray(payload.rows)) {
     throw Error("Live reconciliation write scope is not available.");
   }
   return { ...payload, rows: payload.rows.map(withSourceIds) };
+}
+
+export async function reloadIfCandidateChanged(token, reviewedRow, fetcher = fetch) {
+  const authoritativeData = await load(token, fetcher);
+  const authoritativeRow = authoritativeData.rows.find((row) => Number(row.resolutionId) === Number(reviewedRow?.resolutionId));
+  return authoritativeRow && candidateSourceMatches(reviewedRow, authoritativeRow) ? null : authoritativeData;
 }
 
 async function saveResolution(token, resolutionId, decision, key) {
@@ -139,7 +157,16 @@ function createApp(root, initialData, auth) {
     saving = true;
     message = "Saving to the production Catalog…";
     render();
+    let writeStarted = false;
     try {
+      const authoritativeData = await reloadIfCandidateChanged(auth.token, row);
+      if (authoritativeData) {
+        data = authoritativeData;
+        message = "The candidate source changed. Authoritative data was reloaded; review before saving again.";
+        retry = null;
+        return;
+      }
+      writeStarted = true;
       const result = await saveResolution(auth.token, row.resolutionId, decision, retry.key);
       const index = data.rows.findIndex((item) => Number(item.resolutionId) === Number(row.resolutionId));
       data.rows[index] = withSourceIds(result.authoritativeResolution);
@@ -148,7 +175,9 @@ function createApp(root, initialData, auth) {
       retry = null;
       if (advance) selectedId = nextRowId(visibleRows(), row.resolutionId);
     } catch (error) {
-      if (error.status === 409 && error.payload?.error === "stale_reconciliation_revision") {
+      if (!writeStarted) {
+        message = `Candidate check failed: ${error.message} No decision was saved.`;
+      } else if (error.status === 409 && error.payload?.error === "stale_reconciliation_revision") {
         await reload("A newer Catalog revision exists. Authoritative data was reloaded; review before saving again.");
       } else {
         message = `Save failed: ${error.message} You can retry without creating a duplicate decision.`;
@@ -226,4 +255,4 @@ async function boot() {
   }
 }
 
-boot();
+if (typeof document !== "undefined") boot();
