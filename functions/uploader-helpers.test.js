@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   approvedQiLibrarySourceRows,
   buildQiLibraryWritebackValues,
@@ -431,3 +432,21 @@ test("public image verification falls back to detected bytes for generic object 
   assert.equal(verifiedImageContentType("image/jpeg; charset=binary", "image/png"), "image/jpeg");
   assert.equal(verifiedImageContentType("application/octet-stream", ""), "application/octet-stream"); }); test("explicitly confirmed no-poem QI uses the source filename stem and remains approval-gated", () => { const cells = Array(33).fill(""); cells[0] = "2025"; cells[4] = "Book Specific Quote Graphic - AEO 1.png"; cells[6] = "drive-no-poem"; cells[11] = "an everyday occurrence"; cells[12] = "Fall 2025"; cells[15] = "Hailey Tran"; cells[16] = "AEO"; cells[20] = "ready_for_poetry_please_ingestion"; cells[26] = "user_confirmed_no_poem_qi_uploaded"; cells[27] = "author_qi_book_confirmed_no_poem"; const selected = selectQiLibraryYearRows([[], cells], { year: "2025", approvedSourceRows: new Set([2]) }); assert.equal(selected.remainingCount, 1); assert.equal(selected.rows[0].title, "Book Specific Quote Graphic - AEO 1"); cells[27] = ""; const blocked = selectQiLibraryYearRows([[], cells], { year: "2025", approvedSourceRows: new Set([2]) }); assert.equal(blocked.remainingCount, 0); assert.equal(blocked.reviewRows[0].error, "missing_qi_library_content_id");
 });
+
+test("verified Book Info product links are present in the Poetry Please lookup", () => {
+  const catalog = JSON.parse(
+    readFileSync(new URL("./book-catalog-lookup.json", import.meta.url), "utf8")
+  );
+  const linksByTitle = new Map(catalog.map((book) => [book.title, book.bookLink]));
+
+  assert.equal(linksByTitle.get("Roads"), "https://buttonpoetry.com/product/roads/");
+  assert.equal(
+    linksByTitle.get("Living at Baggage Claim"),
+    "https://buttonpoetry.com/product/living-at-baggage-claim/"
+  );
+  assert.equal(
+    linksByTitle.get("Tooth Gaps in the Archives"),
+    "https://buttonpoetry.com/product/tooth-gaps-in-the-archives/"
+  );
+});
+
