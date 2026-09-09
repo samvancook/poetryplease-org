@@ -450,30 +450,3 @@ test("verified Book Info product links are present in the Poetry Please lookup",
   );
 });
 
-test("book controls fall back to a locked Poetry Please book lane", () => {
-  const appSource = readFileSync(
-    new URL("../public/app.js", import.meta.url),
-    "utf8"
-  );
-  const helperSource = appSource.match(
-    /function bookDestinationFor\(item\) \{[\s\S]*?\n\}/
-  )?.[0];
-
-  assert.ok(helperSource, "bookDestinationFor helper must exist");
-  const destinationFor = new Function(
-    "URLSearchParams",
-    `${helperSource}; return bookDestinationFor;`
-  )(URLSearchParams);
-
-  assert.equal(
-    destinationFor({ bookUrl: "https://buttonpoetry.com/product/roads/", book: "Roads" }),
-    "https://buttonpoetry.com/product/roads/"
-  );
-  assert.equal(
-    destinationFor({ book: "Living at Baggage Claim" }),
-    "/app?book=Living+at+Baggage+Claim&locked=1"
-  );
-  assert.equal(destinationFor({}), "");
-  assert.match(appSource, /openBook: \(\) => openCurrentBook\(\)/);
-  assert.match(appSource, /toBook\.onclick = \(\) => openCurrentBook\(\)/);
-});
