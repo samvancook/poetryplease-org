@@ -491,7 +491,7 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
       try {
         const snapshot = await readContentSnapshot();
         if (snapshot && (now - snapshot.builtAtMs) < CONTENT_SNAPSHOT_TTL_MS) {
-          contentCache.payload = snapshot.payload;
+          contentCache.payload = snapshot.payload.map(canonicalizeContentRecord);
           // Memory freshness starts when the snapshot is loaded, not when the
           // durable snapshot was originally built.
           contentCache.builtAt = Date.now();

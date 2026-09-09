@@ -450,3 +450,11 @@ test("verified Book Info product links are present in the Poetry Please lookup",
   );
 });
 
+test("durable content snapshots are re-canonicalized before serving", () => {
+  const indexSource = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  assert.match(
+    indexSource,
+    /contentCache\.payload = snapshot\.payload\.map\(canonicalizeContentRecord\);/
+  );
+});
+
