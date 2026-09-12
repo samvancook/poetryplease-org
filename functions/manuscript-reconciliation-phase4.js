@@ -86,6 +86,9 @@ function normalizeEvidence(value) {
   if (!REVIEW_OUTCOMES.has(value.outcome)) return null;
   return {
     id: String(value.id || ""),
+    reconciliationId: Number(value.reconciliationId),
+    resolutionId: Number(value.resolutionId),
+    side: String(value.side || ""),
     outcome: value.outcome,
     notes: String(value.notes || ""),
     recordedAt: evidenceTimestamp(value.recordedAt),
