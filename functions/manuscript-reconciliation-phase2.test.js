@@ -15,6 +15,11 @@ import {
   verifyReviewerViaPoetryPleaseApi,
 } from "./manuscript-reconciliation-phase2.js";
 import {
+  buildVisualReviewQueue,
+  fetchCatalogSourcePdf,
+  validateVisualEvidenceInput,
+} from "./manuscript-reconciliation-phase4.js";
+import {
   SAFE_WRITABLE_RESOLUTION_ID,
   auditSummary,
   decisionNeedsNotes,
@@ -332,4 +337,99 @@ test("candidate guard permits the same candidate source and fails closed on malf
   );
   assert.equal(reload, null);
   assert.equal(candidateSourceMatches({ candidate: { id: "not-an-id" } }, current.rows[0]), false);
+});
+
+
+test("Phase 4 queue uses only Catalog-bound source-page references and keeps evidence separate from decisions", () => {
+  const sourcePages = {
+    status: "available",
+    sourceVersionId: 10,
+    sourceSha256: "66b574bab33d41254d2522f4f3041243b989d113b175d73d9180030906d4ad68",
+    mappingSha256: "f".repeat(64),
+    pages: [
+      { pageIndex: 34, pageLabel: "14", spreadIndex: 1, side: "left" },
+      { pageIndex: 35, pageLabel: "15", spreadIndex: 1, side: "right" },
+    ],
+    asset: {
+      href: "/source-page-assets/10",
+      mediaType: "application/pdf",
+      sha256: "66b574bab33d41254d2522f4f3041243b989d113b175d73d9180030906d4ad68",
+    },
+  };
+  const phaseData = {
+    reconciliation: { id: 2 },
+    rows: [{
+      resolutionId: 17,
+      identity: "elephants",
+      candidate: {
+        sourcePoemId: 238,
+        sourceVersionId: 10,
+        title: "elephants",
+        sourcePages,
+      },
+    }],
+  };
+  const queue = buildVisualReviewQueue(phaseData, [{
+    id: "evidence-1",
+    reconciliationId: 2,
+    resolutionId: 17,
+    side: "candidate",
+    outcome: "confirmed",
+    notes: "Reviewed the two-page spread.",
+    recordedAt: "2026-09-12T00:00:00Z",
+    reviewer: { uid: "reviewer-1", email: "reviewer@buttonpoetry.com" },
+    source: {
+      sourcePoemId: 238,
+      sourceVersionId: 10,
+      mappingSha256: "f".repeat(64),
+      assetSha256: sourcePages.asset.sha256,
+    },
+  }]);
+  assert.equal(queue.length, 1);
+  assert.equal(queue[0].visualStatus, "confirmed");
+  assert.deepEqual(queue[0].source.sourcePages.pages, sourcePages.pages);
+  assert.equal(queue[0].source.sourcePages.asset.href, "/source-page-assets/10");
+  assert.deepEqual(validateVisualEvidenceInput({ outcome: "needs_follow_up", notes: "The source layout needs another look." }), {
+    outcome: "needs_follow_up",
+    notes: "The source layout needs another look.",
+  });
+  assert.throws(() => validateVisualEvidenceInput({ outcome: "confirmed", notes: "" }), /visual_evidence_notes_required/);
+});
+
+test("Phase 4 streams only the hash-verified Catalog PDF", async () => {
+  const bytes = Buffer.from("%PDF-1.7 fixture");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const item = {
+    source: {
+      sourceVersionId: 10,
+      sourcePages: {
+        asset: { href: "/source-page-assets/10", mediaType: "application/pdf", sha256 },
+      },
+    },
+  };
+  const result = await fetchCatalogSourcePdf(item, {
+    readCatalogCredential: async () => "catalog-read-key",
+    fetcher: async (url, options) => {
+      assert.equal(url, CATALOG_PHASE2_API + "/source-page-assets/10");
+      assert.equal(options.headers.Authorization, "Bearer catalog-read-key");
+      return new Response(bytes, { headers: { "Content-Type": "application/pdf" } });
+    },
+  });
+  assert.equal(result.sha256, sha256);
+  await assert.rejects(
+    fetchCatalogSourcePdf(item, {
+      readCatalogCredential: async () => "catalog-read-key",
+      fetcher: async () => new Response(Buffer.from("different"), { headers: { "Content-Type": "application/pdf" } }),
+    }),
+    (error) => error.code === "catalog_source_asset_integrity_mismatch",
+  );
+});
+
+test("Phase 4 is served by the authenticated Poetry Please API without exposing a Catalog credential", () => {
+  const index = fs.readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const phase4 = fs.readFileSync(new URL("./manuscript-reconciliation-phase4.js", import.meta.url), "utf8");
+  assert.match(index, /createManuscriptVisualReviewApp/);
+  assert.match(index, /admin\/manuscriptVisualReviews/);
+  assert.match(phase4, /Authorization: "Bearer " \+ credential/);
+  assert.doesNotMatch(phase4, /CATALOG_RECONCILIATION_API_KEY/);
 });
