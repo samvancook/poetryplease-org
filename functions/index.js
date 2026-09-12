@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { GoogleAuth, Impersonated } from "google-auth-library";
 import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
+import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -4541,6 +4542,30 @@ manuscriptReconciliationPreviewApp.use((_req, res) => {
 const manuscriptReconciliationPhase2App = createManuscriptReconciliationPhase2App({
   verifyReviewer: (req, res) => verifyReviewerViaPoetryPleaseApi(req, res),
 });
+
+const manuscriptVisualReviewEvidenceStore = Object.freeze({
+  async list(reconciliationId) {
+    const snapshot = await db.collection("manuscriptVisualReviewEvidence")
+      .where("reconciliationId", "==", Number(reconciliationId))
+      .limit(250)
+      .get();
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+  },
+  async append(record) {
+    const ref = await db.collection("manuscriptVisualReviewEvidence").add({
+      ...record,
+      recordedAt: FieldValue.serverTimestamp(),
+    });
+    return { id: ref.id };
+  },
+});
+
+const manuscriptVisualReviewApp = createManuscriptVisualReviewApp({
+  verifyReviewer: (req, res) => verifyReviewerViaPoetryPleaseApi(req, res),
+  readCatalogCredential: () => CATALOG_RECONCILIATION_API_KEY_SECRET.value(),
+  evidenceStore: manuscriptVisualReviewEvidenceStore,
+});
+app.use(getBoth("/admin/manuscriptVisualReviews"), manuscriptVisualReviewApp);
 
 // imageTypes
 app.get(getBoth("/imageTypes"), async (_req, res) => {
