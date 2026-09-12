@@ -1,6 +1,7 @@
 import express from "express";
 import { createHash, createHmac } from "node:crypto";
 import { GoogleAuth } from "google-auth-library";
+import { Readable } from "node:stream";
 
 export const CATALOG_PHASE2_API = "https://button-poetry-catalog-350789123099.us-central1.run.app";
 export const POETRY_PLEASE_REVIEWER_AUTHORITY = "https://poetryplease.org";
@@ -195,6 +196,122 @@ async function catalogJson(path, { fetcher = fetch, readSecret = accessCatalogSe
   return payload;
 }
 
+export function normalizeSourcePageSide(value) {
+  const side = String(value || "").trim().toLowerCase();
+  if (side !== "prior" && side !== "candidate") {
+    const error = new Error("source_page_side_invalid");
+    error.status = 400;
+    throw error;
+  }
+  return side;
+}
+
+export function sourcePageReferencePath(sourceVersionId, poemKey) {
+  const version = Number(sourceVersionId);
+  const key = String(poemKey || "").trim();
+  if (!Number.isInteger(version) || version < 1 || !key) {
+    const error = new Error("source_page_reference_unavailable");
+    error.status = 422;
+    throw error;
+  }
+  return `/source-page-references/${encodeURIComponent(version)}/${encodeURIComponent(key)}`;
+}
+
+function sourcePageContextFromRow(row, side) {
+  const source = row?.[side];
+  const sourceVersionId = Number(source?.sourceVersionId);
+  const poemKey = String(source?.poemKey || "").trim();
+  if (!source || !Number.isInteger(sourceVersionId) || sourceVersionId < 1 || !poemKey) {
+    const error = new Error("source_page_reference_unavailable");
+    error.status = 422;
+    throw error;
+  }
+  return {
+    sourceVersionId,
+    poemKey,
+    sourcePoemId: Number.isInteger(Number(source?.sourcePoemId)) ? Number(source.sourcePoemId) : null,
+    title: String(source?.title || "").trim() || null,
+  };
+}
+
+export async function readPhase2SourcePageReference({
+  reconciliationId,
+  resolutionId,
+  side,
+  dependencies = {},
+}) {
+  const normalizedSide = normalizeSourcePageSide(side);
+  const data = await readPhase2Reconciliation(reconciliationId, dependencies);
+  const row = data.rows.find((item) => Number(item?.resolutionId) === Number(resolutionId));
+  if (!row) {
+    const error = new Error("resolution_not_found");
+    error.status = 404;
+    throw error;
+  }
+  const source = sourcePageContextFromRow(row, normalizedSide);
+  const reference = await catalogJson(sourcePageReferencePath(source.sourceVersionId, source.poemKey), dependencies);
+  if (!reference || !Array.isArray(reference.pages)) {
+    const error = new Error("source_page_reference_shape_invalid");
+    error.status = 502;
+    throw error;
+  }
+  return {
+    reconciliationId: Number(data.reconciliation?.id || reconciliationId),
+    resolutionId: Number(row.resolutionId),
+    side: normalizedSide,
+    source,
+    pages: reference.pages.map((page) => ({
+      pageIndex: Number(page?.pageIndex),
+      pageLabel: String(page?.pageLabel || ""),
+      spreadIndex: Number.isInteger(Number(page?.spreadIndex)) ? Number(page.spreadIndex) : null,
+      side: String(page?.side || ""),
+    })).filter((page) => Number.isInteger(page.pageIndex) && page.pageIndex >= 0),
+  };
+}
+
+async function fetchPhase2SourcePdf({
+  reconciliationId,
+  resolutionId,
+  side,
+  fetcher = fetch,
+  readSecret = accessCatalogSecret,
+}) {
+  const reference = await readPhase2SourcePageReference({
+    reconciliationId,
+    resolutionId,
+    side,
+    dependencies: { fetcher, readSecret },
+  });
+  const credential = await readSecret(CATALOG_SECRET_NAMES.read);
+  const response = await fetcher(
+    `${CATALOG_PHASE2_API}/source-page-assets/${encodeURIComponent(reference.source.sourceVersionId)}`,
+    {
+      headers: { Accept: "application/pdf", Authorization: `Bearer ${credential}` },
+      signal: AbortSignal.timeout(30000),
+    },
+  );
+  if (!response.ok || !response.body || !/^application\/pdf(?:;|$)/i.test(response.headers.get("content-type") || "")) {
+    const error = new Error(`source_page_pdf_${response.status}`);
+    error.status = response.status || 502;
+    throw error;
+  }
+  return { reference, response };
+}
+
+function streamPdfResponse(res, response, sourceVersionId) {
+  res.status(response.status);
+  res.set("Cache-Control", "private, no-store");
+  res.set("Content-Type", "application/pdf");
+  res.set("Content-Disposition", `inline; filename="source-${sourceVersionId}.pdf"`);
+  const etag = response.headers.get("etag");
+  const contentLength = response.headers.get("content-length");
+  if (etag) res.set("ETag", etag);
+  if (contentLength) res.set("Content-Length", contentLength);
+  const body = Readable.fromWeb(response.body);
+  body.once("error", () => res.destroy());
+  body.pipe(res);
+}
+
 export async function readPhase2Reconciliation(reconciliationId, dependencies = {}) {
   const encoded = encodeURIComponent(reconciliationId);
   const [reconciliation, rows] = await Promise.all([
@@ -341,6 +458,47 @@ export function createManuscriptReconciliationPhase2App({ verifyReviewer, fetche
         ...data,
         currentReviewer: { uid: reviewer.uid, email: reviewer.email, roles: reviewer.roles },
       });
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get([
+    "/admin/manuscriptReconciliations/:reconciliationId/resolutions/:resolutionId/source-pages",
+    "/api/admin/manuscriptReconciliations/:reconciliationId/resolutions/:resolutionId/source-pages",
+  ], async (req, res) => {
+    const ctx = await verifyReviewer(req, res);
+    if (!ctx) return;
+    try {
+      normalizeReviewer(ctx);
+      const reference = await readPhase2SourcePageReference({
+        reconciliationId: req.params.reconciliationId,
+        resolutionId: req.params.resolutionId,
+        side: req.query?.side,
+        dependencies: { fetcher, readSecret },
+      });
+      res.set("Cache-Control", "private, no-store").json(reference);
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.get([
+    "/admin/manuscriptReconciliations/:reconciliationId/resolutions/:resolutionId/source-pages/pdf",
+    "/api/admin/manuscriptReconciliations/:reconciliationId/resolutions/:resolutionId/source-pages/pdf",
+  ], async (req, res) => {
+    const ctx = await verifyReviewer(req, res);
+    if (!ctx) return;
+    try {
+      normalizeReviewer(ctx);
+      const { reference, response } = await fetchPhase2SourcePdf({
+        reconciliationId: req.params.reconciliationId,
+        resolutionId: req.params.resolutionId,
+        side: req.query?.side,
+        fetcher,
+        readSecret,
+      });
+      streamPdfResponse(res, response, reference.source.sourceVersionId);
     } catch (error) {
       sendError(res, error);
     }
