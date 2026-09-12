@@ -102,7 +102,19 @@ export async function loadSourcePages(token, resolutionId, side, fetcher = fetch
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw Error(payload?.error || `Source-page request failed with HTTP ${response.status}.`);
   if (!payload.source || !Array.isArray(payload.pages)) throw Error("Catalog returned an incomplete source-page reference.");
-  return { ...payload, pdfUrl: `${base}/pdf?${query}`, selectedPage: 0 };
+  return { ...payload, selectedPage: 0 };
+}
+
+export async function loadSourcePdf(token, resolutionId, side, fetcher = fetch, createObjectUrl = (blob) => URL.createObjectURL(blob)) {
+  const sourceSide = String(side || "").trim().toLowerCase();
+  if (sourceSide !== "prior" && sourceSide !== "candidate") throw Error("Choose an earlier or proposed source.");
+  const base = `${API}/resolutions/${encodeURIComponent(resolutionId)}/source-pages/pdf`;
+  const query = new URLSearchParams({ side: sourceSide }).toString();
+  const response = await fetcher(`${base}?${query}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok || !/^application\/pdf(?:;|$)/i.test(response.headers.get("content-type") || "")) {
+    throw Error(`Source PDF request failed with HTTP ${response.status}.`);
+  }
+  return createObjectUrl(await response.blob());
 }
 
 async function saveResolution(token, resolutionId, decision, key) {
@@ -134,6 +146,12 @@ function createApp(root, initialData, auth) {
   let visual = null;
   let visualError = "";
   let visualLoading = false;
+  function clearVisual() {
+    if (visual?.pdfUrl && typeof URL?.revokeObjectURL === "function") URL.revokeObjectURL(visual.pdfUrl);
+    visual = null;
+    visualError = "";
+  }
+
   const visibleRows = () => data.rows.filter((row) => rowMatchesSearch(row, search));
   const selected = () => visibleRows().find((row) => Number(row.resolutionId) === Number(selectedId)) || visibleRows()[0] || null;
   const nextRowId = (rows, current) => {
@@ -151,13 +169,14 @@ function createApp(root, initialData, auth) {
   async function openVisual(side) {
     const row = selected();
     if (!row || visualLoading) return;
+    clearVisual();
     visualLoading = true;
-    visualError = "";
     render();
     try {
-      visual = await loadSourcePages(auth.token, row.resolutionId, side);
+      const reference = await loadSourcePages(auth.token, row.resolutionId, side);
+      const pdfUrl = await loadSourcePdf(auth.token, row.resolutionId, side);
+      visual = { ...reference, pdfUrl };
     } catch (error) {
-      visual = null;
       visualError = error.message;
     } finally {
       visualLoading = false;
@@ -266,9 +285,9 @@ function createApp(root, initialData, auth) {
       </section>`;
 
     root.querySelector("#search")?.addEventListener("input", (event) => { searchDraft = event.target.value; });
-    root.querySelector("#search-form")?.addEventListener("submit", (event) => { event.preventDefault(); search = searchDraft; selectedId = visibleRows()[0]?.resolutionId ?? null; render(); });
-    root.querySelector("#clear-search")?.addEventListener("click", () => { search = ""; searchDraft = ""; selectedId = data.rows[0]?.resolutionId ?? null; render(); });
-    for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => { selectedId = Number(button.dataset.row); message = ""; retry = null; render(); });
+    root.querySelector("#search-form")?.addEventListener("submit", (event) => { event.preventDefault(); clearVisual(); search = searchDraft; selectedId = visibleRows()[0]?.resolutionId ?? null; render(); });
+    root.querySelector("#clear-search")?.addEventListener("click", () => { clearVisual(); search = ""; searchDraft = ""; selectedId = data.rows[0]?.resolutionId ?? null; render(); });
+    for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => { clearVisual(); selectedId = Number(button.dataset.row); message = ""; retry = null; render(); });
     for (const button of root.querySelectorAll("[data-mode]")) button.addEventListener("click", () => { mode = button.dataset.mode; render(); });
     root.querySelector("#visual-prior")?.addEventListener("click", () => openVisual("prior"));
     root.querySelector("#visual-candidate")?.addEventListener("click", () => openVisual("candidate"));
