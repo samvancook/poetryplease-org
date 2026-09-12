@@ -93,6 +93,18 @@ export async function reloadIfCandidateChanged(token, reviewedRow, fetcher = fet
   return authoritativeRow && candidateSourceMatches(reviewedRow, authoritativeRow) ? null : authoritativeData;
 }
 
+export async function loadSourcePages(token, resolutionId, side, fetcher = fetch) {
+  const sourceSide = String(side || "").trim().toLowerCase();
+  if (sourceSide !== "prior" && sourceSide !== "candidate") throw Error("Choose an earlier or proposed source.");
+  const base = `${API}/resolutions/${encodeURIComponent(resolutionId)}/source-pages`;
+  const query = new URLSearchParams({ side: sourceSide }).toString();
+  const response = await fetcher(`${base}?${query}`, { headers: { Authorization: `Bearer ${token}` } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw Error(payload?.error || `Source-page request failed with HTTP ${response.status}.`);
+  if (!payload.source || !Array.isArray(payload.pages)) throw Error("Catalog returned an incomplete source-page reference.");
+  return { ...payload, pdfUrl: `${base}/pdf?${query}`, selectedPage: 0 };
+}
+
 async function saveResolution(token, resolutionId, decision, key) {
   const response = await fetch(`${API}/resolutions/${encodeURIComponent(resolutionId)}`, {
     method: "PATCH",
@@ -119,6 +131,9 @@ function createApp(root, initialData, auth) {
   let saving = false;
   let message = "";
   let retry = null;
+  let visual = null;
+  let visualError = "";
+  let visualLoading = false;
   const visibleRows = () => data.rows.filter((row) => rowMatchesSearch(row, search));
   const selected = () => visibleRows().find((row) => Number(row.resolutionId) === Number(selectedId)) || visibleRows()[0] || null;
   const nextRowId = (rows, current) => {
@@ -131,6 +146,23 @@ function createApp(root, initialData, auth) {
     message = note;
     retry = null;
     render();
+  }
+
+  async function openVisual(side) {
+    const row = selected();
+    if (!row || visualLoading) return;
+    visualLoading = true;
+    visualError = "";
+    render();
+    try {
+      visual = await loadSourcePages(auth.token, row.resolutionId, side);
+    } catch (error) {
+      visual = null;
+      visualError = error.message;
+    } finally {
+      visualLoading = false;
+      render();
+    }
   }
 
   async function save(advance = false) {
@@ -214,9 +246,10 @@ function createApp(root, initialData, auth) {
           <div class="list">${rows.map((item) => `<button data-row="${item.resolutionId}" class="writable-row"><span>${esc(item.identity)}</span><small>#${item.resolutionId} · ${esc(item.status)} · writable</small></button>`).join("")}</div>
         </aside>
         <main class="panel comparison">${row ? `
-          <div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${mode === "normalized"}">Spacing-normalized text</button></div></div>
+          <div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${mode === "normalized"}">Spacing-normalized text</button><button id="visual-prior" ${visualLoading || !row.prior ? "disabled" : ""}>Earlier-page context</button><button id="visual-candidate" ${visualLoading || !row.candidate ? "disabled" : ""}>Proposed-page context</button></div></div>
           <p class="help">${mode === "exact" ? "Source text preserves extracted spaces and line breaks." : "Spacing-normalized text is only for comparison and does not change Catalog data."}</p>
-          <div class="texts"><article><h3>Earlier source · ${esc(row.priorTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.prior?.text, mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(row.candidateTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.candidate?.text, mode === "normalized")}</div></article></div>` : '<div class="empty">No comparison record selected.</div>'}</main>
+          <div class="texts"><article><h3>Earlier source · ${esc(row.priorTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.prior?.text, mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(row.candidateTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.candidate?.text, mode === "normalized")}</div></article></div>${visual ? `
+          <section class="visual-review" aria-live="polite"><div class="visual-head"><div><h3>Visual PDF context · ${esc(visual.side === "candidate" ? "Proposed replacement" : "Earlier source")}</h3><p class="help">Catalog page ${esc(visual.pages[visual.selectedPage]?.pageLabel || String((visual.pages[visual.selectedPage]?.pageIndex ?? 0) + 1))}. This is the protected source PDF; it does not change canonical text.</p></div><div class="visual-nav"><button id="visual-prev" ${visual.selectedPage <= 0 ? "disabled" : ""}>Previous page</button><select id="visual-page" aria-label="PDF page">${visual.pages.map((page, index) => `<option value="${index}" ${index === visual.selectedPage ? "selected" : ""}>Page ${esc(page.pageLabel || String(page.pageIndex + 1))}${page.side ? ` · ${esc(page.side)}` : ""}</option>`).join("")}</select><button id="visual-next" ${visual.selectedPage >= visual.pages.length - 1 ? "disabled" : ""}>Next page</button></div></div><iframe class="visual-pdf" title="Protected source PDF page ${esc(visual.pages[visual.selectedPage]?.pageLabel || "")}" src="${esc(visual.pdfUrl)}#page=${Number(visual.pages[visual.selectedPage]?.pageIndex || 0) + 1}"></iframe></section>` : visualError ? `<section class="visual-review error"><h3>Visual PDF context unavailable</h3><p>${esc(visualError)}</p></section>` : ""}` : '<div class="empty">No comparison record selected.</div>'}</main>
         <aside class="panel detail">${row ? `
           <h2>Decision</h2>
           <label>Status<select id="review-status"><option value="pending" ${row.status === "pending" ? "selected" : ""}>Needs review</option><option value="approved" ${row.status === "approved" ? "selected" : ""}>Approved</option><option value="rejected" ${row.status === "rejected" ? "selected" : ""}>Rejected</option></select></label>
@@ -237,6 +270,11 @@ function createApp(root, initialData, auth) {
     root.querySelector("#clear-search")?.addEventListener("click", () => { search = ""; searchDraft = ""; selectedId = data.rows[0]?.resolutionId ?? null; render(); });
     for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => { selectedId = Number(button.dataset.row); message = ""; retry = null; render(); });
     for (const button of root.querySelectorAll("[data-mode]")) button.addEventListener("click", () => { mode = button.dataset.mode; render(); });
+    root.querySelector("#visual-prior")?.addEventListener("click", () => openVisual("prior"));
+    root.querySelector("#visual-candidate")?.addEventListener("click", () => openVisual("candidate"));
+    root.querySelector("#visual-prev")?.addEventListener("click", () => { visual.selectedPage -= 1; render(); });
+    root.querySelector("#visual-next")?.addEventListener("click", () => { visual.selectedPage += 1; render(); });
+    root.querySelector("#visual-page")?.addEventListener("change", (event) => { visual.selectedPage = Number(event.target.value); render(); });
     root.querySelector("#save")?.addEventListener("click", () => save(false));
     root.querySelector("#save-advance")?.addEventListener("click", () => save(true));
   }
