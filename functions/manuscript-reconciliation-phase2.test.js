@@ -29,6 +29,7 @@ import {
 import {
   candidateSourceMatches,
   loadSourcePages,
+  loadSourcePdf,
   reloadIfCandidateChanged,
 } from "../public/manuscript-reconciliation-live.js";
 
@@ -393,8 +394,13 @@ test("browser visual review requests only the Poetry Please proxy and receives a
       pages: [{ pageIndex: 34, pageLabel: "14" }],
     }), { status: 200, headers: { "Content-Type": "application/json" } });
   });
-  assert.equal(reference.pdfUrl, "/api/admin/manuscriptReconciliations/2/resolutions/49/source-pages/pdf?side=candidate");
   assert.equal(reference.selectedPage, 0);
+  const pdfUrl = await loadSourcePdf("firebase-token", 49, "candidate", async (url, options) => {
+    assert.equal(url, "/api/admin/manuscriptReconciliations/2/resolutions/49/source-pages/pdf?side=candidate");
+    assert.equal(options.headers.Authorization, "Bearer firebase-token");
+    return new Response("pdf fixture", { status: 200, headers: { "Content-Type": "application/pdf" } });
+  }, () => "blob:protected-source-pdf");
+  assert.equal(pdfUrl, "blob:protected-source-pdf");
   const server = fs.readFileSync(new URL("./manuscript-reconciliation-phase2.js", import.meta.url), "utf8");
   assert.match(server, /Content-Disposition", \`inline; filename=/);
   assert.match(server, /Readable\.fromWeb\(response\.body\)/);
