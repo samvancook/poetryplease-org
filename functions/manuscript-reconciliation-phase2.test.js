@@ -12,6 +12,8 @@ import {
   normalizeReviewer,
   sanitizeDecision,
   savePhase2Resolution,
+  readPhase2SourcePageReference,
+  sourcePageReferencePath,
   verifyReviewerViaPoetryPleaseApi,
 } from "./manuscript-reconciliation-phase2.js";
 import {
@@ -26,6 +28,7 @@ import {
 } from "../public/manuscript-reconciliation-phase2-preview.js";
 import {
   candidateSourceMatches,
+  loadSourcePages,
   reloadIfCandidateChanged,
 } from "../public/manuscript-reconciliation-live.js";
 
@@ -332,4 +335,68 @@ test("candidate guard permits the same candidate source and fails closed on malf
   );
   assert.equal(reload, null);
   assert.equal(candidateSourceMatches({ candidate: { id: "not-an-id" } }, current.rows[0]), false);
+});
+
+test("source-page proxy derives the Catalog poem key from an authoritative resolution row", async () => {
+  const requests = [];
+  const fetcher = async (url) => {
+    requests.push(url);
+    if (url.endsWith("/reconciliations/2")) {
+      return new Response(JSON.stringify({ id: 2 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/reconciliations/2/resolutions")) {
+      return new Response(JSON.stringify([{
+        resolutionId: 49,
+        candidate: { sourceVersionId: 10, sourcePoemId: 238, poemKey: "elephants#1", title: "Elephants" },
+      }]), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify({
+      pages: [
+        { pageIndex: 34, pageLabel: "14", spreadIndex: 1, side: "left" },
+        { pageIndex: 35, pageLabel: "15", spreadIndex: 1, side: "right" },
+      ],
+      asset: { href: "/source-page-assets/10", mediaType: "application/pdf" },
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  const reference = await readPhase2SourcePageReference({
+    reconciliationId: 2,
+    resolutionId: 49,
+    side: "candidate",
+    dependencies: { fetcher, readSecret },
+  });
+  assert.equal(sourcePageReferencePath(10, "elephants#1"), "/source-page-references/10/elephants%231");
+  assert.equal(requests.at(-1), `${CATALOG_PHASE2_API}/source-page-references/10/elephants%231`);
+  assert.deepEqual(reference.source, { sourceVersionId: 10, poemKey: "elephants#1", sourcePoemId: 238, title: "Elephants" });
+  assert.deepEqual(reference.pages.map((page) => page.pageLabel), ["14", "15"]);
+  assert.equal(Object.hasOwn(reference, "asset"), false);
+});
+
+test("source-page proxy rejects missing side and unavailable Catalog page key without a browser-supplied Catalog path", async () => {
+  assert.throws(() => sourcePageReferencePath(10, ""), /source_page_reference_unavailable/);
+  await assert.rejects(
+    readPhase2SourcePageReference({
+      reconciliationId: 2,
+      resolutionId: 49,
+      side: "invalid",
+      dependencies: { fetcher: async () => { throw Error("should not fetch"); }, readSecret },
+    }),
+    (error) => error.status === 400 && error.message === "source_page_side_invalid",
+  );
+});
+
+test("browser visual review requests only the Poetry Please proxy and receives an inline PDF URL", async () => {
+  const reference = await loadSourcePages("firebase-token", 49, "candidate", async (url, options) => {
+    assert.equal(url, "/api/admin/manuscriptReconciliations/2/resolutions/49/source-pages?side=candidate");
+    assert.equal(options.headers.Authorization, "Bearer firebase-token");
+    return new Response(JSON.stringify({
+      source: { sourceVersionId: 10, poemKey: "elephants#1" },
+      pages: [{ pageIndex: 34, pageLabel: "14" }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  });
+  assert.equal(reference.pdfUrl, "/api/admin/manuscriptReconciliations/2/resolutions/49/source-pages/pdf?side=candidate");
+  assert.equal(reference.selectedPage, 0);
+  const server = fs.readFileSync(new URL("./manuscript-reconciliation-phase2.js", import.meta.url), "utf8");
+  assert.match(server, /Content-Disposition", \`inline; filename=/);
+  assert.match(server, /Readable\.fromWeb\(response\.body\)/);
+  assert.match(server, /source-page-assets/);
 });
