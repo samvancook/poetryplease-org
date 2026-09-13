@@ -12,6 +12,7 @@ const state = {
   sourceUrl: null,
   sourceKey: null,
   loadingSource: false,
+  sourceRequestId: 0,
   savingEvidence: false,
   message: "",
 };
@@ -177,6 +178,7 @@ function render() {
 }
 
 function discardSource() {
+  state.sourceRequestId += 1;
   if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
   state.sourceUrl = null;
   state.sourceKey = null;
@@ -187,6 +189,7 @@ async function loadSource() {
   const item = selectedItem();
   if (!item || state.sourceKey === itemKey(item) || state.loadingSource) return;
   state.loadingSource = true;
+  const requestId = ++state.sourceRequestId;
   render();
   try {
     const path = API + "/items/" + encodeURIComponent(item.resolutionId) + "/" + encodeURIComponent(item.side) + "/source.pdf";
@@ -196,15 +199,18 @@ async function loadSource() {
       throw Error(payload.error || "catalog_source_asset_unavailable");
     }
     const blob = await response.blob();
-    if (selectedItem() !== item) return;
-    discardSource();
+    if (requestId !== state.sourceRequestId || selectedItem() !== item) return;
+    if (state.sourceUrl) URL.revokeObjectURL(state.sourceUrl);
     state.sourceUrl = URL.createObjectURL(blob);
     state.sourceKey = itemKey(item);
   } catch (error) {
+    if (requestId !== state.sourceRequestId) return;
     state.message = "Catalog source PDF could not be loaded: " + error.message;
   } finally {
-    state.loadingSource = false;
-    render();
+    if (requestId === state.sourceRequestId) {
+      state.loadingSource = false;
+      render();
+    }
   }
 }
 
