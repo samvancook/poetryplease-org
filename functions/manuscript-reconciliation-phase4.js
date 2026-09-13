@@ -192,6 +192,80 @@ export function buildPromotionReadiness(phaseData, items) {
   };
 }
 
+function sourceBindingForPreflight(source) {
+  if (!source || typeof source !== "object") return null;
+  const sourcePages = source.sourcePages && typeof source.sourcePages === "object" ? source.sourcePages : null;
+  return {
+    sourcePoemId: Number.isInteger(Number(source.sourcePoemId)) ? Number(source.sourcePoemId) : null,
+    sourceVersionId: Number.isInteger(Number(source.sourceVersionId)) ? Number(source.sourceVersionId) : null,
+    title: String(source.title || ""),
+    exactTextHash: String(source.exactTextHash || ""),
+    sourcePages: sourcePages ? {
+      status: String(sourcePages.status || "unavailable"),
+      sourceSha256: String(sourcePages.sourceSha256 || ""),
+      mappingSha256: String(sourcePages.mappingSha256 || ""),
+      assetSha256: String(sourcePages.asset && sourcePages.asset.sha256 || ""),
+    } : null,
+  };
+}
+
+export function buildPromotionPreflight(phaseData, items) {
+  const readiness = buildPromotionReadiness(phaseData, items);
+  const decisions = phaseData.rows.map((row) => ({
+    resolutionId: Number(row.resolutionId),
+    reviewStatus: String(row.status || "unknown"),
+    resolutionAction: row.proposedResolution || null,
+    canonicalTitle: row.canonicalTitle || null,
+    stablePoemIdentity: row.identity || null,
+    textSourcePoemId: Number.isInteger(Number(row.textSourcePoemId)) ? Number(row.textSourcePoemId) : null,
+    formatSourcePoemId: Number.isInteger(Number(row.formatSourcePoemId)) ? Number(row.formatSourcePoemId) : null,
+    prior: sourceBindingForPreflight(row.prior),
+    candidate: sourceBindingForPreflight(row.candidate),
+  }));
+  const visualEvidence = items.map((item) => ({
+    resolutionId: item.resolutionId,
+    side: item.side,
+    visualStatus: item.visualStatus,
+    sourcePoemId: item.source.sourcePoemId,
+    sourceVersionId: item.source.sourceVersionId,
+    mappingSha256: item.source.sourcePages.mappingSha256 || "",
+    assetSha256: item.source.sourcePages.asset.sha256,
+    latestEvidence: item.latestEvidence ? {
+      id: item.latestEvidence.id,
+      outcome: item.latestEvidence.outcome,
+      recordedAt: item.latestEvidence.recordedAt,
+      reviewer: item.latestEvidence.reviewer,
+    } : null,
+  }));
+  const blockers = [
+    ...(readiness.editorialReview.byStatus.pending
+      ? [{ type: "editorial_decisions_pending", count: readiness.editorialReview.byStatus.pending }]
+      : []),
+    ...(readiness.visualReview.awaitingEvidence
+      ? [{ type: "visual_evidence_pending", count: readiness.visualReview.awaitingEvidence }]
+      : []),
+    { type: "promotion_authorization_required" },
+  ];
+  const manifest = {
+    schemaVersion: 1,
+    phase: "promotion_preflight",
+    mode: "read_only",
+    reconciliation: {
+      id: readiness.reconciliationId,
+      writeRevision: phaseData.reconciliation && phaseData.reconciliation.writeRevision || null,
+    },
+    readiness,
+    decisions,
+    visualEvidence,
+    blockers,
+  };
+  const sha256 = createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
+  return {
+    ...manifest,
+    integrity: { algorithm: "sha256", value: sha256 },
+  };
+}
+
 export function validateVisualEvidenceInput(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw codedError("invalid_visual_evidence", 400);
@@ -286,6 +360,17 @@ export function createManuscriptVisualReviewApp({
     if (!Array.isArray(evidenceRows)) throw codedError("visual_evidence_unavailable");
     return { phaseData, items: buildVisualReviewQueue(phaseData, evidenceRows) };
   }
+
+  app.get("/:reconciliationId/promotion-preflight", async (req, res) => {
+    const reviewer = await reviewerFor(req, res);
+    if (!reviewer) return;
+    try {
+      const { phaseData, items } = await queueFor(req.params.reconciliationId);
+      res.set("Cache-Control", "private, no-store").json(buildPromotionPreflight(phaseData, items));
+    } catch (error) {
+      safeError(res, error);
+    }
+  });
 
   app.get("/:reconciliationId", async (req, res) => {
     const reviewer = await reviewerFor(req, res);
