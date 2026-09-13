@@ -448,3 +448,55 @@ test("Phase 4 is served by the authenticated Poetry Please API without exposing 
   assert.match(phase4, /Authorization: "Bearer " \+ credential/);
   assert.doesNotMatch(phase4, /CATALOG_RECONCILIATION_API_KEY/);
 });
+
+test("visual PDF requests ignore superseded failures and successes", async () => {
+  const { runInNewContext } = await import("node:vm");
+  const source = fs.readFileSync(new URL("../public/manuscript-visual-review.js", import.meta.url), "utf8");
+  for (const oldFails of [true, false]) {
+    const pending = [];
+    let createdUrls = 0;
+    const root = {
+      innerHTML: "",
+      querySelectorAll: () => [],
+      querySelector: () => null,
+    };
+    const context = {
+      document: { getElementById: () => root },
+      window: { addEventListener() {} },
+      URL: {
+        revokeObjectURL() {},
+        createObjectURL() { createdUrls += 1; return "blob:current"; },
+      },
+      fetch: () => new Promise((resolve, reject) => pending.push({ resolve, reject })),
+    };
+    assert.match(source, /\nstart\(\);\s*$/);
+    runInNewContext(source.replace(/\nstart\(\);\s*$/, "\nglobalThis.reviewTest = { state, loadSource, discardSource };"), context);
+    const { state, loadSource, discardSource } = context.reviewTest;
+    const makeItem = (id) => ({
+      resolutionId: id, side: "candidate", visualStatus: "pending",
+      source: { sourcePoemId: id, sourceVersionId: 10, sourcePages: { pages: [] } },
+    });
+    const first = makeItem(1);
+    const second = makeItem(2);
+    state.auth = { token: "synthetic-token" };
+    state.data = { items: [first, second] };
+    state.selectedKey = "1:candidate";
+    const oldRequest = loadSource();
+    state.selectedKey = "2:candidate";
+    discardSource();
+    const currentRequest = loadSource();
+    if (oldFails) pending[0].reject(new Error("old request failed"));
+    else pending[0].resolve({ ok: true, blob: async () => ({}) });
+    await oldRequest;
+    assert.equal(state.message, "");
+    assert.equal(state.loadingSource, true);
+    assert.equal(state.sourceUrl, null);
+    assert.equal(createdUrls, 0);
+    pending[1].resolve({ ok: true, blob: async () => ({}) });
+    await currentRequest;
+    assert.equal(state.sourceKey, "2:candidate");
+    assert.equal(state.sourceUrl, "blob:current");
+    assert.equal(state.loadingSource, false);
+    assert.equal(createdUrls, 1);
+  }
+});
