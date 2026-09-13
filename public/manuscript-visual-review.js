@@ -120,7 +120,8 @@ function promotionReadiness() {
     "<p class='muted'>This is a readiness summary only. It cannot promote a source or publish downstream material.</p>" +
     "<ul><li>" + esc(editorialPending) + " editorial decision" + (editorialPending === 1 ? "" : "s") + " still pending</li>" +
     "<li>" + esc(visualPending) + " current visual reference" + (visualPending === 1 ? "" : "s") + " awaiting evidence</li>" +
-    "<li>Explicit promotion authorization is still required.</li></ul></section>";
+    "<li>Explicit promotion authorization is still required.</li></ul>" +
+    "<button id='download-promotion-preflight'>Download Phase 5 preflight</button></section>";
 }
 
 function detail(item) {
@@ -171,6 +172,8 @@ function render() {
   }));
   const record = root.querySelector("#record-evidence");
   if (record) record.addEventListener("click", recordEvidence);
+  const preflight = root.querySelector("#download-promotion-preflight");
+  if (preflight) preflight.addEventListener("click", downloadPromotionPreflight);
 }
 
 function discardSource() {
@@ -203,6 +206,26 @@ async function loadSource() {
     state.loadingSource = false;
     render();
   }
+}
+
+async function downloadPromotionPreflight() {
+  try {
+    const preflight = await apiJson(API + "/promotion-preflight");
+    const body = JSON.stringify(preflight, null, 2);
+    const blob = new Blob([body], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "promotion-preflight-reconciliation-" + RECONCILIATION_ID + ".json";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    state.message = "Read-only Phase 5 preflight downloaded. It does not authorize or perform promotion.";
+  } catch (error) {
+    state.message = "Preflight could not be generated: " + error.message;
+  }
+  render();
 }
 
 async function recordEvidence() {
