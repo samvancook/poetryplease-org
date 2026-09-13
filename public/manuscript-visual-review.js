@@ -20,12 +20,36 @@ const state = {
 const itemKey = (item) => String(item.resolutionId) + ":" + item.side;
 const selectedItem = () => state.data && state.data.items.find((item) => itemKey(item) === state.selectedKey) || null;
 
-async function authorize() {
+async function ensureFirebase() {
   if (!firebase.apps || !firebase.apps.length) {
     const config = await fetch("/__/firebase/init.json", { cache: "no-store" });
     if (!config.ok) throw Error("Firebase configuration could not be loaded.");
     firebase.initializeApp(await config.json());
   }
+}
+
+async function signInWithGoogle() {
+  await ensureFirebase();
+  const auth = firebase.auth();
+  const provider = new firebase.auth.GoogleAuthProvider();
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    await auth.signInWithRedirect(provider);
+    return;
+  }
+  try {
+    await auth.signInWithPopup(provider);
+  } catch (error) {
+    if (error?.code === "auth/popup-blocked" || error?.code === "auth/cancelled-popup-request"
+      || /opener|blocked|closed|COOP/i.test(error?.message || "")) {
+      await auth.signInWithRedirect(provider);
+      return;
+    }
+    throw error;
+  }
+}
+
+async function authorize() {
+  await ensureFirebase();
   const user = await new Promise((resolve) => firebase.auth().onAuthStateChanged(resolve));
   if (!user) throw Error("Sign in through Poetry Please Admin with a team account.");
   const token = await user.getIdToken();
@@ -266,7 +290,16 @@ async function start() {
     render();
     await loadSource();
   } catch (error) {
-    root.innerHTML = "<div class='state error'><h1>Visual review is unavailable</h1><p>" + esc(error.message) + "</p></div>";
+    const signInRequired = error.message === "Sign in through Poetry Please Admin with a team account.";
+    root.innerHTML = "<div class='state error'><h1>Visual review is unavailable</h1><p>" + esc(error.message) + "</p>" +
+      (signInRequired ? "<button id='visual-login-google'>Log in with Google</button>" : "") + "</div>";
+    root.querySelector("#visual-login-google")?.addEventListener("click", async () => {
+      try {
+        await signInWithGoogle();
+      } catch (loginError) {
+        root.innerHTML = "<div class='state error'><h1>Google sign-in failed</h1><p>" + esc(loginError.message || "Please try again.") + "</p></div>";
+      }
+    });
   }
 }
 
