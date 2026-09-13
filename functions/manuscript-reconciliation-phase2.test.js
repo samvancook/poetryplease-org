@@ -15,6 +15,7 @@ import {
   verifyReviewerViaPoetryPleaseApi,
 } from "./manuscript-reconciliation-phase2.js";
 import {
+  buildPromotionPreflight,
   buildPromotionReadiness,
   buildVisualReviewQueue,
   fetchCatalogSourcePdf,
@@ -394,6 +395,13 @@ test("Phase 4 queue uses only Catalog-bound source-page references and keeps evi
   assert.equal(readiness.promotionEnabled, false);
   assert.equal(readiness.editorialReview.byStatus.pending, 1);
   assert.equal(readiness.visualReview.awaitingEvidence, 0);
+  const preflight = buildPromotionPreflight(phaseData, queue);
+  assert.equal(preflight.mode, "read_only");
+  assert.equal(preflight.decisions.length, 1);
+  assert.equal(preflight.decisions[0].candidate.sourcePoemId, 238);
+  assert.equal(Object.hasOwn(preflight.decisions[0].candidate, "text"), false);
+  assert.equal(preflight.blockers.some((blocker) => blocker.type === "promotion_authorization_required"), true);
+  assert.match(preflight.integrity.value, /^[a-f0-9]{64}$/);
   assert.deepEqual(queue[0].source.sourcePages.pages, sourcePages.pages);
   assert.equal(queue[0].source.sourcePages.asset.href, "/source-page-assets/10");
   assert.deepEqual(validateVisualEvidenceInput({ outcome: "needs_follow_up", notes: "The source layout needs another look." }), {
