@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { createHmac, createHash } from "node:crypto";
 import {
   CATALOG_PHASE2_API,
+  CATALOG_VISUAL_REVIEW_API,
   CATALOG_SECRET_NAMES,
   SAFE_PREVIEW_RECONCILIATION_ID,
   SAFE_PREVIEW_RESOLUTION_ID,
@@ -366,7 +367,9 @@ test("source-page proxy derives the Catalog poem key from an authoritative resol
     dependencies: { fetcher, readSecret },
   });
   assert.equal(sourcePageReferencePath(10, "elephants#1"), "/source-page-references/10/elephants%231");
-  assert.equal(requests.at(-1), `${CATALOG_PHASE2_API}/source-page-references/10/elephants%231`);
+  assert.equal(requests[0], `${CATALOG_VISUAL_REVIEW_API}/reconciliations/2`);
+  assert.equal(requests[1], `${CATALOG_VISUAL_REVIEW_API}/reconciliations/2/resolutions`);
+  assert.equal(requests.at(-1), `${CATALOG_VISUAL_REVIEW_API}/source-page-references/10/elephants%231`);
   assert.deepEqual(reference.source, { sourceVersionId: 10, poemKey: "elephants#1", sourcePoemId: 238, title: "Elephants" });
   assert.deepEqual(reference.pages.map((page) => page.pageLabel), ["14", "15"]);
   assert.equal(Object.hasOwn(reference, "asset"), false);
@@ -382,6 +385,30 @@ test("source-page proxy rejects missing side and unavailable Catalog page key wi
       dependencies: { fetcher: async () => { throw Error("should not fetch"); }, readSecret },
     }),
     (error) => error.status === 400 && error.message === "source_page_side_invalid",
+  );
+});
+
+test("source-page proxy rejects an empty Catalog page reference", async () => {
+  const fetcher = async (url) => {
+    if (url.endsWith("/reconciliations/2")) {
+      return new Response(JSON.stringify({ id: 2 }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    if (url.endsWith("/reconciliations/2/resolutions")) {
+      return new Response(JSON.stringify([{
+        resolutionId: 49,
+        candidate: { sourceVersionId: 10, sourcePoemId: 238, poemKey: "elephants#1", title: "Elephants" },
+      }]), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ pages: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  await assert.rejects(
+    readPhase2SourcePageReference({
+      reconciliationId: 2,
+      resolutionId: 49,
+      side: "candidate",
+      dependencies: { fetcher, readSecret },
+    }),
+    (error) => error.status === 502 && error.message === "source_page_reference_empty",
   );
 });
 
@@ -405,4 +432,12 @@ test("browser visual review requests only the Poetry Please proxy and receives a
   assert.match(server, /Content-Disposition", \`inline; filename=/);
   assert.match(server, /Readable\.fromWeb\(response\.body\)/);
   assert.match(server, /source-page-assets/);
+});
+
+
+test("visual review invalidates an older PDF request after a reviewer changes poems", () => {
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  assert.match(client, /let visualRequestId = 0;/);
+  assert.match(client, /if \(requestId !== visualRequestId\)/);
+  assert.match(client, /visualLoading = false;/);
 });
