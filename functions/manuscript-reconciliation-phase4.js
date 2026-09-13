@@ -156,6 +156,42 @@ export function buildVisualReviewQueue(phaseData, evidenceRows = []) {
   return queue.sort((left, right) => left.resolutionId - right.resolutionId || left.side.localeCompare(right.side));
 }
 
+export function buildPromotionReadiness(phaseData, items) {
+  if (!phaseData || !Array.isArray(phaseData.rows) || !Array.isArray(items)) {
+    throw codedError("promotion_readiness_invalid");
+  }
+  const editorialByStatus = {};
+  for (const row of phaseData.rows) {
+    const status = String(row && row.status || "unknown");
+    editorialByStatus[status] = (editorialByStatus[status] || 0) + 1;
+  }
+  const visualByStatus = {};
+  for (const item of items) {
+    const status = String(item && item.visualStatus || "unknown");
+    visualByStatus[status] = (visualByStatus[status] || 0) + 1;
+  }
+  const visualItemsAwaitingEvidence = items.filter((item) => item.visualStatus !== "confirmed").length;
+  return {
+    state: "locked",
+    promotionEnabled: false,
+    reconciliationId: Number(phaseData.reconciliation && phaseData.reconciliation.id),
+    editorialReview: {
+      total: phaseData.rows.length,
+      byStatus: editorialByStatus,
+    },
+    visualReview: {
+      total: items.length,
+      byStatus: visualByStatus,
+      awaitingEvidence: visualItemsAwaitingEvidence,
+    },
+    prerequisites: [
+      "Complete required editorial decisions through the normal reconciliation workflow.",
+      "Record visual evidence for each current Catalog source-page reference.",
+      "Obtain explicit authorization before any promotion or downstream publication.",
+    ],
+  };
+}
+
 export function validateVisualEvidenceInput(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw codedError("invalid_visual_evidence", 400);
@@ -263,6 +299,7 @@ export function createManuscriptVisualReviewApp({
         },
         currentReviewer: reviewer,
         items,
+        readiness: buildPromotionReadiness(phaseData, items),
       });
     } catch (error) {
       safeError(res, error);
