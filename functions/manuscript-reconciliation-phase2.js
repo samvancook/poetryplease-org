@@ -4,6 +4,7 @@ import { GoogleAuth } from "google-auth-library";
 import { Readable } from "node:stream";
 
 export const CATALOG_PHASE2_API = "https://button-poetry-catalog-350789123099.us-central1.run.app";
+export const CATALOG_VISUAL_REVIEW_API = "https://button-poetry-catalog-svz4yyc7gq-uc.a.run.app";
 export const POETRY_PLEASE_REVIEWER_AUTHORITY = "https://poetryplease.org";
 export const SAFE_PREVIEW_RECONCILIATION_ID = 1;
 export const SAFE_PREVIEW_RESOLUTION_ID = 900001;
@@ -180,9 +181,9 @@ export async function accessCatalogSecret(name) {
   return value;
 }
 
-async function catalogJson(path, { fetcher = fetch, readSecret = accessCatalogSecret } = {}) {
+async function catalogJson(path, { fetcher = fetch, readSecret = accessCatalogSecret, catalogBase = CATALOG_PHASE2_API } = {}) {
   const credential = await readSecret(CATALOG_SECRET_NAMES.read);
-  const response = await fetcher(`${CATALOG_PHASE2_API}${path}`, {
+  const response = await fetcher(`${catalogBase}${path}`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${credential}` },
     signal: AbortSignal.timeout(30000),
   });
@@ -241,7 +242,8 @@ export async function readPhase2SourcePageReference({
   dependencies = {},
 }) {
   const normalizedSide = normalizeSourcePageSide(side);
-  const data = await readPhase2Reconciliation(reconciliationId, dependencies);
+  const visualDependencies = { ...dependencies, catalogBase: CATALOG_VISUAL_REVIEW_API };
+  const data = await readPhase2Reconciliation(reconciliationId, visualDependencies);
   const row = data.rows.find((item) => Number(item?.resolutionId) === Number(resolutionId));
   if (!row) {
     const error = new Error("resolution_not_found");
@@ -249,9 +251,20 @@ export async function readPhase2SourcePageReference({
     throw error;
   }
   const source = sourcePageContextFromRow(row, normalizedSide);
-  const reference = await catalogJson(sourcePageReferencePath(source.sourceVersionId, source.poemKey), dependencies);
+  const reference = await catalogJson(sourcePageReferencePath(source.sourceVersionId, source.poemKey), visualDependencies);
   if (!reference || !Array.isArray(reference.pages)) {
     const error = new Error("source_page_reference_shape_invalid");
+    error.status = 502;
+    throw error;
+  }
+  const pages = reference.pages.map((page) => ({
+    pageIndex: Number(page?.pageIndex),
+    pageLabel: String(page?.pageLabel || ""),
+    spreadIndex: Number.isInteger(Number(page?.spreadIndex)) ? Number(page.spreadIndex) : null,
+    side: String(page?.side || ""),
+  })).filter((page) => Number.isInteger(page.pageIndex) && page.pageIndex >= 0);
+  if (!pages.length) {
+    const error = new Error("source_page_reference_empty");
     error.status = 502;
     throw error;
   }
@@ -260,12 +273,7 @@ export async function readPhase2SourcePageReference({
     resolutionId: Number(row.resolutionId),
     side: normalizedSide,
     source,
-    pages: reference.pages.map((page) => ({
-      pageIndex: Number(page?.pageIndex),
-      pageLabel: String(page?.pageLabel || ""),
-      spreadIndex: Number.isInteger(Number(page?.spreadIndex)) ? Number(page.spreadIndex) : null,
-      side: String(page?.side || ""),
-    })).filter((page) => Number.isInteger(page.pageIndex) && page.pageIndex >= 0),
+    pages,
   };
 }
 
@@ -284,7 +292,7 @@ async function fetchPhase2SourcePdf({
   });
   const credential = await readSecret(CATALOG_SECRET_NAMES.read);
   const response = await fetcher(
-    `${CATALOG_PHASE2_API}/source-page-assets/${encodeURIComponent(reference.source.sourceVersionId)}`,
+    `${CATALOG_VISUAL_REVIEW_API}/source-page-assets/${encodeURIComponent(reference.source.sourceVersionId)}`,
     {
       headers: { Accept: "application/pdf", Authorization: `Bearer ${credential}` },
       signal: AbortSignal.timeout(30000),
