@@ -146,10 +146,13 @@ function createApp(root, initialData, auth) {
   let visual = null;
   let visualError = "";
   let visualLoading = false;
+  let visualRequestId = 0;
   function clearVisual() {
+    visualRequestId += 1;
     if (visual?.pdfUrl && typeof URL?.revokeObjectURL === "function") URL.revokeObjectURL(visual.pdfUrl);
     visual = null;
     visualError = "";
+    visualLoading = false;
   }
 
   const visibleRows = () => data.rows.filter((row) => rowMatchesSearch(row, search));
@@ -170,17 +173,25 @@ function createApp(root, initialData, auth) {
     const row = selected();
     if (!row || visualLoading) return;
     clearVisual();
+    const requestId = visualRequestId;
     visualLoading = true;
     render();
     try {
       const reference = await loadSourcePages(auth.token, row.resolutionId, side);
       const pdfUrl = await loadSourcePdf(auth.token, row.resolutionId, side);
+      if (requestId !== visualRequestId) {
+        if (typeof URL?.revokeObjectURL === "function") URL.revokeObjectURL(pdfUrl);
+        return;
+      }
       visual = { ...reference, pdfUrl };
     } catch (error) {
+      if (requestId !== visualRequestId) return;
       visualError = error.message;
     } finally {
-      visualLoading = false;
-      render();
+      if (requestId === visualRequestId) {
+        visualLoading = false;
+        render();
+      }
     }
   }
 
