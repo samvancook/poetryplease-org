@@ -109,6 +109,20 @@ function sourceViewer(item) {
     reminder + viewer + "</section>";
 }
 
+function promotionReadiness() {
+  const readiness = state.data && state.data.readiness;
+  if (!readiness) return "";
+  const editorial = readiness.editorialReview || {};
+  const visual = readiness.visualReview || {};
+  const editorialPending = Number(editorial.byStatus && editorial.byStatus.pending || 0);
+  const visualPending = Number(visual.awaitingEvidence || 0);
+  return "<section class='evidence readiness'><p class='eyebrow'>Next phase preparation</p><h2>Promotion and publication remain locked</h2>" +
+    "<p class='muted'>This is a readiness summary only. It cannot promote a source or publish downstream material.</p>" +
+    "<ul><li>" + esc(editorialPending) + " editorial decision" + (editorialPending === 1 ? "" : "s") + " still pending</li>" +
+    "<li>" + esc(visualPending) + " current visual reference" + (visualPending === 1 ? "" : "s") + " awaiting evidence</li>" +
+    "<li>Explicit promotion authorization is still required.</li></ul></section>";
+}
+
 function detail(item) {
   if (!item) {
     return "<main class='empty'><h1>Phase 4 visual review</h1><p>No Catalog source-page references currently require visual confirmation.</p></main>";
@@ -118,6 +132,7 @@ function detail(item) {
   return "<main class='detail'><p class='eyebrow'>Phase 4 · read-only source evidence</p><h1>" + esc(title) + "</h1>" +
     "<p class='muted'>" + esc(item.identity || "No stable identity supplied") + " · " + esc(item.side) +
     " source · Catalog poem " + esc(source.sourcePoemId) + " · source version " + esc(source.sourceVersionId) + "</p>" +
+    promotionReadiness() +
     "<div class='status " + statusClass(item.visualStatus) + "'>" + esc(statusLabel(item.visualStatus)) + "</div>" +
     sourceViewer(item) +
     "<section class='evidence'><h2>Record visual evidence</h2><p class='muted'>This does not save an editorial decision. It records review evidence for this exact source-page mapping first.</p>" +
