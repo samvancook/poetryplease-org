@@ -17,6 +17,16 @@ const state = {
 };
 
 const itemKey = (item) => String(item.resolutionId) + ":" + item.side;
+const requestedItemKey = () => {
+  if (typeof window === "undefined") return null;
+  const query = new URLSearchParams(window.location.search);
+  const resolutionId = Number(query.get("resolutionId"));
+  const side = query.get("side");
+  return Number.isInteger(resolutionId) && resolutionId > 0 && (side === "prior" || side === "candidate")
+    ? String(resolutionId) + ":" + side
+    : null;
+};
+const textReviewHref = (item) => "/manuscript-reconciliation.html?resolutionId=" + encodeURIComponent(String(item.resolutionId));
 const selectedItem = () => state.data && state.data.items.find((item) => itemKey(item) === state.selectedKey) || null;
 
 async function authorize() {
@@ -55,7 +65,7 @@ async function loadQueue() {
   if (Number(payload.reconciliation && payload.reconciliation.id) !== RECONCILIATION_ID || !Array.isArray(payload.items)) {
     throw Error("Catalog visual-review queue is unavailable.");
   }
-  const current = state.selectedKey;
+  const current = state.selectedKey || requestedItemKey();
   state.data = payload;
   state.selectedKey = payload.items.some((item) => itemKey(item) === current)
     ? current
@@ -133,6 +143,7 @@ function detail(item) {
   return "<main class='detail'><p class='eyebrow'>Phase 4 · read-only source evidence</p><h1>" + esc(title) + "</h1>" +
     "<p class='muted'>" + esc(item.identity || "No stable identity supplied") + " · " + esc(item.side) +
     " source · Catalog poem " + esc(source.sourcePoemId) + " · source version " + esc(source.sourceVersionId) + "</p>" +
+    "<p><a href='" + esc(textReviewHref(item)) + "'>← Return to text review for this poem</a></p>" +
     promotionReadiness() +
     "<div class='status " + statusClass(item.visualStatus) + "'>" + esc(statusLabel(item.visualStatus)) + "</div>" +
     sourceViewer(item) +
@@ -158,8 +169,8 @@ function queueList() {
 
 function render() {
   const root = document.getElementById("visual-review-app");
-  root.innerHTML = "<nav aria-label='Admin navigation'><strong>Poetry Please Admin</strong><a href='/admin.html'>Admin</a><a href='/manuscript-reconciliation.html'>Phase 2 text reconciliation</a><a aria-current='page' href='/manuscript-visual-review.html'>Phase 4 visual review</a></nav>" +
-    "<div class='banner'>Phase 4 visual confirmation · Catalog remains the source-page authority</div>" +
+  root.innerHTML = "<nav aria-label='Admin navigation'><strong>Poetry Please Admin</strong><a href='/admin.html'>Admin</a><a href='/manuscript-reconciliation.html'>Text review</a><a aria-current='page' href='/manuscript-visual-review.html'>Visual PDF review</a></nav>" +
+    "<div class='banner'>Visual PDF review · Catalog remains the source-page authority</div>" +
     "<div class='workspace'>" + queueList() + detail(selectedItem()) + "</div>";
   root.querySelectorAll("[data-item]").forEach((button) => button.addEventListener("click", async () => {
     const nextKey = button.getAttribute("data-item");
