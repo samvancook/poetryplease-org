@@ -69,6 +69,18 @@ const expectedFinalCount = (reconciliation) => {
 };
 const visualPageMapping = (row) => [row?.prior, row?.candidate]
   .find((source) => source?.sourcePages?.status === "available") || null;
+const requestedResolutionId = () => {
+  if (typeof window === "undefined") return null;
+  const value = Number(new URLSearchParams(window.location.search).get("resolutionId"));
+  return Number.isInteger(value) && value > 0 ? value : null;
+};
+const visualReviewHref = (row) => {
+  const source = visualPageMapping(row);
+  if (!source || !Number.isInteger(Number(row?.resolutionId))) return null;
+  const side = source === row?.prior ? "prior" : "candidate";
+  const query = new URLSearchParams({ resolutionId: String(row.resolutionId), side });
+  return "/manuscript-visual-review.html?" + query.toString();
+};
 
 export const candidateSourceKey = (row) => {
   if (!row || typeof row !== "object") return null;
@@ -136,7 +148,10 @@ async function saveResolution(token, resolutionId, decision, key) {
 
 function createApp(root, initialData, auth) {
   let data = initialData;
-  let selectedId = data.rows[0]?.resolutionId ?? null;
+  const requestedId = requestedResolutionId();
+  let selectedId = data.rows.some((row) => Number(row.resolutionId) === requestedId)
+    ? requestedId
+    : data.rows[0]?.resolutionId ?? null;
   let search = "";
   let searchDraft = "";
   let mode = "exact";
@@ -225,6 +240,7 @@ function createApp(root, initialData, auth) {
     const warningRows = data.rows.filter((item) => rowMatchesSummary(item, "warnings"));
     const candidateVersions = uniquePositiveInts(data.rows.map((item) => item?.candidate?.sourceVersionId));
     const expectedCount = expectedFinalCount(rec);
+    const visualHref = visualReviewHref(row);
     const summaryCards = [
       ["all", data.rows.length, "comparison records"],
       ["auto-approved", data.rows.filter((item) => rowMatchesSummary(item, "auto-approved")).length, "low-risk matches already approved"],
@@ -256,8 +272,8 @@ function createApp(root, initialData, auth) {
         <aside class="panel detail">${row ? `
           <h2>Decision</h2>
           <h3>Visual PDF context</h3>
-          ${visualPageMapping(row)
-            ? `<p><a class="visual-link" href="/manuscript-visual-review.html">Open available Catalog-bound PDF review</a></p><p class="help">The separate visual-review queue displays only source pages Catalog has mapped and hash-bound.</p>`
+          ${visualHref
+            ? `<p><a class="visual-link" href="${esc(visualHref)}">View available PDF context</a></p><p class="help">This opens the matching Catalog-bound PDF evidence, with a link back to this text-review record.</p>`
             : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
