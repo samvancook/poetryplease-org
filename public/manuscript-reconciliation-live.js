@@ -57,7 +57,6 @@ export const candidateSourceMatches = (reviewedRow, authoritativeRow) => {
   const authoritative = candidateSourceKey(authoritativeRow);
   return reviewed !== null && authoritative !== null && reviewed === authoritative;
 };
-
 async function authorize() {
   if (!firebase.apps?.length) {
     const configResponse = await fetch("/__/firebase/init.json", { cache: "no-store" });
@@ -176,8 +175,7 @@ function createApp(root, initialData, auth) {
       if (advance) selectedId = nextRowId(visibleRows(), row.resolutionId);
     } catch (error) {
       if (!writeStarted) {
-        message = `Candidate check failed: ${error.message} No decision was saved.`;
-      } else if (error.status === 409 && error.payload?.error === "stale_reconciliation_revision") {
+        message = `Candidate check failed: ${error.message} No decision was saved.`;      } else if (error.status === 409 && error.payload?.error === "stale_reconciliation_revision") {
         await reload("A newer Catalog revision exists. Authoritative data was reloaded; review before saving again.");
       } else {
         message = `Save failed: ${error.message} You can retry without creating a duplicate decision.`;
@@ -227,7 +225,8 @@ function createApp(root, initialData, auth) {
           <label>Formatting source<select id="format-source">${sourceOptions(row, formatSource)}</select></label>
           <label>Reviewer notes<textarea id="review-notes" rows="5">${esc(row.existingReviewNotes || "")}</textarea></label>
           <p class="notice">If the candidate has a stray page number, neighboring title, missing text, or wrong reading order, choose “Needs parser correction” and describe it here.</p>
-          <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save</button><button id="save-advance" ${saving ? "disabled" : ""}>Save and advance</button></div>
+          <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save decision</button><button id="save-advance" ${saving ? "disabled" : ""}>Save decision and next</button></div>
+          <p class="help">Both buttons save your decision. The second opens the next record after the save is verified.</p>
           <p class="status-message" role="status">${esc(message)}</p>
           <h3>Audit history</h3>${audits.length ? `<ol class="audit">${audits.slice().reverse().map((event) => `<li><b>${esc(event?.reviewer?.email || event?.reviewedBy || "Unknown reviewer")}</b><small>${esc(event?.timestamp || event?.reviewedAt || "Time unavailable")}${event?.resultingReconciliationRevision ? ` · revision ${event.resultingReconciliationRevision}` : ""}</small><p>${esc(event?.notes || "No notes")}</p></li>`).join("")}</ol>` : "<p>No audit history supplied.</p>"}` : '<div class="empty">No detail available.</div>'}</aside>
       </section>`;
