@@ -33,6 +33,7 @@ import {
 } from "../public/manuscript-reconciliation-phase2-preview.js";
 import {
   candidateSourceMatches,
+  filterRowsBySummary,
   reloadIfCandidateChanged,
 } from "../public/manuscript-reconciliation-live.js";
 
@@ -447,4 +448,17 @@ test("Phase 4 is served by the authenticated Poetry Please API without exposing 
   assert.match(index, /admin\/manuscriptVisualReviews/);
   assert.match(phase4, /Authorization: "Bearer " \+ credential/);
   assert.doesNotMatch(phase4, /CATALOG_RECONCILIATION_API_KEY/);
+});
+
+test("summary cards filter only the intended reconciliation rows", () => {
+  const rows = [
+    { resolutionId: 1, status: "auto_approved", warnings: [] },
+    { resolutionId: 2, status: "pending", warnings: ["pdf_possible_image_backed_poem"] },
+    { resolutionId: 3, status: "pending", candidate: { text: "*" } },
+    { resolutionId: 4, status: "approved", warnings: [] },
+  ];
+  assert.deepEqual(filterRowsBySummary(rows, "all").map((row) => row.resolutionId), [1, 2, 3, 4]);
+  assert.deepEqual(filterRowsBySummary(rows, "auto-approved").map((row) => row.resolutionId), [1]);
+  assert.deepEqual(filterRowsBySummary(rows, "pending").map((row) => row.resolutionId), [2, 3]);
+  assert.deepEqual(filterRowsBySummary(rows, "warnings").map((row) => row.resolutionId), [2, 3]);
 });
