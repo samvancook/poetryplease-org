@@ -177,8 +177,7 @@ function createApp(root, initialData, auth) {
     const row = selected();
     if (!row || saving) return;
     const decision = {
-      expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),
-      reviewStatus: root.querySelector("#review-status")?.value || row.status || "pending",
+      expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),      reviewStatus: root.querySelector("#review-status")?.value || row.status || "pending",
       resolutionAction: root.querySelector("#resolution-action")?.value || row.proposedResolution,
       canonicalTitle: root.querySelector("#canonical-title")?.value.trim() || row.canonicalTitle || row.candidateTitle || row.priorTitle,
       stablePoemIdentity: root.querySelector("#stable-identity")?.value.trim() || row.identity,
@@ -285,7 +284,8 @@ function createApp(root, initialData, auth) {
           <label>Formatting source<select id="format-source">${sourceOptions(row, formatSource)}</select></label>
           <label>Reviewer notes<textarea id="review-notes" rows="5">${esc(row.existingReviewNotes || "")}</textarea></label>
           <p class="notice">If the candidate has a stray page number, neighboring title, missing text, or wrong reading order, choose “Needs parser correction” and describe it here.</p>
-          <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save</button><button id="save-advance" ${saving ? "disabled" : ""}>Save and advance</button></div>
+          <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save decision</button><button id="save-advance" ${saving ? "disabled" : ""}>Save decision and next</button></div>
+          <p class="help">Both buttons save your decision. The second opens the next record after the save is verified.</p>
           <p class="status-message" role="status">${esc(message)}</p>
           <h3>Audit history</h3>${audits.length ? `<ol class="audit">${audits.slice().reverse().map((event) => `<li><b>${esc(event?.reviewer?.email || event?.reviewedBy || "Unknown reviewer")}</b><small>${esc(event?.timestamp || event?.reviewedAt || "Time unavailable")}${event?.resultingReconciliationRevision ? ` · revision ${event.resultingReconciliationRevision}` : ""}</small><p>${esc(event?.notes || "No notes")}</p></li>`).join("")}</ol>` : "<p>No audit history supplied.</p>"}` : '<div class="empty">No detail available.</div>'}</aside>
       </section>`;
