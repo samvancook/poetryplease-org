@@ -46,6 +46,42 @@ const needsNotes = (row, decision) => {
 };
 const idempotencyKey = () => crypto.randomUUID?.() || [...crypto.getRandomValues(new Uint8Array(16))].map((v) => v.toString(16).padStart(2, "0")).join("");
 
+const LABC_RECORDED_EXPECTED_FINAL_COUNT = 45;
+const rowHasCatalogWarning = (row) => Array.isArray(row?.warnings) && row.warnings.length > 0;
+const rowHasPlaceholderCandidate = (row) => row?.candidate && String(row.candidate.text || "").trim() === "*";
+export const rowMatchesSummary = (row, summary = "all") => {
+  if (summary === "auto-approved") return row?.status === "auto_approved";
+  if (summary === "pending") return row?.status === "pending";
+  if (summary === "warnings") return rowHasCatalogWarning(row) || rowHasPlaceholderCandidate(row);
+  return true;
+};
+export const filterRowsBySummary = (rows, summary = "all") => rows.filter((row) => rowMatchesSummary(row, summary));
+const uniquePositiveInts = (values) => [...new Set(values.map(Number).filter((value) => Number.isInteger(value) && value > 0))];
+const expectedFinalCount = (reconciliation) => {
+  const supplied = [
+    reconciliation?.expectedFinalCount,
+    reconciliation?.expectedFinalPoemCount,
+    reconciliation?.expectedResolvedCount,
+    reconciliation?.totals?.expectedFinalCount,
+    reconciliation?.totals?.expectedFinalPoemCount,
+  ].map(Number).find((value) => Number.isInteger(value) && value > 0);
+  return supplied ?? (Number(reconciliation?.id) === RECONCILIATION_ID ? LABC_RECORDED_EXPECTED_FINAL_COUNT : null);
+};
+const visualPageMapping = (row) => [row?.prior, row?.candidate]
+  .find((source) => source?.sourcePages?.status === "available") || null;
+const requestedResolutionId = () => {
+  if (typeof window === "undefined") return null;
+  const value = Number(new URLSearchParams(window.location.search).get("resolutionId"));
+  return Number.isInteger(value) && value > 0 ? value : null;
+};
+const visualReviewHref = (row) => {
+  const source = visualPageMapping(row);
+  if (!source || !Number.isInteger(Number(row?.resolutionId))) return null;
+  const side = source === row?.prior ? "prior" : "candidate";
+  const query = new URLSearchParams({ resolutionId: String(row.resolutionId), side });
+  return "/manuscript-visual-review.html?" + query.toString();
+};
+
 export const candidateSourceKey = (row) => {
   if (!row || typeof row !== "object") return null;
   if (row.candidate === null || row.candidate === undefined) return "none";
@@ -112,14 +148,18 @@ async function saveResolution(token, resolutionId, decision, key) {
 
 function createApp(root, initialData, auth) {
   let data = initialData;
-  let selectedId = data.rows[0]?.resolutionId ?? null;
+  const requestedId = requestedResolutionId();
+  let selectedId = data.rows.some((row) => Number(row.resolutionId) === requestedId)
+    ? requestedId
+    : data.rows[0]?.resolutionId ?? null;
   let search = "";
   let searchDraft = "";
   let mode = "exact";
   let saving = false;
   let message = "";
   let retry = null;
-  const visibleRows = () => data.rows.filter((row) => rowMatchesSearch(row, search));
+  let summary = "all";
+  const visibleRows = () => filterRowsBySummary(data.rows, summary).filter((row) => rowMatchesSearch(row, search));
   const selected = () => visibleRows().find((row) => Number(row.resolutionId) === Number(selectedId)) || visibleRows()[0] || null;
   const nextRowId = (rows, current) => {
     const index = rows.findIndex((row) => Number(row.resolutionId) === Number(current));
@@ -197,14 +237,26 @@ function createApp(root, initialData, auth) {
     const textSource = row?.textSourcePoemId || row?.candidate?.id || row?.prior?.id;
     const formatSource = row?.formatSourcePoemId || row?.candidate?.id || row?.prior?.id;
     const audits = Array.isArray(row?.auditHistory) ? row.auditHistory : [];
+    const warningRows = data.rows.filter((item) => rowMatchesSummary(item, "warnings"));
+    const candidateVersions = uniquePositiveInts(data.rows.map((item) => item?.candidate?.sourceVersionId));
+    const expectedCount = expectedFinalCount(rec);
+    const visualHref = visualReviewHref(row);
+    const summaryCards = [
+      ["all", data.rows.length, "comparison records"],
+      ["auto-approved", data.rows.filter((item) => rowMatchesSummary(item, "auto-approved")).length, "low-risk matches already approved"],
+      ["pending", data.rows.filter((item) => rowMatchesSummary(item, "pending")).length, "decisions still needed"],
+      ["warnings", warningRows.length, "source or parser warnings"],
+    ];
     root.innerHTML = `
       <div class="banner fixture">Live editorial reconciliation · decisions write to the production Catalog</div>
       <div class="banner readonly">Authenticated Phase 2 production · reconciliation ${esc(rec.id)} is writable</div>
       <section class="dashboard">
-        <p class="eyebrow">Reconciliation ${esc(rec.id)} · revision ${esc(rec.writeRevision)}</p>
+        <p class="eyebrow">Reconciliation ${esc(rec.id)} · Catalog decision revision ${esc(rec.writeRevision)}</p>
         <h1>${esc(rec.bookTitle || "Manuscript Reconciliation")}</h1>
         <p>Signed in reviewer: ${esc(data.currentReviewer?.email)} · roles ${esc((data.currentReviewer?.roles || []).join(", "))}</p>
-        <div class="stats"><b>${rec.totals?.resolutionRows ?? 0}<span>comparison records</span></b><b>${rec.totals?.autoApproved ?? 0}<span>low-risk matches already approved</span></b><b>${rec.totals?.pending ?? 0}<span>decisions still needed</span></b><b>${rec.writeRevision ?? 0}<span>Catalog decision revision</span></b></div>
+        <p class="help"><b>Candidate source:</b> ${candidateVersions.length === 1 ? `Source ${esc(candidateVersions[0])}` : "Catalog did not provide one shared candidate source"} · <b>Expected resolved book:</b> ${expectedCount ? `${esc(expectedCount)} poems` : "not supplied by Catalog"}</p>
+        <div class="stats">${summaryCards.map(([key, count, label]) => `<button type="button" class="stat" data-summary="${key}" aria-pressed="${summary === key}"><b>${esc(count)}<span>${esc(label)}</span></b></button>`).join("")}</div>
+        <p class="help">Select a count to filter the review queue. The current filter is ${summary === "all" ? "all records" : esc(summary.replace("-", " "))}.</p>
       </section>
       <section class="workspace">
         <aside class="panel"><h2>Review queue</h2>
@@ -219,6 +271,12 @@ function createApp(root, initialData, auth) {
           <div class="texts"><article><h3>Earlier source · ${esc(row.priorTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.prior?.text, mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(row.candidateTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.candidate?.text, mode === "normalized")}</div></article></div>` : '<div class="empty">No comparison record selected.</div>'}</main>
         <aside class="panel detail">${row ? `
           <h2>Decision</h2>
+          <h3>Visual PDF context</h3>
+          ${visualHref
+            ? `<p><a class="visual-link" href="${esc(visualHref)}">View available PDF context</a></p><p class="help">This opens the matching Catalog-bound PDF evidence, with a link back to this text-review record.</p>`
+            : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
+          ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
+          ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
           <label>Status<select id="review-status"><option value="pending" ${row.status === "pending" ? "selected" : ""}>Needs review</option><option value="approved" ${row.status === "approved" ? "selected" : ""}>Approved</option><option value="rejected" ${row.status === "rejected" ? "selected" : ""}>Rejected</option></select></label>
           <label>Resolution action<select id="resolution-action">${ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
           <label>Canonical title<input id="canonical-title" value="${esc(title)}"></label>
@@ -232,6 +290,13 @@ function createApp(root, initialData, auth) {
           <h3>Audit history</h3>${audits.length ? `<ol class="audit">${audits.slice().reverse().map((event) => `<li><b>${esc(event?.reviewer?.email || event?.reviewedBy || "Unknown reviewer")}</b><small>${esc(event?.timestamp || event?.reviewedAt || "Time unavailable")}${event?.resultingReconciliationRevision ? ` · revision ${event.resultingReconciliationRevision}` : ""}</small><p>${esc(event?.notes || "No notes")}</p></li>`).join("")}</ol>` : "<p>No audit history supplied.</p>"}` : '<div class="empty">No detail available.</div>'}</aside>
       </section>`;
 
+    for (const button of root.querySelectorAll("[data-summary]")) button.addEventListener("click", () => {
+      summary = button.dataset.summary || "all";
+      selectedId = visibleRows()[0]?.resolutionId ?? null;
+      message = "";
+      retry = null;
+      render();
+    });
     root.querySelector("#search")?.addEventListener("input", (event) => { searchDraft = event.target.value; });
     root.querySelector("#search-form")?.addEventListener("submit", (event) => { event.preventDefault(); search = searchDraft; selectedId = visibleRows()[0]?.resolutionId ?? null; render(); });
     root.querySelector("#clear-search")?.addEventListener("click", () => { search = ""; searchDraft = ""; selectedId = data.rows[0]?.resolutionId ?? null; render(); });
