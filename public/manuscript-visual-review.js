@@ -12,7 +12,6 @@ const state = {
   sourceUrl: null,
   sourceKey: null,
   loadingSource: false,
-  savingEvidence: false,
   message: "",
 };
 
@@ -47,23 +46,13 @@ async function authorize() {
   return { token, profile };
 }
 
-async function apiJson(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      Authorization: "Bearer " + state.auth.token,
-      ...(options.headers || {}),
-    },
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw Error(payload.error || "visual_review_request_failed");
-  return payload;
-}
-
 async function loadQueue() {
-  const payload = await apiJson(API);
-  if (Number(payload.reconciliation && payload.reconciliation.id) !== RECONCILIATION_ID || !Array.isArray(payload.items)) {
-    throw Error("Catalog visual-review queue is unavailable.");
+  const response = await fetch(API, { headers: { Authorization: "Bearer " + state.auth.token } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw Error(payload.error || "source_pdf_reference_unavailable");
+  if (Number(payload.reconciliation && payload.reconciliation.id) !== RECONCILIATION_ID || !Array.isArray(payload.items)
+    || payload.readOnly !== true || payload.writeEnabled !== false) {
+    throw Error("Catalog source-PDF references are unavailable.");
   }
   const current = state.selectedKey || requestedItemKey();
   state.data = payload;
@@ -72,119 +61,49 @@ async function loadQueue() {
     : payload.items[0] ? itemKey(payload.items[0]) : null;
 }
 
-function statusLabel(status) {
-  if (status === "confirmed") return "Visual evidence recorded";
-  if (status === "needs_follow_up") return "Needs follow-up";
-  return "Needs visual confirmation";
-}
-
-function statusClass(status) {
-  if (status === "confirmed") return "confirmed";
-  if (status === "needs_follow_up") return "followup";
-  return "pending";
-}
-
 function sourcePageLabel(page) {
   const spread = page.spreadIndex ? "Spread " + esc(page.spreadIndex) + " · " + esc(page.side || "page") : "Source page";
   const printed = page.pageLabel ? "printed " + esc(page.pageLabel) : "PDF page " + esc(page.pageIndex);
   return spread + " · " + printed;
 }
 
-function evidenceHistory(item) {
-  if (!item.evidence || !item.evidence.length) {
-    return "<p class='muted'>No visual evidence has been recorded for this exact Catalog page mapping.</p>";
-  }
-  return "<ol class='evidence-history'>" + item.evidence.map((evidence) => (
-    "<li><strong>" + esc(statusLabel(evidence.outcome)) + "</strong><br>" +
-    esc(evidence.notes) + "<small>" + esc(evidence.reviewer.email || "Team reviewer") +
-    (evidence.recordedAt ? " · " + esc(new Date(evidence.recordedAt).toLocaleString()) : "") + "</small></li>"
-  )).join("") + "</ol>";
-}
-
 function sourceViewer(item) {
   const source = item.source;
   const pages = source.sourcePages.pages || [];
-  const reminder = source.sourcePoemId === 238 && source.sourceVersionId === 10
-    ? "<p class='inspection'>For <em>elephants</em>, inspect the black redaction after “I remember.”</p>"
-    : "";
   const viewer = state.sourceUrl && state.sourceKey === itemKey(item)
     ? "<div class='page-grid'>" + pages.map((page) => (
       "<section class='source-page'><h3>" + sourcePageLabel(page) + "</h3>" +
       "<iframe title='" + esc(sourcePageLabel(page)) + "' src='" + esc(state.sourceUrl) + "#page=" +
       encodeURIComponent(String(page.pageIndex)) + "&zoom=page-width'></iframe></section>"
     )).join("") + "</div><p><a class='open-source' target='_blank' rel='noopener' href='" +
-      esc(state.sourceUrl) + "'>Open the Catalog PDF</a></p>"
+      esc(state.sourceUrl) + "'>Open the hash-verified Catalog PDF</a></p>"
     : "<div class='source-loading'>" + (state.loadingSource ? "Loading the authenticated Catalog PDF…" : "Select this item to load its authenticated Catalog PDF.") + "</div>";
-  return "<section class='source-view'><h2>Catalog source pages</h2><p class='muted'>The page order, labels, spread sides, and PDF are provided by Catalog. Poetry Please does not reconstruct them.</p>" +
-    reminder + viewer + "</section>";
-}
-
-function promotionReadiness() {
-  const readiness = state.data && state.data.readiness;
-  if (!readiness) return "";
-  const editorial = readiness.editorialReview || {};
-  const visual = readiness.visualReview || {};
-  const editorialPending = Number(editorial.byStatus && editorial.byStatus.pending || 0);
-  const visualPending = Number(visual.awaitingEvidence || 0);
-  return "<section class='evidence readiness'><p class='eyebrow'>Next phase preparation</p><h2>Promotion and publication remain locked</h2>" +
-    "<p class='muted'>This is a readiness summary only. It cannot promote a source or publish downstream material.</p>" +
-    "<ul><li>" + esc(editorialPending) + " editorial decision" + (editorialPending === 1 ? "" : "s") + " still pending</li>" +
-    "<li>" + esc(visualPending) + " current visual reference" + (visualPending === 1 ? "" : "s") + " awaiting evidence</li>" +
-    "<li>Explicit promotion authorization is still required.</li></ul>" +
-    "<button id='download-promotion-preflight'>Download Phase 5 preflight</button></section>";
+  return "<section class='source-view'><h2>Catalog-mapped source pages</h2><p class='muted'>Use this optional, read-only check for ordinary text: poem identity, lost words, and line breaks. Catalog supplies the page order, labels, and PDF; Poetry Please does not reconstruct them.</p>" +
+    "<p class='inspection'>This page never saves a decision, creates source data, records visual evidence, or changes promotion. For materially visual pages, preserve the record and defer it to INT.</p>" + viewer + "</section>";
 }
 
 function detail(item) {
   if (!item) {
-    return "<main class='empty'><h1>Phase 4 visual review</h1><p>No Catalog source-page references currently require visual confirmation.</p></main>";
+    return "<main class='empty'><h1>Source PDF check</h1><p>No Catalog-mapped source-PDF reference is available for this record.</p></main>";
   }
   const source = item.source;
   const title = source.title || item.canonicalTitle || item.candidateTitle || item.priorTitle || item.identity || "Untitled poem";
-  return "<main class='detail'><p class='eyebrow'>Phase 4 · read-only source evidence</p><h1>" + esc(title) + "</h1>" +
+  return "<main class='detail'><p class='eyebrow'>Optional read-only reference</p><h1>" + esc(title) + "</h1>" +
     "<p class='muted'>" + esc(item.identity || "No stable identity supplied") + " · " + esc(item.side) +
     " source · Catalog poem " + esc(source.sourcePoemId) + " · source version " + esc(source.sourceVersionId) + "</p>" +
     "<p><a href='" + esc(textReviewHref(item)) + "'>← Return to text review for this poem</a></p>" +
-    promotionReadiness() +
-    "<div class='status " + statusClass(item.visualStatus) + "'>" + esc(statusLabel(item.visualStatus)) + "</div>" +
-    sourceViewer(item) +
-    "<section class='evidence'><h2>Record visual evidence</h2><p class='muted'>This does not save an editorial decision. It records review evidence for this exact source-page mapping first.</p>" +
-    "<label>Result<select id='visual-outcome'><option value='confirmed'>Source visual confirmed</option><option value='needs_follow_up'>Needs follow-up</option></select></label>" +
-    "<label>What did you verify?<textarea id='visual-notes' maxlength='4000' placeholder='Describe the visual finding, including formatting, image, redaction, page order, or OCR concern.'></textarea></label>" +
-    "<button id='record-evidence' " + (state.savingEvidence ? "disabled" : "") + ">"+ (state.savingEvidence ? "Recording…" : "Record visual evidence") + "</button>" +
-    "<p class='message'>" + esc(state.message) + "</p></section>" +
-    "<section class='evidence'><h2>Evidence history</h2>" + evidenceHistory(item) + "</section></main>";
+    sourceViewer(item) + "<p class='message'>" + esc(state.message) + "</p></main>";
 }
 
 function queueList() {
   const items = state.data && state.data.items || [];
-  return "<aside class='queue'><p class='eyebrow'>Catalog queue</p><h2>" + items.length + " source reference" + (items.length === 1 ? "" : "s") + "</h2>" +
-    "<p class='muted'>Only Catalog rows with an available, hash-bound page reference appear here.</p>" +
+  return "<aside class='queue'><p class='eyebrow'>Catalog references</p><h2>" + items.length + " mapped source PDF" + (items.length === 1 ? "" : "s") + "</h2>" +
+    "<p class='muted'>Only Catalog rows with an exact, hash-bound page reference appear here. A missing mapping does not create more mapping work.</p>" +
     "<div class='queue-items'>" + items.map((item) => {
       const title = item.source.title || item.canonicalTitle || item.candidateTitle || item.priorTitle || item.identity || "Untitled";
       return "<button class='queue-item " + (itemKey(item) === state.selectedKey ? "selected" : "") + "' data-item='" + esc(itemKey(item)) + "'>" +
-        "<strong>" + esc(title) + "</strong><small>" + esc(item.side) + " · source " + esc(item.source.sourceVersionId) + "</small>" +
-        "<span class='pill " + statusClass(item.visualStatus) + "'>" + esc(statusLabel(item.visualStatus)) + "</span></button>";
+        "<strong>" + esc(title) + "</strong><small>" + esc(item.side) + " · source " + esc(item.source.sourceVersionId) + "</small></button>";
     }).join("") + "</div></aside>";
-}
-
-function render() {
-  const root = document.getElementById("visual-review-app");
-  root.innerHTML = "<nav aria-label='Admin navigation'><strong>Poetry Please Admin</strong><a href='/admin.html'>Admin</a><a href='/manuscript-reconciliation.html'>Text review</a><a aria-current='page' href='/manuscript-visual-review.html'>Visual PDF review</a></nav>" +
-    "<div class='banner'>Visual PDF review · Catalog remains the source-page authority</div>" +
-    "<div class='workspace'>" + queueList() + detail(selectedItem()) + "</div>";
-  root.querySelectorAll("[data-item]").forEach((button) => button.addEventListener("click", async () => {
-    const nextKey = button.getAttribute("data-item");
-    if (nextKey === state.selectedKey) return;
-    state.selectedKey = nextKey;
-    state.message = "";
-    discardSource();
-    render();
-    await loadSource();
-  }));
-  const record = root.querySelector("#record-evidence");
-  if (record) record.addEventListener("click", recordEvidence);
-  const preflight = root.querySelector("#download-promotion-preflight");
-  if (preflight) preflight.addEventListener("click", downloadPromotionPreflight);
 }
 
 function discardSource() {
@@ -219,59 +138,32 @@ async function loadSource() {
   }
 }
 
-async function downloadPromotionPreflight() {
-  try {
-    const preflight = await apiJson(API + "/promotion-preflight");
-    const body = JSON.stringify(preflight, null, 2);
-    const blob = new Blob([body], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "promotion-preflight-reconciliation-" + RECONCILIATION_ID + ".json";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    state.message = "Read-only Phase 5 preflight downloaded. It does not authorize or perform promotion.";
-  } catch (error) {
-    state.message = "Preflight could not be generated: " + error.message;
-  }
-  render();
-}
-
-async function recordEvidence() {
-  const item = selectedItem();
-  const outcome = document.getElementById("visual-outcome").value;
-  const notes = document.getElementById("visual-notes").value.trim();
-  state.savingEvidence = true;
-  state.message = "";
-  render();
-  try {
-    await apiJson(API + "/items/" + encodeURIComponent(item.resolutionId) + "/" + encodeURIComponent(item.side) + "/evidence", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ outcome, notes }),
-    });
-    state.message = "Visual evidence recorded. No editorial decision was changed.";
-    await loadQueue();
-  } catch (error) {
-    state.message = "Evidence was not recorded: " + error.message;
-  } finally {
-    state.savingEvidence = false;
+function render() {
+  const root = document.getElementById("visual-review-app");
+  root.innerHTML = "<nav aria-label='Admin navigation'><strong>Poetry Please Admin</strong><a href='/admin.html'>Admin</a><a href='/manuscript-reconciliation.html'>Text review</a><a aria-current='page' href='/manuscript-visual-review.html'>Source PDF check</a></nav>" +
+    "<div class='banner'>Optional source-PDF check · Catalog remains the source-page authority</div>" +
+    "<div class='workspace'>" + queueList() + detail(selectedItem()) + "</div>";
+  root.querySelectorAll("[data-item]").forEach((button) => button.addEventListener("click", async () => {
+    const nextKey = button.getAttribute("data-item");
+    if (nextKey === state.selectedKey) return;
+    state.selectedKey = nextKey;
+    state.message = "";
+    discardSource();
     render();
-  }
+    await loadSource();
+  }));
 }
 
 async function start() {
   const root = document.getElementById("visual-review-app");
-  root.innerHTML = "<div class='state'>Checking authenticated team access and Catalog source-page references…</div>";
+  root.innerHTML = "<div class='state'>Checking authenticated team access and Catalog source-PDF references…</div>";
   try {
     state.auth = await authorize();
     await loadQueue();
     render();
     await loadSource();
   } catch (error) {
-    root.innerHTML = "<div class='state error'><h1>Visual review is unavailable</h1><p>" + esc(error.message) + "</p></div>";
+    root.innerHTML = "<div class='state error'><h1>Source PDF check is unavailable</h1><p>" + esc(error.message) + "</p></div>";
   }
 }
 
