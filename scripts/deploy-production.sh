@@ -1,14 +1,31 @@
 #!/bin/zsh
 set -euo pipefail
 
-EXPECTED_REPO="/Users/buttonpublishingone/Desktop/CODEX/Poetry Please/poetry-please"
+EXPECTED_REMOTE="samvancook/poetryplease-org"
 EXPECTED_PROJECT="poetry-please"
 SCOPE="${1:-functions,hosting}"
 
-if [[ "$(pwd -P)" != "$EXPECTED_REPO" ]]; then
-  echo "Refusing deploy: run this script from $EXPECTED_REPO" >&2
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "Refusing deploy: not inside a git repository" >&2
   exit 1
-fi
+}
+[[ "$(git remote get-url origin 2>/dev/null)" == *"$EXPECTED_REMOTE"* ]] || {
+  echo "Refusing deploy: origin remote does not point at $EXPECTED_REMOTE" >&2
+  exit 1
+}
+[[ "$(git rev-parse --abbrev-ref HEAD)" == "main" ]] || {
+  echo "Refusing deploy: not on main" >&2
+  exit 1
+}
+[[ -z "$(git status --porcelain)" ]] || {
+  echo "Refusing deploy: working tree is not clean" >&2
+  exit 1
+}
+git fetch origin main --quiet
+[[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || {
+  echo "Refusing deploy: local main does not match origin/main -- pull or push first" >&2
+  exit 1
+}
 
 case "$SCOPE" in
   functions|hosting|functions,hosting) ;;
