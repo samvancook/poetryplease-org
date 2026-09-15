@@ -448,6 +448,8 @@ test("Phase 4 is served by the authenticated Poetry Please API without exposing 
   assert.match(index, /admin\/manuscriptVisualReviews/);
   assert.match(phase4, /Authorization: "Bearer " \+ credential/);
   assert.doesNotMatch(phase4, /CATALOG_RECONCILIATION_API_KEY/);
+  assert.doesNotMatch(phase4, /app\\.post\\("\\/:reconciliationId\\/items\\/:resolutionId\\/:side\\/evidence"/);
+  assert.doesNotMatch(index, /manuscriptVisualReviewEvidence/);
 });
 
 test("summary cards filter only the intended reconciliation rows", () => {
