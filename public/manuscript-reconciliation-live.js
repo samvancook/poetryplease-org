@@ -1,18 +1,26 @@
 const RECONCILIATION_ID = 2;
 const API = `/api/admin/manuscriptReconciliations/${RECONCILIATION_ID}`;
-const ACTIONS = [
-  ["carry_forward_wording_adopt_final_format", "Approve candidate formatting"],
-  ["adopt_candidate", "Approve candidate wording and formatting"],
-  ["retain_prior", "Keep prior wording and formatting"],
+// Reviewer feedback (Saff Drayton, Phase 1; Emory Thompson, Phase 4) both flagged this list as
+// too long and inconsistently worded for routine use. COMMON_ACTIONS covers the everyday cases;
+// MORE_ACTIONS holds the same underlying values Catalog already accepts, just tucked behind an
+// optgroup so they don't compete with the common path. No resolutionAction value was removed.
+const COMMON_ACTIONS = [
+  ["retain_prior", "Keep earlier source"],
+  ["adopt_candidate", "Approve replacement"],
   ["combine_text_and_format", "Choose wording and formatting sources"],
+];
+const MORE_ACTIONS = [
+  ["carry_forward_wording_adopt_final_format", "Approve candidate formatting only (keep earlier wording)"],
   ["review_replacement", "Approve substantive replacement"],
-  ["review_create", "Create canonical poem"],
-  ["review_retire", "Retire prior poem"],
-  ["reject_extraction", "Reject candidate extraction"],
-  ["request_ocr", "Needs OCR"],
-  ["request_parser_correction", "Needs parser correction"],
+  ["review_create", "Create a new canonical poem"],
+  ["review_retire", "Retire the earlier poem"],
+  ["reject_extraction", "Reject this candidate extraction"],
+  ["request_ocr", "Flag for image/OCR review"],
+  ["request_parser_correction", "Needs text correction"],
   ["manual_source_required", "Needs editorial source decision"],
 ];
+const ACTIONS = [...COMMON_ACTIONS, ...MORE_ACTIONS];
+const SOURCE_CHOICE_ACTION = "combine_text_and_format";
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -31,8 +39,8 @@ const withSourceIds = (row) => ({
   candidate: row?.candidate ? { ...row.candidate, id: row.candidate.id ?? row.candidate.sourcePoemId } : row?.candidate,
 });
 const sourceOptions = (row, selected) => [
-  row?.prior && [row.prior.id, `Prior · ${row.prior.title || row.priorTitle || "Untitled"}`],
-  row?.candidate && [row.candidate.id, `Candidate · ${row.candidate.title || row.candidateTitle || "Untitled"}`],
+  row?.prior && [row.prior.id, `Earlier source · ${row.prior.title || row.priorTitle || "Untitled"}`],
+  row?.candidate && [row.candidate.id, `Proposed replacement · ${row.candidate.title || row.candidateTitle || "Untitled"}`],
 ].filter(Boolean).map(([id, label]) => `<option value="${esc(id)}" ${Number(id) === Number(selected) ? "selected" : ""}>${esc(label)}</option>`).join("");
 const poemLines = (text, normalized) => (normalized ? normalizeWhitespace(text) : preserveText(text)).split("\n")
   .map((line, index) => `<span class="line"><i>${index + 1}</i><b>${line ? esc(line) : "&nbsp;"}</b></span>`).join("");
@@ -277,11 +285,17 @@ function createApp(root, initialData, auth) {
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
           <label>Status<select id="review-status"><option value="pending" ${row.status === "pending" ? "selected" : ""}>Needs review</option><option value="approved" ${row.status === "approved" ? "selected" : ""}>Approved</option><option value="rejected" ${row.status === "rejected" ? "selected" : ""}>Rejected</option></select></label>
-          <label>Resolution action<select id="resolution-action">${ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
+          <label>Resolution action<select id="resolution-action">
+            <optgroup label="Common decisions">${COMMON_ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
+            <optgroup label="More options">${MORE_ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
+          </select></label>
           <label>Canonical title<input id="canonical-title" value="${esc(title)}"></label>
-          <label>Stable poem identity<input id="stable-identity" value="${esc(row.identity)}"></label>
-          <label>Wording source<select id="text-source">${sourceOptions(row, textSource)}</select></label>
-          <label>Formatting source<select id="format-source">${sourceOptions(row, formatSource)}</select></label>
+          <div id="source-choice-fields" hidden>
+            <p class="help">These only apply when the resolution action above is “Choose wording and formatting sources.”</p>
+            <label>Stable poem identity<input id="stable-identity" value="${esc(row.identity)}"></label>
+            <label>Wording source<select id="text-source">${sourceOptions(row, textSource)}</select></label>
+            <label>Formatting source<select id="format-source">${sourceOptions(row, formatSource)}</select></label>
+          </div>
           <label>Reviewer notes<textarea id="review-notes" rows="5">${esc(row.existingReviewNotes || "")}</textarea></label>
           <p class="notice">If the candidate has a stray page number, neighboring title, missing text, or wrong reading order, choose “Needs parser correction” and describe it here.</p>
           <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save decision</button><button id="save-advance" ${saving ? "disabled" : ""}>Save decision and next</button></div>
@@ -289,6 +303,14 @@ function createApp(root, initialData, auth) {
           <p class="status-message" role="status">${esc(message)}</p>
           <h3>Audit history</h3>${audits.length ? `<ol class="audit">${audits.slice().reverse().map((event) => `<li><b>${esc(event?.reviewer?.email || event?.reviewedBy || "Unknown reviewer")}</b><small>${esc(event?.timestamp || event?.reviewedAt || "Time unavailable")}${event?.resultingReconciliationRevision ? ` · revision ${event.resultingReconciliationRevision}` : ""}</small><p>${esc(event?.notes || "No notes")}</p></li>`).join("")}</ol>` : "<p>No audit history supplied.</p>"}` : '<div class="empty">No detail available.</div>'}</aside>
       </section>`;
+
+    const toggleSourceChoiceFields = () => {
+      const actionValue = root.querySelector("#resolution-action")?.value;
+      const fields = root.querySelector("#source-choice-fields");
+      if (fields) fields.hidden = actionValue !== SOURCE_CHOICE_ACTION;
+    };
+    toggleSourceChoiceFields();
+    root.querySelector("#resolution-action")?.addEventListener("change", toggleSourceChoiceFields);
 
     for (const button of root.querySelectorAll("[data-summary]")) button.addEventListener("click", () => {
       summary = button.dataset.summary || "all";
