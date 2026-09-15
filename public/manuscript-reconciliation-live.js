@@ -9,8 +9,6 @@ const ACTIONS = [
   ["review_create", "Create canonical poem"],
   ["review_retire", "Retire prior poem"],
   ["reject_extraction", "Reject candidate extraction"],
-  ["request_ocr", "Needs OCR"],
-  ["request_parser_correction", "Needs parser correction"],
   ["manual_source_required", "Needs editorial source decision"],
 ];
 
@@ -270,10 +268,10 @@ function createApp(root, initialData, auth) {
           <div class="texts"><article><h3>Earlier source · ${esc(row.priorTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.prior?.text, mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(row.candidateTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.candidate?.text, mode === "normalized")}</div></article></div>` : '<div class="empty">No comparison record selected.</div>'}</main>
         <aside class="panel detail">${row ? `
           <h2>Decision</h2>
-          <h3>Visual PDF context</h3>
+          <h3>Optional source-PDF check</h3>
           ${visualHref
-            ? `<p><a class="visual-link" href="${esc(visualHref)}">View available PDF context</a></p><p class="help">This opens the matching Catalog-bound PDF evidence, with a link back to this text-review record.</p>`
-            : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
+            ? `<p><a class="visual-link" href="${esc(visualHref)}">View source PDF</a></p><p class="help">Catalog-mapped, hash-verified pages are optional read-only reference evidence. Return here to save the usual text decision.</p>`
+            : `<p class="warnings"><b>No verified source-PDF page mapping is available for this comparison.</b> Use the available text evidence. Do not request new mappings or OCR work from this screen; if the page is materially visual, preserve the record and defer it to INT.</p>`}
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
           <label>Status<select id="review-status"><option value="pending" ${row.status === "pending" ? "selected" : ""}>Needs review</option><option value="approved" ${row.status === "approved" ? "selected" : ""}>Approved</option><option value="rejected" ${row.status === "rejected" ? "selected" : ""}>Rejected</option></select></label>
@@ -283,7 +281,7 @@ function createApp(root, initialData, auth) {
           <label>Wording source<select id="text-source">${sourceOptions(row, textSource)}</select></label>
           <label>Formatting source<select id="format-source">${sourceOptions(row, formatSource)}</select></label>
           <label>Reviewer notes<textarea id="review-notes" rows="5">${esc(row.existingReviewNotes || "")}</textarea></label>
-          <p class="notice">If the candidate has a stray page number, neighboring title, missing text, or wrong reading order, choose “Needs parser correction” and describe it here.</p>
+          <p class="notice">If the candidate has a stray page number, neighboring title, missing text, or wrong reading order, record the textual basis for your decision. Do not request OCR, parser correction, or a new mapping from this screen; defer materially visual pages to INT.</p>
           <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save decision</button><button id="save-advance" ${saving ? "disabled" : ""}>Save decision and next</button></div>
           <p class="help">Both buttons save your decision. The second opens the next record after the save is verified.</p>
           <p class="status-message" role="status">${esc(message)}</p>
