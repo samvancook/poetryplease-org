@@ -335,16 +335,13 @@ function safeError(res, error) {
 export function createManuscriptVisualReviewApp({
   verifyReviewer,
   readCatalogCredential,
-  evidenceStore,
   fetcher = fetch,
 }) {
-  if (typeof verifyReviewer !== "function" || typeof readCatalogCredential !== "function"
-    || !evidenceStore || typeof evidenceStore.list !== "function" || typeof evidenceStore.append !== "function") {
-    throw new TypeError("visual_review_dependencies_required");
+  if (typeof verifyReviewer !== "function" || typeof readCatalogCredential !== "function") {
+    throw new TypeError("source_pdf_reference_dependencies_required");
   }
 
   const app = express();
-  app.use(express.json({ limit: "16kb" }));
 
   async function reviewerFor(req, res) {
     const ctx = await verifyReviewer(req, res);
@@ -353,24 +350,9 @@ export function createManuscriptVisualReviewApp({
   }
 
   async function queueFor(reconciliationId) {
-    const [phaseData, evidenceRows] = await Promise.all([
-      phaseDataFor(reconciliationId, { fetcher, readCatalogCredential }),
-      evidenceStore.list(Number(reconciliationId)),
-    ]);
-    if (!Array.isArray(evidenceRows)) throw codedError("visual_evidence_unavailable");
-    return { phaseData, items: buildVisualReviewQueue(phaseData, evidenceRows) };
+    const phaseData = await phaseDataFor(reconciliationId, { fetcher, readCatalogCredential });
+    return { phaseData, items: buildVisualReviewQueue(phaseData) };
   }
-
-  app.get("/:reconciliationId/promotion-preflight", async (req, res) => {
-    const reviewer = await reviewerFor(req, res);
-    if (!reviewer) return;
-    try {
-      const { phaseData, items } = await queueFor(req.params.reconciliationId);
-      res.set("Cache-Control", "private, no-store").json(buildPromotionPreflight(phaseData, items));
-    } catch (error) {
-      safeError(res, error);
-    }
-  });
 
   app.get("/:reconciliationId", async (req, res) => {
     const reviewer = await reviewerFor(req, res);
@@ -383,8 +365,9 @@ export function createManuscriptVisualReviewApp({
           writeRevision: phaseData.reconciliation.writeRevision || null,
         },
         currentReviewer: reviewer,
+        readOnly: true,
+        writeEnabled: false,
         items,
-        readiness: buildPromotionReadiness(phaseData, items),
       });
     } catch (error) {
       safeError(res, error);
@@ -395,8 +378,8 @@ export function createManuscriptVisualReviewApp({
     const reviewer = await reviewerFor(req, res);
     if (!reviewer) return;
     try {
-      const phaseData = await phaseDataFor(req.params.reconciliationId, { fetcher, readCatalogCredential });
-      const item = findVisualItem(buildVisualReviewQueue(phaseData), req.params.resolutionId, req.params.side);
+      const { items } = await queueFor(req.params.reconciliationId);
+      const item = findVisualItem(items, req.params.resolutionId, req.params.side);
       const pdf = await fetchCatalogSourcePdf(item, { fetcher, readCatalogCredential });
       res.status(200).set({
         "Cache-Control": "private, no-store",
@@ -406,40 +389,6 @@ export function createManuscriptVisualReviewApp({
         "X-Content-Type-Options": "nosniff",
         "Content-Disposition": "inline",
       }).send(pdf.bytes);
-    } catch (error) {
-      safeError(res, error);
-    }
-  });
-
-  app.post("/:reconciliationId/items/:resolutionId/:side/evidence", async (req, res) => {
-    const reviewer = await reviewerFor(req, res);
-    if (!reviewer) return;
-    try {
-      const phaseData = await phaseDataFor(req.params.reconciliationId, { fetcher, readCatalogCredential });
-      const item = findVisualItem(buildVisualReviewQueue(phaseData), req.params.resolutionId, req.params.side);
-      const input = validateVisualEvidenceInput(req.body);
-      const result = await evidenceStore.append({
-        reconciliationId: item.reconciliationId,
-        resolutionId: item.resolutionId,
-        side: item.side,
-        outcome: input.outcome,
-        notes: input.notes,
-        source: {
-          sourcePoemId: item.source.sourcePoemId,
-          sourceVersionId: item.source.sourceVersionId,
-          mappingSha256: item.source.sourcePages.mappingSha256 || "",
-          assetSha256: item.source.sourcePages.asset.sha256,
-          pages: item.source.sourcePages.pages,
-        },
-        reviewer: {
-          uid: reviewer.uid,
-          email: reviewer.email,
-        },
-      });
-      res.set("Cache-Control", "private, no-store").status(201).json({
-        ok: true,
-        evidenceId: result && result.id ? result.id : null,
-      });
     } catch (error) {
       safeError(res, error);
     }
