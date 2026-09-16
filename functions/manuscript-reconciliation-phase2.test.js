@@ -11,7 +11,9 @@ import {
   isSafePreviewTarget,
   normalizeReviewer,
   sanitizeDecision,
+  sanitizeVisualContextFlag,
   savePhase2Resolution,
+  saveVisualContextFlag,
   verifyReviewerViaPoetryPleaseApi,
 } from "./manuscript-reconciliation-phase2.js";
 import {
@@ -187,6 +189,59 @@ test("stale revision returns the Catalog error plus authoritative resolution", a
       && error.payload.error === "stale_reconciliation_revision"
       && error.payload.authoritativeResolution.reconciliationRevision === 7,
   );
+});
+
+test("visual-context flag signs a POST and is independent of the PATCH decision path", async () => {
+  const calls = [];
+  const fetcher = async (url, options = {}) => {
+    calls.push({ url, options });
+    return new Response(JSON.stringify({
+      visualContextFlag: { id: 1, sourcePoemId: 9000011, status: "queued", reason: "Shaped/redacted layout." },
+      idempotent: false,
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  const result = await saveVisualContextFlag({
+    reconciliationId: SAFE_PREVIEW_RECONCILIATION_ID,
+    resolutionId: SAFE_PREVIEW_RESOLUTION_ID,
+    payload: { sourcePoemId: 9000011, reason: "Shaped/redacted layout." },
+    idempotencyKey: "flag-retry-key-1234567",
+    reviewer,
+    fetcher,
+    readSecret,
+    signedAt: 1788282000,
+  });
+  assert.equal(result.visualContextFlag.status, "queued");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, `${CATALOG_PHASE2_API}/resolutions/${SAFE_PREVIEW_RESOLUTION_ID}/visual-context-flags`);
+  assert.equal(calls[0].options.method, "POST");
+  const canonical = ["POST", `/resolutions/${SAFE_PREVIEW_RESOLUTION_ID}/visual-context-flags`, "1788282000", "flag-retry-key-1234567", reviewer.uid, reviewer.email.toLowerCase(), "admin,team", createHash("sha256").update(calls[0].options.body).digest("hex")].join("\n");
+  const expectedSignature = createHmac("sha256", "signature-only-test-secret").update(canonical).digest("hex");
+  assert.equal(calls[0].options.headers["X-Catalog-Signature"], `v1=${expectedSignature}`);
+});
+
+test("visual-context flag rejects a missing reason before any network call", async () => {
+  let called = false;
+  await assert.rejects(
+    saveVisualContextFlag({
+      reconciliationId: SAFE_PREVIEW_RECONCILIATION_ID,
+      resolutionId: SAFE_PREVIEW_RESOLUTION_ID,
+      payload: { sourcePoemId: 9000011, reason: "  " },
+      idempotencyKey: "flag-retry-key-7654321",
+      reviewer,
+      fetcher: async () => { called = true; return new Response("{}", { status: 200 }); },
+      readSecret,
+    }),
+    /reason_required/,
+  );
+  assert.equal(called, false);
+});
+
+test("sanitizeVisualContextFlag keeps only the allowed fields and requires a reason", () => {
+  assert.deepEqual(
+    sanitizeVisualContextFlag({ sourcePoemId: 42, reason: "Complex layout.", notes: "n", extra: "drop me" }),
+    { sourcePoemId: 42, reason: "Complex layout.", notes: "n" },
+  );
+  assert.throws(() => sanitizeVisualContextFlag({ reason: "x" }), /source_poem_id_required/);
 });
 
 for (const [name, catalogError] of [

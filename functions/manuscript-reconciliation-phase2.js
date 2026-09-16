@@ -110,6 +110,31 @@ export function sanitizeDecision(input) {
   return output;
 }
 
+const VISUAL_CONTEXT_FLAG_FIELDS = Object.freeze(["sourcePoemId", "reason", "notes"]);
+
+export function sanitizeVisualContextFlag(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    const error = new Error("invalid_payload");
+    error.status = 400;
+    throw error;
+  }
+  const output = {};
+  for (const field of VISUAL_CONTEXT_FLAG_FIELDS) {
+    if (Object.hasOwn(input, field)) output[field] = input[field];
+  }
+  if (!Number.isInteger(output.sourcePoemId)) {
+    const error = new Error("source_poem_id_required");
+    error.status = 400;
+    throw error;
+  }
+  if (typeof output.reason !== "string" || !output.reason.trim()) {
+    const error = new Error("reason_required");
+    error.status = 400;
+    throw error;
+  }
+  return output;
+}
+
 export function isSafePreviewTarget(reconciliationId, resolutionId) {
   return Number(reconciliationId) === SAFE_PREVIEW_RECONCILIATION_ID
     && Number(resolutionId) === SAFE_PREVIEW_RESOLUTION_ID;
@@ -126,6 +151,7 @@ export function normalizeIdempotencyKey(value) {
 }
 
 export function buildSignedCatalogHeaders({
+  method = "PATCH",
   path,
   bodyBytes,
   reviewer,
@@ -137,7 +163,7 @@ export function buildSignedCatalogHeaders({
   const roles = [...new Set(reviewer.roles.map((role) => String(role).toLowerCase()))].sort().join(",");
   const bodyHash = createHash("sha256").update(bodyBytes).digest("hex");
   const canonical = [
-    "PATCH",
+    method,
     path,
     String(signedAt),
     idempotencyKey,
@@ -303,6 +329,52 @@ export async function savePhase2Resolution({
   };
 }
 
+export async function saveVisualContextFlag({
+  reconciliationId,
+  resolutionId,
+  payload,
+  idempotencyKey,
+  reviewer,
+  fetcher = fetch,
+  readSecret = accessCatalogSecret,
+  signedAt = Math.floor(Date.now() / 1000),
+}) {
+  await assertWritableTarget(reconciliationId, resolutionId, { fetcher, readSecret });
+  const verifiedReviewer = normalizeReviewer({ decoded: reviewer, userRecord: reviewer });
+  const cleanPayload = sanitizeVisualContextFlag(payload);
+  const retryKey = normalizeIdempotencyKey(idempotencyKey);
+  const bodyBytes = Buffer.from(JSON.stringify(cleanPayload), "utf8");
+  const path = `/resolutions/${encodeURIComponent(resolutionId)}/visual-context-flags`;
+  const [writeCredential, signatureKey] = await Promise.all([
+    readSecret(CATALOG_SECRET_NAMES.write),
+    readSecret(CATALOG_SECRET_NAMES.signature),
+  ]);
+  const headers = buildSignedCatalogHeaders({
+    method: "POST",
+    path,
+    bodyBytes,
+    reviewer: verifiedReviewer,
+    idempotencyKey: retryKey,
+    signedAt,
+    writeCredential,
+    signatureKey,
+  });
+  const response = await fetcher(`${CATALOG_PHASE2_API}${path}`, {
+    method: "POST",
+    headers,
+    body: bodyBytes,
+    signal: AbortSignal.timeout(30000),
+  });
+  const catalogResult = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(catalogResult?.error || `catalog_write_${response.status}`);
+    error.status = response.status;
+    error.payload = catalogResult;
+    throw error;
+  }
+  return catalogResult;
+}
+
 function sendError(res, error) {
   const status = Number(error?.status || 502);
   const payload = error?.payload && typeof error.payload === "object"
@@ -355,6 +427,29 @@ export function createManuscriptReconciliationPhase2App({ verifyReviewer, fetche
     try {
       const reviewer = normalizeReviewer(ctx);
       const result = await savePhase2Resolution({
+        reconciliationId: req.params.reconciliationId,
+        resolutionId: req.params.resolutionId,
+        payload: req.body,
+        idempotencyKey: req.get("Idempotency-Key"),
+        reviewer: { ...reviewer, roles: reviewer.roles },
+        fetcher,
+        readSecret,
+      });
+      res.set("Cache-Control", "private, no-store").json(result);
+    } catch (error) {
+      sendError(res, error);
+    }
+  });
+
+  app.post([
+    "/admin/manuscriptReconciliations/:reconciliationId/resolutions/:resolutionId/visual-context-flags",
+    "/api/admin/manuscriptReconciliations/:reconciliationId/resolutions/:resolutionId/visual-context-flags",
+  ], async (req, res) => {
+    const ctx = await verifyReviewer(req, res);
+    if (!ctx) return;
+    try {
+      const reviewer = normalizeReviewer(ctx);
+      const result = await saveVisualContextFlag({
         reconciliationId: req.params.reconciliationId,
         resolutionId: req.params.resolutionId,
         payload: req.body,

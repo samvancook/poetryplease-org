@@ -77,15 +77,19 @@ const expectedFinalCount = (reconciliation) => {
 };
 const visualPageMapping = (row) => [row?.prior, row?.candidate]
   .find((source) => source?.sourcePages?.status === "available") || null;
+const visualPageSide = (row) => {
+  const source = visualPageMapping(row);
+  if (!source) return null;
+  return source === row?.prior ? "prior" : "candidate";
+};
 const requestedResolutionId = () => {
   if (typeof window === "undefined") return null;
   const value = Number(new URLSearchParams(window.location.search).get("resolutionId"));
   return Number.isInteger(value) && value > 0 ? value : null;
 };
 const visualReviewHref = (row) => {
-  const source = visualPageMapping(row);
-  if (!source || !Number.isInteger(Number(row?.resolutionId))) return null;
-  const side = source === row?.prior ? "prior" : "candidate";
+  const side = visualPageSide(row);
+  if (!side || !Number.isInteger(Number(row?.resolutionId))) return null;
   const query = new URLSearchParams({ resolutionId: String(row.resolutionId), side });
   return "/manuscript-visual-review.html?" + query.toString();
 };
@@ -167,6 +171,9 @@ function createApp(root, initialData, auth) {
   let message = "";
   let retry = null;
   let summary = "all";
+  let flaggingVisualContext = false;
+  let visualContextFlagMessage = "";
+  let visualContextReasonDraft = "";
   const visibleRows = () => filterRowsBySummary(data.rows, summary).filter((row) => rowMatchesSearch(row, search));
   const selected = () => visibleRows().find((row) => Number(row.resolutionId) === Number(selectedId)) || visibleRows()[0] || null;
   const nextRowId = (rows, current) => {
@@ -235,6 +242,47 @@ function createApp(root, initialData, auth) {
     }
   }
 
+  async function flagVisualContext() {
+    const row = selected();
+    const sourcePoemId = row?.candidate?.id;
+    const reason = visualContextReasonDraft.trim();
+    if (!row || !sourcePoemId || flaggingVisualContext) return;
+    if (!reason) {
+      visualContextFlagMessage = "A reason is required to flag this poem.";
+      render();
+      root.querySelector("#visual-context-reason")?.focus();
+      return;
+    }
+    flaggingVisualContext = true;
+    visualContextFlagMessage = "Flagging for visual review…";
+    render();
+    try {
+      const response = await fetch(
+        `${API}/resolutions/${encodeURIComponent(row.resolutionId)}/visual-context-flags`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotencyKey(),
+          },
+          body: JSON.stringify({ sourcePoemId, reason }),
+        },
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw Error(payload?.message || payload?.error || `Flag failed with HTTP ${response.status}.`);
+      visualContextReasonDraft = "";
+      visualContextFlagMessage = payload.idempotent
+        ? "Already flagged for visual review; no duplicate created."
+        : "Flagged for visual review. This does not change this decision or its text.";
+    } catch (error) {
+      visualContextFlagMessage = `Flag failed: ${error.message}`;
+    } finally {
+      flaggingVisualContext = false;
+      render();
+    }
+  }
+
   function render() {
     const rec = data.reconciliation;
     const rows = visibleRows();
@@ -248,6 +296,8 @@ function createApp(root, initialData, auth) {
     const candidateVersions = uniquePositiveInts(data.rows.map((item) => item?.candidate?.sourceVersionId));
     const expectedCount = expectedFinalCount(rec);
     const visualHref = visualReviewHref(row);
+    const visualSide = visualPageSide(row);
+    const visualSideLabel = visualSide === "prior" ? "Earlier source" : visualSide === "candidate" ? "Proposed replacement" : null;
     const summaryCards = [
       ["all", data.rows.length, "comparison records"],
       ["auto-approved", data.rows.filter((item) => rowMatchesSummary(item, "auto-approved")).length, "low-risk matches already approved"],
@@ -280,9 +330,16 @@ function createApp(root, initialData, auth) {
           <h2>Decision</h2>
           <h3>Visual PDF context</h3>
           ${visualHref
-            ? `<p><a class="visual-link" href="${esc(visualHref)}">View available PDF context</a></p><p class="help">This opens the matching Catalog-bound PDF evidence, with a link back to this text-review record.</p>`
+            ? `<p><a class="visual-link" href="${esc(visualHref)}">View available PDF context (${esc(visualSideLabel)})</a></p><p class="help">This opens the matching Catalog-bound PDF evidence for the ${esc(visualSideLabel.toLowerCase())} only, with a link back to this text-review record.</p>`
             : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
+          ${row.candidate?.id ? `
+          <div class="visual-context-flag">
+            <h3>Visual complexity</h3>
+            <label>Reason<input id="visual-context-reason" value="${esc(visualContextReasonDraft)}" placeholder="e.g. shaped text, redaction, image-dependent layout"></label>
+            <button id="flag-visual-context" ${flaggingVisualContext ? "disabled" : ""}>Flag: visually complex poem (INT advised)</button>
+            <p class="help">${visualContextFlagMessage ? esc(visualContextFlagMessage) : "Routes the candidate source toward photographer capture. Does not change this decision, its text, or promotion."}</p>
+          </div>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
           <label>Status<select id="review-status"><option value="pending" ${row.status === "pending" ? "selected" : ""}>Needs review</option><option value="approved" ${row.status === "approved" ? "selected" : ""}>Approved</option><option value="rejected" ${row.status === "rejected" ? "selected" : ""}>Rejected</option></select></label>
           <label>Resolution action<select id="resolution-action">
@@ -294,7 +351,9 @@ function createApp(root, initialData, auth) {
             <p class="help">These only apply when the resolution action above is “Choose wording and formatting sources.”</p>
             <label>Stable poem identity<input id="stable-identity" value="${esc(row.identity)}"></label>
             <label>Wording source<select id="text-source">${sourceOptions(row, textSource)}</select></label>
+            <p class="help">Which version's actual words become canonical.</p>
             <label>Formatting source<select id="format-source">${sourceOptions(row, formatSource)}</select></label>
+            <p class="help">Which version's line breaks and spacing become canonical. Pick a different source here than above only if one version has the right words but the wrong line breaks, or the reverse.</p>
           </div>
           <label>Reviewer notes<textarea id="review-notes" rows="5">${esc(row.existingReviewNotes || "")}</textarea></label>
           <p class="notice">If the candidate has a stray page number, neighboring title, missing text, or wrong reading order, choose “Needs parser correction” and describe it here.</p>
@@ -317,15 +376,18 @@ function createApp(root, initialData, auth) {
       selectedId = visibleRows()[0]?.resolutionId ?? null;
       message = "";
       retry = null;
+      visualContextFlagMessage = ""; visualContextReasonDraft = "";
       render();
     });
     root.querySelector("#search")?.addEventListener("input", (event) => { searchDraft = event.target.value; });
-    root.querySelector("#search-form")?.addEventListener("submit", (event) => { event.preventDefault(); search = searchDraft; selectedId = visibleRows()[0]?.resolutionId ?? null; render(); });
-    root.querySelector("#clear-search")?.addEventListener("click", () => { search = ""; searchDraft = ""; selectedId = data.rows[0]?.resolutionId ?? null; render(); });
-    for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => { selectedId = Number(button.dataset.row); message = ""; retry = null; render(); });
+    root.querySelector("#search-form")?.addEventListener("submit", (event) => { event.preventDefault(); search = searchDraft; selectedId = visibleRows()[0]?.resolutionId ?? null; visualContextFlagMessage = ""; visualContextReasonDraft = ""; render(); });
+    root.querySelector("#clear-search")?.addEventListener("click", () => { search = ""; searchDraft = ""; selectedId = data.rows[0]?.resolutionId ?? null; visualContextFlagMessage = ""; visualContextReasonDraft = ""; render(); });
+    for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => { selectedId = Number(button.dataset.row); message = ""; retry = null; visualContextFlagMessage = ""; visualContextReasonDraft = ""; render(); });
     for (const button of root.querySelectorAll("[data-mode]")) button.addEventListener("click", () => { mode = button.dataset.mode; render(); });
     root.querySelector("#save")?.addEventListener("click", () => save(false));
     root.querySelector("#save-advance")?.addEventListener("click", () => save(true));
+    root.querySelector("#visual-context-reason")?.addEventListener("input", (event) => { visualContextReasonDraft = event.target.value; });
+    root.querySelector("#flag-visual-context")?.addEventListener("click", () => flagVisualContext());
   }
 
   render();
