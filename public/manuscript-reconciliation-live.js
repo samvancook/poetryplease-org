@@ -39,8 +39,11 @@ const SOURCE_CHOICE_ACTION = "combine_text_and_format";
 // could pick an action, save successfully, and leave the poem in the queue anyway.
 // Actions that settle a poem now carry their status; actions that ask for other work
 // deliberately keep it pending, because they are requests rather than decisions.
+// The reviewer is judging a proposed replacement, so the status says what happened
+// to that proposal. Keeping the earlier source rejects it. Taking the new text, in
+// whole or in part, approves it. Skipping leaves it undecided.
 const ACTION_STATUS = {
-  retain_prior: "approved",
+  retain_prior: "rejected",
   adopt_candidate: "approved",
   combine_text_and_format: "approved",
   carry_forward_wording_adopt_final_format: "approved",
@@ -51,6 +54,15 @@ const ACTION_STATUS = {
 // Anything unrecognised, including no selection at all, keeps the poem queued.
 const statusForAction = (action) => ACTION_STATUS[action] || "pending";
 const STATUS_LABELS = { pending: "Needs review", approved: "Approved", rejected: "Rejected" };
+const DECISION_EFFECT = {
+  retain_prior: "Rejected. The replacement is turned down and the earlier text stands.",
+  adopt_candidate: "Approved. The replacement becomes the text for this poem.",
+  combine_text_and_format: "Approved. The replacement is taken, using the sources you pick below.",
+  carry_forward_wording_adopt_final_format: "Approved. The replacement's formatting is taken and the earlier wording is kept.",
+  request_ocr: "Still needs review. Skipped to image review; say why in the notes.",
+  request_parser_correction: "Still needs review. Skipped for editing; say why in the notes.",
+  manual_source_required: "Still needs review. Skipped as complicated; say why in the notes.",
+};
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -338,17 +350,13 @@ function createApp(root, initialData, auth) {
             : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
-          <label>Status<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
-          <p class="help" id="status-help">${actionValue === UNDECIDED
-            ? "Choose a resolution action above and this will follow."
-            : statusValue === "pending"
-              ? "This action asks for other work, so the poem stays in the review queue."
-              : `Set from the resolution action above. Saving marks this poem ${esc(STATUS_LABELS[statusValue].toLowerCase())} and removes it from the queue. Change it here if you need a different outcome.`}</p>
           <label>Resolution action<select id="resolution-action">
             ${actionValue === UNDECIDED ? `<option value="" selected>Choose a decision…</option>` : ""}
             <optgroup label="Common decisions">${COMMON_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
             <optgroup label="More options">${MORE_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
           </select></label>
+          <label>Status<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
+          <p class="help" id="status-help">${DECISION_EFFECT[actionValue] || "Pick what should happen to this poem."}</p>
           <label>Canonical title<input id="canonical-title" value="${esc(title)}"></label>
           <div id="source-choice-fields" hidden>
             <p class="help">These only apply when the resolution action above is “Choose wording and formatting sources.”</p>
@@ -376,13 +384,8 @@ function createApp(root, initialData, auth) {
       const status = root.querySelector("#review-status");
       const help = root.querySelector("#status-help");
       if (!status) return;
-      const next = statusForAction(actionValue);
-      status.value = next;
-      if (help) {
-        help.textContent = next === "pending"
-          ? "This action asks for other work, so the poem stays in the review queue."
-          : `Set from the resolution action above. Saving marks this poem ${STATUS_LABELS[next].toLowerCase()} and removes it from the queue. Change it here if you need a different outcome.`;
-      }
+      status.value = statusForAction(actionValue);
+      if (help) help.textContent = DECISION_EFFECT[actionValue] || "Pick what should happen to this poem.";
     };
     toggleSourceChoiceFields();
     root.querySelector("#resolution-action")?.addEventListener("change", () => {
