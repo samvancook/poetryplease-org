@@ -117,8 +117,28 @@ const idempotencyKey = () => crypto.randomUUID?.() || [...crypto.getRandomValues
 const LABC_RECORDED_EXPECTED_FINAL_COUNT = 45;
 const rowHasCatalogWarning = (row) => Array.isArray(row?.warnings) && row.warnings.length > 0;
 const rowHasPlaceholderCandidate = (row) => row?.candidate && String(row.candidate.text || "").trim() === "*";
+// A poem a reviewer deliberately set aside is still pending in Catalog, but it is
+// not the same as one nobody has opened. Recording a skip reason is what separates
+// them, so the working queue shrinks as poems are dealt with either way.
+export const rowIsSkipped = (row) => row?.status === "pending" && SKIP_ACTIONS.has(row?.proposedResolution);
+// What the queue card says about a poem, in the reviewer's words rather than the
+// database's. "pending · writable" told them nothing.
+const SKIP_REASON_LABEL = {
+  request_ocr: "needs review · image review",
+  request_parser_correction: "needs review · needs editing",
+  manual_source_required: "needs review · complicated",
+};
+const ROW_STATE_LABEL = (row) => {
+  if (rowIsSkipped(row)) return SKIP_REASON_LABEL[row.proposedResolution] || "needs review";
+  if (row?.status === "approved") return "approved";
+  if (row?.status === "rejected") return "rejected, earlier text kept";
+  if (row?.status === "auto_approved") return "auto-approved";
+  return "still to decide";
+};
 export const rowMatchesSummary = (row, summary = "all") => {
   if (summary === "auto-approved") return row?.status === "auto_approved";
+  if (summary === "needs-review") return rowIsSkipped(row);
+  if (summary === "not-started") return row?.status === "pending" && !rowIsSkipped(row);
   if (summary === "pending") return row?.status === "pending";
   if (summary === "warnings") return rowHasCatalogWarning(row) || rowHasPlaceholderCandidate(row);
   return true;
@@ -342,10 +362,12 @@ function createApp(root, initialData, auth) {
     const notesValue = draft.notes ?? (row?.existingReviewNotes || "");
     const visualSide = visualPageSide(row);
     const visualSideLabel = visualSide === "prior" ? "Earlier source" : visualSide === "candidate" ? "Proposed replacement" : null;
+    const countOf = (key) => data.rows.filter((item) => rowMatchesSummary(item, key)).length;
     const summaryCards = [
       ["all", data.rows.length, "comparison records"],
-      ["auto-approved", data.rows.filter((item) => rowMatchesSummary(item, "auto-approved")).length, "low-risk matches already approved"],
-      ["pending", data.rows.filter((item) => rowMatchesSummary(item, "pending")).length, "decisions still needed"],
+      ["not-started", countOf("not-started"), "still to decide"],
+      ["needs-review", countOf("needs-review"), "needs review, set aside"],
+      ["auto-approved", countOf("auto-approved"), "low-risk matches already approved"],
       ["warnings", warningRows.length, "source or parser warnings"],
     ];
     root.innerHTML = `
@@ -364,7 +386,7 @@ function createApp(root, initialData, auth) {
           <form id="search-form"><label for="search">Search titles, warnings, and statuses</label><div class="search-row"><input id="search" type="search" value="${esc(searchDraft)}"><button type="submit">Search</button><button type="button" id="clear-search">Clear</button></div></form>
           <p class="help">Search runs when you press Search or Enter.</p>
           <p>${rows.length} comparison records · live editorial decisions are writable</p>
-          <div class="list">${rows.map((item) => `<button data-row="${item.resolutionId}" class="writable-row"><span>${esc(item.identity)}</span><small>#${item.resolutionId} · ${esc(item.status)} · writable</small></button>`).join("")}</div>
+          <div class="list">${rows.map((item) => `<button data-row="${item.resolutionId}" class="writable-row"><span>${esc(item.identity)}</span><small>#${item.resolutionId} · ${esc(ROW_STATE_LABEL(item))}</small></button>`).join("")}</div>
         </aside>
         <main class="panel comparison">${row ? `
           <div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${mode === "normalized"}">Spacing-normalized text</button></div></div>
