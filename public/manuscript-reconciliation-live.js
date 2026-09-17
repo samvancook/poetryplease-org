@@ -32,14 +32,13 @@ const MORE_ACTIONS = [
 ];
 // Skipping is only useful later if the reviewer says why.
 const SKIP_ACTIONS = new Set(["request_ocr", "request_parser_correction", "manual_source_required"]);
-// Everything a plain approve or reject cannot express. Approving and rejecting are
-// not listed here, because those are the Decision control itself.
+// Approved and rejected say everything they need to on their own. The only decision
+// that needs qualifying is leaving a poem under review, which is useless later
+// unless it records why. So this list is reasons for not deciding, nothing else.
 const EXCEPTION_ACTIONS = [
-  ["combine_text_and_format", "Take the replacement, but choose wording and formatting sources"],
-  ["carry_forward_wording_adopt_final_format", "Take the replacement's formatting only, keep the earlier wording"],
-  ["request_ocr", "Skip: send to image review"],
-  ["request_parser_correction", "Skip: needs editing"],
-  ["manual_source_required", "Skip: complicated, revisit later"],
+  ["request_ocr", "Send to image review"],
+  ["request_parser_correction", "Needs editing"],
+  ["manual_source_required", "Complicated, revisit later"],
 ];
 const STATUS_EFFECT = {
   pending: "Not decided yet. This poem stays in the queue.",
@@ -252,16 +251,15 @@ function createApp(root, initialData, auth) {
     // The Decision control is the decision. The exception dropdown only overrides it
     // when a poem needs something approve/reject cannot express. Catalog's proposal
     // is never used as a fallback, so nothing is recorded that nobody chose.
-    const chosenStatus = root.querySelector("#review-status")?.value ?? "pending";
-    const override = root.querySelector("#resolution-action")?.value ?? "";
-    if (!override && chosenStatus === "pending") {
-      message = "Choose Approved or Rejected, or pick a reason for skipping this poem.";
+    const reviewStatus = root.querySelector("#review-status")?.value ?? "pending";
+    const skipReason = root.querySelector("#resolution-action")?.value ?? "";
+    if (reviewStatus === "pending" && !skipReason) {
+      message = "Decide this poem, or say why it is still under review.";
       render();
-      root.querySelector("#review-status")?.focus();
+      root.querySelector("#resolution-action")?.focus();
       return;
     }
-    const chosenAction = override || STATUS_ACTION[chosenStatus];
-    const reviewStatus = override ? statusForAction(override) : chosenStatus;
+    const chosenAction = reviewStatus === "pending" ? skipReason : STATUS_ACTION[reviewStatus];
     const decision = {
       expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),      reviewStatus,
       resolutionAction: chosenAction,
@@ -374,13 +372,13 @@ function createApp(root, initialData, auth) {
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
           <label>Decision<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
           <p class="help" id="status-help">${STATUS_EFFECT[statusValue]}</p>
-          <label>Something more specific<select id="resolution-action">
-            <option value="" ${actionValue === UNDECIDED ? "selected" : ""}>Not needed, use the decision above</option>
-            ${EXCEPTION_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
-          </select></label>
-          <p class="help" id="action-help">${actionValue === UNDECIDED
-            ? "Only for poems that need a mix of sources, or that you want to skip for now."
-            : esc(DECISION_EFFECT[actionValue] || "")}</p>
+          <div id="skip-reason-fields" ${statusValue === "pending" ? "" : "hidden"}>
+            <label>Why is it still under review?<select id="resolution-action">
+              <option value="" ${actionValue === UNDECIDED ? "selected" : ""}>Choose a reason…</option>
+              ${EXCEPTION_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
+            </select></label>
+            <p class="help">Say why in the notes as well, so the poem can be picked up later.</p>
+          </div>
           <label>Canonical title<input id="canonical-title" value="${esc(title)}"></label>
           <div id="source-choice-fields" hidden>
             <p class="help">These only apply when the resolution action above is “Choose wording and formatting sources.”</p>
@@ -403,25 +401,16 @@ function createApp(root, initialData, auth) {
       const fields = root.querySelector("#source-choice-fields");
       if (fields) fields.hidden = actionValue !== SOURCE_CHOICE_ACTION;
     };
-    // An override drives the decision; otherwise the decision stands on its own.
+    // Approved and rejected are self-contained. Only "needs review" asks for a reason.
     const syncControls = () => {
-      const override = root.querySelector("#resolution-action")?.value ?? "";
-      const status = root.querySelector("#review-status");
+      const status = root.querySelector("#review-status")?.value ?? "pending";
       const statusHelp = root.querySelector("#status-help");
-      const actionHelp = root.querySelector("#action-help");
-      if (status && override) status.value = statusForAction(override);
-      if (statusHelp && status) statusHelp.textContent = STATUS_EFFECT[status.value] || "";
-      if (actionHelp) {
-        actionHelp.textContent = override
-          ? (DECISION_EFFECT[override] || "")
-          : "Only for poems that need a mix of sources, or that you want to skip for now.";
-      }
+      const skipFields = root.querySelector("#skip-reason-fields");
+      if (statusHelp) statusHelp.textContent = STATUS_EFFECT[status] || "";
+      if (skipFields) skipFields.hidden = status !== "pending";
     };
     toggleSourceChoiceFields();
-    root.querySelector("#resolution-action")?.addEventListener("change", () => {
-      toggleSourceChoiceFields();
-      syncControls();
-    });
+    root.querySelector("#resolution-action")?.addEventListener("change", toggleSourceChoiceFields);
     root.querySelector("#review-status")?.addEventListener("change", syncControls);
 
     for (const button of root.querySelectorAll("[data-summary]")) button.addEventListener("click", () => {
