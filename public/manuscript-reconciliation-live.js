@@ -9,16 +9,24 @@ const COMMON_ACTIONS = [
   ["adopt_candidate", "Approve replacement"],
   ["combine_text_and_format", "Choose wording and formatting sources"],
 ];
+// "Approve substantive replacement" was removed: reviewers could not tell it apart
+// from "Approve replacement", and Catalog proposes it on most pending rows, so it
+// was the accidental default. Its underlying value is still accepted by Catalog.
+// The image and parser labels now say what a reviewer does, not what the pipeline
+// calls it. Retire, create and reject are deliberately left alone for now.
 const MORE_ACTIONS = [
   ["carry_forward_wording_adopt_final_format", "Approve candidate formatting only (keep earlier wording)"],
-  ["review_replacement", "Approve substantive replacement"],
   ["review_create", "Create a new canonical poem"],
   ["review_retire", "Retire the earlier poem"],
   ["reject_extraction", "Reject this candidate extraction"],
-  ["request_ocr", "Flag for image/OCR review"],
-  ["request_parser_correction", "Needs text correction"],
+  ["request_ocr", "Send to image review"],
+  ["request_parser_correction", "Needs editing"],
   ["manual_source_required", "Needs editorial source decision"],
 ];
+// A poem still in the queue starts with no decision selected. Catalog's proposal is
+// a suggestion, not a choice a reviewer made, and pre-selecting it meant Save could
+// record a decision nobody actually took.
+const UNDECIDED = "";
 const ACTIONS = [...COMMON_ACTIONS, ...MORE_ACTIONS];
 const SOURCE_CHOICE_ACTION = "combine_text_and_format";
 
@@ -31,7 +39,6 @@ const ACTION_STATUS = {
   adopt_candidate: "approved",
   combine_text_and_format: "approved",
   carry_forward_wording_adopt_final_format: "approved",
-  review_replacement: "approved",
   review_create: "approved",
   review_retire: "approved",
   reject_extraction: "rejected",
@@ -39,6 +46,7 @@ const ACTION_STATUS = {
   request_parser_correction: "pending",
   manual_source_required: "pending",
 };
+// Anything unrecognised, including no selection at all, keeps the poem queued.
 const statusForAction = (action) => ACTION_STATUS[action] || "pending";
 const STATUS_LABELS = { pending: "Needs review", approved: "Approved", rejected: "Rejected" };
 
@@ -208,9 +216,18 @@ function createApp(root, initialData, auth) {
   async function save(advance = false) {
     const row = selected();
     if (!row || saving) return;
+    // No empty-value fallback to the proposal here: an unchosen decision must stop
+    // the save, not quietly become Catalog's suggestion.
+    const chosenAction = root.querySelector("#resolution-action")?.value ?? "";
+    if (!chosenAction) {
+      message = "Choose a resolution action before saving.";
+      render();
+      root.querySelector("#resolution-action")?.focus();
+      return;
+    }
     const decision = {
       expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),      reviewStatus: root.querySelector("#review-status")?.value || row.status || "pending",
-      resolutionAction: root.querySelector("#resolution-action")?.value || row.proposedResolution,
+      resolutionAction: chosenAction,
       canonicalTitle: root.querySelector("#canonical-title")?.value.trim() || row.canonicalTitle || row.candidateTitle || row.priorTitle,
       stablePoemIdentity: root.querySelector("#stable-identity")?.value.trim() || row.identity,
       textSourcePoemId: Number(root.querySelector("#text-source")?.value),
@@ -275,9 +292,11 @@ function createApp(root, initialData, auth) {
     // An already-decided poem keeps the status it was given. One still in the queue
     // shows the status its current action will actually save, so what the reviewer
     // sees is what gets written.
-    const statusValue = row?.status && row.status !== "pending"
-      ? row.status
-      : statusForAction(row?.proposedResolution);
+    // A decided poem shows what it was decided as. A queued poem shows no decision
+    // yet, so Catalog's proposal can never be saved as though a reviewer chose it.
+    const decided = Boolean(row?.status && row.status !== "pending");
+    const actionValue = decided ? row.proposedResolution : UNDECIDED;
+    const statusValue = decided ? row.status : statusForAction(actionValue);
     const visualSide = visualPageSide(row);
     const visualSideLabel = visualSide === "prior" ? "Earlier source" : visualSide === "candidate" ? "Proposed replacement" : null;
     const summaryCards = [
@@ -317,12 +336,15 @@ function createApp(root, initialData, auth) {
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
           <label>Status<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
-          <p class="help" id="status-help">${statusValue === "pending"
-            ? "This action asks for other work, so the poem stays in the review queue."
-            : `Set from the resolution action above. Saving marks this poem ${esc(STATUS_LABELS[statusValue].toLowerCase())} and removes it from the queue. Change it here if you need a different outcome.`}</p>
+          <p class="help" id="status-help">${actionValue === UNDECIDED
+            ? "Choose a resolution action above and this will follow."
+            : statusValue === "pending"
+              ? "This action asks for other work, so the poem stays in the review queue."
+              : `Set from the resolution action above. Saving marks this poem ${esc(STATUS_LABELS[statusValue].toLowerCase())} and removes it from the queue. Change it here if you need a different outcome.`}</p>
           <label>Resolution action<select id="resolution-action">
-            <optgroup label="Common decisions">${COMMON_ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
-            <optgroup label="More options">${MORE_ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
+            ${actionValue === UNDECIDED ? `<option value="" selected>Choose a decision…</option>` : ""}
+            <optgroup label="Common decisions">${COMMON_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
+            <optgroup label="More options">${MORE_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
           </select></label>
           <label>Canonical title<input id="canonical-title" value="${esc(title)}"></label>
           <div id="source-choice-fields" hidden>
