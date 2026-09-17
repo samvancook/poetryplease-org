@@ -22,6 +22,26 @@ const MORE_ACTIONS = [
 const ACTIONS = [...COMMON_ACTIONS, ...MORE_ACTIONS];
 const SOURCE_CHOICE_ACTION = "combine_text_and_format";
 
+// Status used to live in its own dropdown defaulting to "Needs review", so a reviewer
+// could pick an action, save successfully, and leave the poem in the queue anyway.
+// Actions that settle a poem now carry their status; actions that ask for other work
+// deliberately keep it pending, because they are requests rather than decisions.
+const ACTION_STATUS = {
+  retain_prior: "approved",
+  adopt_candidate: "approved",
+  combine_text_and_format: "approved",
+  carry_forward_wording_adopt_final_format: "approved",
+  review_replacement: "approved",
+  review_create: "approved",
+  review_retire: "approved",
+  reject_extraction: "rejected",
+  request_ocr: "pending",
+  request_parser_correction: "pending",
+  manual_source_required: "pending",
+};
+const statusForAction = (action) => ACTION_STATUS[action] || "pending";
+const STATUS_LABELS = { pending: "Needs review", approved: "Approved", rejected: "Rejected" };
+
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 }[char]));
@@ -252,6 +272,12 @@ function createApp(root, initialData, auth) {
     const candidateVersions = uniquePositiveInts(data.rows.map((item) => item?.candidate?.sourceVersionId));
     const expectedCount = expectedFinalCount(rec);
     const visualHref = visualReviewHref(row);
+    // An already-decided poem keeps the status it was given. One still in the queue
+    // shows the status its current action will actually save, so what the reviewer
+    // sees is what gets written.
+    const statusValue = row?.status && row.status !== "pending"
+      ? row.status
+      : statusForAction(row?.proposedResolution);
     const visualSide = visualPageSide(row);
     const visualSideLabel = visualSide === "prior" ? "Earlier source" : visualSide === "candidate" ? "Proposed replacement" : null;
     const summaryCards = [
@@ -290,7 +316,10 @@ function createApp(root, initialData, auth) {
             : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
-          <label>Status<select id="review-status"><option value="pending" ${row.status === "pending" ? "selected" : ""}>Needs review</option><option value="approved" ${row.status === "approved" ? "selected" : ""}>Approved</option><option value="rejected" ${row.status === "rejected" ? "selected" : ""}>Rejected</option></select></label>
+          <label>Status<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
+          <p class="help" id="status-help">${statusValue === "pending"
+            ? "This action asks for other work, so the poem stays in the review queue."
+            : `Set from the resolution action above. Saving marks this poem ${esc(STATUS_LABELS[statusValue].toLowerCase())} and removes it from the queue. Change it here if you need a different outcome.`}</p>
           <label>Resolution action<select id="resolution-action">
             <optgroup label="Common decisions">${COMMON_ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
             <optgroup label="More options">${MORE_ACTIONS.map(([value, label]) => `<option value="${value}" ${row.proposedResolution === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
@@ -317,8 +346,24 @@ function createApp(root, initialData, auth) {
       const fields = root.querySelector("#source-choice-fields");
       if (fields) fields.hidden = actionValue !== SOURCE_CHOICE_ACTION;
     };
+    const syncStatusToAction = () => {
+      const actionValue = root.querySelector("#resolution-action")?.value;
+      const status = root.querySelector("#review-status");
+      const help = root.querySelector("#status-help");
+      if (!status) return;
+      const next = statusForAction(actionValue);
+      status.value = next;
+      if (help) {
+        help.textContent = next === "pending"
+          ? "This action asks for other work, so the poem stays in the review queue."
+          : `Set from the resolution action above. Saving marks this poem ${STATUS_LABELS[next].toLowerCase()} and removes it from the queue. Change it here if you need a different outcome.`;
+      }
+    };
     toggleSourceChoiceFields();
-    root.querySelector("#resolution-action")?.addEventListener("change", toggleSourceChoiceFields);
+    root.querySelector("#resolution-action")?.addEventListener("change", () => {
+      toggleSourceChoiceFields();
+      syncStatusToAction();
+    });
 
     for (const button of root.querySelectorAll("[data-summary]")) button.addEventListener("click", () => {
       summary = button.dataset.summary || "all";
