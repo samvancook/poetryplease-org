@@ -4,6 +4,10 @@ const API = `/api/admin/manuscriptReconciliations/${RECONCILIATION_ID}`;
 // too long and inconsistently worded for routine use. COMMON_ACTIONS covers the everyday cases;
 // MORE_ACTIONS holds the same underlying values Catalog already accepts, just tucked behind an
 // optgroup so they don't compete with the common path. No resolutionAction value was removed.
+// The decision a reviewer makes is simply whether the proposed replacement wins.
+// Approving takes the new text, rejecting keeps the earlier text, and those two
+// cover almost every poem, so they are the Decision control and need nothing else.
+const STATUS_ACTION = { approved: "adopt_candidate", rejected: "retain_prior" };
 const COMMON_ACTIONS = [
   ["retain_prior", "Keep earlier source"],
   ["adopt_candidate", "Approve replacement"],
@@ -28,6 +32,20 @@ const MORE_ACTIONS = [
 ];
 // Skipping is only useful later if the reviewer says why.
 const SKIP_ACTIONS = new Set(["request_ocr", "request_parser_correction", "manual_source_required"]);
+// Everything a plain approve or reject cannot express. Approving and rejecting are
+// not listed here, because those are the Decision control itself.
+const EXCEPTION_ACTIONS = [
+  ["combine_text_and_format", "Take the replacement, but choose wording and formatting sources"],
+  ["carry_forward_wording_adopt_final_format", "Take the replacement's formatting only, keep the earlier wording"],
+  ["request_ocr", "Skip: send to image review"],
+  ["request_parser_correction", "Skip: needs editing"],
+  ["manual_source_required", "Skip: complicated, revisit later"],
+];
+const STATUS_EFFECT = {
+  pending: "Not decided yet. This poem stays in the queue.",
+  approved: "The replacement wins. Its text becomes this poem.",
+  rejected: "The replacement is turned down. The earlier text stands.",
+};
 // A poem still in the queue starts with no decision selected. Catalog's proposal is
 // a suggestion, not a choice a reviewer made, and pre-selecting it meant Save could
 // record a decision nobody actually took.
@@ -231,17 +249,21 @@ function createApp(root, initialData, auth) {
   async function save(advance = false) {
     const row = selected();
     if (!row || saving) return;
-    // No empty-value fallback to the proposal here: an unchosen decision must stop
-    // the save, not quietly become Catalog's suggestion.
-    const chosenAction = root.querySelector("#resolution-action")?.value ?? "";
-    if (!chosenAction) {
-      message = "Choose a resolution action before saving.";
+    // The Decision control is the decision. The exception dropdown only overrides it
+    // when a poem needs something approve/reject cannot express. Catalog's proposal
+    // is never used as a fallback, so nothing is recorded that nobody chose.
+    const chosenStatus = root.querySelector("#review-status")?.value ?? "pending";
+    const override = root.querySelector("#resolution-action")?.value ?? "";
+    if (!override && chosenStatus === "pending") {
+      message = "Choose Approved or Rejected, or pick a reason for skipping this poem.";
       render();
-      root.querySelector("#resolution-action")?.focus();
+      root.querySelector("#review-status")?.focus();
       return;
     }
+    const chosenAction = override || STATUS_ACTION[chosenStatus];
+    const reviewStatus = override ? statusForAction(override) : chosenStatus;
     const decision = {
-      expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),      reviewStatus: root.querySelector("#review-status")?.value || row.status || "pending",
+      expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),      reviewStatus,
       resolutionAction: chosenAction,
       canonicalTitle: root.querySelector("#canonical-title")?.value.trim() || row.canonicalTitle || row.candidateTitle || row.priorTitle,
       stablePoemIdentity: root.querySelector("#stable-identity")?.value.trim() || row.identity,
@@ -350,13 +372,15 @@ function createApp(root, initialData, auth) {
             : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
-          <label>Resolution action<select id="resolution-action">
-            ${actionValue === UNDECIDED ? `<option value="" selected>Choose a decision…</option>` : ""}
-            <optgroup label="Common decisions">${COMMON_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
-            <optgroup label="More options">${MORE_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}</optgroup>
+          <label>Decision<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
+          <p class="help" id="status-help">${STATUS_EFFECT[statusValue]}</p>
+          <label>Something more specific<select id="resolution-action">
+            <option value="" ${actionValue === UNDECIDED ? "selected" : ""}>Not needed, use the decision above</option>
+            ${EXCEPTION_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
           </select></label>
-          <label>Status<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
-          <p class="help" id="status-help">${DECISION_EFFECT[actionValue] || "Pick what should happen to this poem."}</p>
+          <p class="help" id="action-help">${actionValue === UNDECIDED
+            ? "Only for poems that need a mix of sources, or that you want to skip for now."
+            : esc(DECISION_EFFECT[actionValue] || "")}</p>
           <label>Canonical title<input id="canonical-title" value="${esc(title)}"></label>
           <div id="source-choice-fields" hidden>
             <p class="help">These only apply when the resolution action above is “Choose wording and formatting sources.”</p>
@@ -379,19 +403,26 @@ function createApp(root, initialData, auth) {
       const fields = root.querySelector("#source-choice-fields");
       if (fields) fields.hidden = actionValue !== SOURCE_CHOICE_ACTION;
     };
-    const syncStatusToAction = () => {
-      const actionValue = root.querySelector("#resolution-action")?.value;
+    // An override drives the decision; otherwise the decision stands on its own.
+    const syncControls = () => {
+      const override = root.querySelector("#resolution-action")?.value ?? "";
       const status = root.querySelector("#review-status");
-      const help = root.querySelector("#status-help");
-      if (!status) return;
-      status.value = statusForAction(actionValue);
-      if (help) help.textContent = DECISION_EFFECT[actionValue] || "Pick what should happen to this poem.";
+      const statusHelp = root.querySelector("#status-help");
+      const actionHelp = root.querySelector("#action-help");
+      if (status && override) status.value = statusForAction(override);
+      if (statusHelp && status) statusHelp.textContent = STATUS_EFFECT[status.value] || "";
+      if (actionHelp) {
+        actionHelp.textContent = override
+          ? (DECISION_EFFECT[override] || "")
+          : "Only for poems that need a mix of sources, or that you want to skip for now.";
+      }
     };
     toggleSourceChoiceFields();
     root.querySelector("#resolution-action")?.addEventListener("change", () => {
       toggleSourceChoiceFields();
-      syncStatusToAction();
+      syncControls();
     });
+    root.querySelector("#review-status")?.addEventListener("change", syncControls);
 
     for (const button of root.querySelectorAll("[data-summary]")) button.addEventListener("click", () => {
       summary = button.dataset.summary || "all";
