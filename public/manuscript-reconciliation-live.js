@@ -9,20 +9,25 @@ const COMMON_ACTIONS = [
   ["adopt_candidate", "Approve replacement"],
   ["combine_text_and_format", "Choose wording and formatting sources"],
 ];
-// "Approve substantive replacement" was removed: reviewers could not tell it apart
-// from "Approve replacement", and Catalog proposes it on most pending rows, so it
-// was the accidental default. Its underlying value is still accepted by Catalog.
-// The image and parser labels now say what a reviewer does, not what the pipeline
-// calls it. Retire, create and reject are deliberately left alone for now.
+// This tool does one job: decide which underlying text wins. Anything needing a
+// split, merge, retirement, new canonical poem, or a rejected extraction is out of
+// scope for now and gets skipped rather than decided here, so those actions are not
+// offered. Catalog still accepts every one of these values, and rows already
+// carrying them keep them; they are simply not choices a reviewer can make today.
+//
+// HIDDEN FOR NOW, revisit with complicated-poem handling:
+//   review_replacement  - unreadable next to "Approve replacement"
+//   review_create       - creating a new canonical poem
+//   review_retire       - retiring the earlier poem
+//   reject_extraction   - rejecting the candidate outright
 const MORE_ACTIONS = [
   ["carry_forward_wording_adopt_final_format", "Approve candidate formatting only (keep earlier wording)"],
-  ["review_create", "Create a new canonical poem"],
-  ["review_retire", "Retire the earlier poem"],
-  ["reject_extraction", "Reject this candidate extraction"],
-  ["request_ocr", "Send to image review"],
-  ["request_parser_correction", "Needs editing"],
-  ["manual_source_required", "Needs editorial source decision"],
+  ["request_ocr", "Skip: send to image review"],
+  ["request_parser_correction", "Skip: needs editing"],
+  ["manual_source_required", "Skip: complicated, revisit later"],
 ];
+// Skipping is only useful later if the reviewer says why.
+const SKIP_ACTIONS = new Set(["request_ocr", "request_parser_correction", "manual_source_required"]);
 // A poem still in the queue starts with no decision selected. Catalog's proposal is
 // a suggestion, not a choice a reviewer made, and pre-selecting it meant Save could
 // record a decision nobody actually took.
@@ -39,9 +44,6 @@ const ACTION_STATUS = {
   adopt_candidate: "approved",
   combine_text_and_format: "approved",
   carry_forward_wording_adopt_final_format: "approved",
-  review_create: "approved",
-  review_retire: "approved",
-  reject_extraction: "rejected",
   request_ocr: "pending",
   request_parser_correction: "pending",
   manual_source_required: "pending",
@@ -73,7 +75,8 @@ const sourceOptions = (row, selected) => [
 const poemLines = (text, normalized) => (normalized ? normalizeWhitespace(text) : preserveText(text)).split("\n")
   .map((line, index) => `<span class="line"><i>${index + 1}</i><b>${line ? esc(line) : "&nbsp;"}</b></span>`).join("");
 const needsNotes = (row, decision) => {
-  if (["review_create", "review_retire", "reject_extraction", "request_ocr", "request_parser_correction"].includes(decision.resolutionAction)) return true;
+  if (SKIP_ACTIONS.has(decision.resolutionAction)) return true;
+  if (["review_create", "review_retire", "reject_extraction"].includes(decision.resolutionAction)) return true;
   if (decision.reviewStatus === "rejected") return true;
   if (String(decision.stablePoemIdentity || "") !== String(row.identity || "")) return true;
   const currentTitle = row.canonicalTitle || row.candidateTitle || row.priorTitle || "";
