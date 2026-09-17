@@ -231,6 +231,9 @@ function createApp(root, initialData, auth) {
   let message = "";
   let retry = null;
   let summary = "all";
+  // Unsaved work on the selected poem. Survives a redraw, cleared on move or save.
+  let draft = {};
+  const clearDraft = () => { draft = {}; };
   const visibleRows = () => filterRowsBySummary(data.rows, summary).filter((row) => rowMatchesSearch(row, search));
   const selected = () => visibleRows().find((row) => Number(row.resolutionId) === Number(selectedId)) || visibleRows()[0] || null;
   const nextRowId = (rows, current) => {
@@ -296,6 +299,7 @@ function createApp(root, initialData, auth) {
       data.reconciliation.writeRevision = result.reconciliationRevision;
       message = result.idempotent ? "Verified idempotent retry and authoritative readback." : "Saved to Catalog and verified authoritative readback.";
       retry = null;
+      clearDraft();
       if (advance) selectedId = nextRowId(visibleRows(), row.resolutionId);
     } catch (error) {
       if (!writeStarted) {
@@ -329,9 +333,13 @@ function createApp(root, initialData, auth) {
     // sees is what gets written.
     // A decided poem shows what it was decided as. A queued poem shows no decision
     // yet, so Catalog's proposal can never be saved as though a reviewer chose it.
+    // What the reviewer has picked but not yet saved wins over the stored row, so a
+    // blocked save (a missing note, a stale revision) redraws without erasing their
+    // work. Draft is cleared when the row changes or the save succeeds.
     const decided = Boolean(row?.status && row.status !== "pending");
-    const actionValue = decided ? row.proposedResolution : UNDECIDED;
-    const statusValue = decided ? row.status : statusForAction(actionValue);
+    const statusValue = draft.status ?? (decided ? row.status : "pending");
+    const actionValue = draft.action ?? (decided ? row.proposedResolution : UNDECIDED);
+    const notesValue = draft.notes ?? (row?.existingReviewNotes || "");
     const visualSide = visualPageSide(row);
     const visualSideLabel = visualSide === "prior" ? "Earlier source" : visualSide === "candidate" ? "Proposed replacement" : null;
     const summaryCards = [
@@ -388,7 +396,7 @@ function createApp(root, initialData, auth) {
             <label>Formatting source<select id="format-source">${sourceOptions(row, formatSource)}</select></label>
             <p class="help">Which version's line breaks and spacing become canonical. Pick a different source here than above only if one version has the right words but the wrong line breaks, or the reverse.</p>
           </div>
-          <label>Reviewer notes<textarea id="review-notes" rows="5">${esc(row.existingReviewNotes || "")}</textarea></label>
+          <label>Reviewer notes<textarea id="review-notes" rows="5">${esc(notesValue)}</textarea></label>
           <p class="notice">If the candidate has a stray page number, neighboring title, missing text, or wrong reading order, choose “Needs parser correction” and describe it here.</p>
           <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save decision</button><button id="save-advance" ${saving ? "disabled" : ""}>Save decision and next</button></div>
           <p class="help">Both buttons save your decision. The second opens the next record after the save is verified.</p>
@@ -410,8 +418,18 @@ function createApp(root, initialData, auth) {
       if (skipFields) skipFields.hidden = status !== "pending";
     };
     toggleSourceChoiceFields();
-    root.querySelector("#resolution-action")?.addEventListener("change", toggleSourceChoiceFields);
-    root.querySelector("#review-status")?.addEventListener("change", syncControls);
+    root.querySelector("#resolution-action")?.addEventListener("change", (event) => {
+      draft.action = event.target.value;
+      toggleSourceChoiceFields();
+      syncControls();
+    });
+    root.querySelector("#review-status")?.addEventListener("change", (event) => {
+      draft.status = event.target.value;
+      // Changing the decision away from "needs review" abandons any skip reason.
+      if (event.target.value !== "pending") draft.action = UNDECIDED;
+      syncControls();
+    });
+    root.querySelector("#review-notes")?.addEventListener("input", (event) => { draft.notes = event.target.value; });
 
     for (const button of root.querySelectorAll("[data-summary]")) button.addEventListener("click", () => {
       summary = button.dataset.summary || "all";
@@ -424,7 +442,7 @@ function createApp(root, initialData, auth) {
     root.querySelector("#search")?.addEventListener("input", (event) => { searchDraft = event.target.value; });
     root.querySelector("#search-form")?.addEventListener("submit", (event) => { event.preventDefault(); search = searchDraft; selectedId = visibleRows()[0]?.resolutionId ?? null; render(); });
     root.querySelector("#clear-search")?.addEventListener("click", () => { search = ""; searchDraft = ""; selectedId = data.rows[0]?.resolutionId ?? null; render(); });
-    for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => { selectedId = Number(button.dataset.row); message = ""; retry = null; render(); });
+    for (const button of root.querySelectorAll("[data-row]")) button.addEventListener("click", () => { selectedId = Number(button.dataset.row); message = ""; retry = null; clearDraft(); render(); });
     for (const button of root.querySelectorAll("[data-mode]")) button.addEventListener("click", () => { mode = button.dataset.mode; render(); });
     root.querySelector("#save")?.addEventListener("click", () => save(false));
     root.querySelector("#save-advance")?.addEventListener("click", () => save(true));
