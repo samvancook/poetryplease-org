@@ -49,6 +49,10 @@ const STATUS_EFFECT = {
 // a suggestion, not a choice a reviewer made, and pre-selecting it meant Save could
 // record a decision nobody actually took.
 const UNDECIDED = "";
+const REJECTION_REASONS = [
+  ["pagination_line_break", "Extra double line break from pagination",
+    "Rejected: the replacement adds a double line break that is a pagination artifact, not an intentional stanza break. Earlier text kept."],
+];
 const ACTIONS = [...COMMON_ACTIONS, ...MORE_ACTIONS];
 const SOURCE_CHOICE_ACTION = "combine_text_and_format";
 
@@ -415,6 +419,13 @@ function createApp(root, initialData, auth) {
             </select></label>
             <p class="help">Say why in the notes as well, so the poem can be picked up later.</p>
           </div>
+          <div id="reject-reason-fields" ${statusValue === "rejected" ? "" : "hidden"}>
+            <label>Why rejected?<select id="reject-reason">
+              <option value="">Other, explain in notes</option>
+              ${REJECTION_REASONS.map(([value, label]) => `<option value="${value}" ${draft.rejectReason === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
+            </select></label>
+            <p class="help">A standard reason fills in the notes for you.</p>
+          </div>
           <label>Canonical title<input id="canonical-title" value="${esc(title)}"></label>
           <div id="source-choice-fields" hidden>
             <p class="help">These only apply when the resolution action above is “Choose wording and formatting sources.”</p>
@@ -444,6 +455,8 @@ function createApp(root, initialData, auth) {
       const skipFields = root.querySelector("#skip-reason-fields");
       if (statusHelp) statusHelp.textContent = STATUS_EFFECT[status] || "";
       if (skipFields) skipFields.hidden = status !== "pending";
+      const rejectFields = root.querySelector("#reject-reason-fields");
+      if (rejectFields) rejectFields.hidden = status !== "rejected";
     };
     toggleSourceChoiceFields();
     root.querySelector("#resolution-action")?.addEventListener("change", (event) => {
@@ -456,6 +469,17 @@ function createApp(root, initialData, auth) {
       // Changing the decision away from "needs review" abandons any skip reason.
       if (event.target.value !== "pending") draft.action = UNDECIDED;
       syncControls();
+    });
+    root.querySelector("#reject-reason")?.addEventListener("change", (event) => {
+      draft.rejectReason = event.target.value;
+      const reason = REJECTION_REASONS.find(([value]) => value === event.target.value);
+      const notes = root.querySelector("#review-notes");
+      if (!reason || !notes) return;
+      // Replace the pre-filled Catalog note; keep anything the reviewer wrote themselves.
+      const current = notes.value.trim();
+      const untouched = !current || current === String(row?.existingReviewNotes || "").trim();
+      notes.value = untouched ? reason[2] : current.includes(reason[2]) ? current : `${reason[2]}\n${current}`;
+      draft.notes = notes.value;
     });
     root.querySelector("#review-notes")?.addEventListener("input", (event) => { draft.notes = event.target.value; });
 
