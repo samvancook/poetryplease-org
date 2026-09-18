@@ -1619,10 +1619,13 @@ function matchesRequestedType(item, requestedType) {
   return actual === type;
 }
 
-function filterContentByFeedFilters(items, filters = {}) {
+// The app re-filters by releaseCatalog in the browser, so only public embeds
+// match a preserved eventReleaseCatalog.
+function filterContentByFeedFilters(items, filters = {}, { includeEventCatalogs = false } = {}) {
   return (items || []).filter((item) => {
     if (!matchesRequestedType(item, filters.type)) return false;
-    if (normalizeText(filters.catalog) && !contentReleaseCatalogs(item).some((catalog) => matchesCatalogFilterValue(catalog, filters.catalog))) return false;
+    const catalogs = includeEventCatalogs ? contentReleaseCatalogs(item) : [item?.releaseCatalog];
+    if (normalizeText(filters.catalog) && !catalogs.some((catalog) => matchesCatalogFilterValue(catalog, filters.catalog))) return false;
     if (!matchesFilterValue(item?.author, filters.author)) return false;
     if (!matchesFilterValue(item?.book, filters.book)) return false;
     if (!matchesFilterValue(item?.sourceEvent, filters.event) && !matchesFilterValue(item?.sourceEventLabel, filters.event)) return false;
@@ -4726,6 +4729,7 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   const eligible = filterContentByFeedFilters(
     excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)),
     filters,
+    { includeEventCatalogs: true },
   ).map((item) => {
     const imageId = normalizeText(item.imageId || item.contentId || item.id);
     const rating = ratingsSummary[imageId] || {};
