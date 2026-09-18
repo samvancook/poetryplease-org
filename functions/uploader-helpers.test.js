@@ -506,9 +506,14 @@ test("event catalog preservation is stable across snapshot re-canonicalization",
   assert.equal(preservedEventReleaseCatalog({}, "Fall 2024", bookReleaseCatalogKeys), "");
 });
 
-test("feed catalog filters match a preserved event catalog", () => {
+test("only public embeds match a preserved event catalog", () => {
   const indexSource = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   assert.match(indexSource, /preservedEventReleaseCatalog\(item, releaseCatalog, BOOK_RELEASE_CATALOG_KEYS\)/);
-  assert.match(indexSource, /contentReleaseCatalogs\(item\)\.some\(\(catalog\) => matchesCatalogFilterValue\(catalog, filters\.catalog\)\)/);
+  assert.match(indexSource, /const catalogs = includeEventCatalogs \? contentReleaseCatalogs\(item\) : \[item\?\.releaseCatalog\];/);
   assert.match(indexSource, /const CONTENT_SNAPSHOT_VERSION = 3;/);
+  const calls = indexSource.match(/filterContentByFeedFilters\([\s\S]*?\);/g) || [];
+  const embedCall = calls.find((call) => call.includes("allContent, flaggedIds"));
+  const appCall = calls.find((call) => call.includes("filterContentByFeedFilters(all, filters)"));
+  assert.ok(embedCall?.includes("includeEventCatalogs: true"), "embedBookLead includes event catalogs");
+  assert.ok(appCall && !appCall.includes("includeEventCatalogs"), "fetchFiltered keeps releaseCatalog-only matching");
 });
