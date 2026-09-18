@@ -283,13 +283,19 @@ function createApp(root, initialData, auth) {
       return;
     }
     const chosenAction = reviewStatus === "pending" ? skipReason : STATUS_ACTION[reviewStatus];
+    // The source pickers are hidden, so approve and reject must set the winning text themselves:
+    // approved means the replacement's text, rejected means the earlier text.
+    const decidedSource = reviewStatus === "approved" ? (row.candidate?.id ?? row.prior?.id)
+      : reviewStatus === "rejected" ? (row.prior?.id ?? row.candidate?.id)
+      : null;
     const decision = {
-      expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),      reviewStatus,
+      expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),
+      reviewStatus,
       resolutionAction: chosenAction,
       canonicalTitle: root.querySelector("#canonical-title")?.value.trim() || row.canonicalTitle || row.candidateTitle || row.priorTitle,
       stablePoemIdentity: root.querySelector("#stable-identity")?.value.trim() || row.identity,
-      textSourcePoemId: Number(root.querySelector("#text-source")?.value),
-      formatSourcePoemId: Number(root.querySelector("#format-source")?.value),
+      textSourcePoemId: Number(decidedSource ?? root.querySelector("#text-source")?.value),
+      formatSourcePoemId: Number(decidedSource ?? root.querySelector("#format-source")?.value),
       notes: root.querySelector("#review-notes")?.value.trim() || null,
     };
     if (needsNotes(row, decision) && !decision.notes) {
