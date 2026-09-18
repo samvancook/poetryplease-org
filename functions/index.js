@@ -12,6 +12,7 @@ import { GoogleAuth, Impersonated } from "google-auth-library";
 import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
+import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -105,7 +106,7 @@ const CONTENT_CACHE_TTL_MS = 15 * 60 * 1000;
 const CONTENT_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
-const CONTENT_SNAPSHOT_VERSION = 2;
+const CONTENT_SNAPSHOT_VERSION = 3;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const RATINGS_CACHE_TTL_MS = 2 * 60 * 1000;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -198,6 +199,9 @@ const BROKEN_QI_MANIFEST = JSON.parse(
 const BOOK_CATALOG_LOOKUP = new Map();
 const BOOK_CATALOG_SHORTENER_LOOKUP = new Map();
 const BOOK_CATALOG_TITLE_BUCKETS = new Map();
+const BOOK_RELEASE_CATALOG_KEYS = new Set(
+  BOOK_CATALOG_LOOKUP_ROWS.map((record) => String(record?.releaseCatalog || "").trim().toLowerCase()).filter(Boolean)
+);
 const BROKEN_QI_IDS = new Set(
   Array.isArray(BROKEN_QI_MANIFEST?.ids) ? BROKEN_QI_MANIFEST.ids.map((value) => normalizeKey(value)) : []
 );
@@ -311,14 +315,19 @@ function resolveCanonicalCatalogMetadata(item = {}) {
 
 function canonicalizeContentRecord(item = {}) {
   const canonical = resolveCanonicalCatalogMetadata(item);
+  const releaseCatalog = canonical.releaseCatalog || item.releaseCatalog || "";
+  const eventReleaseCatalog = canonical.matched
+    ? preservedEventReleaseCatalog(item, releaseCatalog, BOOK_RELEASE_CATALOG_KEYS)
+    : "";
   return {
     ...item,
     author: canonical.author || canonicalizeAuthorName(item.author),
     ...(canonical.matched ? {
       book: canonical.book || item.book || item.bookTitle || "",
-      releaseCatalog: canonical.releaseCatalog || item.releaseCatalog || "",
+      releaseCatalog,
       bookShortener: canonical.bookShortener || item.bookShortener || "",
       bookLink: item.bookLink || canonical.bookLink || "",
+      ...(eventReleaseCatalog ? { eventReleaseCatalog } : {}),
     } : {}),
   };
 }
@@ -1613,7 +1622,7 @@ function matchesRequestedType(item, requestedType) {
 function filterContentByFeedFilters(items, filters = {}) {
   return (items || []).filter((item) => {
     if (!matchesRequestedType(item, filters.type)) return false;
-    if (!matchesCatalogFilterValue(item?.releaseCatalog, filters.catalog)) return false;
+    if (normalizeText(filters.catalog) && !contentReleaseCatalogs(item).some((catalog) => matchesCatalogFilterValue(catalog, filters.catalog))) return false;
     if (!matchesFilterValue(item?.author, filters.author)) return false;
     if (!matchesFilterValue(item?.book, filters.book)) return false;
     if (!matchesFilterValue(item?.sourceEvent, filters.event) && !matchesFilterValue(item?.sourceEventLabel, filters.event)) return false;

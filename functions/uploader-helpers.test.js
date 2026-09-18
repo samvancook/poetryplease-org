@@ -27,6 +27,11 @@ import {
   validateImportedGraphic,
   verifiedImageContentType,
 } from "./uploader-helpers.js";
+import {
+  contentReleaseCatalogs,
+  isBookReleaseCatalog,
+  preservedEventReleaseCatalog,
+} from "./catalog-identity.js";
 
 const graphicRules = {
   allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]),
@@ -458,3 +463,52 @@ test("durable content snapshots are re-canonicalized before serving", () => {
   );
 });
 
+
+const bookReleaseCatalogKeys = new Set(
+  JSON.parse(readFileSync(new URL("./book-catalog-lookup.json", import.meta.url), "utf8"))
+    .map((book) => String(book.releaseCatalog || "").trim().toLowerCase())
+    .filter(Boolean)
+);
+
+test("event catalogs survive attribution to a book's release catalog", () => {
+  const workshopVideo = {
+    id: "Neil Hilborn - [Vertical Workshop Excerpt] Button Up: Poetry 101 - Neil Hilborn - November 20, 2025 [5-10 Minutes - Excerpt 1] - Vertical",
+    author: "Neil Hilborn",
+    book: "About Time",
+    imageType: "VV",
+    releaseCatalog: "2025 Vertical Workshop Excerpts",
+  };
+  const eventCatalog = preservedEventReleaseCatalog(workshopVideo, "Fall 2024", bookReleaseCatalogKeys);
+  assert.equal(eventCatalog, "2025 Vertical Workshop Excerpts");
+  assert.deepEqual(
+    contentReleaseCatalogs({ ...workshopVideo, releaseCatalog: "Fall 2024", eventReleaseCatalog: eventCatalog }),
+    ["Fall 2024", "2025 Vertical Workshop Excerpts"]
+  );
+});
+
+test("misfiled book release catalogs are still replaced, not preserved", () => {
+  assert.equal(preservedEventReleaseCatalog({ releaseCatalog: "Spring 2018" }, "Fall 2020", bookReleaseCatalogKeys), "");
+  assert.equal(preservedEventReleaseCatalog({ releaseCatalog: "Contest" }, "Spring 2026", bookReleaseCatalogKeys), "");
+  assert.equal(isBookReleaseCatalog("Kingdom of the Dinosaurs", bookReleaseCatalogKeys), true);
+  assert.equal(isBookReleaseCatalog("2025 Vertical Workshop Excerpts", bookReleaseCatalogKeys), false);
+});
+
+test("event catalog preservation is stable across snapshot re-canonicalization", () => {
+  const canonicalized = {
+    releaseCatalog: "Fall 2024",
+    eventReleaseCatalog: "2025 Vertical Workshop Excerpts",
+  };
+  assert.equal(
+    preservedEventReleaseCatalog(canonicalized, "Fall 2024", bookReleaseCatalogKeys),
+    "2025 Vertical Workshop Excerpts"
+  );
+  assert.equal(preservedEventReleaseCatalog({ releaseCatalog: "Fall 2024" }, "Fall 2024", bookReleaseCatalogKeys), "");
+  assert.equal(preservedEventReleaseCatalog({}, "Fall 2024", bookReleaseCatalogKeys), "");
+});
+
+test("feed catalog filters match a preserved event catalog", () => {
+  const indexSource = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  assert.match(indexSource, /preservedEventReleaseCatalog\(item, releaseCatalog, BOOK_RELEASE_CATALOG_KEYS\)/);
+  assert.match(indexSource, /contentReleaseCatalogs\(item\)\.some\(\(catalog\) => matchesCatalogFilterValue\(catalog, filters\.catalog\)\)/);
+  assert.match(indexSource, /const CONTENT_SNAPSHOT_VERSION = 3;/);
+});
