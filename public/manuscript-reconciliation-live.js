@@ -50,8 +50,8 @@ const STATUS_EFFECT = {
 // record a decision nobody actually took.
 const UNDECIDED = "";
 const REJECTION_REASONS = [
-  ["pagination_line_break", "Extra double line break from pagination",
-    "Rejected: the replacement adds a double line break that is a pagination artifact, not an intentional stanza break. Earlier text kept."],
+  ["pagination_line_break", "Extra line break from pagination",
+    "Rejected: the replacement adds an extra line break that is a pagination artifact, not an intentional stanza break. Earlier text kept."],
 ];
 const ACTIONS = [...COMMON_ACTIONS, ...MORE_ACTIONS];
 const SOURCE_CHOICE_ACTION = "combine_text_and_format";
