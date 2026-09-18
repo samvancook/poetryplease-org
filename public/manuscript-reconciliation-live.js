@@ -206,7 +206,9 @@ async function authorize() {
   if (!Array.isArray(profile.roles) || !profile.roles.some((role) => role === "team" || role === "admin")) {
     throw Error("A Poetry Please team or admin account is required.");
   }
-  return { token, profile };
+  // Firebase ID tokens expire after an hour. getIdToken() returns the cached token and
+  // refreshes it when it is close to expiry, so ask for one before every request.
+  return { token, profile, getToken: () => user.getIdToken() };
 }
 
 export async function load(token, fetcher = fetch) {
@@ -243,6 +245,7 @@ async function saveResolution(token, resolutionId, decision, key) {
 }
 
 function createApp(root, initialData, auth) {
+  const currentToken = async () => (auth.getToken ? auth.getToken() : auth.token);
   let data = initialData;
   const requestedId = requestedResolutionId();
   let selectedId = data.rows.some((row) => Number(row.resolutionId) === requestedId)
@@ -266,7 +269,7 @@ function createApp(root, initialData, auth) {
   };
 
   async function reload(note = "") {
-    data = await load(auth.token);
+    data = await load(await currentToken());
     message = note;
     retry = null;
     render();
@@ -315,7 +318,7 @@ function createApp(root, initialData, auth) {
     render();
     let writeStarted = false;
     try {
-      const authoritativeData = await reloadIfCandidateChanged(auth.token, row);
+      const authoritativeData = await reloadIfCandidateChanged(await currentToken(), row);
       if (authoritativeData) {
         data = authoritativeData;
         message = "The candidate source changed. Authoritative data was reloaded; review before saving again.";
@@ -323,7 +326,7 @@ function createApp(root, initialData, auth) {
         return;
       }
       writeStarted = true;
-      const result = await saveResolution(auth.token, row.resolutionId, decision, retry.key);
+      const result = await saveResolution(await currentToken(), row.resolutionId, decision, retry.key);
       const index = data.rows.findIndex((item) => Number(item.resolutionId) === Number(row.resolutionId));
       data.rows[index] = withSourceIds(result.authoritativeResolution);
       data.reconciliation.writeRevision = result.reconciliationRevision;
