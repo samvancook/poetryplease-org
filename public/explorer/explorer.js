@@ -187,10 +187,25 @@ if (typeof document !== "undefined") {
       if (!user) throw new Error("Sign in through Poetry Please Admin with a team account.");
       const request = async (refresh) => {
         const token = await user.getIdToken(!!refresh);
-        return fetch("/api/" + path.replace(/^\//, ""), {
-          method: "GET",
-          headers: { Accept: "application/json", Authorization: "Bearer " + token },
-        });
+        const timeoutMs = path === "me" ? 12000 : 45000;
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+        try {
+          return await fetch("/api/" + path.replace(/^\//, ""), {
+            method: "GET",
+            headers: { Accept: "application/json", Authorization: "Bearer " + token },
+            signal: controller.signal,
+          });
+        } catch (error) {
+          if (error && error.name === "AbortError") {
+            throw new Error(path === "me"
+              ? "The team access service did not respond within 12 seconds."
+              : "Team access was confirmed, but the content request did not respond within 45 seconds.");
+          }
+          throw error;
+        } finally {
+          clearTimeout(timer);
+        }
       };
       let response = await request(forceRefresh);
       if (response.status === 401 && !forceRefresh) response = await request(true);
@@ -450,13 +465,15 @@ if (typeof document !== "undefined") {
       try {
         const profile = await apiGet("me");
         if (attempt !== accessAttempt) return;
-        clearTimeout(timer);
         setAccountState(user, profile);
         if (!E.isTeamProfile(profile)) {
+          clearTimeout(timer);
           const email = text(profile && profile.email) || user.email || "this account";
           setStatus(email + " is signed in, but Poetry Please did not return a team or admin role. Choose another Google account if this is not your staff login.", true);
           return;
         }
+        clearTimeout(timer);
+        setStatus("Team access confirmed for " + (profile.email || user.email || "this account") + ". Loading content…");
         await load();
       } catch (error) {
         if (attempt !== accessAttempt) return;
