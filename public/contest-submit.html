@@ -159,6 +159,7 @@
       accountStatus.textContent = "Opening Google sign-in...";
       try {
         const provider = new firebase.auth.GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
         await auth.signInWithPopup(provider);
         location.href = "/my-submissions.html";
       } catch (error) {
