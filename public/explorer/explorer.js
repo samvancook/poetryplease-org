@@ -24,26 +24,6 @@
     return [...new Set(values.map(text).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   }
 
-  function filterWorks(rows, filters) {
-    const query = normalized(filters && filters.query);
-    const author = normalized(filters && filters.author);
-    const book = normalized(filters && filters.book);
-    return (Array.isArray(rows) ? rows : []).filter((row) => {
-      const rowAuthor = normalized(row.author);
-      const rowBook = normalized(row.book || row.bookTitle);
-      const haystack = normalized([
-        row.title || row.poemTitle,
-        row.author,
-        row.book || row.bookTitle,
-        row.catalog || row.releaseCatalog,
-        row.imageId,
-      ].join(" "));
-      return (!query || haystack.includes(query))
-        && (!author || rowAuthor === author)
-        && (!book || rowBook === book);
-    });
-  }
-
   function relationshipLabel(item) {
     if (!item || typeof item !== "object") return { key: "unmatched", label: "Unmatched", detail: "No relationship evidence returned." };
     if (text(item.workId || item.poemId || item.canonicalWorkId || item.excerptDbRecordId)) {
@@ -58,14 +38,52 @@
     return { key: "unmatched", label: "Unmatched", detail: "No stable identity or descriptive match was returned." };
   }
 
+  function getType(item) {
+    return text(item && (item.type || item.assetType || item.contentType)).toUpperCase() || "OTHER";
+  }
+
+  function itemFlags(item) {
+    const flags = Array.isArray(item && item.flags) ? item.flags.slice() : [];
+    if (item && item.flagged && !flags.length) flags.push({ note: "Flagged in Poetry Please" });
+    if (item && item.quarantined) flags.push({ note: "Quarantined" });
+    return flags;
+  }
+
+  function filterWorks(rows, filters) {
+    const query = normalized(filters && filters.query);
+    const author = normalized(filters && filters.author);
+    const book = normalized(filters && filters.book);
+    const assetType = text(filters && filters.assetType).toUpperCase();
+    const confidence = text(filters && filters.confidence).toLowerCase();
+    const flagsOnly = !!(filters && filters.flagsOnly);
+    return (Array.isArray(rows) ? rows : []).filter((row) => {
+      const rowAuthor = normalized(row.author);
+      const rowBook = normalized(row.book || row.bookTitle);
+      const connected = Array.isArray(row.connectedItems) ? row.connectedItems : [];
+      const haystack = normalized([
+        row.title || row.poemTitle,
+        row.author,
+        row.book || row.bookTitle,
+        row.catalog || row.releaseCatalog,
+        row.imageId,
+        ...connected.map((item) => [item.title, item.poemTitle, item.imageId, item.canonicalImageId, getType(item)].join(" ")),
+      ].join(" "));
+      const typeMatch = !assetType || connected.some((item) => getType(item) === assetType);
+      const confidenceMatch = !confidence || connected.some((item) => relationshipLabel(item).key === confidence);
+      const flagged = itemFlags(row).length || connected.some((item) => itemFlags(item).length);
+      return (!query || haystack.includes(query))
+        && (!author || rowAuthor === author)
+        && (!book || rowBook === book)
+        && typeMatch
+        && confidenceMatch
+        && (!flagsOnly || flagged);
+    });
+  }
+
   function assertReadOnlyRequest(method) {
     const verb = text(method || "GET").toUpperCase();
     if (verb !== "GET") throw new Error("Content Explorer is read-only; only GET requests are allowed.");
     return verb;
-  }
-
-  function getType(item) {
-    return text(item && (item.type || item.assetType || item.contentType)).toUpperCase() || "OTHER";
   }
 
   function assetUrl(item) {
@@ -84,9 +102,7 @@
     ];
     const links = [];
     for (const source of sources) {
-      for (const [label, key] of fields) {
-        if (text(source[key])) links.push({ label, url: text(source[key]) });
-      }
+      for (const [label, key] of fields) if (text(source[key])) links.push({ label, url: text(source[key]) });
       const bag = source.productLinks || source.bookLinks;
       if (bag && typeof bag === "object" && !Array.isArray(bag)) {
         for (const [label, url] of Object.entries(bag)) if (text(url)) links.push({ label, url: text(url) });
@@ -98,6 +114,22 @@
       seen.add(entry.url);
       return true;
     });
+  }
+
+  function coverageCounts(rows) {
+    const counts = Object.fromEntries(ASSET_TYPES.map((type) => [type, 0]));
+    let other = 0;
+    let flagged = 0;
+    for (const row of Array.isArray(rows) ? rows : []) {
+      if (itemFlags(row).length) flagged += 1;
+      for (const item of Array.isArray(row.connectedItems) ? row.connectedItems : []) {
+        const type = getType(item);
+        if (Object.prototype.hasOwnProperty.call(counts, type)) counts[type] += 1;
+        else other += 1;
+        if (itemFlags(item).length) flagged += 1;
+      }
+    }
+    return { counts, other, flagged };
   }
 
   function viewModel(payload) {
@@ -119,8 +151,10 @@
     relationshipLabel,
     assertReadOnlyRequest,
     getType,
+    itemFlags,
     assetUrl,
     productLinks,
+    coverageCounts,
     viewModel,
   };
 });
@@ -140,7 +174,8 @@ if (typeof document !== "undefined") {
     };
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
 
-    const state = { rows: [], summaries: [], filtered: [] };
+    const PAGE_SIZE = 40;
+    const state = { rows: [], summaries: [], filtered: [], visibleCount: PAGE_SIZE };
     const $ = (id) => document.getElementById(id);
     const escapeHtml = (value) => String(value == null ? "" : value)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
@@ -170,82 +205,160 @@ if (typeof document !== "undefined") {
         + values.map((value) => '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + "</option>").join("");
     }
 
+    function selectedFilters() {
+      return {
+        query: $("search").value,
+        author: $("author").value,
+        book: $("book").value,
+        assetType: $("asset-type").value,
+        confidence: $("confidence").value,
+        flagsOnly: $("flags-only").checked,
+      };
+    }
+
+    function syncUrl() {
+      const filters = selectedFilters();
+      const params = new URLSearchParams();
+      if (filters.query) params.set("q", filters.query);
+      if (filters.author) params.set("author", filters.author);
+      if (filters.book) params.set("book", filters.book);
+      if (filters.assetType) params.set("type", filters.assetType);
+      if (filters.confidence) params.set("confidence", filters.confidence);
+      if (filters.flagsOnly) params.set("flags", "1");
+      history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
+    }
+
+    function restoreFilters() {
+      const params = new URLSearchParams(location.search);
+      $("search").value = params.get("q") || "";
+      $("author").value = params.get("author") || "";
+      $("book").value = params.get("book") || "";
+      $("asset-type").value = params.get("type") || "";
+      $("confidence").value = params.get("confidence") || "";
+      $("flags-only").checked = params.get("flags") === "1";
+    }
+
     function renderLinks(links) {
       if (!links.length) return '<span class="muted">Not exposed by the current read-only Poetry Please response.</span>';
       return links.map((link) => '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(link.label) + "</a>").join(" · ");
     }
 
-    function flagsFor(row) {
-      const flags = Array.isArray(row.flags) ? row.flags : [];
-      if (row.flagged && !flags.length) flags.push({ note: "Flagged in Poetry Please" });
-      if (row.quarantined) flags.push({ note: "Quarantined" });
-      return flags;
+    function renderSummary(rows) {
+      const coverage = E.coverageCounts(rows);
+      const bookCount = new Set(rows.map((row) => E.normalized(row.book || row.bookTitle)).filter(Boolean)).size;
+      const authorCount = new Set(rows.map((row) => E.normalized(row.author)).filter(Boolean)).size;
+      const assetTotal = Object.values(coverage.counts).reduce((sum, value) => sum + value, 0) + coverage.other;
+      $("summary").innerHTML = [
+        ["Works", rows.length],
+        ["Books", bookCount],
+        ["Authors", authorCount],
+        ["Linked assets", assetTotal],
+        ["Flags", coverage.flagged],
+      ].map((item) => '<div class="summary-stat"><strong>' + item[1] + '</strong><span>' + item[0] + "</span></div>").join("");
+      $("coverage").innerHTML = E.ASSET_TYPES.map((type) => '<span><b>' + type + "</b> " + coverage.counts[type] + "</span>").join("")
+        + (coverage.other ? '<span><b>OTHER</b> ' + coverage.other + "</span>" : "");
     }
 
-    function renderAsset(item) {
+    function renderAsset(item, assetTypeFilter) {
+      if (assetTypeFilter && E.getType(item) !== assetTypeFilter) return "";
       const identity = E.relationshipLabel(item);
       const url = E.assetUrl(item);
       const id = item.canonicalImageId || item.imageId || item.id || "";
       const status = item.visibilityStatus || item.status || "available";
-      const flags = Array.isArray(item.flags) ? item.flags : [];
+      const flags = E.itemFlags(item);
+      const provenance = item.sourceSystem || item.source || item.origin || "";
       return '<li class="asset">'
-        + '<div><strong>' + escapeHtml(E.getType(item)) + "</strong> · " + escapeHtml(item.title || item.poemTitle || id || "Untitled") + "</div>"
+        + '<div class="asset-title"><strong>' + escapeHtml(E.getType(item)) + "</strong> · " + escapeHtml(item.title || item.poemTitle || id || "Untitled") + "</div>"
         + '<div class="meta"><span class="confidence ' + identity.key + '">' + escapeHtml(identity.label) + "</span> "
         + escapeHtml(identity.detail) + "</div>"
-        + '<div class="meta">ID: ' + escapeHtml(id || "not returned") + " · Status: " + escapeHtml(status) + "</div>"
-        + (item.excerpt ? '<blockquote>' + escapeHtml(item.excerpt) + "</blockquote>" : "")
+        + '<div class="meta">ID: ' + escapeHtml(id || "not returned") + " · Status: " + escapeHtml(status)
+        + (provenance ? " · Source: " + escapeHtml(provenance) : "") + "</div>"
+        + (item.excerpt || item.quote ? '<blockquote>' + escapeHtml(item.excerpt || item.quote) + "</blockquote>" : "")
         + (flags.length ? '<div class="flag">' + flags.map((flag) => escapeHtml(flag.note || flag.qualityLane || "Review flag")).join(" · ") + "</div>" : "")
         + (url ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">Open source</a>' : '<span class="muted">No source link returned.</span>')
         + "</li>";
     }
 
-    function renderWork(row) {
+    function renderWork(row, assetTypeFilter) {
       const connected = Array.isArray(row.connectedItems) ? row.connectedItems : [];
-      const ordered = connected.slice().sort((a, b) => E.ASSET_TYPES.indexOf(E.getType(a)) - E.ASSET_TYPES.indexOf(E.getType(b)));
-      const flags = flagsFor(row);
+      const visibleAssets = connected.filter((item) => !assetTypeFilter || E.getType(item) === assetTypeFilter);
+      const ordered = visibleAssets.slice().sort((a, b) => {
+        const ai = E.ASSET_TYPES.indexOf(E.getType(a));
+        const bi = E.ASSET_TYPES.indexOf(E.getType(b));
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      });
+      const flags = E.itemFlags(row);
       const workIdentity = E.relationshipLabel({ workId: row.workId || row.poemId, imageId: row.imageId });
+      const workUrl = row.imageId ? "/app?item=" + encodeURIComponent(row.imageId) : "";
+      const types = E.coverageCounts([row]).counts;
+      const typeChips = E.ASSET_TYPES.filter((type) => types[type]).map((type) => "<span>" + type + " " + types[type] + "</span>").join("");
       return '<article class="work-card">'
         + '<div class="work-head"><div><h3>' + escapeHtml(row.title || row.poemTitle || "Untitled") + '</h3>'
         + '<div class="meta">' + escapeHtml(row.author || "Unknown author") + " · " + escapeHtml(row.book || row.bookTitle || "No book returned") + "</div></div>"
         + '<span class="confidence ' + workIdentity.key + '">' + escapeHtml(workIdentity.label) + "</span></div>"
         + '<div class="chips"><span>' + escapeHtml(row.catalog || row.releaseCatalog || "Catalog unavailable") + "</span>"
-        + '<span>' + connected.length + " linked asset" + (connected.length === 1 ? "" : "s") + "</span>"
+        + typeChips
         + (row.signalLevel ? "<span>Signal: " + escapeHtml(row.signalLevel) + "</span>" : "") + "</div>"
         + (flags.length ? '<div class="flag"><strong>Review flags:</strong> ' + flags.map((flag) => escapeHtml(flag.note || flag.qualityLane || "Flagged")).join(" · ") + "</div>" : "")
         + (row.excerpt ? '<blockquote>' + escapeHtml(row.excerpt) + "</blockquote>" : "")
-        + '<div class="work-links"><a href="/app?item=' + encodeURIComponent(row.imageId || "") + '" target="_blank" rel="noopener noreferrer">Open work in Poetry Please</a></div>'
-        + '<details><summary>Assets and related content (' + connected.length + ")</summary>"
-        + (ordered.length ? "<ul>" + ordered.map(renderAsset).join("") + "</ul>" : '<p class="muted">No connected assets returned.</p>')
+        + (workUrl ? '<div class="work-links"><a href="' + workUrl + '" target="_blank" rel="noopener noreferrer">Open work in Poetry Please</a></div>' : "")
+        + '<details><summary>Assets and related content (' + ordered.length + ")</summary>"
+        + (ordered.length ? "<ul>" + ordered.map((item) => renderAsset(item, assetTypeFilter)).join("") + "</ul>" : '<p class="muted">No connected assets match this view.</p>')
         + "</details></article>";
     }
 
+    function bookSort(left, right) {
+      return left[0].localeCompare(right[0]);
+    }
+
     function render() {
-      state.filtered = E.filterWorks(state.rows, {
-        query: $("search").value,
-        author: $("author").value,
-        book: $("book").value,
+      const filters = selectedFilters();
+      state.filtered = E.filterWorks(state.rows, filters);
+      state.filtered.sort((a, b) => {
+        const book = String(a.book || a.bookTitle || "").localeCompare(String(b.book || b.bookTitle || ""));
+        return book || String(a.title || a.poemTitle || "").localeCompare(String(b.title || b.poemTitle || ""));
       });
+      const visibleRows = state.filtered.slice(0, state.visibleCount);
       const summaryByBook = new Map(state.summaries.map((summary) => [E.normalized(summary.book), summary]));
       const groups = new Map();
-      for (const row of state.filtered) {
+      for (const row of visibleRows) {
         const book = row.book || row.bookTitle || "Book not returned";
         if (!groups.has(book)) groups.set(book, []);
         groups.get(book).push(row);
       }
-      $("results").innerHTML = groups.size ? [...groups.entries()].map(([book, rows]) => {
+      $("results").innerHTML = groups.size ? [...groups.entries()].sort(bookSort).map(([book, rows]) => {
         const summary = summaryByBook.get(E.normalized(book)) || {};
         const sample = rows[0] || {};
         const links = E.productLinks(sample, summary);
-        const release = summary.releaseDate || summary.pubDate || sample.releaseDate || sample.pubDate || "";
-        const catalog = summary.catalog || sample.catalog || sample.releaseCatalog || "";
+        const release = summary.releaseDate || summary.pubDate || summary.releaseYear || sample.releaseDate || sample.pubDate || sample.releaseYear || "";
+        const catalog = summary.catalog || summary.releaseCatalog || sample.catalog || sample.releaseCatalog || "";
         return '<section class="book-card"><header><div><div class="eyebrow">Book</div><h2>' + escapeHtml(book) + "</h2>"
-          + '<div class="meta">' + escapeHtml(sample.author || "") + '</div></div><div class="book-stats"><strong>' + rows.length + '</strong><span>works</span></div></header>'
+          + '<div class="meta">' + escapeHtml(sample.author || "") + '</div></div><div class="book-stats"><strong>' + rows.length + '</strong><span>shown</span></div></header>'
           + '<div class="book-meta"><div><b>Release</b><span>' + escapeHtml(release || "Not returned") + "</span></div>"
           + "<div><b>Catalog</b><span>" + escapeHtml(catalog || "Not returned") + "</span></div>"
           + "<div><b>Product links</b><span>" + renderLinks(links) + "</span></div></div>"
-          + '<div class="works">' + rows.map(renderWork).join("") + "</div></section>";
+          + '<div class="works">' + rows.map((row) => renderWork(row, filters.assetType)).join("") + "</div></section>";
       }).join("") : '<div class="empty">No works match these filters.</div>';
-      setStatus(state.filtered.length + " work" + (state.filtered.length === 1 ? "" : "s") + " shown. Read-only: no source records are changed.");
+
+      renderSummary(state.filtered);
+      const remaining = state.filtered.length - visibleRows.length;
+      $("load-more").hidden = remaining <= 0;
+      $("load-more").textContent = remaining > 0 ? "Show " + Math.min(PAGE_SIZE, remaining) + " more works" : "";
+      setStatus(state.filtered.length + " matching work" + (state.filtered.length === 1 ? "" : "s")
+        + (remaining > 0 ? "; showing the first " + visibleRows.length + "." : ".")
+        + " Read-only: no source records are changed.");
+      syncUrl();
+    }
+
+    function filterChanged() {
+      state.visibleCount = PAGE_SIZE;
+      render();
+    }
+
+    function resetFilters() {
+      ["search", "author", "book", "asset-type", "confidence"].forEach((id) => { $(id).value = ""; });
+      $("flags-only").checked = false;
+      filterChanged();
     }
 
     async function load() {
@@ -255,7 +368,9 @@ if (typeof document !== "undefined") {
       state.summaries = model.summaries;
       fillSelect("author", model.authors, "authors");
       fillSelect("book", model.books, "books");
-      $("filters").hidden = false;
+      fillSelect("asset-type", E.ASSET_TYPES, "asset types");
+      restoreFilters();
+      $("workspace").hidden = false;
       render();
     }
 
@@ -265,12 +380,18 @@ if (typeof document !== "undefined") {
 
     $("login").addEventListener("click", signIn);
     $("logout").addEventListener("click", () => firebase.auth().signOut());
-    ["search", "author", "book"].forEach((id) => $(id).addEventListener(id === "search" ? "input" : "change", render));
+    ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
+    ["author", "book", "asset-type", "confidence", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
+    $("reset").addEventListener("click", resetFilters);
+    $("load-more").addEventListener("click", () => {
+      state.visibleCount += PAGE_SIZE;
+      render();
+    });
 
     firebase.auth().onAuthStateChanged(async (user) => {
       $("login").hidden = !!user;
       $("logout").hidden = !user;
-      $("filters").hidden = true;
+      $("workspace").hidden = true;
       $("results").innerHTML = "";
       if (!user) {
         setStatus("Team access required. Sign in with the same account used for Poetry Please Admin.", true);
