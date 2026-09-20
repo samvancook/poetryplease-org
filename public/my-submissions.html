@@ -182,12 +182,13 @@
     }
 
     async function signInGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
       try {
-        const provider = new firebase.auth.GoogleAuthProvider();
         await auth.signInWithPopup(provider);
       } catch (error) {
         if (["auth/popup-blocked", "auth/cancelled-popup-request"].includes(error.code)) {
-          await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider());
+          await auth.signInWithRedirect(provider);
           return;
         }
         authStatus.className = "status error";
