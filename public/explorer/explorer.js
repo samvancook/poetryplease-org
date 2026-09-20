@@ -374,12 +374,41 @@ if (typeof document !== "undefined") {
       render();
     }
 
+    function setAccountState(user, profile) {
+      const email = text((profile && profile.email) || (user && user.email));
+      $("account-note").textContent = email ? "Signed in as " + email : "";
+      $("account-note").hidden = !email;
+      $("switch-account").hidden = !user;
+    }
+
     async function signIn() {
-      await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      setStatus("Opening Google account chooser…");
+      const provider = new firebase.auth.GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      try {
+        await firebase.auth().signInWithPopup(provider);
+      } catch (error) {
+        const code = text(error && error.code);
+        if (code === "auth/unauthorized-domain") {
+          setStatus("Google sign-in is not authorized on this preview address. The Explorer preview host must be added to the existing Firebase authorized domains before team testing.", true);
+        } else if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
+          setStatus("Google sign-in did not complete" + (code ? " (" + code + ")" : "") + ". Try again or reload this page.", true);
+        }
+      }
+    }
+
+    async function signOut() {
+      await firebase.auth().signOut();
+      setAccountState(null, null);
     }
 
     $("login").addEventListener("click", signIn);
-    $("logout").addEventListener("click", () => firebase.auth().signOut());
+    $("switch-account").addEventListener("click", async () => {
+      await firebase.auth().signOut();
+      await signIn();
+    });
+    $("retry-auth").addEventListener("click", () => location.reload());
+    $("logout").addEventListener("click", signOut);
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
     ["author", "book", "asset-type", "confidence", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
     $("reset").addEventListener("click", resetFilters);
@@ -388,21 +417,41 @@ if (typeof document !== "undefined") {
       render();
     });
 
+    let authResolved = false;
+    const authTimeout = setTimeout(() => {
+      if (authResolved) return;
+      $("login").hidden = false;
+      $("retry-auth").hidden = false;
+      setStatus("The team access check is taking too long. Reload the page or choose your Google account again.", true);
+    }, 10000);
+
     firebase.auth().onAuthStateChanged(async (user) => {
+      authResolved = true;
+      clearTimeout(authTimeout);
       $("login").hidden = !!user;
       $("logout").hidden = !user;
+      $("retry-auth").hidden = true;
       $("workspace").hidden = true;
       $("results").innerHTML = "";
+      setAccountState(user, null);
       if (!user) {
-        setStatus("Team access required. Sign in with the same account used for Poetry Please Admin.", true);
+        setStatus("Team access required. Choose the Google account you use for Poetry Please Admin.", true);
         return;
       }
+      setStatus("Checking team access for " + (user.email || "this Google account") + "…");
       try {
         const profile = await apiGet("me");
-        if (!E.isTeamProfile(profile)) throw new Error("A Poetry Please team or admin account is required.");
+        setAccountState(user, profile);
+        if (!E.isTeamProfile(profile)) {
+          const email = text(profile && profile.email) || user.email || "this account";
+          setStatus(email + " is signed in, but Poetry Please did not return a team or admin role. Choose another Google account if this is not your staff login.", true);
+          return;
+        }
         await load();
       } catch (error) {
-        setStatus(error.message || "Could not load Content Explorer.", true);
+        $("retry-auth").hidden = false;
+        const email = user.email ? " for " + user.email : "";
+        setStatus((error.message || "Could not load Content Explorer.") + email + " Choose another account or retry.", true);
       }
     });
   })();
