@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Author–Book–Content Explorer | Poetry, Please</title>
+  <link rel="icon" type="image/png" href="/pp-loader-logo.png" />
+  <link rel="apple-touch-icon" href="/pp-loader-logo.png" />
+  <link rel="stylesheet" href="/explorer/explorer.css" />
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <nav class="topbar">
+      <a href="/admin">← Admin</a>
+      <div class="actions">
+        <button id="login" class="primary" type="button" hidden>Sign in with Google</button>
+        <button id="logout" type="button" hidden>Sign out</button>
+      </div>
+    </nav>
+
+    <h1>Author–Book–Content Explorer</h1>
+    <p class="lede">A read-only staff view of books, works, excerpts, videos, quote images, interior images, full-poem images, source links, and review state already connected inside Poetry Please.</p>
+
+    <div id="status" class="status">Checking team access…</div>
+
+    <section id="filters" class="filters" aria-label="Explorer filters" hidden>
+      <input id="search" type="search" placeholder="Search author, book, poem, catalog, or ID" aria-label="Search" />
+      <select id="author" aria-label="Author"><option value="">All authors</option></select>
+      <select id="book" aria-label="Book"><option value="">All books</option></select>
+    </section>
+
+    <p class="legend"><span class="confidence exact">Exact / stable</span> uses a stable work-level ID. <span class="confidence linked">Poetry Please linked</span> has a stable item ID but the API does not expose the match rule. <span class="confidence inferred">Inferred</span> has descriptive matching only. Missing fields stay visibly unavailable; this tool never invents IDs or writes to Poetry Please, Firestore, Catalog, or source spreadsheets.</p>
+
+    <div id="results"></div>
+  </main>
+  <script src="/explorer/explorer.js"></script>
+</body>
+</html>
