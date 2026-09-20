@@ -181,15 +181,19 @@ if (typeof document !== "undefined") {
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 
-    async function apiGet(path) {
+    async function apiGet(path, forceRefresh) {
       E.assertReadOnlyRequest("GET");
       const user = firebase.auth().currentUser;
       if (!user) throw new Error("Sign in through Poetry Please Admin with a team account.");
-      const token = await user.getIdToken(false);
-      const response = await fetch("/api/" + path.replace(/^\//, ""), {
-        method: "GET",
-        headers: { Accept: "application/json", Authorization: "Bearer " + token },
-      });
+      const request = async (refresh) => {
+        const token = await user.getIdToken(!!refresh);
+        return fetch("/api/" + path.replace(/^\//, ""), {
+          method: "GET",
+          headers: { Accept: "application/json", Authorization: "Bearer " + token },
+        });
+      };
+      let response = await request(forceRefresh);
+      if (response.status === 401 && !forceRefresh) response = await request(true);
       if (!response.ok) throw new Error("Read-only API request failed (" + response.status + ").");
       return response.json();
     }
@@ -417,17 +421,19 @@ if (typeof document !== "undefined") {
       render();
     });
 
-    let authResolved = false;
-    const authTimeout = setTimeout(() => {
-      if (authResolved) return;
-      $("login").hidden = false;
-      $("retry-auth").hidden = false;
-      setStatus("The team access check is taking too long. Reload the page or choose your Google account again.", true);
-    }, 10000);
+    let accessAttempt = 0;
+    function accessTimeout(attempt, user) {
+      return setTimeout(() => {
+        if (attempt !== accessAttempt) return;
+        $("login").hidden = false;
+        $("retry-auth").hidden = false;
+        const email = user && user.email ? " for " + user.email : "";
+        setStatus("The team access check timed out" + email + ". Choose your Google account again or retry.", true);
+      }, 10000);
+    }
 
     firebase.auth().onAuthStateChanged(async (user) => {
-      authResolved = true;
-      clearTimeout(authTimeout);
+      const attempt = ++accessAttempt;
       $("login").hidden = !!user;
       $("logout").hidden = !user;
       $("retry-auth").hidden = true;
@@ -438,9 +444,13 @@ if (typeof document !== "undefined") {
         setStatus("Team access required. Choose the Google account you use for Poetry Please Admin.", true);
         return;
       }
+
       setStatus("Checking team access for " + (user.email || "this Google account") + "…");
+      const timer = accessTimeout(attempt, user);
       try {
         const profile = await apiGet("me");
+        if (attempt !== accessAttempt) return;
+        clearTimeout(timer);
         setAccountState(user, profile);
         if (!E.isTeamProfile(profile)) {
           const email = text(profile && profile.email) || user.email || "this account";
@@ -449,6 +459,8 @@ if (typeof document !== "undefined") {
         }
         await load();
       } catch (error) {
+        if (attempt !== accessAttempt) return;
+        clearTimeout(timer);
         $("retry-auth").hidden = false;
         const email = user.email ? " for " + user.email : "";
         setStatus((error.message || "Could not load Content Explorer.") + email + " Choose another account or retry.", true);
