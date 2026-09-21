@@ -28,6 +28,7 @@
     .list { display:grid; gap:12px; }
     .submission { border-top:1px solid var(--line); padding:18px 0 4px; }
     .submission:first-child { border-top:0; }
+    .submission-text { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--ink); }
     .meta { display:flex; flex-wrap:wrap; gap:8px 14px; color:var(--muted); }
     .chip { display:inline-flex; align-items:center; min-height:28px; padding:4px 9px; border-radius:999px; background:var(--soft); color:var(--accent); font-weight:700; font-size:14px; }
     [hidden] { display:none !important; }
@@ -44,7 +45,13 @@
       <a href="/app">Back to Poetry, Please</a>
     </header>
 
-    <section id="signed-out" class="panel">
+
+    <section id="auth-loading" class="panel" role="status" aria-live="polite">
+      <p>Checking sign-in...</p>
+    </section>
+
+
+    <section id="signed-out" class="panel" hidden>
       <h2>Sign in</h2>
       <p>Use the email from your submission. A verified sign-in automatically claims earlier contest entries made with that address.</p>
       <div class="auth-grid">
@@ -56,6 +63,7 @@
       </div>
       <div id="auth-status" class="status" role="status" aria-live="polite"></div>
     </section>
+
 
     <section id="signed-in" hidden>
       <div class="panel">
@@ -69,23 +77,31 @@
     </section>
   </main>
 
+
   <script src="/__/firebase/8.10.1/firebase-app.js"></script>
   <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
   <script src="/__/firebase/init.js"></script>
   <script>
     const auth = firebase.auth();
+    const authLoading = document.getElementById("auth-loading");
     const signedOut = document.getElementById("signed-out");
     const signedIn = document.getElementById("signed-in");
     const authStatus = document.getElementById("auth-status");
     const claimStatus = document.getElementById("claim-status");
     const list = document.getElementById("submission-list");
     const emailInput = document.getElementById("email");
+    const emailButton = document.getElementById("email-button");
+    const googleButton = document.getElementById("google-button");
+    let emailLinkSignInPending = auth.isSignInWithEmailLink(location.href);
+    let renderedUid = "";
+
 
     function formatDate(value) {
       const ms = Number(value?._seconds || value?.seconds || 0) * 1000;
       const date = ms ? new Date(ms) : new Date(value || "");
       return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString();
     }
+
 
     async function api(path, options = {}) {
       const user = auth.currentUser;
@@ -103,6 +119,12 @@
       return payload;
     }
 
+
+    function escapeHtml(value) {
+      return String(value || "").replace(/[&<>"']/g, (char) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[char]));
+    }
+
+
     function renderSubmissions(rows) {
       if (!rows.length) {
         list.innerHTML = '<p>No submissions are connected to this account yet.</p>';
@@ -110,6 +132,7 @@
       }
       list.innerHTML = rows.map((row) => {
         const status = String(row.status || "pending").replace(/_/g, " ");
+        const submissionText = escapeHtml(row.text || "");
         return `
           <article class="submission">
             <div class="meta">
@@ -117,12 +140,14 @@
               <span>${row.submissionProgramName || row.sourceEventLabel || "Poetry, Please submission"}</span>
               <span>${formatDate(row.createdAt)}</span>
             </div>
-            <h2>${String(row.title || "Untitled").replace(/[&<>"']/g, (char) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[char]))}</h2>
-            <p>Reference: ${row.id}</p>
+            <h2>${escapeHtml(row.title || "Untitled")}</h2>
+            ${submissionText ? `<p class="submission-text">${submissionText}</p>` : ""}
+            <p>Reference: ${escapeHtml(row.id)}</p>
           </article>
         `;
       }).join("");
     }
+
 
     async function loadSubmissions() {
       claimStatus.textContent = "Connecting your submissions...";
@@ -140,6 +165,7 @@
       }
     }
 
+
     async function sendEmailLink() {
       const email = emailInput.value.trim().toLowerCase();
       if (!email) {
@@ -149,6 +175,7 @@
       }
       authStatus.className = "status";
       authStatus.textContent = "Sending sign-in link...";
+      emailButton.disabled = true;
       try {
         await auth.sendSignInLinkToEmail(email, {
           url: new URL("/my-submissions.html", location.origin).href,
@@ -162,14 +189,21 @@
         authStatus.textContent = error.code === "auth/operation-not-allowed"
           ? "Email-link sign-in is not enabled yet."
           : (error.message || "Could not send the sign-in link.");
+      } finally {
+        emailButton.disabled = false;
       }
     }
 
+
     async function finishEmailLink() {
-      if (!auth.isSignInWithEmailLink(location.href)) return;
+      if (!emailLinkSignInPending) return;
       const savedEmail = localStorage.getItem("pp_email_for_sign_in") || "";
       const email = savedEmail || window.prompt("Confirm the email address that received this link:");
-      if (!email) return;
+      if (!email) {
+        emailLinkSignInPending = false;
+        showAuthState(null);
+        return;
+      }
       authStatus.textContent = "Signing in...";
       try {
         await auth.signInWithEmailLink(email, location.href);
@@ -178,35 +212,62 @@
       } catch (error) {
         authStatus.className = "status error";
         authStatus.textContent = error.message || "This sign-in link could not be completed.";
+      } finally {
+        emailLinkSignInPending = false;
+        showAuthState(auth.currentUser);
       }
     }
+
 
     async function signInGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
+      googleButton.disabled = true;
+      authStatus.className = "status";
+      authStatus.textContent = "Opening Google sign-in...";
       try {
         await auth.signInWithPopup(provider);
+        authStatus.textContent = "";
       } catch (error) {
-        if (["auth/popup-blocked", "auth/cancelled-popup-request"].includes(error.code)) {
+        if (error.code === "auth/popup-blocked") {
           await auth.signInWithRedirect(provider);
           return;
         }
         authStatus.className = "status error";
-        authStatus.textContent = error.message || "Google sign-in failed.";
+        authStatus.textContent = error.code === "auth/popup-closed-by-user"
+          ? "Google sign-in was closed. Try again when you're ready."
+          : (error.message || "Google sign-in failed.");
+      } finally {
+        googleButton.disabled = false;
       }
     }
+
 
     document.getElementById("email-button").addEventListener("click", sendEmailLink);
     document.getElementById("google-button").addEventListener("click", signInGoogle);
     document.getElementById("sign-out-button").addEventListener("click", () => auth.signOut());
 
-    auth.onAuthStateChanged((user) => {
+
+    function showAuthState(user) {
+      authLoading.hidden = true;
       signedOut.hidden = Boolean(user);
       signedIn.hidden = !user;
-      if (!user) return;
+      if (!user) {
+        renderedUid = "";
+        return;
+      }
       document.getElementById("account-label").textContent = "Signed in as " + (user.email || user.displayName || "user");
+      if (renderedUid === user.uid) return;
+      renderedUid = user.uid;
       loadSubmissions();
+    }
+
+
+    auth.onAuthStateChanged((user) => {
+      if (emailLinkSignInPending) return;
+      showAuthState(user);
     });
+
 
     finishEmailLink();
   </script>
