@@ -346,18 +346,19 @@ if (typeof document !== "undefined") {
         if (!groups.has(book)) groups.set(book, []);
         groups.get(book).push(row);
       }
+      const expandBooks = !!(filters.query || filters.author || filters.book || filters.assetType || filters.confidence || filters.flagsOnly);
       $("results").innerHTML = groups.size ? [...groups.entries()].sort(bookSort).map(([book, rows]) => {
         const summary = summaryByBook.get(E.normalized(book)) || {};
         const sample = rows[0] || {};
         const links = E.productLinks(sample, summary);
         const release = summary.releaseDate || summary.pubDate || summary.releaseYear || sample.releaseDate || sample.pubDate || sample.releaseYear || "";
         const catalog = summary.catalog || summary.releaseCatalog || sample.catalog || sample.releaseCatalog || "";
-        return '<section class="book-card"><header><div><div class="eyebrow">Book</div><h2>' + escapeHtml(book) + "</h2>"
-          + '<div class="meta">' + escapeHtml(sample.author || "") + '</div></div><div class="book-stats"><strong>' + rows.length + '</strong><span>shown</span></div></header>'
+        return '<details class="book-card"' + (expandBooks ? " open" : "") + '><summary class="book-header"><div><div class="eyebrow">Book</div><h2>' + escapeHtml(book) + "</h2>"
+          + '<div class="meta">' + escapeHtml(sample.author || "") + '</div></div><div class="book-stats"><strong>' + rows.length + '</strong><span>works</span></div></summary>'
           + '<div class="book-meta"><div><b>Release</b><span>' + escapeHtml(release || "Not returned") + "</span></div>"
           + "<div><b>Catalog</b><span>" + escapeHtml(catalog || "Not returned") + "</span></div>"
           + "<div><b>Product links</b><span>" + renderLinks(links) + "</span></div></div>"
-          + '<div class="works">' + rows.map((row) => renderWork(row, filters.assetType)).join("") + "</div></section>";
+          + '<div class="works">' + rows.map((row) => renderWork(row, filters.assetType)).join("") + "</div></details>";
       }).join("") : '<div class="empty">No works match these filters.</div>';
 
       renderSummary(state.filtered);
