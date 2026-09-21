@@ -41,6 +41,9 @@ jobs:
         working-directory: functions
         run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js
 
+      - name: Run Explorer tests
+        run: node --test tests/explorer.test.js
+
       - name: Setup Java for Firebase emulators
         uses: actions/setup-java@v5
         with:
