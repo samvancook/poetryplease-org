@@ -177,6 +177,7 @@ if (typeof document !== "undefined") {
     const PAGE_SIZE = 40;
     const state = { rows: [], summaries: [], filtered: [], visibleCount: PAGE_SIZE };
     const $ = (id) => document.getElementById(id);
+    const plainText = (value) => String(value == null ? "" : value).trim();
     const escapeHtml = (value) => String(value == null ? "" : value)
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
@@ -394,7 +395,7 @@ if (typeof document !== "undefined") {
     }
 
     function setAccountState(user, profile) {
-      const email = text((profile && profile.email) || (user && user.email));
+      const email = plainText((profile && profile.email) || (user && user.email));
       $("account-note").textContent = email ? "Signed in as " + email : "";
       $("account-note").hidden = !email;
       $("switch-account").hidden = !user;
@@ -407,7 +408,7 @@ if (typeof document !== "undefined") {
       try {
         await firebase.auth().signInWithPopup(provider);
       } catch (error) {
-        const code = text(error && error.code);
+        const code = plainText(error && error.code);
         if (code === "auth/unauthorized-domain") {
           setStatus("Google sign-in is not authorized on this preview address. The Explorer preview host must be added to the existing Firebase authorized domains before team testing.", true);
         } else if (code !== "auth/popup-closed-by-user" && code !== "auth/cancelled-popup-request") {
@@ -468,7 +469,7 @@ if (typeof document !== "undefined") {
         setAccountState(user, profile);
         if (!E.isTeamProfile(profile)) {
           clearTimeout(timer);
-          const email = text(profile && profile.email) || user.email || "this account";
+          const email = plainText(profile && profile.email) || user.email || "this account";
           setStatus(email + " is signed in, but Poetry Please did not return a team or admin role. Choose another Google account if this is not your staff login.", true);
           return;
         }
