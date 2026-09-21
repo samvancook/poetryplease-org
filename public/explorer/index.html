@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Author–Book–Content Explorer | Poetry, Please</title>
+  <link rel="icon" type="image/png" href="/pp-loader-logo.png" />
+  <link rel="apple-touch-icon" href="/pp-loader-logo.png" />
+  <link rel="stylesheet" href="/explorer/explorer.css" />
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <main class="shell">
+    <nav class="topbar">
+      <a href="/admin">← Admin</a>
+      <div class="actions">
+        <span id="account-note" class="meta" hidden></span>
+        <button id="login" class="primary" type="button" hidden>Choose Google account</button>
+        <button id="switch-account" type="button" hidden>Switch account</button>
+        <button id="retry-auth" type="button" hidden>Retry access check</button>
+        <button id="logout" type="button" hidden>Sign out</button>
+      </div>
+    </nav>
+
+    <h1>Author–Book–Content Explorer</h1>
+    <p class="lede">A read-only staff view of books, works, excerpts, videos, quote images, interior images, full-poem images, source links, and review state already connected inside Poetry Please.</p>
+
+    <div id="status" class="status">Team access required. Choose the Google account you use for Poetry Please Admin.</div>
+
+    <div id="workspace" hidden>
+      <section class="summary-panel" aria-label="Matching content summary">
+        <div id="summary" class="summary-grid"></div>
+        <div>
+          <div class="eyebrow">Asset coverage in this view</div>
+          <div id="coverage" class="coverage-chips"></div>
+        </div>
+      </section>
+
+      <section class="filters" aria-label="Explorer filters">
+        <input id="search" type="search" placeholder="Search author, book, poem, catalog, asset, or ID" aria-label="Search" />
+        <select id="author" aria-label="Author"><option value="">All authors</option></select>
+        <select id="book" aria-label="Book"><option value="">All books</option></select>
+        <select id="asset-type" aria-label="Asset type"><option value="">All asset types</option></select>
+        <select id="confidence" aria-label="Relationship confidence">
+          <option value="">All relationship confidence</option>
+          <option value="exact">Exact / stable</option>
+          <option value="linked">Poetry Please linked</option>
+          <option value="inferred">Inferred</option>
+          <option value="unmatched">Unmatched</option>
+        </select>
+        <label class="check"><input id="flags-only" type="checkbox" /> Review flags only</label>
+        <button id="reset" type="button">Reset</button>
+      </section>
+
+      <p class="legend"><span class="confidence exact">Exact / stable</span> uses a stable work-level ID. <span class="confidence linked">Poetry Please linked</span> has a stable item ID but the API does not expose the match rule. <span class="confidence inferred">Inferred</span> has descriptive matching only. Filters are kept in the page URL for sharing. Missing fields stay visibly unavailable; this tool never invents IDs or writes to Poetry Please, Firestore, Catalog, or source spreadsheets.</p>
+
+      <div id="results"></div>
+      <div class="load-more-wrap"><button id="load-more" class="primary" type="button" hidden>Show more works</button></div>
+    </div>
+  </main>
+  <script src="/explorer/explorer.js"></script>
+</body>
+</html>
