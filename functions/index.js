@@ -13,6 +13,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
+import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -3866,6 +3867,19 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.updatedFileName = normalizeText(body.updatedFileName);
     payload.pageNumber = normalizeText(body.pageNumber);
     payload.misc = normalizeText(body.misc);
+    payload.eventReleaseCatalog = normalizeText(body.eventReleaseCatalog);
+    payload.weaverCandidateId = normalizeText(body.weaverCandidateId);
+    payload.weaverPrioritySetId = normalizeText(body.weaverPrioritySetId);
+    payload.weaverSourceFileId = normalizeText(body.weaverSourceFileId);
+    payload.weaverGateId = normalizeText(body.weaverGateId);
+    payload.weaverReleaseStatus = normalizeText(body.weaverReleaseStatus);
+    payload.weaverPublicationRestricted = !!body.weaverPublicationRestricted;
+    payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
+      ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
+      : [];
+    payload.weaverDiagnostics = body.weaverDiagnostics && typeof body.weaverDiagnostics === "object"
+      ? body.weaverDiagnostics
+      : {};
   } else if (type === "youtube") {
     const youtubeUrl = normalizeText(body.youtubeUrl || body.url);
     const youtubeId = normalizeText(body.youtubeId || extractYouTubeId(youtubeUrl));
@@ -7607,6 +7621,97 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
       error: err.message || "weaver_import_failed",
       importLedgerId: ledgerRef.id,
       schemaVersion,
+    });
+  }
+});
+
+app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  const intake = buildWeaverVideoIntake(req.body || {});
+  if (!intake.ok) {
+    return res.status(intake.status || 400).json({
+      ok: false,
+      schemaVersion: "1",
+      results: [{
+        sourceRecordId: normalizeText(req.body?.sourceRecordId),
+        status: intake.status === 409 ? "blocked" : "error",
+        error: intake.error || "invalid_weaver_video_request",
+      }],
+    });
+  }
+
+  const ledgerRef = db.collection(COLLECTIONS.weaverImportLedger).doc();
+  const startedAt = Date.now();
+  await ledgerRef.set({
+    status: "processing",
+    schemaVersion: "1",
+    sourceSystem: "weaver",
+    requestedContentType: "VV",
+    sourceRecordId: intake.item.sourceRecordId,
+    sourceEvent: intake.item.sourceEvent,
+    sourceEventLabel: intake.item.sourceEventLabel,
+    startedAt: FieldValue.serverTimestamp(),
+  });
+
+  try {
+    const result = await upsertContentLibraryItem("videos", intake.item, {
+      uid: "weaver-automation",
+      email: "weaver-automation@buttonpoetry.com",
+    });
+    const canonicalVideoId = normalizeText(result.item?.id || intake.item.docId);
+    const canonicalVideoUrl = `/app?item=${encodeURIComponent(canonicalVideoId)}&type=VV`;
+    const finalAssetUrl = normalizeText(result.item?.videoUrl || result.item?.url);
+    const status = result.created ? "created" : "updated";
+
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot("content_weaver_import:video");
+    await ledgerRef.set({
+      status: "completed",
+      contentType: "VV",
+      sourceCount: 1,
+      eligibleCount: 1,
+      mappedCount: 1,
+      createdCount: result.created ? 1 : 0,
+      updatedCount: result.created ? 0 : 1,
+      duplicateCount: 0,
+      errorCount: 0,
+      outcomes: [{
+        contentId: canonicalVideoId,
+        sourceRecordId: intake.item.sourceRecordId,
+        outcome: status,
+      }],
+      durationMs: Date.now() - startedAt,
+      completedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return res.json({
+      ok: true,
+      schemaVersion: "1",
+      importLedgerId: ledgerRef.id,
+      results: [{
+        sourceRecordId: intake.item.sourceRecordId,
+        status,
+        canonicalVideoId,
+        canonicalVideoUrl,
+        finalAssetUrl,
+      }],
+    });
+  } catch (err) {
+    await ledgerRef.set({
+      status: "failed",
+      contentType: "VV",
+      error: err.message || "weaver_video_import_failed",
+      durationMs: Date.now() - startedAt,
+      completedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return res.status(err.status || 500).json({
+      ok: false,
+      error: err.message || "weaver_video_import_failed",
+      importLedgerId: ledgerRef.id,
+      schemaVersion: "1",
     });
   }
 });
