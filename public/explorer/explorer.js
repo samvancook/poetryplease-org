@@ -39,7 +39,38 @@
   }
 
   function getType(item) {
-    return text(item && (item.type || item.assetType || item.contentType)).toUpperCase() || "OTHER";
+    const raw = text(item && (item.type || item.assetType || item.contentType || item.imageType)).toUpperCase();
+    const compact = raw.replace(/[^A-Z0-9]/g, "");
+    if (["FULLPOEM", "FULLPOEMTEXT"].includes(compact)) return "FP";
+    if (["FULLPOEMIMAGE", "FULLPOEMGRAPHIC", "FPIMAGE"].includes(compact)) return "FPI";
+    return raw || "OTHER";
+  }
+
+  function primaryType(row) {
+    const explicit = getType(row);
+    return explicit === "OTHER" ? "FP" : explicit;
+  }
+
+  function relationshipKeys(row) {
+    const keys = new Set([
+      relationshipLabel({
+        workId: row && (row.workId || row.poemId),
+        imageId: row && row.imageId,
+        title: row && (row.title || row.poemTitle),
+      }).key,
+    ]);
+    for (const item of Array.isArray(row && row.connectedItems) ? row.connectedItems : []) {
+      keys.add(relationshipLabel(item).key);
+    }
+    return [...keys];
+  }
+
+  function relationshipCounts(rows) {
+    const counts = { exact: 0, linked: 0, inferred: 0, unmatched: 0 };
+    for (const row of Array.isArray(rows) ? rows : []) {
+      for (const key of relationshipKeys(row)) counts[key] += 1;
+    }
+    return counts;
   }
 
   function itemFlags(item) {
@@ -68,8 +99,10 @@
         row.imageId,
         ...connected.map((item) => [item.title, item.poemTitle, item.imageId, item.canonicalImageId, getType(item)].join(" ")),
       ].join(" "));
-      const typeMatch = !assetType || connected.some((item) => getType(item) === assetType);
-      const confidenceMatch = !confidence || connected.some((item) => relationshipLabel(item).key === confidence);
+      const typeMatch = !assetType
+        || primaryType(row) === assetType
+        || connected.some((item) => getType(item) === assetType);
+      const confidenceMatch = !confidence || relationshipKeys(row).includes(confidence);
       const flagged = itemFlags(row).length || connected.some((item) => itemFlags(item).length);
       return (!query || haystack.includes(query))
         && (!author || rowAuthor === author)
@@ -121,6 +154,9 @@
     let other = 0;
     let flagged = 0;
     for (const row of Array.isArray(rows) ? rows : []) {
+      const primary = primaryType(row);
+      if (Object.prototype.hasOwnProperty.call(counts, primary)) counts[primary] += 1;
+      else other += 1;
       if (itemFlags(row).length) flagged += 1;
       for (const item of Array.isArray(row.connectedItems) ? row.connectedItems : []) {
         const type = getType(item);
@@ -151,6 +187,8 @@
     relationshipLabel,
     assertReadOnlyRequest,
     getType,
+    primaryType,
+    relationshipCounts,
     itemFlags,
     assetUrl,
     productLinks,
@@ -225,6 +263,21 @@ if (typeof document !== "undefined") {
         + values.map((value) => '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + "</option>").join("");
     }
 
+    function fillConfidenceSelect(rows) {
+      const counts = E.relationshipCounts(rows);
+      const labels = {
+        exact: "Exact / stable",
+        linked: "Poetry Please linked",
+        inferred: "Inferred",
+        unmatched: "Unmatched",
+      };
+      $("confidence").innerHTML = '<option value="">All relationship types</option>'
+        + Object.entries(labels)
+          .filter(([key]) => counts[key] > 0)
+          .map(([key, label]) => '<option value="' + key + '">' + label + " (" + counts[key] + ")</option>")
+          .join("");
+    }
+
     function selectedFilters() {
       return {
         query: $("search").value,
@@ -275,8 +328,12 @@ if (typeof document !== "undefined") {
         ["Linked assets", assetTotal],
         ["Flags", coverage.flagged],
       ].map((item) => '<div class="summary-stat"><strong>' + item[1] + '</strong><span>' + item[0] + "</span></div>").join("");
-      $("coverage").innerHTML = E.ASSET_TYPES.map((type) => '<span><b>' + type + "</b> " + coverage.counts[type] + "</span>").join("")
-        + (coverage.other ? '<span><b>OTHER</b> ' + coverage.other + "</span>" : "");
+      const activeType = selectedFilters().assetType;
+      $("coverage").innerHTML = E.ASSET_TYPES.map((type) => '<button type="button" data-asset-filter="' + type
+        + '" class="' + (activeType === type ? "active" : "") + '" aria-pressed="' + (activeType === type)
+        + '"><b>' + type + "</b> " + coverage.counts[type] + "</button>").join("")
+        + (coverage.other ? '<button type="button" data-asset-filter="OTHER" class="' + (activeType === "OTHER" ? "active" : "")
+          + '" aria-pressed="' + (activeType === "OTHER") + '"><b>OTHER</b> ' + coverage.other + "</button>" : "");
     }
 
     function renderAsset(item, assetTypeFilter) {
@@ -390,6 +447,7 @@ if (typeof document !== "undefined") {
       fillSelect("author", model.authors, "authors");
       fillSelect("book", model.books, "books");
       fillSelect("asset-type", E.ASSET_TYPES, "asset types");
+      fillConfidenceSelect(state.rows);
       restoreFilters();
       $("workspace").hidden = false;
       render();
@@ -433,6 +491,13 @@ if (typeof document !== "undefined") {
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
     ["author", "book", "asset-type", "confidence", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
     $("reset").addEventListener("click", resetFilters);
+    $("coverage").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-asset-filter]");
+      if (!button) return;
+      const type = button.getAttribute("data-asset-filter");
+      $("asset-type").value = $("asset-type").value === type ? "" : type;
+      filterChanged();
+    });
     $("load-more").addEventListener("click", () => {
       state.visibleCount += PAGE_SIZE;
       render();
