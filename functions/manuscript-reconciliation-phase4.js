@@ -313,9 +313,16 @@ export async function fetchCatalogSourcePdf(item, { fetcher = fetch, readCatalog
     throw codedError("catalog_visual_reference_invalid");
   }
   const credential = await readCatalogCredential();
+  // The signal starts before the fetch and covers the body read below, so this budget
+  // is for all 3.6MB of the source PDF, not just the response headers. Thirty seconds
+  // was not enough against a cold Catalog revision: that is what stopped Catalog
+  // rollout run 47 reading this same asset route. Catalog now allows 120 seconds for
+  // it, so match that. No retry: the response is served no-store and re-fetched on
+  // every view, and a reviewer waiting out three attempts is worse than one clear
+  // failure they can retry themselves.
   const response = await fetcher(CATALOG_PHASE2_API + asset.href, {
     headers: { Accept: "application/pdf", Authorization: "Bearer " + credential },
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(120000),
   });
   if (!response.ok) throw codedError("catalog_source_asset_unavailable", 502);
   const mediaType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
