@@ -51,6 +51,10 @@
     return explicit === "OTHER" ? "FP" : explicit;
   }
 
+  function catalogValue(item) {
+    return text(item && (item.catalog || item.releaseCatalog || item.catalogName || item.catalogCode || item.explorerCatalog));
+  }
+
   function relationshipKeys(row) {
     const keys = new Set([
       relationshipLabel({
@@ -84,12 +88,14 @@
     const query = normalized(filters && filters.query);
     const author = normalized(filters && filters.author);
     const book = normalized(filters && filters.book);
+    const catalog = normalized(filters && filters.catalog);
     const assetType = text(filters && filters.assetType).toUpperCase();
     const confidence = text(filters && filters.confidence).toLowerCase();
     const flagsOnly = !!(filters && filters.flagsOnly);
     return (Array.isArray(rows) ? rows : []).filter((row) => {
       const rowAuthor = normalized(row.author);
       const rowBook = normalized(row.book || row.bookTitle);
+      const rowCatalog = normalized(catalogValue(row));
       const connected = Array.isArray(row.connectedItems) ? row.connectedItems : [];
       const haystack = normalized([
         row.title || row.poemTitle,
@@ -107,6 +113,7 @@
       return (!query || haystack.includes(query))
         && (!author || rowAuthor === author)
         && (!book || rowBook === book)
+        && (!catalog || rowCatalog === catalog)
         && typeMatch
         && confidenceMatch
         && (!flagsOnly || flagged);
@@ -171,11 +178,19 @@
   function viewModel(payload) {
     const rows = Array.isArray(payload && payload.rows) ? payload.rows : [];
     const summaries = Array.isArray(payload && payload.bookSummaries) ? payload.bookSummaries : [];
+    const summaryByBook = new Map(summaries.map((summary) => [normalized(summary.book || summary.bookTitle), summary]));
+    const enrichedRows = rows.map((row) => {
+      if (catalogValue(row)) return row;
+      const summary = summaryByBook.get(normalized(row.book || row.bookTitle));
+      const catalog = catalogValue(summary);
+      return catalog ? { ...row, explorerCatalog: catalog } : row;
+    });
     return {
-      rows,
+      rows: enrichedRows,
       summaries,
-      authors: unique(rows.map((row) => row.author)),
-      books: unique(rows.map((row) => row.book || row.bookTitle)),
+      authors: unique(enrichedRows.map((row) => row.author)),
+      books: unique(enrichedRows.map((row) => row.book || row.bookTitle)),
+      catalogs: unique(enrichedRows.map(catalogValue)),
     };
   }
 
@@ -188,6 +203,7 @@
     assertReadOnlyRequest,
     getType,
     primaryType,
+    catalogValue,
     relationshipCounts,
     itemFlags,
     assetUrl,
@@ -283,6 +299,7 @@ if (typeof document !== "undefined") {
         query: $("search").value,
         author: $("author").value,
         book: $("book").value,
+        catalog: $("catalog").value,
         assetType: $("asset-type").value,
         confidence: $("confidence").value,
         flagsOnly: $("flags-only").checked,
@@ -295,6 +312,7 @@ if (typeof document !== "undefined") {
       if (filters.query) params.set("q", filters.query);
       if (filters.author) params.set("author", filters.author);
       if (filters.book) params.set("book", filters.book);
+      if (filters.catalog) params.set("catalog", filters.catalog);
       if (filters.assetType) params.set("type", filters.assetType);
       if (filters.confidence) params.set("confidence", filters.confidence);
       if (filters.flagsOnly) params.set("flags", "1");
@@ -306,6 +324,7 @@ if (typeof document !== "undefined") {
       $("search").value = params.get("q") || "";
       $("author").value = params.get("author") || "";
       $("book").value = params.get("book") || "";
+      $("catalog").value = params.get("catalog") || "";
       $("asset-type").value = params.get("type") || "";
       $("confidence").value = params.get("confidence") || "";
       $("flags-only").checked = params.get("flags") === "1";
@@ -373,7 +392,7 @@ if (typeof document !== "undefined") {
         + '<div class="work-head"><div><h3>' + escapeHtml(row.title || row.poemTitle || "Untitled") + '</h3>'
         + '<div class="meta">' + escapeHtml(row.author || "Unknown author") + " · " + escapeHtml(row.book || row.bookTitle || "No book returned") + "</div></div>"
         + '<span class="confidence ' + workIdentity.key + '">' + escapeHtml(workIdentity.label) + "</span></div>"
-        + '<div class="chips"><span>' + escapeHtml(row.catalog || row.releaseCatalog || "Catalog unavailable") + "</span>"
+        + '<div class="chips"><span>' + escapeHtml(E.catalogValue(row) || "Catalog unavailable") + "</span>"
         + typeChips
         + (row.signalLevel ? "<span>Signal: " + escapeHtml(row.signalLevel) + "</span>" : "") + "</div>"
         + (flags.length ? '<div class="flag"><strong>Review flags:</strong> ' + flags.map((flag) => escapeHtml(flag.note || flag.qualityLane || "Flagged")).join(" · ") + "</div>" : "")
@@ -403,13 +422,13 @@ if (typeof document !== "undefined") {
         if (!groups.has(book)) groups.set(book, []);
         groups.get(book).push(row);
       }
-      const expandBooks = !!(filters.query || filters.author || filters.book || filters.assetType || filters.confidence || filters.flagsOnly);
+      const expandBooks = !!(filters.query || filters.author || filters.book || filters.catalog || filters.assetType || filters.confidence || filters.flagsOnly);
       $("results").innerHTML = groups.size ? [...groups.entries()].sort(bookSort).map(([book, rows]) => {
         const summary = summaryByBook.get(E.normalized(book)) || {};
         const sample = rows[0] || {};
         const links = E.productLinks(sample, summary);
         const release = summary.releaseDate || summary.pubDate || summary.releaseYear || sample.releaseDate || sample.pubDate || sample.releaseYear || "";
-        const catalog = summary.catalog || summary.releaseCatalog || sample.catalog || sample.releaseCatalog || "";
+        const catalog = E.catalogValue(summary) || E.catalogValue(sample);
         return '<details class="book-card"' + (expandBooks ? " open" : "") + '><summary class="book-header"><div><div class="eyebrow">Book</div><h2>' + escapeHtml(book) + "</h2>"
           + '<div class="meta">' + escapeHtml(sample.author || "") + '</div></div><div class="book-stats"><strong>' + rows.length + '</strong><span>works</span></div></summary>'
           + '<div class="book-meta"><div><b>Release</b><span>' + escapeHtml(release || "Not returned") + "</span></div>"
@@ -434,7 +453,7 @@ if (typeof document !== "undefined") {
     }
 
     function resetFilters() {
-      ["search", "author", "book", "asset-type", "confidence"].forEach((id) => { $(id).value = ""; });
+      ["search", "author", "book", "catalog", "asset-type", "confidence"].forEach((id) => { $(id).value = ""; });
       $("flags-only").checked = false;
       filterChanged();
     }
@@ -446,6 +465,7 @@ if (typeof document !== "undefined") {
       state.summaries = model.summaries;
       fillSelect("author", model.authors, "authors");
       fillSelect("book", model.books, "books");
+      fillSelect("catalog", model.catalogs, "catalogs");
       fillSelect("asset-type", E.ASSET_TYPES, "asset types");
       fillConfidenceSelect(state.rows);
       restoreFilters();
@@ -489,7 +509,7 @@ if (typeof document !== "undefined") {
     $("retry-auth").addEventListener("click", () => location.reload());
     $("logout").addEventListener("click", signOut);
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
-    ["author", "book", "asset-type", "confidence", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
+    ["author", "book", "catalog", "asset-type", "confidence", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
     $("reset").addEventListener("click", resetFilters);
     $("coverage").addEventListener("click", (event) => {
       const button = event.target.closest("[data-asset-filter]");
