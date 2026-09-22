@@ -36,6 +36,7 @@ import {
 import {
   candidateSourceMatches,
   filterRowsBySummary,
+  needsNotes,
   reloadIfCandidateChanged,
 } from "../public/manuscript-reconciliation-live.js";
 
@@ -290,6 +291,24 @@ test("note policy catches destructive, identity, title, non-candidate, OCR, pars
   assert.equal(decisionNeedsNotes(row, { resolutionAction: "review_retire", reviewStatus: "approved", canonicalTitle: "Title", stablePoemIdentity: "stable", textSourcePoemId: 2 }), true);
   assert.equal(decisionNeedsNotes(row, { resolutionAction: "adopt_candidate", reviewStatus: "approved", canonicalTitle: "Title", stablePoemIdentity: "stable", textSourcePoemId: 2 }), false);
   assert.equal(decisionNeedsNotes(row, { resolutionAction: "request_ocr", reviewStatus: "pending", canonicalTitle: "Title", stablePoemIdentity: "stable", textSourcePoemId: 2 }), true);
+});
+
+test("hand-edited text reaches Catalog and requires notes when it changes", () => {
+  // The proxy copies an allowlist, so an unnamed field never reaches the signed PATCH.
+  const sanitized = sanitizeDecision({ ...decision, manualText: "one line\nanother line" });
+  assert.equal(sanitized.manualText, "one line\nanother line");
+  assert.equal(sanitizeDecision({ ...decision, manualText: null }).manualText, null);
+  assert.equal(Object.hasOwn(sanitizeDecision({ ...decision, unexpectedField: "x" }), "unexpectedField"), false);
+
+  // Notes are required whenever the hand-edited text differs from what Catalog stores,
+  // including when a reviewer clears one, because clearing returns the poem to its sources.
+  const row = { identity: "fixture-poem", candidateTitle: "Fixture poem", candidate: { id: 9000011 }, manualText: "stored text" };
+  const unchanged = { ...decision, manualText: "stored text" };
+  assert.equal(needsNotes(row, unchanged), false);
+  assert.equal(needsNotes(row, { ...decision, manualText: "edited text" }), true);
+  assert.equal(needsNotes(row, { ...decision, manualText: null }), true);
+  // Whitespace-only is how Catalog spells "cleared", so it must not read as a change.
+  assert.equal(needsNotes({ ...row, manualText: null }, { ...decision, manualText: "   " }), false);
 });
 
 test("production proxy accepts only the guarded fixture and never editorial reconciliation 2", () => {

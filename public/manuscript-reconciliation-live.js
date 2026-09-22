@@ -55,6 +55,19 @@ const REJECTION_REASONS = [
 ];
 const ACTIONS = [...COMMON_ACTIONS, ...MORE_ACTIONS];
 const SOURCE_CHOICE_ACTION = "combine_text_and_format";
+// Catalog accepts a hand-edited poem text that wins over both the earlier source and
+// the proposed replacement. It is the escape hatch for poems neither source can
+// express: the first real cases are the Living at Baggage Claim prose poems, where the
+// replacement's line breaks are page-width typesetting wraps rather than the poem's
+// own structure. Because a non-blank manual text simply becomes the poem, it is never
+// implicit. The reviewer has to open the editor, and saving a change to it requires
+// notes, the same way a canonical title change already does.
+const MANUAL_TEXT_MAX = 100000;
+const manualTextOf = (row) => preserveText(row?.manualText);
+const blankManualText = (value) => !String(value ?? "").trim();
+// Catalog treats null, empty, and whitespace-only alike: each one clears the manual
+// text and returns the poem to its sources. Send one shape for all three.
+const manualTextForSave = (value) => (blankManualText(value) ? null : preserveText(value));
 
 // Status used to live in its own dropdown defaulting to "Needs review", so a reviewer
 // could pick an action, save successfully, and leave the poem in the queue anyway.
@@ -107,7 +120,9 @@ const sourceOptions = (row, selected) => [
 ].filter(Boolean).map(([id, label]) => `<option value="${esc(id)}" ${Number(id) === Number(selected) ? "selected" : ""}>${esc(label)}</option>`).join("");
 const poemLines = (text, normalized) => (normalized ? normalizeWhitespace(text) : preserveText(text)).split("\n")
   .map((line, index) => `<span class="line"><i>${index + 1}</i><b>${line ? esc(line) : "&nbsp;"}</b></span>`).join("");
-const needsNotes = (row, decision) => {
+export const needsNotes = (row, decision) => {
+  // A hand-edited text overrides both sources, so a reviewer must say why it exists.
+  if (manualTextForSave(decision.manualText) !== manualTextForSave(manualTextOf(row))) return true;
   if (SKIP_ACTIONS.has(decision.resolutionAction)) return true;
   if (["review_create", "review_retire", "reject_extraction"].includes(decision.resolutionAction)) return true;
   if (decision.reviewStatus === "rejected") return true;
@@ -304,7 +319,14 @@ function createApp(root, initialData, auth) {
       textSourcePoemId: Number(decidedSource ?? root.querySelector("#text-source")?.value),
       formatSourcePoemId: Number(decidedSource ?? root.querySelector("#format-source")?.value),
       notes: root.querySelector("#review-notes")?.value.trim() || null,
+      manualText: manualTextForSave(root.querySelector("#manual-text")?.value ?? manualTextOf(row)),
     };
+    if (decision.manualText && decision.manualText.length > MANUAL_TEXT_MAX) {
+      message = `Hand-edited text is ${decision.manualText.length.toLocaleString()} characters. Catalog accepts at most ${MANUAL_TEXT_MAX.toLocaleString()}. Nothing was saved.`;
+      render();
+      root.querySelector("#manual-text")?.focus();
+      return;
+    }
     if (needsNotes(row, decision) && !decision.notes) {
       message = "Notes are required for this decision.";
       render();
@@ -373,6 +395,8 @@ function createApp(root, initialData, auth) {
     const statusValue = draft.status ?? (decided ? row.status : "pending");
     const actionValue = draft.action ?? (decided ? row.proposedResolution : UNDECIDED);
     const notesValue = draft.notes ?? (row?.existingReviewNotes || "");
+    const manualValue = draft.manualText ?? manualTextOf(row);
+    const manualInUse = !blankManualText(manualValue);
     const visualSide = visualPageSide(row);
     const visualSideLabel = visualSide === "prior" ? "Earlier source" : visualSide === "candidate" ? "Proposed replacement" : null;
     const countOf = (key) => data.rows.filter((item) => rowMatchesSummary(item, key)).length;
@@ -404,9 +428,17 @@ function createApp(root, initialData, auth) {
         <main class="panel comparison">${row ? `
           <div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${mode === "normalized"}">Spacing-normalized text</button></div></div>
           <p class="help">${mode === "exact" ? "Source text preserves extracted spaces and line breaks." : "Spacing-normalized text is only for comparison and does not change Catalog data."}</p>
-          <div class="texts"><article><h3>Earlier source · ${esc(row.priorTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.prior?.text, mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(row.candidateTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.candidate?.text, mode === "normalized")}</div></article></div>` : '<div class="empty">No comparison record selected.</div>'}</main>
+          <div class="texts"><article><h3>Earlier source · ${esc(row.priorTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.prior?.text, mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(row.candidateTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.candidate?.text, mode === "normalized")}</div></article></div>
+          <details class="manual" ${manualInUse ? "open" : ""}>
+            <summary>Edit this poem's text by hand${manualInUse ? " · in use" : ""}</summary>
+            <p class="help">Use this only when neither source above is right, for example when the replacement's line breaks come from the printed page width instead of the poem. Whatever is in this box becomes the poem's text, so leave it empty to keep using the sources. Saving a change here requires notes.</p>
+            <div class="manual-actions"><button type="button" data-seed="candidate">Start from proposed replacement</button><button type="button" data-seed="prior">Start from earlier source</button><button type="button" id="manual-clear">Clear and use the sources</button><button type="button" id="manual-wrap" aria-pressed="true">Wrap long lines</button></div>
+            <textarea id="manual-text" rows="18" spellcheck="false" aria-describedby="manual-count">${esc(manualValue)}</textarea>
+            <p class="help" id="manual-count"></p>
+          </details>` : '<div class="empty">No comparison record selected.</div>'}</main>
         <aside class="panel detail">${row ? `
           <h2>Decision</h2>
+          ${manualInUse ? `<p class="notice"><b>This poem has hand-edited text.</b> It becomes the canonical text whichever decision you record below. Clear the editor in the text comparison to go back to the sources.</p>` : ""}
           <h3>Visual PDF context</h3>
           ${visualHref
             ? `<p><a class="visual-link" href="${esc(visualHref)}">View available PDF context (${esc(visualSideLabel)})</a></p><p class="help">This opens the matching Catalog-bound PDF evidence for the ${esc(visualSideLabel.toLowerCase())} only, with a link back to this text-review record.</p>`
@@ -485,6 +517,38 @@ function createApp(root, initialData, auth) {
       draft.notes = notes.value;
     });
     root.querySelector("#review-notes")?.addEventListener("input", (event) => { draft.notes = event.target.value; });
+
+    const manualField = root.querySelector("#manual-text");
+    const manualCount = root.querySelector("#manual-count");
+    // The count is updated in place rather than by re-rendering, so typing never
+    // rebuilds the panel and loses the caret.
+    const syncManualText = () => {
+      if (!manualField || !manualCount) return;
+      const length = manualField.value.length;
+      manualCount.textContent = blankManualText(manualField.value)
+        ? `Empty. This poem uses the sources above. Up to ${MANUAL_TEXT_MAX.toLocaleString()} characters.`
+        : `${length.toLocaleString()} of ${MANUAL_TEXT_MAX.toLocaleString()} characters. This text wins over both sources.`;
+      manualCount.classList.toggle("warnings", length > MANUAL_TEXT_MAX);
+    };
+    const setManualText = (value) => {
+      if (!manualField) return;
+      manualField.value = preserveText(value);
+      draft.manualText = manualField.value;
+      syncManualText();
+      manualField.focus();
+    };
+    manualField?.addEventListener("input", (event) => { draft.manualText = event.target.value; syncManualText(); });
+    for (const button of root.querySelectorAll("[data-seed]")) button.addEventListener("click", () => {
+      setManualText(button.dataset.seed === "prior" ? row?.prior?.text : row?.candidate?.text);
+    });
+    root.querySelector("#manual-clear")?.addEventListener("click", () => setManualText(""));
+    // Unwrapped is how a reviewer tells a real line break from one the box added.
+    root.querySelector("#manual-wrap")?.addEventListener("click", (event) => {
+      const wrapped = event.currentTarget.getAttribute("aria-pressed") !== "true";
+      event.currentTarget.setAttribute("aria-pressed", String(wrapped));
+      manualField?.classList.toggle("nowrap", !wrapped);
+    });
+    syncManualText();
 
     for (const button of root.querySelectorAll("[data-summary]")) button.addEventListener("click", () => {
       summary = button.dataset.summary || "all";

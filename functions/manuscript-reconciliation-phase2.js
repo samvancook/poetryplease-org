@@ -23,6 +23,7 @@ const ALLOWED_FIELDS = Object.freeze([
   "textSourcePoemId",
   "formatSourcePoemId",
   "notes",
+  "manualText",
 ]);
 const WRITE_ROLES = new Set(["admin", "team"]);
 const secretCache = new Map();
