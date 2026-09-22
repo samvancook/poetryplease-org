@@ -311,6 +311,21 @@ test("hand-edited text reaches Catalog and requires notes when it changes", () =
   assert.equal(needsNotes({ ...row, manualText: null }, { ...decision, manualText: "   " }), false);
 });
 
+test("comparison headers stay the same height whatever the titles are", () => {
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  const html = fs.readFileSync(new URL("../public/manuscript-reconciliation.html", import.meta.url), "utf8");
+  // The side label and the poem title used to be one run of text, so a long title
+  // wrapped the whole header and pushed its own poem box down while the other stayed
+  // put. They are separate elements now, and the title is clamped to a fixed two lines,
+  // which is what keeps both columns level for line-by-line reading.
+  assert.match(client, /<span class="side">/);
+  assert.match(client, /<span class="ptitle" title="/);
+  assert.match(html, /\.texts>article h3 \.ptitle\{[^}]*height:2\.8em/);
+  assert.match(html, /\.texts>article h3 \.ptitle\{[^}]*-webkit-line-clamp:2/);
+  // Reserving two lines without clamping to two is the shipped fix that did not hold.
+  assert.doesNotMatch(html, /\.texts>article h3\{min-height:2\.8em/);
+});
+
 test("production proxy accepts only the guarded fixture and never editorial reconciliation 2", () => {
   assert.equal(CATALOG_PHASE2_API, "https://button-poetry-catalog-350789123099.us-central1.run.app");
   assert.equal(isSafePreviewTarget(1, 900001), true);

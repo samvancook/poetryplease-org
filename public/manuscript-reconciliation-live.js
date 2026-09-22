@@ -428,7 +428,8 @@ function createApp(root, initialData, auth) {
         <main class="panel comparison">${row ? `
           <div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${mode === "normalized"}">Spacing-normalized text</button></div></div>
           <p class="help">${mode === "exact" ? "Source text preserves extracted spaces and line breaks." : "Spacing-normalized text is only for comparison and does not change Catalog data."}</p>
-          <div class="texts"><article><h3>Earlier source · ${esc(row.priorTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.prior?.text, mode === "normalized")}</div></article><article><h3>Proposed replacement · ${esc(row.candidateTitle || "Unavailable")}</h3><div class="poem">${poemLines(row.candidate?.text, mode === "normalized")}</div></article></div>
+          <div class="texts">${[["Earlier source", row.priorTitle, row.prior?.text], ["Proposed replacement", row.candidateTitle, row.candidate?.text]]
+            .map(([side, poemTitle, text]) => `<article><h3><span class="side">${esc(side)}</span><span class="ptitle" title="${esc(poemTitle || "Unavailable")}">${esc(poemTitle || "Unavailable")}</span></h3><div class="poem">${poemLines(text, mode === "normalized")}</div></article>`).join("")}</div>
           <details class="manual" ${manualInUse ? "open" : ""}>
             <summary>Edit this poem's text by hand${manualInUse ? " · in use" : ""}</summary>
             <p class="help">Use this only when neither source above is right, for example when the replacement's line breaks come from the printed page width instead of the poem. Whatever is in this box becomes the poem's text, so leave it empty to keep using the sources. Saving a change here requires notes.</p>
