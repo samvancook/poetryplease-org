@@ -34,10 +34,13 @@ import {
   saveDecision,
 } from "../public/manuscript-reconciliation-phase2-preview.js";
 import {
+  COMMON_ACTIONS,
   candidateSourceMatches,
   filterRowsBySummary,
   needsNotes,
   reloadIfCandidateChanged,
+  sourcesForAction,
+  statusForAction,
 } from "../public/manuscript-reconciliation-live.js";
 
 const reviewer = { uid: "firebase-uid-1", email: "Reviewer@ButtonPoetry.com", roles: ["team", "admin"] };
@@ -324,6 +327,43 @@ test("comparison headers stay the same height whatever the titles are", () => {
   assert.match(html, /\.texts>article h3 \.ptitle\{[^}]*-webkit-line-clamp:2/);
   // Reserving two lines without clamping to two is the shipped fix that did not hold.
   assert.doesNotMatch(html, /\.texts>article h3\{min-height:2\.8em/);
+});
+
+test("a reviewer can choose wording and formatting sources separately", () => {
+  // This was unreachable. The Decision control only offered pending/approved/rejected and
+  // mapped those to adopt_candidate or retain_prior, while the source pickers were revealed
+  // only when the skip-reason dropdown equalled combine_text_and_format, a value that
+  // dropdown never contained. So the action the roadmap prescribes for the prose poems
+  // could not be recorded at all. The Decision control names the action now.
+  const offered = COMMON_ACTIONS.map(([value]) => value);
+  assert.ok(offered.includes("combine_text_and_format"));
+  assert.ok(offered.includes("adopt_candidate"));
+  assert.ok(offered.includes("retain_prior"));
+
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  assert.match(client, /<select id="decision">/);
+  // The pickers must follow the Decision control, not the skip-reason dropdown.
+  assert.match(client, /const chosen = root\.querySelector\("#decision"\)\?\.value;[\s\S]{0,160}SOURCE_CHOICE_ACTION/);
+
+  // Each settled action carries its own status, so a saved decision cannot leave a poem queued.
+  assert.equal(statusForAction("combine_text_and_format"), "approved");
+  assert.equal(statusForAction("adopt_candidate"), "approved");
+  assert.equal(statusForAction("retain_prior"), "rejected");
+  assert.equal(statusForAction("request_ocr"), "pending");
+  assert.equal(statusForAction(""), "pending");
+
+  // Only the combine action defers to what the reviewer picked.
+  const row = { prior: { id: 11 }, candidate: { id: 22 } };
+  assert.deepEqual(sourcesForAction("adopt_candidate", row, 11, 11), { text: 22, format: 22 });
+  assert.deepEqual(sourcesForAction("retain_prior", row, 22, 22), { text: 11, format: 11 });
+  assert.deepEqual(sourcesForAction("combine_text_and_format", row, 22, 11), { text: 22, format: 11 });
+  assert.deepEqual(sourcesForAction("carry_forward_wording_adopt_final_format", row, 0, 0), { text: 11, format: 22 });
+
+  // Wording from one source and formatting from the other is the subtle call; it needs a note.
+  const noteRow = { identity: "p", candidateTitle: "T", candidate: { id: 22 } };
+  const base = { reviewStatus: "approved", resolutionAction: "combine_text_and_format", canonicalTitle: "T", stablePoemIdentity: "p" };
+  assert.equal(needsNotes(noteRow, { ...base, textSourcePoemId: 22, formatSourcePoemId: 11 }), true);
+  assert.equal(needsNotes(noteRow, { ...base, textSourcePoemId: 22, formatSourcePoemId: 22 }), false);
 });
 
 test("production proxy accepts only the guarded fixture and never editorial reconciliation 2", () => {

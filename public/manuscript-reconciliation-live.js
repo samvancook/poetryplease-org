@@ -7,8 +7,7 @@ const API = `/api/admin/manuscriptReconciliations/${RECONCILIATION_ID}`;
 // The decision a reviewer makes is simply whether the proposed replacement wins.
 // Approving takes the new text, rejecting keeps the earlier text, and those two
 // cover almost every poem, so they are the Decision control and need nothing else.
-const STATUS_ACTION = { approved: "adopt_candidate", rejected: "retain_prior" };
-const COMMON_ACTIONS = [
+export const COMMON_ACTIONS = [
   ["retain_prior", "Keep earlier source"],
   ["adopt_candidate", "Approve replacement"],
   ["combine_text_and_format", "Choose wording and formatting sources"],
@@ -40,11 +39,6 @@ const EXCEPTION_ACTIONS = [
   ["request_parser_correction", "Needs editing"],
   ["manual_source_required", "Complicated, revisit later"],
 ];
-const STATUS_EFFECT = {
-  pending: "Not decided yet. This poem stays in the queue.",
-  approved: "The replacement wins. Its text becomes this poem.",
-  rejected: "The replacement is turned down. The earlier text stands.",
-};
 // A poem still in the queue starts with no decision selected. Catalog's proposal is
 // a suggestion, not a choice a reviewer made, and pre-selecting it meant Save could
 // record a decision nobody actually took.
@@ -86,8 +80,21 @@ const ACTION_STATUS = {
   manual_source_required: "pending",
 };
 // Anything unrecognised, including no selection at all, keeps the poem queued.
-const statusForAction = (action) => ACTION_STATUS[action] || "pending";
-const STATUS_LABELS = { pending: "Needs review", approved: "Approved", rejected: "Rejected" };
+export const statusForAction = (action) => ACTION_STATUS[action] || "pending";
+// Every label Catalog might already have stored, so a decision made before these
+// choices were narrowed still displays as itself instead of silently reading as
+// undecided.
+const ACTION_LABELS = Object.fromEntries([...COMMON_ACTIONS, ...MORE_ACTIONS, ...EXCEPTION_ACTIONS]);
+// Which text and formatting each settled action implies. Only the combine action asks
+// the reviewer, which is why it is the only one that reveals the source pickers.
+export const sourcesForAction = (action, row, pickedText, pickedFormat) => {
+  const candidate = row?.candidate?.id ?? row?.prior?.id;
+  const prior = row?.prior?.id ?? row?.candidate?.id;
+  if (action === "adopt_candidate") return { text: candidate, format: candidate };
+  if (action === "retain_prior") return { text: prior, format: prior };
+  if (action === "carry_forward_wording_adopt_final_format") return { text: prior, format: candidate };
+  return { text: pickedText, format: pickedFormat };
+};
 const DECISION_EFFECT = {
   retain_prior: "Rejected. The replacement is turned down and the earlier text stands.",
   adopt_candidate: "Approved. The replacement becomes the text for this poem.",
@@ -118,11 +125,18 @@ const sourceOptions = (row, selected) => [
   row?.prior && [row.prior.id, `Earlier source · ${row.prior.title || row.priorTitle || "Untitled"}`],
   row?.candidate && [row.candidate.id, `Proposed replacement · ${row.candidate.title || row.candidateTitle || "Untitled"}`],
 ].filter(Boolean).map(([id, label]) => `<option value="${esc(id)}" ${Number(id) === Number(selected) ? "selected" : ""}>${esc(label)}</option>`).join("");
+const sourceMeta = (source) => {
+  const parts = [source?.id ? `Source ${source.id}` : null, source?.stage, source?.kind].filter(Boolean);
+  return parts.length ? parts.join(" · ") : "Source details unavailable";
+};
 const poemLines = (text, normalized) => (normalized ? normalizeWhitespace(text) : preserveText(text)).split("\n")
   .map((line, index) => `<span class="line"><i>${index + 1}</i><b>${line ? esc(line) : "&nbsp;"}</b></span>`).join("");
 export const needsNotes = (row, decision) => {
   // A hand-edited text overrides both sources, so a reviewer must say why it exists.
   if (manualTextForSave(decision.manualText) !== manualTextForSave(manualTextOf(row))) return true;
+  // Taking wording from one source and formatting from the other is a deliberate call
+  // that the next reader cannot reconstruct from the row alone.
+  if (Number(decision.textSourcePoemId) !== Number(decision.formatSourcePoemId)) return true;
   if (SKIP_ACTIONS.has(decision.resolutionAction)) return true;
   if (["review_create", "review_retire", "reject_extraction"].includes(decision.resolutionAction)) return true;
   if (decision.reviewStatus === "rejected") return true;
@@ -296,28 +310,30 @@ function createApp(root, initialData, auth) {
     // The Decision control is the decision. The exception dropdown only overrides it
     // when a poem needs something approve/reject cannot express. Catalog's proposal
     // is never used as a fallback, so nothing is recorded that nobody chose.
-    const reviewStatus = root.querySelector("#review-status")?.value ?? "pending";
+    const decisionAction = root.querySelector("#decision")?.value ?? "";
     const skipReason = root.querySelector("#resolution-action")?.value ?? "";
-    if (reviewStatus === "pending" && !skipReason) {
+    if (!decisionAction && !skipReason) {
       message = "Decide this poem, or say why it is still under review.";
       render();
-      root.querySelector("#resolution-action")?.focus();
+      root.querySelector("#decision")?.focus();
       return;
     }
-    const chosenAction = reviewStatus === "pending" ? skipReason : STATUS_ACTION[reviewStatus];
-    // The source pickers are hidden, so approve and reject must set the winning text themselves:
-    // approved means the replacement's text, rejected means the earlier text.
-    const decidedSource = reviewStatus === "approved" ? (row.candidate?.id ?? row.prior?.id)
-      : reviewStatus === "rejected" ? (row.prior?.id ?? row.candidate?.id)
-      : null;
+    const chosenAction = decisionAction || skipReason;
+    const reviewStatus = statusForAction(chosenAction);
+    const chosenSources = sourcesForAction(
+      chosenAction,
+      row,
+      root.querySelector("#text-source")?.value,
+      root.querySelector("#format-source")?.value,
+    );
     const decision = {
       expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),
       reviewStatus,
       resolutionAction: chosenAction,
       canonicalTitle: root.querySelector("#canonical-title")?.value.trim() || row.canonicalTitle || row.candidateTitle || row.priorTitle,
       stablePoemIdentity: root.querySelector("#stable-identity")?.value.trim() || row.identity,
-      textSourcePoemId: Number(decidedSource ?? root.querySelector("#text-source")?.value),
-      formatSourcePoemId: Number(decidedSource ?? root.querySelector("#format-source")?.value),
+      textSourcePoemId: Number(chosenSources.text),
+      formatSourcePoemId: Number(chosenSources.format),
       notes: root.querySelector("#review-notes")?.value.trim() || null,
       manualText: manualTextForSave(root.querySelector("#manual-text")?.value ?? manualTextOf(row)),
     };
@@ -392,8 +408,18 @@ function createApp(root, initialData, auth) {
     // blocked save (a missing note, a stale revision) redraws without erasing their
     // work. Draft is cleared when the row changes or the save succeeds.
     const decided = Boolean(row?.status && row.status !== "pending");
-    const statusValue = draft.status ?? (decided ? row.status : "pending");
-    const actionValue = draft.action ?? (decided ? row.proposedResolution : UNDECIDED);
+    const decisionValue = draft.decision ?? (decided ? (row.proposedResolution || UNDECIDED) : UNDECIDED);
+    // A set-aside poem keeps showing the reason it was set aside, so whoever picks it
+    // up later can see why without reading the audit trail.
+    const actionValue = draft.action ?? (SKIP_ACTIONS.has(row?.proposedResolution) ? row.proposedResolution : UNDECIDED);
+    // A decision Catalog already holds that is no longer offered still has to appear,
+    // or the control would misreport a decided poem as undecided.
+    const commonValues = COMMON_ACTIONS.map(([value]) => value);
+    const decisionChoices = [
+      ...COMMON_ACTIONS,
+      ...(decisionValue && !commonValues.includes(decisionValue)
+        ? [[decisionValue, ACTION_LABELS[decisionValue] || decisionValue]] : []),
+    ];
     const notesValue = draft.notes ?? (row?.existingReviewNotes || "");
     const manualValue = draft.manualText ?? manualTextOf(row);
     const manualInUse = !blankManualText(manualValue);
@@ -428,8 +454,8 @@ function createApp(root, initialData, auth) {
         <main class="panel comparison">${row ? `
           <div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${mode === "normalized"}">Spacing-normalized text</button></div></div>
           <p class="help">${mode === "exact" ? "Source text preserves extracted spaces and line breaks." : "Spacing-normalized text is only for comparison and does not change Catalog data."}</p>
-          <div class="texts">${[["Earlier source", row.priorTitle, row.prior?.text], ["Proposed replacement", row.candidateTitle, row.candidate?.text]]
-            .map(([side, poemTitle, text]) => `<article><h3><span class="side">${esc(side)}</span><span class="ptitle" title="${esc(poemTitle || "Unavailable")}">${esc(poemTitle || "Unavailable")}</span></h3><div class="poem">${poemLines(text, mode === "normalized")}</div></article>`).join("")}</div>
+          <div class="texts">${[["Earlier source", row.priorTitle, row.prior?.text, sourceMeta(rec.priorSource)], ["Proposed replacement", row.candidateTitle, row.candidate?.text, sourceMeta(rec.candidateSource)]]
+            .map(([side, poemTitle, text, sourceMeta]) => `<article><h3><span class="side">${esc(side)}</span><span class="ptitle" title="${esc(poemTitle || "Unavailable")}">${esc(poemTitle || "Unavailable")}</span><span class="srcmeta">${esc(sourceMeta)}</span></h3><div class="poem">${poemLines(text, mode === "normalized")}</div></article>`).join("")}</div>
           <details class="manual" ${manualInUse ? "open" : ""}>
             <summary>Edit this poem's text by hand${manualInUse ? " · in use" : ""}</summary>
             <p class="help">Use this only when neither source above is right, for example when the replacement's line breaks come from the printed page width instead of the poem. Whatever is in this box becomes the poem's text, so leave it empty to keep using the sources. Saving a change here requires notes.</p>
@@ -446,16 +472,19 @@ function createApp(root, initialData, auth) {
             : `<p class="warnings"><b>No verified PDF page mapping is available for this comparison.</b> Do not treat malformed extracted text as canonical wording. Request OCR or parser correction and have Catalog add the page mapping.</p>`}
           ${rowHasPlaceholderCandidate(row) ? `<p class="warnings"><b>Candidate text is a placeholder (*), not a reviewable poem body.</b></p>` : ""}
           ${rowHasCatalogWarning(row) ? `<h3>Catalog warnings</h3><ul class="warnings">${row.warnings.map((warning) => `<li>${esc(warning)}</li>`).join("")}</ul>` : ""}
-          <label>Decision<select id="review-status">${["pending", "approved", "rejected"].map((value) => `<option value="${value}" ${value === statusValue ? "selected" : ""}>${STATUS_LABELS[value]}</option>`).join("")}</select></label>
-          <p class="help" id="status-help">${STATUS_EFFECT[statusValue]}</p>
-          <div id="skip-reason-fields" ${statusValue === "pending" ? "" : "hidden"}>
+          <label>Decision<select id="decision">
+            <option value="" ${decisionValue === UNDECIDED ? "selected" : ""}>Not decided yet</option>
+            ${decisionChoices.map(([value, label]) => `<option value="${esc(value)}" ${value === decisionValue ? "selected" : ""}>${esc(label)}</option>`).join("")}
+          </select></label>
+          <p class="help" id="decision-help">${esc(DECISION_EFFECT[decisionValue] || "Nothing is recorded until you choose.")}</p>
+          <div id="skip-reason-fields" ${decisionValue === UNDECIDED ? "" : "hidden"}>
             <label>Why is it still under review?<select id="resolution-action">
               <option value="" ${actionValue === UNDECIDED ? "selected" : ""}>Choose a reason…</option>
               ${EXCEPTION_ACTIONS.map(([value, label]) => `<option value="${value}" ${actionValue === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
             </select></label>
             <p class="help">Say why in the notes as well, so the poem can be picked up later.</p>
           </div>
-          <div id="reject-reason-fields" ${statusValue === "rejected" ? "" : "hidden"}>
+          <div id="reject-reason-fields" ${decisionValue === "retain_prior" ? "" : "hidden"}>
             <label>Why rejected?<select id="reject-reason">
               <option value="">Other, explain in notes</option>
               ${REJECTION_REASONS.map(([value, label]) => `<option value="${value}" ${draft.rejectReason === value ? "selected" : ""}>${esc(label)}</option>`).join("")}
@@ -476,23 +505,24 @@ function createApp(root, initialData, auth) {
           <div class="save-actions"><button id="save" ${saving ? "disabled" : ""}>Save decision</button><button id="save-advance" ${saving ? "disabled" : ""}>Save decision and next</button></div>
           <p class="help">Both buttons save your decision. The second opens the next record after the save is verified.</p>
           <p class="status-message" role="status">${esc(message)}</p>
-          <h3>Audit history</h3>${audits.length ? `<ol class="audit">${audits.slice().reverse().map((event) => `<li><b>${esc(event?.reviewer?.email || event?.reviewedBy || "Unknown reviewer")}</b><small>${esc(event?.timestamp || event?.reviewedAt || "Time unavailable")}${event?.resultingReconciliationRevision ? ` · revision ${event.resultingReconciliationRevision}` : ""}</small><p>${esc(event?.notes || "No notes")}</p></li>`).join("")}</ol>` : "<p>No audit history supplied.</p>"}` : '<div class="empty">No detail available.</div>'}</aside>
+          <details class="history"><summary>Audit history${audits.length ? ` (${audits.length})` : ""}</summary>${audits.length ? `<ol class="audit">${audits.slice().reverse().map((event) => `<li><b>${esc(event?.reviewer?.email || event?.reviewedBy || "Unknown reviewer")}</b><small>${esc(event?.timestamp || event?.reviewedAt || "Time unavailable")}${event?.resultingReconciliationRevision ? ` · revision ${event.resultingReconciliationRevision}` : ""}</small><p>${esc(event?.notes || "No notes")}</p></li>`).join("")}</ol>` : "<p>No audit history supplied.</p>"}</details>` : '<div class="empty">No detail available.</div>'}</aside>
       </section>`;
 
     const toggleSourceChoiceFields = () => {
-      const actionValue = root.querySelector("#resolution-action")?.value;
+      const chosen = root.querySelector("#decision")?.value;
       const fields = root.querySelector("#source-choice-fields");
-      if (fields) fields.hidden = actionValue !== SOURCE_CHOICE_ACTION;
+      if (fields) fields.hidden = chosen !== SOURCE_CHOICE_ACTION;
     };
-    // Approved and rejected are self-contained. Only "needs review" asks for a reason.
+    // Each decision is self-contained. Only leaving a poem undecided asks for a reason,
+    // and only rejecting offers the standard rejection wording.
     const syncControls = () => {
-      const status = root.querySelector("#review-status")?.value ?? "pending";
-      const statusHelp = root.querySelector("#status-help");
+      const chosen = root.querySelector("#decision")?.value ?? "";
+      const help = root.querySelector("#decision-help");
       const skipFields = root.querySelector("#skip-reason-fields");
-      if (statusHelp) statusHelp.textContent = STATUS_EFFECT[status] || "";
-      if (skipFields) skipFields.hidden = status !== "pending";
+      if (help) help.textContent = DECISION_EFFECT[chosen] || "Nothing is recorded until you choose.";
+      if (skipFields) skipFields.hidden = chosen !== "";
       const rejectFields = root.querySelector("#reject-reason-fields");
-      if (rejectFields) rejectFields.hidden = status !== "rejected";
+      if (rejectFields) rejectFields.hidden = chosen !== "retain_prior";
     };
     toggleSourceChoiceFields();
     root.querySelector("#resolution-action")?.addEventListener("change", (event) => {
@@ -500,10 +530,11 @@ function createApp(root, initialData, auth) {
       toggleSourceChoiceFields();
       syncControls();
     });
-    root.querySelector("#review-status")?.addEventListener("change", (event) => {
-      draft.status = event.target.value;
-      // Changing the decision away from "needs review" abandons any skip reason.
-      if (event.target.value !== "pending") draft.action = UNDECIDED;
+    root.querySelector("#decision")?.addEventListener("change", (event) => {
+      draft.decision = event.target.value;
+      // Deciding a poem abandons any reason it was previously set aside with.
+      if (event.target.value) draft.action = UNDECIDED;
+      toggleSourceChoiceFields();
       syncControls();
     });
     root.querySelector("#reject-reason")?.addEventListener("change", (event) => {
