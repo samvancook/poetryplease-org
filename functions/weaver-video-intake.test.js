@@ -49,6 +49,7 @@ test("Weaver video intake refuses to publish the declared raw source as the fina
 test("Weaver video intake preserves reviews and selected excerpt IDs without excerpt text", () => {
   const result = buildWeaverVideoIntake({
     ...validVideo,
+    selectedExcerptRecordIds: ["weaver:excerpt:1"],
     reviews: [{
       reviewId: "review-1",
       sourceRecordId: "weaver:review:1",
