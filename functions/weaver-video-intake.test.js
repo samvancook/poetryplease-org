@@ -44,3 +44,57 @@ test("Weaver video intake refuses to publish the declared raw source as the fina
   assert.equal(result.ok, false);
   assert.equal(result.error, "final_asset_matches_raw_source");
 });
+
+
+test("Weaver video intake preserves stable private review and excerpt context", () => {
+  const result = buildWeaverVideoIntake({
+    ...validVideo,
+    reviews: [{
+      reviewId: "review-1",
+      sourceRecordId: "weaver:review:1",
+      reviewerEmail: "reviewer@buttonpoetry.com",
+      rating: "approve",
+      score: 4,
+      note: "Use the opening excerpt.",
+      selectedExcerptRecordIds: ["weaver:excerpt:1"],
+    }],
+    excerpts: [{
+      excerptId: "weaver:excerpt:1",
+      sourceRecordId: "weaver:excerpt:1",
+      reviewId: "review-1",
+      excerpt: "The actual selected excerpt text.",
+      selected: true,
+    }],
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.item.weaverReviews, [{
+    reviewId: "review-1",
+    sourceRecordId: "weaver:review:1",
+    reviewerIdentity: "reviewer@buttonpoetry.com",
+    reviewerEmail: "reviewer@buttonpoetry.com",
+    rating: "approve",
+    legacyNumericScore: 4,
+    notes: "Use the opening excerpt.",
+    excerptRecordIds: ["weaver:excerpt:1"],
+  }]);
+  assert.deepEqual(result.item.weaverExcerpts, [{
+    excerptId: "weaver:excerpt:1",
+    sourceRecordId: "weaver:excerpt:1",
+    reviewId: "review-1",
+    excerptText: "The actual selected excerpt text.",
+    selected: true,
+  }]);
+});
+
+test("Weaver video intake de-duplicates review and excerpt IDs for idempotent reimport", () => {
+  const result = buildWeaverVideoIntake({
+    ...validVideo,
+    reviews: [{ reviewId: "review-1" }, { reviewId: "review-1", rating: "approve" }],
+    excerpts: [{ excerptId: "excerpt-1", excerpt: "A" }, { excerptId: "excerpt-1", excerpt: "B" }],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.item.weaverReviews.length, 1);
+  assert.equal(result.item.weaverExcerpts.length, 1);
+});
