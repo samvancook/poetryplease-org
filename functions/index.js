@@ -3879,11 +3879,19 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.weaverGateId = normalizeText(body.weaverGateId);
     payload.weaverReleaseStatus = normalizeText(body.weaverReleaseStatus);
     payload.weaverPublicationRestricted = !!body.weaverPublicationRestricted;
-    payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
-      ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
-      : [];
-    payload.weaverReviews = Array.isArray(body.weaverReviews) ? body.weaverReviews : [];
-    payload.weaverExcerpts = Array.isArray(body.weaverExcerpts) ? body.weaverExcerpts : [];
+    if (Object.prototype.hasOwnProperty.call(body, "weaverSelectedExcerptRecordIds")) {
+      payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
+        ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
+        : [];
+    }
+    // These private Weaver fields are optional: an ordinary admin edit or an
+    // older Weaver payload must not clear stored review context.
+    if (Object.prototype.hasOwnProperty.call(body, "weaverReviews")) {
+      payload.weaverReviews = Array.isArray(body.weaverReviews) ? body.weaverReviews : [];
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "weaverExcerpts")) {
+      payload.weaverExcerpts = Array.isArray(body.weaverExcerpts) ? body.weaverExcerpts : [];
+    }
     payload.weaverDiagnostics = body.weaverDiagnostics && typeof body.weaverDiagnostics === "object"
       ? body.weaverDiagnostics
       : {};
