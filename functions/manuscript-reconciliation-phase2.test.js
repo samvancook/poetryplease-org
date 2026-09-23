@@ -37,6 +37,7 @@ import {
   COMMON_ACTIONS,
   candidateSourceMatches,
   filterRowsBySummary,
+  combineNeedsMerge,
   needsNotes,
   reloadIfCandidateChanged,
   sourcesForAction,
@@ -357,13 +358,33 @@ test("a reviewer can choose wording and formatting sources separately", () => {
   assert.deepEqual(sourcesForAction("adopt_candidate", row, 11, 11), { text: 22, format: 22 });
   assert.deepEqual(sourcesForAction("retain_prior", row, 22, 22), { text: 11, format: 11 });
   assert.deepEqual(sourcesForAction("combine_text_and_format", row, 22, 11), { text: 22, format: 11 });
-  assert.deepEqual(sourcesForAction("carry_forward_wording_adopt_final_format", row, 0, 0), { text: 11, format: 22 });
+  // Catalog's seeder writes carry_forward_wording_adopt_final_format with BOTH ids set to
+  // the candidate, because publication_wording found the texts identical and nothing was
+  // carried forward. The action is not offered in the Decision control, so it only ever
+  // appears on a row Catalog already decided, and saving must preserve what it stored
+  // rather than rewriting the ids from the action name.
+  assert.deepEqual(sourcesForAction("carry_forward_wording_adopt_final_format", row, 22, 22), { text: 22, format: 22 });
 
   // Wording from one source and formatting from the other is the subtle call; it needs a note.
   const noteRow = { identity: "p", candidateTitle: "T", candidate: { id: 22 } };
   const base = { reviewStatus: "approved", resolutionAction: "combine_text_and_format", canonicalTitle: "T", stablePoemIdentity: "p" };
   assert.equal(needsNotes(noteRow, { ...base, textSourcePoemId: 22, formatSourcePoemId: 11 }), true);
   assert.equal(needsNotes(noteRow, { ...base, textSourcePoemId: 22, formatSourcePoemId: 22 }), false);
+});
+
+test("an unmergeable combine is flagged before it blocks promotion", () => {
+  // Catalog's promotion build takes the formatting source's text verbatim when the two
+  // sources agree on wording once normalized, and returns needs_merge otherwise. The write
+  // API accepts either, so a reviewer would only learn at promotion. Same normalization as
+  // Catalog's publication_wording: strip all whitespace, lowercase.
+  const wrapped = { prior: { text: "one long line of prose that runs on" }, candidate: { text: "one long line\nof prose that\nruns on" } };
+  assert.equal(combineNeedsMerge(wrapped), false);
+  assert.equal(combineNeedsMerge({ prior: { text: "Same Words" }, candidate: { text: "same words" } }), false);
+  assert.equal(combineNeedsMerge({ prior: { text: "these words" }, candidate: { text: "different words" } }), true);
+
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  assert.match(client, /id="merge-warning"/);
+  assert.match(client, /would block promotion later/);
 });
 
 test("production proxy accepts only the guarded fixture and never editorial reconciliation 2", () => {

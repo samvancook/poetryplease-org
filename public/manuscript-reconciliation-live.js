@@ -92,7 +92,6 @@ export const sourcesForAction = (action, row, pickedText, pickedFormat) => {
   const prior = row?.prior?.id ?? row?.candidate?.id;
   if (action === "adopt_candidate") return { text: candidate, format: candidate };
   if (action === "retain_prior") return { text: prior, format: prior };
-  if (action === "carry_forward_wording_adopt_final_format") return { text: prior, format: candidate };
   return { text: pickedText, format: pickedFormat };
 };
 const DECISION_EFFECT = {
@@ -125,6 +124,11 @@ const sourceOptions = (row, selected) => [
   row?.prior && [row.prior.id, `Earlier source · ${row.prior.title || row.priorTitle || "Untitled"}`],
   row?.candidate && [row.candidate.id, `Proposed replacement · ${row.candidate.title || row.candidateTitle || "Untitled"}`],
 ].filter(Boolean).map(([id, label]) => `<option value="${esc(id)}" ${Number(id) === Number(selected) ? "selected" : ""}>${esc(label)}</option>`).join("");
+// Mirrors Catalog's publication_wording: strip all whitespace, lowercase. Advisory only.
+// Catalog decides for real at promotion; this exists so the reviewer is not told later.
+const publicationWording = (value) => String(value ?? "").replace(/\s+/g, "").toLowerCase();
+export const combineNeedsMerge = (row) =>
+  publicationWording(row?.prior?.text) !== publicationWording(row?.candidate?.text);
 const sourceMeta = (source) => {
   const parts = [source?.id ? `Source ${source.id}` : null, source?.stage, source?.kind].filter(Boolean);
   return parts.length ? parts.join(" · ") : "Source details unavailable";
@@ -477,6 +481,7 @@ function createApp(root, initialData, auth) {
             ${decisionChoices.map(([value, label]) => `<option value="${esc(value)}" ${value === decisionValue ? "selected" : ""}>${esc(label)}</option>`).join("")}
           </select></label>
           <p class="help" id="decision-help">${esc(DECISION_EFFECT[decisionValue] || "Nothing is recorded until you choose.")}</p>
+          <p class="warnings" id="merge-warning" ${decisionValue === SOURCE_CHOICE_ACTION && combineNeedsMerge(row) ? "" : "hidden"}><b>These two sources disagree on wording, not only on line breaks.</b> Catalog will store this decision, but its promotion build cannot merge different wording under different formatting, so the poem would block promotion later. Hand-edit the text instead: a hand-edited poem resolves whatever the sources say.</p>
           <div id="skip-reason-fields" ${decisionValue === UNDECIDED ? "" : "hidden"}>
             <label>Why is it still under review?<select id="resolution-action">
               <option value="" ${actionValue === UNDECIDED ? "selected" : ""}>Choose a reason…</option>
@@ -520,6 +525,8 @@ function createApp(root, initialData, auth) {
       const help = root.querySelector("#decision-help");
       const skipFields = root.querySelector("#skip-reason-fields");
       if (help) help.textContent = DECISION_EFFECT[chosen] || "Nothing is recorded until you choose.";
+      const mergeWarning = root.querySelector("#merge-warning");
+      if (mergeWarning) mergeWarning.hidden = !(chosen === SOURCE_CHOICE_ACTION && combineNeedsMerge(row));
       if (skipFields) skipFields.hidden = chosen !== "";
       const rejectFields = root.querySelector("#reject-reason-fields");
       if (rejectFields) rejectFields.hidden = chosen !== "retain_prior";
