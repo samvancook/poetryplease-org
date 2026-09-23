@@ -3365,14 +3365,16 @@
     function renderWeaverVideoReviewContext(item = {}) {
       if (item.collection !== 'videos') return '';
       const reviews = Array.isArray(item.weaverReviews) ? item.weaverReviews : [];
-      const excerpts = Array.isArray(item.weaverExcerpts) ? item.weaverExcerpts : [];
-      if (!reviews.length && !excerpts.length) return '';
+      const selectedExcerptIds = Array.isArray(item.weaverSelectedExcerptRecordIds)
+        ? item.weaverSelectedExcerptRecordIds
+        : [];
+      if (!reviews.length && !selectedExcerptIds.length) return '';
       const reviewRows = reviews.map((review) => {
         const score = review.legacyNumericScore !== null && review.legacyNumericScore !== undefined
           ? ' · score ' + escapeHtml(review.legacyNumericScore)
           : '';
         const ids = (review.excerptRecordIds || []).length
-          ? '<div>Excerpt IDs: ' + escapeHtml(review.excerptRecordIds.join(', ')) + '</div>'
+          ? '<div>Selected excerpt IDs: ' + escapeHtml(review.excerptRecordIds.join(', ')) + '</div>'
           : '';
         const notes = review.notes ? '<div>' + escapeHtml(review.notes) + '</div>' : '';
         return '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);">' +
@@ -3380,19 +3382,15 @@
           '<div>' + escapeHtml(review.reviewerIdentity || review.reviewerEmail || 'Unknown reviewer') + '</div>' +
           notes + ids + '</div>';
       }).join('');
-      const excerptRows = excerpts.map((excerpt) => {
-        return '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);">' +
-          '<div>' + escapeHtml(excerpt.excerptId || excerpt.sourceRecordId || 'Excerpt') +
-          (excerpt.selected ? ' · selected' : '') + '</div>' +
-          '<blockquote style="margin:4px 0;white-space:pre-wrap;">' +
-          escapeHtml(excerpt.excerptText || 'No excerpt text received.') + '</blockquote></div>';
-      }).join('');
       const reviewSection = reviewRows ? '<div style="margin-top:8px;"><strong>Reviews</strong>' + reviewRows + '</div>' : '';
-      const excerptSection = excerptRows ? '<div style="margin-top:8px;"><strong>Excerpt quotes</strong>' + excerptRows + '</div>' : '';
+      const selectedSection = selectedExcerptIds.length
+        ? '<div style="margin-top:8px;"><strong>Selected excerpt IDs</strong><div>' +
+          escapeHtml(selectedExcerptIds.join(', ')) + '</div></div>'
+        : '';
       return '<details class="meta" style="margin-top:8px;"><summary>Weaver review context · ' +
         Number(item.receivedReviewCount || reviews.length) + ' review(s) · ' +
-        Number(item.receivedExcerptCount || excerpts.length) + ' excerpt(s)</summary>' +
-        reviewSection + excerptSection + '</details>';
+        Number(item.receivedSelectedExcerptIdCount || selectedExcerptIds.length) + ' selected excerpt ID(s)</summary>' +
+        reviewSection + selectedSection + '</details>';
     }
 
     function renderContentLibrary() {
