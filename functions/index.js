@@ -3717,6 +3717,15 @@ function mapAdminContentDoc(collection, doc) {
     bookShortener: data.bookShortener || "",
     updatedFileName: data.updatedFileName || "",
     misc: data.misc || "",
+    // Private Weaver review context is exposed only through admin Content Library.
+    weaverReviews: Array.isArray(data.weaverReviews) ? data.weaverReviews : [],
+    weaverSelectedExcerptRecordIds: Array.isArray(data.weaverSelectedExcerptRecordIds)
+      ? data.weaverSelectedExcerptRecordIds
+      : [],
+    receivedReviewCount: Array.isArray(data.weaverReviews) ? data.weaverReviews.length : 0,
+    receivedSelectedExcerptIdCount: Array.isArray(data.weaverSelectedExcerptRecordIds)
+      ? data.weaverSelectedExcerptRecordIds.length
+      : 0,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
     updatedBy: data.updatedBy || "",
@@ -3827,6 +3836,9 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   if (normalizeText(body.approvedAt)) payload.approvedAt = normalizeText(body.approvedAt);
   if (normalizeText(body.sourceUpdatedAt || body.updatedAt)) payload.sourceUpdatedAt = normalizeText(body.sourceUpdatedAt || body.updatedAt);
   if (normalizeText(body.sourceContentId)) payload.sourceContentId = normalizeText(body.sourceContentId);
+  if (normalizeText(body.sourceVideoRecordId)) payload.sourceVideoRecordId = normalizeText(body.sourceVideoRecordId);
+  if (normalizeText(body.sourceVideoFileId)) payload.sourceVideoFileId = normalizeText(body.sourceVideoFileId);
+  if (normalizeText(body.sourceVideoUrl)) payload.sourceVideoUrl = normalizeText(body.sourceVideoUrl);
 
   if (type === "graphics") {
     payload.title = normalizeText(body.title);
@@ -3874,9 +3886,16 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.weaverGateId = normalizeText(body.weaverGateId);
     payload.weaverReleaseStatus = normalizeText(body.weaverReleaseStatus);
     payload.weaverPublicationRestricted = !!body.weaverPublicationRestricted;
-    payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
-      ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
-      : [];
+    if (Object.prototype.hasOwnProperty.call(body, "weaverSelectedExcerptRecordIds")) {
+      payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
+        ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
+        : [];
+    }
+    // These private Weaver fields are optional: an ordinary admin edit or an
+    // older Weaver payload must not clear stored review context.
+    if (Object.prototype.hasOwnProperty.call(body, "weaverReviews")) {
+      payload.weaverReviews = Array.isArray(body.weaverReviews) ? body.weaverReviews : [];
+    }
     payload.weaverDiagnostics = body.weaverDiagnostics && typeof body.weaverDiagnostics === "object"
       ? body.weaverDiagnostics
       : {};
@@ -7156,7 +7175,12 @@ function buildWeaverExcerptImportItem(record = {}) {
     sourceRecordId,
     excerptHash: normalizeText(record.excerptHash || sourceRecordId),
     sourceUrl: normalizeText(record.sourceUrl || record.weaverUrl || record.url),
-    sourceContentId: normalizeText(record.sourceContentId || record.relatedGraphicId || ""),
+    // sourceContentId is the canonical Poetry Please VV ID. The remaining
+    // sourceVideo fields preserve Weaver provenance for approved EXC imports.
+    sourceContentId: normalizeText(record.sourceContentId || record.canonicalVideoId || ""),
+    sourceVideoRecordId: normalizeText(record.sourceVideoRecordId),
+    sourceVideoFileId: normalizeText(record.sourceVideoFileId),
+    sourceVideoUrl: normalizeText(record.sourceVideoUrl),
     author: normalizeText(record.author),
     book: normalizeText(record.book || record.bookTitle),
     title: normalizeText(record.poem || record.poemTitle || record.title),
@@ -7665,6 +7689,12 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const canonicalVideoUrl = `/app?item=${encodeURIComponent(canonicalVideoId)}&type=VV`;
     const finalAssetUrl = normalizeText(result.item?.videoUrl || result.item?.url);
     const status = result.created ? "created" : "updated";
+    const receivedReviewCount = Array.isArray(result.item?.weaverReviews)
+      ? result.item.weaverReviews.length
+      : 0;
+    const receivedSelectedExcerptIdCount = Array.isArray(result.item?.weaverSelectedExcerptRecordIds)
+      ? result.item.weaverSelectedExcerptRecordIds.length
+      : 0;
 
     invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:video");
@@ -7678,10 +7708,14 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       updatedCount: result.created ? 0 : 1,
       duplicateCount: 0,
       errorCount: 0,
+      receivedReviewCount,
+      receivedSelectedExcerptIdCount,
       outcomes: [{
         contentId: canonicalVideoId,
         sourceRecordId: intake.item.sourceRecordId,
         outcome: status,
+        receivedReviewCount,
+        receivedSelectedExcerptIdCount,
       }],
       durationMs: Date.now() - startedAt,
       completedAt: FieldValue.serverTimestamp(),
@@ -7697,6 +7731,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         canonicalVideoId,
         canonicalVideoUrl,
         finalAssetUrl,
+        receivedReviewCount,
+        receivedSelectedExcerptIdCount,
       }],
     });
   } catch (err) {

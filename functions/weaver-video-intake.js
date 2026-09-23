@@ -28,6 +28,32 @@ function isRestrictedRelease(value) {
   return ["restricted", "unreleased", "opted_out", "opted-out", "private"].includes(normalizeKey(value));
 }
 
+function normalizeStringList(values) {
+  return Array.isArray(values) ? values.map(normalizeText).filter(Boolean) : [];
+}
+
+function normalizeWeaverVideoReviews(values) {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set();
+  return values.map((value) => {
+    const row = value && typeof value === "object" ? value : {};
+    const reviewId = normalizeText(row.reviewId || row.id || row.sourceRecordId);
+    if (!reviewId || seen.has(reviewId)) return null;
+    seen.add(reviewId);
+    const legacyScore = Number(row.legacyNumericScore ?? row.legacyScore ?? row.numericScore ?? row.score);
+    return {
+      reviewId,
+      sourceRecordId: normalizeText(row.sourceRecordId || row.recordId),
+      reviewerIdentity: normalizeText(row.reviewerIdentity || row.reviewerId || row.reviewerUid || row.reviewerEmail || row.reviewer),
+      reviewerEmail: normalizeText(row.reviewerEmail),
+      rating: normalizeText(row.rating || row.decision),
+      legacyNumericScore: Number.isFinite(legacyScore) ? legacyScore : null,
+      notes: normalizeText(row.notes || row.note || row.reviewNotes),
+      excerptRecordIds: normalizeStringList(row.excerptRecordIds || row.selectedExcerptRecordIds || row.excerptIds),
+    };
+  }).filter(Boolean);
+}
+
 export function weaverVideoDocId(sourceRecordId) {
   const digest = createHash("sha256")
     .update(normalizeText(sourceRecordId))
@@ -92,9 +118,13 @@ export function buildWeaverVideoIntake(body = {}) {
       weaverGateId: normalizeText(body.gateId),
       weaverReleaseStatus: normalizeText(body.releaseStatus),
       weaverPublicationRestricted: isTruthy(body.publicationRestricted),
-      weaverSelectedExcerptRecordIds: Array.isArray(body.selectedExcerptRecordIds)
-        ? body.selectedExcerptRecordIds.map(normalizeText).filter(Boolean)
-        : [],
+      ...(Array.isArray(body.selectedExcerptRecordIds) ? {
+        weaverSelectedExcerptRecordIds: body.selectedExcerptRecordIds.map(normalizeText).filter(Boolean),
+      } : {}),
+      // Private review context. Public video payloads must not map these fields.
+      ...(Array.isArray(body.reviews) ? {
+        weaverReviews: normalizeWeaverVideoReviews(body.reviews),
+      } : {}),
       weaverDiagnostics: {
         baseScore: Number(body.baseScore || 0) || 0,
         excerptBonus: Number(body.excerptBonus || 0) || 0,

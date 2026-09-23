@@ -44,3 +44,51 @@ test("Weaver video intake refuses to publish the declared raw source as the fina
   assert.equal(result.ok, false);
   assert.equal(result.error, "final_asset_matches_raw_source");
 });
+
+
+test("Weaver video intake preserves reviews and selected excerpt IDs without excerpt text", () => {
+  const result = buildWeaverVideoIntake({
+    ...validVideo,
+    selectedExcerptRecordIds: ["weaver:excerpt:1"],
+    reviews: [{
+      reviewId: "review-1",
+      sourceRecordId: "weaver:review:1",
+      reviewerEmail: "reviewer@buttonpoetry.com",
+      rating: "approve",
+      legacyScore: 4,
+      note: "Use the opening excerpt.",
+      selectedExcerptRecordIds: ["weaver:excerpt:1"],
+    }],
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.item.weaverReviews, [{
+    reviewId: "review-1",
+    sourceRecordId: "weaver:review:1",
+    reviewerIdentity: "reviewer@buttonpoetry.com",
+    reviewerEmail: "reviewer@buttonpoetry.com",
+    rating: "approve",
+    legacyNumericScore: 4,
+    notes: "Use the opening excerpt.",
+    excerptRecordIds: ["weaver:excerpt:1"],
+  }]);
+  assert.deepEqual(result.item.weaverSelectedExcerptRecordIds, ["weaver:excerpt:1"]);
+  assert.equal(Object.hasOwn(result.item, "weaverExcerpts"), false);
+});
+
+test("Weaver video intake omits private context fields when an older payload does not send them", () => {
+  const result = buildWeaverVideoIntake(validVideo);
+  assert.equal(result.ok, true);
+  assert.equal(Object.hasOwn(result.item, "weaverReviews"), false);
+  assert.equal(Object.hasOwn(result.item, "weaverSelectedExcerptRecordIds"), false);
+});
+
+test("Weaver video intake de-duplicates review IDs for idempotent reimport", () => {
+  const result = buildWeaverVideoIntake({
+    ...validVideo,
+    reviews: [{ reviewId: "review-1" }, { reviewId: "review-1", rating: "approve" }],
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.item.weaverReviews.length, 1);
+});
