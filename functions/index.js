@@ -5042,6 +5042,11 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     const key = poemKey(row);
     connectedByPoem.set(key, [...(connectedByPoem.get(key) || []), row]);
   });
+  const bookCatalogRecordByTitle = new Map(
+    BOOK_CATALOG_LOOKUP_ROWS
+      .filter((record) => normalizeText(record?.entityType || "book") === "book")
+      .map((record) => [normalizeCatalogLookupKey(record.title), record])
+  );
 
   const fullPoems = fullPoemItems
     .filter((item) => !requestedBookKey || normalizeCatalogLookupKey(resolveScoreboardBookTitle(item)) === requestedBookKey)
@@ -5091,12 +5096,16 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       const authorAdjustment = (Number(row.authorLikes || 0) * 9)
         + (Number(row.authorMovedMe || 0) * 23)
         - (Number(row.authorDislikes || 0) * 99);
+      const bookTitle = row.bookTitle || requestedBook;
+      const bookCatalogRecord = bookCatalogRecordByTitle.get(normalizeCatalogLookupKey(bookTitle)) || {};
       return {
         imageId: row.imageId || "",
         author: row.author || "",
         title: row.poemTitle || "",
-        book: row.bookTitle || requestedBook,
-        catalog: item.releaseCatalog || row.releaseCatalog || "",
+        book: bookTitle,
+        bookLink: normalizeText(bookCatalogRecord.bookLink || item.bookLink || row.bookLink),
+        bookShortener: normalizeText(bookCatalogRecord.bookShortener || item.bookShortener || row.bookShortener),
+        catalog: item.releaseCatalog || row.releaseCatalog || bookCatalogRecord.releaseCatalog || "",
         charCount: countPoemCharacters(item, includeMetadata),
         lineCount: countPoemLines(item, includeMetadata),
         lengthIncludesMetadata: includeMetadata,
@@ -5256,6 +5265,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   const importedBookSummaries = Array.from(summaryMap.values());
 
   const bookSummaries = (await mapWithConcurrency(importedBookSummaries, 6, async (summary) => {
+    const bookCatalogRecord = bookCatalogRecordByTitle.get(normalizeCatalogLookupKey(summary.book)) || {};
     const topTenPoems = (summary.eligiblePoems || []).slice().sort((a, b) => b.totalScore - a.totalScore).slice(0, 10);
     const topTenScore = topTenPoems.reduce((sum, poem) => sum + poem.totalScore, 0);
     const topTenDirectScore = topTenPoems.reduce((sum, poem) => sum + poem.directScore, 0);
@@ -5301,6 +5311,9 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     });
     return {
       ...summary,
+      bookLink: normalizeText(summary.bookLink || bookCatalogRecord.bookLink),
+      bookShortener: normalizeText(summary.bookShortener || bookCatalogRecord.bookShortener),
+      catalog: normalizeText(summary.catalog || bookCatalogRecord.releaseCatalog),
       catalogPoemCount,
       catalogSourceUnavailable: catalogPoemCount === null
         && normalizeCatalogLookupKey(summary.book) !== "short form 2026",
