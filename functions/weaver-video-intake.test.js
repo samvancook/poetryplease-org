@@ -46,7 +46,7 @@ test("Weaver video intake refuses to publish the declared raw source as the fina
 });
 
 
-test("Weaver video intake preserves stable private review and excerpt context", () => {
+test("Weaver video intake preserves reviews and selected excerpt IDs without excerpt text", () => {
   const result = buildWeaverVideoIntake({
     ...validVideo,
     reviews: [{
@@ -57,13 +57,6 @@ test("Weaver video intake preserves stable private review and excerpt context", 
       legacyScore: 4,
       note: "Use the opening excerpt.",
       selectedExcerptRecordIds: ["weaver:excerpt:1"],
-    }],
-    selectedExcerptRecordIds: ["weaver:excerpt:1"],
-    excerpts: [{
-      excerptId: "weaver:excerpt:1",
-      sourceRecordId: "weaver:excerpt:1",
-      reviewId: "review-1",
-      excerpt: "The actual selected excerpt text.",
     }],
   });
 
@@ -78,31 +71,23 @@ test("Weaver video intake preserves stable private review and excerpt context", 
     notes: "Use the opening excerpt.",
     excerptRecordIds: ["weaver:excerpt:1"],
   }]);
-  assert.deepEqual(result.item.weaverExcerpts, [{
-    excerptId: "weaver:excerpt:1",
-    sourceRecordId: "weaver:excerpt:1",
-    reviewId: "review-1",
-    excerptText: "The actual selected excerpt text.",
-    selected: true,
-  }]);
+  assert.deepEqual(result.item.weaverSelectedExcerptRecordIds, ["weaver:excerpt:1"]);
+  assert.equal(Object.hasOwn(result.item, "weaverExcerpts"), false);
 });
 
 test("Weaver video intake omits private context fields when an older payload does not send them", () => {
   const result = buildWeaverVideoIntake(validVideo);
   assert.equal(result.ok, true);
   assert.equal(Object.hasOwn(result.item, "weaverReviews"), false);
-  assert.equal(Object.hasOwn(result.item, "weaverExcerpts"), false);
   assert.equal(Object.hasOwn(result.item, "weaverSelectedExcerptRecordIds"), false);
 });
 
-test("Weaver video intake de-duplicates review and excerpt IDs for idempotent reimport", () => {
+test("Weaver video intake de-duplicates review IDs for idempotent reimport", () => {
   const result = buildWeaverVideoIntake({
     ...validVideo,
     reviews: [{ reviewId: "review-1" }, { reviewId: "review-1", rating: "approve" }],
-    excerpts: [{ excerptId: "excerpt-1", excerpt: "A" }, { excerptId: "excerpt-1", excerpt: "B" }],
   });
 
   assert.equal(result.ok, true);
   assert.equal(result.item.weaverReviews.length, 1);
-  assert.equal(result.item.weaverExcerpts.length, 1);
 });
