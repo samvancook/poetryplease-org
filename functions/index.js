@@ -3717,6 +3717,11 @@ function mapAdminContentDoc(collection, doc) {
     bookShortener: data.bookShortener || "",
     updatedFileName: data.updatedFileName || "",
     misc: data.misc || "",
+    // Private Weaver review context is exposed only through admin Content Library.
+    weaverReviews: Array.isArray(data.weaverReviews) ? data.weaverReviews : [],
+    weaverExcerpts: Array.isArray(data.weaverExcerpts) ? data.weaverExcerpts : [],
+    receivedReviewCount: Array.isArray(data.weaverReviews) ? data.weaverReviews.length : 0,
+    receivedExcerptCount: Array.isArray(data.weaverExcerpts) ? data.weaverExcerpts.length : 0,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
     updatedBy: data.updatedBy || "",
@@ -3877,6 +3882,8 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
       ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
       : [];
+    payload.weaverReviews = Array.isArray(body.weaverReviews) ? body.weaverReviews : [];
+    payload.weaverExcerpts = Array.isArray(body.weaverExcerpts) ? body.weaverExcerpts : [];
     payload.weaverDiagnostics = body.weaverDiagnostics && typeof body.weaverDiagnostics === "object"
       ? body.weaverDiagnostics
       : {};
@@ -7665,6 +7672,12 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const canonicalVideoUrl = `/app?item=${encodeURIComponent(canonicalVideoId)}&type=VV`;
     const finalAssetUrl = normalizeText(result.item?.videoUrl || result.item?.url);
     const status = result.created ? "created" : "updated";
+    const receivedReviewCount = Array.isArray(result.item?.weaverReviews)
+      ? result.item.weaverReviews.length
+      : 0;
+    const receivedExcerptCount = Array.isArray(result.item?.weaverExcerpts)
+      ? result.item.weaverExcerpts.length
+      : 0;
 
     invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:video");
@@ -7678,10 +7691,14 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       updatedCount: result.created ? 0 : 1,
       duplicateCount: 0,
       errorCount: 0,
+      receivedReviewCount,
+      receivedExcerptCount,
       outcomes: [{
         contentId: canonicalVideoId,
         sourceRecordId: intake.item.sourceRecordId,
         outcome: status,
+        receivedReviewCount,
+        receivedExcerptCount,
       }],
       durationMs: Date.now() - startedAt,
       completedAt: FieldValue.serverTimestamp(),
@@ -7697,6 +7714,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         canonicalVideoId,
         canonicalVideoUrl,
         finalAssetUrl,
+        receivedReviewCount,
+        receivedExcerptCount,
       }],
     });
   } catch (err) {
