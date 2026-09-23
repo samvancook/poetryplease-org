@@ -58,6 +58,7 @@ test("Weaver video intake preserves stable private review and excerpt context", 
       note: "Use the opening excerpt.",
       selectedExcerptRecordIds: ["weaver:excerpt:1"],
     }],
+    selectedExcerptRecordIds: ["weaver:excerpt:1"],
     excerpts: [{
       excerptId: "weaver:excerpt:1",
       sourceRecordId: "weaver:excerpt:1",
