@@ -54,27 +54,6 @@ function normalizeWeaverVideoReviews(values) {
   }).filter(Boolean);
 }
 
-function normalizeWeaverVideoExcerpts(values, selectedExcerptRecordIds = []) {
-  const selectedIds = new Set(normalizeStringList(selectedExcerptRecordIds).map(normalizeKey));
-  if (!Array.isArray(values)) return [];
-  const seen = new Set();
-  return values.map((value) => {
-    const row = value && typeof value === "object" ? value : {};
-    const excerptId = normalizeText(row.excerptId || row.id || row.sourceRecordId);
-    if (!excerptId || seen.has(excerptId)) return null;
-    seen.add(excerptId);
-    return {
-      excerptId,
-      sourceRecordId: normalizeText(row.sourceRecordId || row.recordId),
-      reviewId: normalizeText(row.reviewId),
-      excerptText: normalizeText(row.excerptText || row.excerpt || row.text || row.quote),
-      selected: row.selected === true
-        || selectedIds.has(normalizeKey(excerptId))
-        || selectedIds.has(normalizeKey(row.sourceRecordId || row.recordId)),
-    };
-  }).filter(Boolean);
-}
-
 export function weaverVideoDocId(sourceRecordId) {
   const digest = createHash("sha256")
     .update(normalizeText(sourceRecordId))
@@ -145,9 +124,6 @@ export function buildWeaverVideoIntake(body = {}) {
       // Private review context. Public video payloads must not map these fields.
       ...(Array.isArray(body.reviews) ? {
         weaverReviews: normalizeWeaverVideoReviews(body.reviews),
-      } : {}),
-      ...(Array.isArray(body.excerpts) ? {
-        weaverExcerpts: normalizeWeaverVideoExcerpts(body.excerpts, body.selectedExcerptRecordIds),
       } : {}),
       weaverDiagnostics: {
         baseScore: Number(body.baseScore || 0) || 0,
