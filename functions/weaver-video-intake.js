@@ -35,9 +35,9 @@ function normalizeStringList(values) {
 function normalizeWeaverVideoReviews(values) {
   if (!Array.isArray(values)) return [];
   const seen = new Set();
-  return values.map((value, index) => {
+  return values.map((value) => {
     const row = value && typeof value === "object" ? value : {};
-    const reviewId = normalizeText(row.reviewId || row.id || row.sourceRecordId || `review-${index + 1}`);
+    const reviewId = normalizeText(row.reviewId || row.id || row.sourceRecordId);
     if (!reviewId || seen.has(reviewId)) return null;
     seen.add(reviewId);
     const legacyScore = Number(row.legacyNumericScore ?? row.numericScore ?? row.score);
@@ -59,7 +59,7 @@ function normalizeWeaverVideoExcerpts(values) {
   const seen = new Set();
   return values.map((value, index) => {
     const row = value && typeof value === "object" ? value : {};
-    const excerptId = normalizeText(row.excerptId || row.id || row.sourceRecordId || `excerpt-${index + 1}`);
+    const excerptId = normalizeText(row.excerptId || row.id || row.sourceRecordId);
     if (!excerptId || seen.has(excerptId)) return null;
     seen.add(excerptId);
     return {
