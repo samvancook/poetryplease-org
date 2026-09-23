@@ -54,7 +54,7 @@ test("Weaver video intake preserves stable private review and excerpt context", 
       sourceRecordId: "weaver:review:1",
       reviewerEmail: "reviewer@buttonpoetry.com",
       rating: "approve",
-      score: 4,
+      legacyScore: 4,
       note: "Use the opening excerpt.",
       selectedExcerptRecordIds: ["weaver:excerpt:1"],
     }],
@@ -63,7 +63,6 @@ test("Weaver video intake preserves stable private review and excerpt context", 
       sourceRecordId: "weaver:excerpt:1",
       reviewId: "review-1",
       excerpt: "The actual selected excerpt text.",
-      selected: true,
     }],
   });
 
@@ -85,6 +84,14 @@ test("Weaver video intake preserves stable private review and excerpt context", 
     excerptText: "The actual selected excerpt text.",
     selected: true,
   }]);
+});
+
+test("Weaver video intake omits private context fields when an older payload does not send them", () => {
+  const result = buildWeaverVideoIntake(validVideo);
+  assert.equal(result.ok, true);
+  assert.equal(Object.hasOwn(result.item, "weaverReviews"), false);
+  assert.equal(Object.hasOwn(result.item, "weaverExcerpts"), false);
+  assert.equal(Object.hasOwn(result.item, "weaverSelectedExcerptRecordIds"), false);
 });
 
 test("Weaver video intake de-duplicates review and excerpt IDs for idempotent reimport", () => {
