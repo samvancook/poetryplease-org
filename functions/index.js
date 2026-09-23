@@ -13,6 +13,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
+import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -3716,6 +3717,15 @@ function mapAdminContentDoc(collection, doc) {
     bookShortener: data.bookShortener || "",
     updatedFileName: data.updatedFileName || "",
     misc: data.misc || "",
+    // Private Weaver review context is exposed only through admin Content Library.
+    weaverReviews: Array.isArray(data.weaverReviews) ? data.weaverReviews : [],
+    weaverSelectedExcerptRecordIds: Array.isArray(data.weaverSelectedExcerptRecordIds)
+      ? data.weaverSelectedExcerptRecordIds
+      : [],
+    receivedReviewCount: Array.isArray(data.weaverReviews) ? data.weaverReviews.length : 0,
+    receivedSelectedExcerptIdCount: Array.isArray(data.weaverSelectedExcerptRecordIds)
+      ? data.weaverSelectedExcerptRecordIds.length
+      : 0,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
     updatedBy: data.updatedBy || "",
@@ -3826,6 +3836,9 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   if (normalizeText(body.approvedAt)) payload.approvedAt = normalizeText(body.approvedAt);
   if (normalizeText(body.sourceUpdatedAt || body.updatedAt)) payload.sourceUpdatedAt = normalizeText(body.sourceUpdatedAt || body.updatedAt);
   if (normalizeText(body.sourceContentId)) payload.sourceContentId = normalizeText(body.sourceContentId);
+  if (normalizeText(body.sourceVideoRecordId)) payload.sourceVideoRecordId = normalizeText(body.sourceVideoRecordId);
+  if (normalizeText(body.sourceVideoFileId)) payload.sourceVideoFileId = normalizeText(body.sourceVideoFileId);
+  if (normalizeText(body.sourceVideoUrl)) payload.sourceVideoUrl = normalizeText(body.sourceVideoUrl);
 
   if (type === "graphics") {
     payload.title = normalizeText(body.title);
@@ -3866,6 +3879,26 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.updatedFileName = normalizeText(body.updatedFileName);
     payload.pageNumber = normalizeText(body.pageNumber);
     payload.misc = normalizeText(body.misc);
+    payload.eventReleaseCatalog = normalizeText(body.eventReleaseCatalog);
+    payload.weaverCandidateId = normalizeText(body.weaverCandidateId);
+    payload.weaverPrioritySetId = normalizeText(body.weaverPrioritySetId);
+    payload.weaverSourceFileId = normalizeText(body.weaverSourceFileId);
+    payload.weaverGateId = normalizeText(body.weaverGateId);
+    payload.weaverReleaseStatus = normalizeText(body.weaverReleaseStatus);
+    payload.weaverPublicationRestricted = !!body.weaverPublicationRestricted;
+    if (Object.prototype.hasOwnProperty.call(body, "weaverSelectedExcerptRecordIds")) {
+      payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
+        ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
+        : [];
+    }
+    // These private Weaver fields are optional: an ordinary admin edit or an
+    // older Weaver payload must not clear stored review context.
+    if (Object.prototype.hasOwnProperty.call(body, "weaverReviews")) {
+      payload.weaverReviews = Array.isArray(body.weaverReviews) ? body.weaverReviews : [];
+    }
+    payload.weaverDiagnostics = body.weaverDiagnostics && typeof body.weaverDiagnostics === "object"
+      ? body.weaverDiagnostics
+      : {};
   } else if (type === "youtube") {
     const youtubeUrl = normalizeText(body.youtubeUrl || body.url);
     const youtubeId = normalizeText(body.youtubeId || extractYouTubeId(youtubeUrl));
@@ -5009,6 +5042,11 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     const key = poemKey(row);
     connectedByPoem.set(key, [...(connectedByPoem.get(key) || []), row]);
   });
+  const bookCatalogRecordByTitle = new Map(
+    BOOK_CATALOG_LOOKUP_ROWS
+      .filter((record) => normalizeText(record?.entityType || "book") === "book")
+      .map((record) => [normalizeCatalogLookupKey(record.title), record])
+  );
 
   const fullPoems = fullPoemItems
     .filter((item) => !requestedBookKey || normalizeCatalogLookupKey(resolveScoreboardBookTitle(item)) === requestedBookKey)
@@ -5058,12 +5096,16 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
       const authorAdjustment = (Number(row.authorLikes || 0) * 9)
         + (Number(row.authorMovedMe || 0) * 23)
         - (Number(row.authorDislikes || 0) * 99);
+      const bookTitle = row.bookTitle || requestedBook;
+      const bookCatalogRecord = bookCatalogRecordByTitle.get(normalizeCatalogLookupKey(bookTitle)) || {};
       return {
         imageId: row.imageId || "",
         author: row.author || "",
         title: row.poemTitle || "",
-        book: row.bookTitle || requestedBook,
-        catalog: item.releaseCatalog || row.releaseCatalog || "",
+        book: bookTitle,
+        bookLink: normalizeText(bookCatalogRecord.bookLink || item.bookLink || row.bookLink),
+        bookShortener: normalizeText(bookCatalogRecord.bookShortener || item.bookShortener || row.bookShortener),
+        catalog: item.releaseCatalog || row.releaseCatalog || bookCatalogRecord.releaseCatalog || "",
         charCount: countPoemCharacters(item, includeMetadata),
         lineCount: countPoemLines(item, includeMetadata),
         lengthIncludesMetadata: includeMetadata,
@@ -5223,6 +5265,7 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
   const importedBookSummaries = Array.from(summaryMap.values());
 
   const bookSummaries = (await mapWithConcurrency(importedBookSummaries, 6, async (summary) => {
+    const bookCatalogRecord = bookCatalogRecordByTitle.get(normalizeCatalogLookupKey(summary.book)) || {};
     const topTenPoems = (summary.eligiblePoems || []).slice().sort((a, b) => b.totalScore - a.totalScore).slice(0, 10);
     const topTenScore = topTenPoems.reduce((sum, poem) => sum + poem.totalScore, 0);
     const topTenDirectScore = topTenPoems.reduce((sum, poem) => sum + poem.directScore, 0);
@@ -5268,6 +5311,9 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     });
     return {
       ...summary,
+      bookLink: normalizeText(summary.bookLink || bookCatalogRecord.bookLink),
+      bookShortener: normalizeText(summary.bookShortener || bookCatalogRecord.bookShortener),
+      catalog: normalizeText(summary.catalog || bookCatalogRecord.releaseCatalog),
       catalogPoemCount,
       catalogSourceUnavailable: catalogPoemCount === null
         && normalizeCatalogLookupKey(summary.book) !== "short form 2026",
@@ -7142,7 +7188,12 @@ function buildWeaverExcerptImportItem(record = {}) {
     sourceRecordId,
     excerptHash: normalizeText(record.excerptHash || sourceRecordId),
     sourceUrl: normalizeText(record.sourceUrl || record.weaverUrl || record.url),
-    sourceContentId: normalizeText(record.sourceContentId || record.relatedGraphicId || ""),
+    // sourceContentId is the canonical Poetry Please VV ID. The remaining
+    // sourceVideo fields preserve Weaver provenance for approved EXC imports.
+    sourceContentId: normalizeText(record.sourceContentId || record.canonicalVideoId || ""),
+    sourceVideoRecordId: normalizeText(record.sourceVideoRecordId),
+    sourceVideoFileId: normalizeText(record.sourceVideoFileId),
+    sourceVideoUrl: normalizeText(record.sourceVideoUrl),
     author: normalizeText(record.author),
     book: normalizeText(record.book || record.bookTitle),
     title: normalizeText(record.poem || record.poemTitle || record.title),
@@ -7607,6 +7658,109 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
       error: err.message || "weaver_import_failed",
       importLedgerId: ledgerRef.id,
       schemaVersion,
+    });
+  }
+});
+
+app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) {
+    return res.status(401).json({ error: "invalid_api_key" });
+  }
+
+  const intake = buildWeaverVideoIntake(req.body || {});
+  if (!intake.ok) {
+    return res.status(intake.status || 400).json({
+      ok: false,
+      schemaVersion: "1",
+      results: [{
+        sourceRecordId: normalizeText(req.body?.sourceRecordId),
+        status: intake.status === 409 ? "blocked" : "error",
+        error: intake.error || "invalid_weaver_video_request",
+      }],
+    });
+  }
+
+  const ledgerRef = db.collection(COLLECTIONS.weaverImportLedger).doc();
+  const startedAt = Date.now();
+  await ledgerRef.set({
+    status: "processing",
+    schemaVersion: "1",
+    sourceSystem: "weaver",
+    requestedContentType: "VV",
+    sourceRecordId: intake.item.sourceRecordId,
+    sourceEvent: intake.item.sourceEvent,
+    sourceEventLabel: intake.item.sourceEventLabel,
+    startedAt: FieldValue.serverTimestamp(),
+  });
+
+  try {
+    const result = await upsertContentLibraryItem("videos", intake.item, {
+      uid: "weaver-automation",
+      email: "weaver-automation@buttonpoetry.com",
+    });
+    const canonicalVideoId = normalizeText(result.item?.id || intake.item.docId);
+    const canonicalVideoUrl = `/app?item=${encodeURIComponent(canonicalVideoId)}&type=VV`;
+    const finalAssetUrl = normalizeText(result.item?.videoUrl || result.item?.url);
+    const status = result.created ? "created" : "updated";
+    const receivedReviewCount = Array.isArray(result.item?.weaverReviews)
+      ? result.item.weaverReviews.length
+      : 0;
+    const receivedSelectedExcerptIdCount = Array.isArray(result.item?.weaverSelectedExcerptRecordIds)
+      ? result.item.weaverSelectedExcerptRecordIds.length
+      : 0;
+
+    invalidateContentCache();
+    await invalidateScoreboardSnapshot("content_weaver_import:video");
+    await ledgerRef.set({
+      status: "completed",
+      contentType: "VV",
+      sourceCount: 1,
+      eligibleCount: 1,
+      mappedCount: 1,
+      createdCount: result.created ? 1 : 0,
+      updatedCount: result.created ? 0 : 1,
+      duplicateCount: 0,
+      errorCount: 0,
+      receivedReviewCount,
+      receivedSelectedExcerptIdCount,
+      outcomes: [{
+        contentId: canonicalVideoId,
+        sourceRecordId: intake.item.sourceRecordId,
+        outcome: status,
+        receivedReviewCount,
+        receivedSelectedExcerptIdCount,
+      }],
+      durationMs: Date.now() - startedAt,
+      completedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    return res.json({
+      ok: true,
+      schemaVersion: "1",
+      importLedgerId: ledgerRef.id,
+      results: [{
+        sourceRecordId: intake.item.sourceRecordId,
+        status,
+        canonicalVideoId,
+        canonicalVideoUrl,
+        finalAssetUrl,
+        receivedReviewCount,
+        receivedSelectedExcerptIdCount,
+      }],
+    });
+  } catch (err) {
+    await ledgerRef.set({
+      status: "failed",
+      contentType: "VV",
+      error: err.message || "weaver_video_import_failed",
+      durationMs: Date.now() - startedAt,
+      completedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return res.status(err.status || 500).json({
+      ok: false,
+      error: err.message || "weaver_video_import_failed",
+      importLedgerId: ledgerRef.id,
+      schemaVersion: "1",
     });
   }
 });

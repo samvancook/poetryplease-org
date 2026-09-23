@@ -3362,6 +3362,37 @@
       }
     }
 
+    function renderWeaverVideoReviewContext(item = {}) {
+      if (item.collection !== 'videos') return '';
+      const reviews = Array.isArray(item.weaverReviews) ? item.weaverReviews : [];
+      const selectedExcerptIds = Array.isArray(item.weaverSelectedExcerptRecordIds)
+        ? item.weaverSelectedExcerptRecordIds
+        : [];
+      if (!reviews.length && !selectedExcerptIds.length) return '';
+      const reviewRows = reviews.map((review) => {
+        const score = review.legacyNumericScore !== null && review.legacyNumericScore !== undefined
+          ? ' · score ' + escapeHtml(review.legacyNumericScore)
+          : '';
+        const ids = (review.excerptRecordIds || []).length
+          ? '<div>Selected excerpt IDs: ' + escapeHtml(review.excerptRecordIds.join(', ')) + '</div>'
+          : '';
+        const notes = review.notes ? '<div>' + escapeHtml(review.notes) + '</div>' : '';
+        return '<div style="margin-top:6px;padding-top:6px;border-top:1px dashed var(--line);">' +
+          '<div>' + escapeHtml(review.rating || 'Unrated') + score + '</div>' +
+          '<div>' + escapeHtml(review.reviewerIdentity || review.reviewerEmail || 'Unknown reviewer') + '</div>' +
+          notes + ids + '</div>';
+      }).join('');
+      const reviewSection = reviewRows ? '<div style="margin-top:8px;"><strong>Reviews</strong>' + reviewRows + '</div>' : '';
+      const selectedSection = selectedExcerptIds.length
+        ? '<div style="margin-top:8px;"><strong>Selected excerpt IDs</strong><div>' +
+          escapeHtml(selectedExcerptIds.join(', ')) + '</div></div>'
+        : '';
+      return '<details class="meta" style="margin-top:8px;"><summary>Weaver review context · ' +
+        Number(item.receivedReviewCount || reviews.length) + ' review(s) · ' +
+        Number(item.receivedSelectedExcerptIdCount || selectedExcerptIds.length) + ' selected excerpt ID(s)</summary>' +
+        reviewSection + selectedSection + '</details>';
+    }
+
     function renderContentLibrary() {
       const container = document.getElementById('content-library-list');
       const statusEl = document.getElementById('content-status');
@@ -3401,6 +3432,7 @@
                   <div>${escapeHtml(item.contentId || item.id || '—')}</div>
                   ${item.imageUrl || item.url || item.youtubeUrl ? `<div class="meta"><a href="${escapeHtml(item.youtubeUrl || item.url || item.imageUrl)}" target="_blank" rel="noopener noreferrer">Open asset</a></div>` : ''}
                   ${item.contentId || item.imageId || item.id ? `<div class="meta"><a href="/?item=${encodeURIComponent(item.contentId || item.imageId || item.id)}" target="_blank" rel="noopener noreferrer">Open in Poetry Please</a></div>` : ''}
+                  ${renderWeaverVideoReviewContext(item)}
                 </td>
                 <td>${escapeHtml(item.author || '—')}</td>
                 <td>${escapeHtml(item.book || '—')}${item.releaseCatalog ? `<div class="meta">${escapeHtml(item.releaseCatalog)}</div>` : ''}</td>

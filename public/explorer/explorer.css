@@ -74,7 +74,9 @@ blockquote { margin:10px 0; padding:10px 14px; border-left:3px solid var(--accen
 .summary-stat strong { font-size:24px; }
 .summary-stat span { margin-top:2px; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; }
 .coverage-chips { display:flex; gap:6px; flex-wrap:wrap; margin-top:7px; }
-.coverage-chips span { padding:5px 8px; border-radius:999px; background:#edf2ef; color:#365b4a; font-size:12px; }
+.coverage-chips button { padding:6px 9px; border:1px solid transparent; border-radius:999px; background:#edf2ef; color:#365b4a; font-size:12px; font-weight:650; }
+.coverage-chips button:hover { border-color:#9fb9ad; }
+.coverage-chips button.active { background:var(--accent); color:white; border-color:var(--accent); }
 .check { display:flex; align-items:center; gap:7px; white-space:nowrap; color:var(--muted); font-size:13px; }
 .check input { width:auto; padding:0; }
 .asset-title { margin-bottom:4px; }

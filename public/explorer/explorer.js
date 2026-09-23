@@ -39,7 +39,48 @@
   }
 
   function getType(item) {
-    return text(item && (item.type || item.assetType || item.contentType)).toUpperCase() || "OTHER";
+    const raw = text(item && (item.type || item.assetType || item.contentType || item.imageType)).toUpperCase();
+    const compact = raw.replace(/[^A-Z0-9]/g, "");
+    if (["FULLPOEM", "FULLPOEMTEXT"].includes(compact)) return "FP";
+    if (["FULLPOEMIMAGE", "FULLPOEMGRAPHIC", "FPIMAGE"].includes(compact)) return "FPI";
+    return raw || "OTHER";
+  }
+
+  function primaryType(row) {
+    const explicit = getType(row);
+    return explicit === "OTHER" ? "FP" : explicit;
+  }
+
+  function catalogValue(item) {
+    return text(item && (item.catalog || item.releaseCatalog || item.catalogName || item.catalogCode || item.explorerCatalog));
+  }
+
+  function rowAssetTypes(row) {
+    const types = new Set([primaryType(row)]);
+    for (const item of Array.isArray(row && row.connectedItems) ? row.connectedItems : []) types.add(getType(item));
+    return types;
+  }
+
+  function relationshipKeys(row) {
+    const keys = new Set([
+      relationshipLabel({
+        workId: row && (row.workId || row.poemId),
+        imageId: row && row.imageId,
+        title: row && (row.title || row.poemTitle),
+      }).key,
+    ]);
+    for (const item of Array.isArray(row && row.connectedItems) ? row.connectedItems : []) {
+      keys.add(relationshipLabel(item).key);
+    }
+    return [...keys];
+  }
+
+  function relationshipCounts(rows) {
+    const counts = { exact: 0, linked: 0, inferred: 0, unmatched: 0 };
+    for (const row of Array.isArray(rows) ? rows : []) {
+      for (const key of relationshipKeys(row)) counts[key] += 1;
+    }
+    return counts;
   }
 
   function itemFlags(item) {
@@ -53,12 +94,16 @@
     const query = normalized(filters && filters.query);
     const author = normalized(filters && filters.author);
     const book = normalized(filters && filters.book);
+    const catalog = normalized(filters && filters.catalog);
     const assetType = text(filters && filters.assetType).toUpperCase();
     const confidence = text(filters && filters.confidence).toLowerCase();
+    const coverage = filters && filters.coverage && typeof filters.coverage === "object" ? filters.coverage : {};
+    const productLink = text(filters && filters.productLink).toLowerCase();
     const flagsOnly = !!(filters && filters.flagsOnly);
     return (Array.isArray(rows) ? rows : []).filter((row) => {
       const rowAuthor = normalized(row.author);
       const rowBook = normalized(row.book || row.bookTitle);
+      const rowCatalog = normalized(catalogValue(row));
       const connected = Array.isArray(row.connectedItems) ? row.connectedItems : [];
       const haystack = normalized([
         row.title || row.poemTitle,
@@ -66,16 +111,31 @@
         row.book || row.bookTitle,
         row.catalog || row.releaseCatalog,
         row.imageId,
-        ...connected.map((item) => [item.title, item.poemTitle, item.imageId, item.canonicalImageId, getType(item)].join(" ")),
+        ...connected.map((item) => [item.title, item.poemTitle, item.imageId, item.canonicalImageId, getType(item),
+          item.sourceUrl, item.mediaUrl, item.fileLink, item.downloadUrl, item.driveUrl, item.imageUrl,
+          item.platform, item.sourceSystem, item.source, item.origin].join(" ")),
+        ...(Array.isArray(row.explorerProductLinks) ? row.explorerProductLinks.map((link) => [link.label, link.url].join(" ")) : []),
       ].join(" "));
-      const typeMatch = !assetType || connected.some((item) => getType(item) === assetType);
-      const confidenceMatch = !confidence || connected.some((item) => relationshipLabel(item).key === confidence);
+      const typeMatch = !assetType
+        || primaryType(row) === assetType
+        || connected.some((item) => getType(item) === assetType);
+      const confidenceMatch = !confidence || relationshipKeys(row).includes(confidence);
+      const types = rowAssetTypes(row);
+      const coverageMatch = Object.entries(coverage).every(([type, mode]) => {
+        const hasType = types.has(text(type).toUpperCase());
+        return mode === "has" ? hasType : mode === "missing" ? !hasType : true;
+      });
+      const hasProductLink = rowHasProductLink(row);
+      const productLinkMatch = !productLink || (productLink === "has" ? hasProductLink : productLink === "missing" ? !hasProductLink : true);
       const flagged = itemFlags(row).length || connected.some((item) => itemFlags(item).length);
       return (!query || haystack.includes(query))
         && (!author || rowAuthor === author)
         && (!book || rowBook === book)
+        && (!catalog || rowCatalog === catalog)
         && typeMatch
         && confidenceMatch
+        && coverageMatch
+        && productLinkMatch
         && (!flagsOnly || flagged);
     });
   }
@@ -116,11 +176,28 @@
     });
   }
 
+  function rowHasProductLink(row) {
+    return (Array.isArray(row && row.explorerProductLinks) && row.explorerProductLinks.length > 0)
+      || productLinks(row || {}).length > 0;
+  }
+
+  function coveragePresence(rows) {
+    const presence = Object.fromEntries(ASSET_TYPES.map((type) => [type, { has: 0, missing: 0 }]));
+    for (const row of Array.isArray(rows) ? rows : []) {
+      const types = rowAssetTypes(row);
+      for (const type of ASSET_TYPES) presence[type][types.has(type) ? "has" : "missing"] += 1;
+    }
+    return presence;
+  }
+
   function coverageCounts(rows) {
     const counts = Object.fromEntries(ASSET_TYPES.map((type) => [type, 0]));
     let other = 0;
     let flagged = 0;
     for (const row of Array.isArray(rows) ? rows : []) {
+      const primary = primaryType(row);
+      if (Object.prototype.hasOwnProperty.call(counts, primary)) counts[primary] += 1;
+      else other += 1;
       if (itemFlags(row).length) flagged += 1;
       for (const item of Array.isArray(row.connectedItems) ? row.connectedItems : []) {
         const type = getType(item);
@@ -135,11 +212,22 @@
   function viewModel(payload) {
     const rows = Array.isArray(payload && payload.rows) ? payload.rows : [];
     const summaries = Array.isArray(payload && payload.bookSummaries) ? payload.bookSummaries : [];
+    const summaryByBook = new Map(summaries.map((summary) => [normalized(summary.book || summary.bookTitle), summary]));
+    const enrichedRows = rows.map((row) => {
+      const summary = summaryByBook.get(normalized(row.book || row.bookTitle)) || {};
+      const additions = {};
+      const catalog = catalogValue(summary);
+      if (!catalogValue(row) && catalog) additions.explorerCatalog = catalog;
+      const links = productLinks(row, summary);
+      if (links.length) additions.explorerProductLinks = links;
+      return Object.keys(additions).length ? { ...row, ...additions } : row;
+    });
     return {
-      rows,
+      rows: enrichedRows,
       summaries,
-      authors: unique(rows.map((row) => row.author)),
-      books: unique(rows.map((row) => row.book || row.bookTitle)),
+      authors: unique(enrichedRows.map((row) => row.author)),
+      books: unique(enrichedRows.map((row) => row.book || row.bookTitle)),
+      catalogs: unique(enrichedRows.map(catalogValue)),
     };
   }
 
@@ -151,9 +239,15 @@
     relationshipLabel,
     assertReadOnlyRequest,
     getType,
+    primaryType,
+    rowAssetTypes,
+    catalogValue,
+    relationshipCounts,
     itemFlags,
     assetUrl,
     productLinks,
+    rowHasProductLink,
+    coveragePresence,
     coverageCounts,
     viewModel,
   };
@@ -175,7 +269,7 @@ if (typeof document !== "undefined") {
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
 
     const PAGE_SIZE = 40;
-    const state = { rows: [], summaries: [], filtered: [], visibleCount: PAGE_SIZE };
+    const state = { rows: [], summaries: [], filtered: [], visibleCount: PAGE_SIZE, coverageFilters: {} };
     const $ = (id) => document.getElementById(id);
     const plainText = (value) => String(value == null ? "" : value).trim();
     const escapeHtml = (value) => String(value == null ? "" : value)
@@ -225,13 +319,31 @@ if (typeof document !== "undefined") {
         + values.map((value) => '<option value="' + escapeHtml(value) + '">' + escapeHtml(value) + "</option>").join("");
     }
 
+    function fillConfidenceSelect(rows) {
+      const counts = E.relationshipCounts(rows);
+      const labels = {
+        exact: "Exact / stable",
+        linked: "Poetry Please linked",
+        inferred: "Inferred",
+        unmatched: "Unmatched",
+      };
+      $("confidence").innerHTML = '<option value="">All relationship types</option>'
+        + Object.entries(labels)
+          .filter(([key]) => counts[key] > 0)
+          .map(([key, label]) => '<option value="' + key + '">' + label + " (" + counts[key] + ")</option>")
+          .join("");
+    }
+
     function selectedFilters() {
       return {
         query: $("search").value,
         author: $("author").value,
         book: $("book").value,
+        catalog: $("catalog").value,
         assetType: $("asset-type").value,
         confidence: $("confidence").value,
+        coverage: { ...state.coverageFilters },
+        productLink: $("product-link").value,
         flagsOnly: $("flags-only").checked,
       };
     }
@@ -242,8 +354,12 @@ if (typeof document !== "undefined") {
       if (filters.query) params.set("q", filters.query);
       if (filters.author) params.set("author", filters.author);
       if (filters.book) params.set("book", filters.book);
+      if (filters.catalog) params.set("catalog", filters.catalog);
       if (filters.assetType) params.set("type", filters.assetType);
       if (filters.confidence) params.set("confidence", filters.confidence);
+      const coverage = Object.entries(filters.coverage).sort().map(([type, mode]) => type + ":" + mode).join(",");
+      if (coverage) params.set("coverage", coverage);
+      if (filters.productLink) params.set("productLink", filters.productLink);
       if (filters.flagsOnly) params.set("flags", "1");
       history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
     }
@@ -253,8 +369,15 @@ if (typeof document !== "undefined") {
       $("search").value = params.get("q") || "";
       $("author").value = params.get("author") || "";
       $("book").value = params.get("book") || "";
+      $("catalog").value = params.get("catalog") || "";
       $("asset-type").value = params.get("type") || "";
       $("confidence").value = params.get("confidence") || "";
+      state.coverageFilters = {};
+      for (const token of (params.get("coverage") || "").split(",")) {
+        const [type, mode] = token.split(":");
+        if (E.ASSET_TYPES.includes(type) && ["has", "missing"].includes(mode)) state.coverageFilters[type] = mode;
+      }
+      $("product-link").value = params.get("productLink") || "";
       $("flags-only").checked = params.get("flags") === "1";
     }
 
@@ -263,8 +386,9 @@ if (typeof document !== "undefined") {
       return links.map((link) => '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(link.label) + "</a>").join(" · ");
     }
 
-    function renderSummary(rows) {
+    function renderSummary(rows, facetRows) {
       const coverage = E.coverageCounts(rows);
+      const presence = E.coveragePresence(facetRows);
       const bookCount = new Set(rows.map((row) => E.normalized(row.book || row.bookTitle)).filter(Boolean)).size;
       const authorCount = new Set(rows.map((row) => E.normalized(row.author)).filter(Boolean)).size;
       const assetTotal = Object.values(coverage.counts).reduce((sum, value) => sum + value, 0) + coverage.other;
@@ -275,8 +399,15 @@ if (typeof document !== "undefined") {
         ["Linked assets", assetTotal],
         ["Flags", coverage.flagged],
       ].map((item) => '<div class="summary-stat"><strong>' + item[1] + '</strong><span>' + item[0] + "</span></div>").join("");
-      $("coverage").innerHTML = E.ASSET_TYPES.map((type) => '<span><b>' + type + "</b> " + coverage.counts[type] + "</span>").join("")
-        + (coverage.other ? '<span><b>OTHER</b> ' + coverage.other + "</span>" : "");
+      $("coverage").innerHTML = E.ASSET_TYPES.map((type) => {
+        const mode = state.coverageFilters[type] || "any";
+        const label = mode === "has" ? "Has " + presence[type].has
+          : mode === "missing" ? "Missing " + presence[type].missing
+            : presence[type].has + " have · " + presence[type].missing + " missing";
+        return '<button type="button" data-coverage-filter="' + type + '" data-mode="' + mode
+          + '" class="' + (mode !== "any" ? "active" : "") + '" aria-pressed="' + (mode !== "any")
+          + '" title="Click to cycle Any, Has, and Missing"><b>' + type + "</b> " + label + "</button>";
+      }).join("");
     }
 
     function renderAsset(item, assetTypeFilter) {
@@ -316,7 +447,7 @@ if (typeof document !== "undefined") {
         + '<div class="work-head"><div><h3>' + escapeHtml(row.title || row.poemTitle || "Untitled") + '</h3>'
         + '<div class="meta">' + escapeHtml(row.author || "Unknown author") + " · " + escapeHtml(row.book || row.bookTitle || "No book returned") + "</div></div>"
         + '<span class="confidence ' + workIdentity.key + '">' + escapeHtml(workIdentity.label) + "</span></div>"
-        + '<div class="chips"><span>' + escapeHtml(row.catalog || row.releaseCatalog || "Catalog unavailable") + "</span>"
+        + '<div class="chips"><span>' + escapeHtml(E.catalogValue(row) || "Catalog unavailable") + "</span>"
         + typeChips
         + (row.signalLevel ? "<span>Signal: " + escapeHtml(row.signalLevel) + "</span>" : "") + "</div>"
         + (flags.length ? '<div class="flag"><strong>Review flags:</strong> ' + flags.map((flag) => escapeHtml(flag.note || flag.qualityLane || "Flagged")).join(" · ") + "</div>" : "")
@@ -346,13 +477,14 @@ if (typeof document !== "undefined") {
         if (!groups.has(book)) groups.set(book, []);
         groups.get(book).push(row);
       }
-      const expandBooks = !!(filters.query || filters.author || filters.book || filters.assetType || filters.confidence || filters.flagsOnly);
+      const expandBooks = !!(filters.query || filters.author || filters.book || filters.catalog || filters.assetType || filters.confidence
+        || filters.productLink || Object.keys(filters.coverage).length || filters.flagsOnly);
       $("results").innerHTML = groups.size ? [...groups.entries()].sort(bookSort).map(([book, rows]) => {
         const summary = summaryByBook.get(E.normalized(book)) || {};
         const sample = rows[0] || {};
         const links = E.productLinks(sample, summary);
         const release = summary.releaseDate || summary.pubDate || summary.releaseYear || sample.releaseDate || sample.pubDate || sample.releaseYear || "";
-        const catalog = summary.catalog || summary.releaseCatalog || sample.catalog || sample.releaseCatalog || "";
+        const catalog = E.catalogValue(summary) || E.catalogValue(sample);
         return '<details class="book-card"' + (expandBooks ? " open" : "") + '><summary class="book-header"><div><div class="eyebrow">Book</div><h2>' + escapeHtml(book) + "</h2>"
           + '<div class="meta">' + escapeHtml(sample.author || "") + '</div></div><div class="book-stats"><strong>' + rows.length + '</strong><span>works</span></div></summary>'
           + '<div class="book-meta"><div><b>Release</b><span>' + escapeHtml(release || "Not returned") + "</span></div>"
@@ -361,7 +493,7 @@ if (typeof document !== "undefined") {
           + '<div class="works">' + rows.map((row) => renderWork(row, filters.assetType)).join("") + "</div></details>";
       }).join("") : '<div class="empty">No works match these filters.</div>';
 
-      renderSummary(state.filtered);
+      renderSummary(state.filtered, state.rows);
       const remaining = state.filtered.length - visibleRows.length;
       $("load-more").hidden = remaining <= 0;
       $("load-more").textContent = remaining > 0 ? "Show " + Math.min(PAGE_SIZE, remaining) + " more works" : "";
@@ -377,7 +509,8 @@ if (typeof document !== "undefined") {
     }
 
     function resetFilters() {
-      ["search", "author", "book", "asset-type", "confidence"].forEach((id) => { $(id).value = ""; });
+      ["search", "author", "book", "catalog", "asset-type", "confidence", "product-link"].forEach((id) => { $(id).value = ""; });
+      state.coverageFilters = {};
       $("flags-only").checked = false;
       filterChanged();
     }
@@ -389,7 +522,9 @@ if (typeof document !== "undefined") {
       state.summaries = model.summaries;
       fillSelect("author", model.authors, "authors");
       fillSelect("book", model.books, "books");
+      fillSelect("catalog", model.catalogs, "catalogs");
       fillSelect("asset-type", E.ASSET_TYPES, "asset types");
+      fillConfidenceSelect(state.rows);
       restoreFilters();
       $("workspace").hidden = false;
       render();
@@ -431,8 +566,18 @@ if (typeof document !== "undefined") {
     $("retry-auth").addEventListener("click", () => location.reload());
     $("logout").addEventListener("click", signOut);
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
-    ["author", "book", "asset-type", "confidence", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
+    ["author", "book", "catalog", "asset-type", "confidence", "product-link", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
     $("reset").addEventListener("click", resetFilters);
+    $("coverage").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-coverage-filter]");
+      if (!button) return;
+      const type = button.getAttribute("data-coverage-filter");
+      const current = state.coverageFilters[type] || "any";
+      const next = current === "any" ? "has" : current === "has" ? "missing" : "any";
+      if (next === "any") delete state.coverageFilters[type];
+      else state.coverageFilters[type] = next;
+      filterChanged();
+    });
     $("load-more").addEventListener("click", () => {
       state.visibleCount += PAGE_SIZE;
       render();

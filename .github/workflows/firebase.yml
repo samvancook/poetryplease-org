@@ -39,7 +39,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js
+        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js

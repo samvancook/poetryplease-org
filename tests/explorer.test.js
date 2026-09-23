@@ -14,13 +14,17 @@ test("authorization accepts only team and admin roles", () => {
   assert.equal(explorer.isTeamProfile({ role: "admin" }), false);
 });
 
-test("search and author/book filters stay scoped to matching works", () => {
+test("search and author/book/catalog filters stay scoped to matching works", () => {
   const rows = [
-    { title: "The Future", author: "Neil Hilborn", book: "Our Numbered Days", catalog: "Spring 2015" },
+    { title: "The Future", author: "Neil Hilborn", book: "Our Numbered Days", catalog: "Spring 2015", connectedItems: [{ type: "VV", sourceUrl: "https://youtu.be/video-1" }] },
     { title: "Complainers", author: "Rudy Francisco", book: "Helium", catalog: "Fall 2017" },
   ];
   assert.deepEqual(explorer.filterWorks(rows, { query: "future" }).map((row) => row.title), ["The Future"]);
   assert.deepEqual(explorer.filterWorks(rows, { author: "rudy francisco", book: "helium" }).map((row) => row.title), ["Complainers"]);
+  assert.deepEqual(explorer.filterWorks(rows, { catalog: "spring 2015" }).map((row) => row.title), ["The Future"]);
+  assert.deepEqual(explorer.filterWorks(rows, { query: "youtu.be/video-1" }).map((row) => row.title), ["The Future"]);
+  assert.deepEqual(explorer.filterWorks(rows, { coverage: { VV: "has" } }).map((row) => row.title), ["The Future"]);
+  assert.deepEqual(explorer.filterWorks(rows, { coverage: { VV: "missing" } }).map((row) => row.title), ["Complainers"]);
   assert.equal(explorer.filterWorks(rows, { author: "Neil Hilborn", book: "Helium" }).length, 0);
 });
 
@@ -43,17 +47,24 @@ test("view model derives selectors without mutating API rows", () => {
     { title: "B", author: "Author B", book: "Book 2" },
     { title: "A", author: "Author A", book: "Book 1" },
     { title: "A2", author: "Author A", book: "Book 1" },
-  ], bookSummaries: [{ book: "Book 1" }] };
+  ], bookSummaries: [{ book: "Book 1", releaseCatalog: "Spring 2026", bookLink: "https://poetryplease.org/books/book-1" }] };
   const model = explorer.viewModel(payload);
   assert.deepEqual(model.authors, ["Author A", "Author B"]);
   assert.deepEqual(model.books, ["Book 1", "Book 2"]);
+  assert.deepEqual(model.catalogs, ["Spring 2026"]);
+  assert.equal(model.rows[0].explorerCatalog, undefined);
+  assert.equal(model.rows[1].explorerCatalog, "Spring 2026");
+  assert.equal(model.rows[1].explorerProductLinks[0].url, "https://poetryplease.org/books/book-1");
+  assert.deepEqual(explorer.filterWorks(model.rows, { productLink: "has" }).map((row) => row.title), ["A", "A2"]);
+  assert.deepEqual(explorer.filterWorks(model.rows, { productLink: "missing" }).map((row) => row.title), ["B"]);
+  assert.equal(payload.rows[1].explorerCatalog, undefined);
   assert.equal(payload.rows.length, 3);
 });
 
 function browserHarness() {
   const ids = [
-    "login", "switch-account", "retry-auth", "logout", "search", "author", "book",
-    "asset-type", "confidence", "flags-only", "reset", "load-more", "workspace",
+    "login", "switch-account", "retry-auth", "logout", "search", "author", "book", "catalog",
+    "asset-type", "confidence", "product-link", "flags-only", "reset", "load-more", "workspace",
     "results", "account-note", "status", "summary", "coverage",
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, {
