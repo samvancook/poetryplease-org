@@ -3162,17 +3162,27 @@
     async function loadUserSubmissions() {
       const statusEl = document.getElementById('user-submissions-status');
       statusEl.textContent = 'Loading submissions…';
+      statusEl.className = 'status';
+      let timeoutId;
       try {
-        const payload = await api('admin/contentSubmissions', { method: 'GET' });
+        const payload = await Promise.race([
+          api('admin/contentSubmissions', { method: 'GET' }),
+          new Promise((_, reject) => {
+            timeoutId = setTimeout(() => reject(new Error('Submissions are taking too long to load. Please retry.')), 20000);
+          }),
+        ]);
         state.submissions = payload.submissions || [];
         state.submissionPrograms = payload.programs || [];
         renderSubmissionPrograms();
         renderUserSubmissions();
       } catch (err) {
         console.error(err);
-        document.getElementById('user-submissions-list').innerHTML = '<div class="empty">Could not load submissions.</div>';
+        document.getElementById('user-submissions-list').innerHTML = '<div class="empty">Could not load submissions. <button id="retry-user-submissions" type="button">Retry</button></div>';
+        document.getElementById('retry-user-submissions').addEventListener('click', loadUserSubmissions);
         statusEl.textContent = err.message || 'Could not load submissions.';
         statusEl.className = 'status error';
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
