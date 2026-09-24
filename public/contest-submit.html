@@ -13,7 +13,7 @@
     h1 { margin:0 0 8px; font-family:Georgia,serif; font-size:clamp(36px,7vw,60px); font-weight:500; letter-spacing:0; }
     h2 { margin:0 0 8px; font-size:24px; letter-spacing:0; }
     p { color:var(--muted); line-height:1.5; }
-    #contest-banner { display:block; width:100%; max-height:320px; object-fit:cover; border-radius:10px; margin:0 0 24px; }
+    #contest-banner { display:block; width:100%; aspect-ratio:8/3; object-fit:cover; border-radius:10px; margin:0 0 24px; }
     form { display:grid; gap:20px; }
     .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
     label { display:grid; gap:7px; font-weight:700; }
@@ -45,6 +45,10 @@
     </header>
 
     <img id="contest-banner" alt="" hidden>
+    <section id="program-intro" hidden>
+      <h2 id="program-name"></h2>
+      <p id="program-description"></p>
+    </section>
     <section id="loading"><p>Loading submission form...</p></section>
     <section id="unavailable" hidden>
       <h2>Submissions are not open</h2>
@@ -52,8 +56,6 @@
     </section>
 
     <section id="form-section" hidden>
-      <h2 id="program-name"></h2>
-      <p id="program-description"></p>
       <form id="submission-form">
         <p>Required: name, email address, poem title, submission, and terms agreement. Other details are optional.</p>
         <div class="grid">
@@ -200,9 +202,10 @@
           banner.alt = program.name + " banner";
           banner.hidden = false;
         }
-        if (!program.acceptingSubmissions) return showUnavailable("This submission program is not currently accepting work.");
         document.getElementById("program-name").textContent = program.name;
         document.getElementById("program-description").textContent = program.description || "";
+        document.getElementById("program-intro").hidden = false;
+        if (!program.acceptingSubmissions) return showUnavailable("This submission program is not currently accepting work.");
         text.maxLength = program.maxCharacters;
         const termsLabel = document.getElementById("terms-label");
         termsLabel.textContent = program.termsLabel;
