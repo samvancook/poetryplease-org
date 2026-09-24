@@ -13,6 +13,7 @@
     h1 { margin:0 0 8px; font-family:Georgia,serif; font-size:clamp(36px,7vw,60px); font-weight:500; letter-spacing:0; }
     h2 { margin:0 0 8px; font-size:24px; letter-spacing:0; }
     p { color:var(--muted); line-height:1.5; }
+    #contest-banner { display:block; width:100%; max-height:320px; object-fit:cover; border-radius:10px; margin:0 0 24px; }
     form { display:grid; gap:20px; }
     .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
     label { display:grid; gap:7px; font-weight:700; }
@@ -43,6 +44,7 @@
       <p>Submit your work for consideration.</p>
     </header>
 
+    <img id="contest-banner" alt="" hidden>
     <section id="loading"><p>Loading submission form...</p></section>
     <section id="unavailable" hidden>
       <h2>Submissions are not open</h2>
@@ -191,8 +193,14 @@
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Could not load this submission program.");
         program = payload.program;
-        if (!program.acceptingSubmissions) return showUnavailable("This submission program is not currently accepting work.");
         document.title = program.name + " | Poetry, Please";
+        const banner = document.getElementById("contest-banner");
+        if (program.bannerUrl) {
+          banner.src = program.bannerUrl;
+          banner.alt = program.name + " banner";
+          banner.hidden = false;
+        }
+        if (!program.acceptingSubmissions) return showUnavailable("This submission program is not currently accepting work.");
         document.getElementById("program-name").textContent = program.name;
         document.getElementById("program-description").textContent = program.description || "";
         text.maxLength = program.maxCharacters;
