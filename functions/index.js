@@ -3660,7 +3660,7 @@ function resolveRoles(existingRoles = [], email = "", options = {}) {
 }
 
 function sanitizeManagedRoles(inputRoles = [], email = "", options = {}) {
-  const allowed = new Set(["user", "author", "team", "admin"]);
+  const allowed = new Set(["user", "author", "team", "admin", "contest_builder"]);
   const roles = (Array.isArray(inputRoles) ? inputRoles : [])
     .map(normalizeText)
     .filter((role) => allowed.has(role));
@@ -9476,8 +9476,29 @@ app.get(getBoth("/admin/contentSubmissions"), async (req, res) => {
   res.json({ submissions, programs });
 });
 
+app.get(getBoth("/contest-builder/programs"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_builder"]);
+  if (!ctx) return;
+
+  const snap = await db.collection(COLLECTIONS.submissionPrograms).limit(100).get();
+  const programs = snap.docs.map((doc) => {
+    const data = doc.data() || {};
+    return {
+      id: doc.id,
+      name: normalizeText(data.name || doc.id),
+      description: normalizeText(data.description || ""),
+      opensAt: normalizeTimestamp(data.opensAt)?.toISOString() || null,
+      closesAt: normalizeTimestamp(data.closesAt)?.toISOString() || null,
+      acceptingSubmissions: data.acceptingSubmissions === true,
+      maxCharacters: Math.max(1, Math.min(Number(data.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
+      requiredReviewCount: Math.max(1, Math.min(Number(data.requiredReviewCount) || 3, 20)),
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+  res.json({ programs });
+});
+
 app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_builder"]);
   if (!ctx) return;
 
   const programId = sanitizeDocIdSegment(req.params.programId).toLowerCase();
@@ -9500,17 +9521,18 @@ app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
 
   const ref = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
   const existingProgram = await ref.get();
+  const existing = existingProgram.data() || {};
   await ref.set({
     name,
-    description: normalizeText(req.body?.description || "").slice(0, 1000),
-    releaseCatalog: normalizeText(req.body?.releaseCatalog || USER_SUBMISSION_CATALOG).slice(0, 120),
-    sourceEvent: normalizeText(req.body?.sourceEvent || name).slice(0, 160),
-    sourceEventLabel: normalizeText(req.body?.sourceEventLabel || req.body?.sourceEvent || name).slice(0, 160),
-    maxCharacters: Math.max(1, Math.min(Number(req.body?.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
-    termsLabel: normalizeText(req.body?.termsLabel || "I agree to the contest terms and conditions.").slice(0, 500),
-    termsUrl: normalizeText(req.body?.termsUrl || "").slice(0, 1000),
-    termsVersion: normalizeText(req.body?.termsVersion || "").slice(0, 120),
-    requiredReviewCount: Math.max(1, Math.min(Number(req.body?.requiredReviewCount) || 3, 20)),
+    description: normalizeText(req.body?.description ?? existing.description ?? "").slice(0, 1000),
+    releaseCatalog: normalizeText(req.body?.releaseCatalog || existing.releaseCatalog || USER_SUBMISSION_CATALOG).slice(0, 120),
+    sourceEvent: normalizeText(req.body?.sourceEvent || existing.sourceEvent || name).slice(0, 160),
+    sourceEventLabel: normalizeText(req.body?.sourceEventLabel || existing.sourceEventLabel || req.body?.sourceEvent || name).slice(0, 160),
+    maxCharacters: Math.max(1, Math.min(Number(req.body?.maxCharacters) || Number(existing.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
+    termsLabel: normalizeText(req.body?.termsLabel || existing.termsLabel || "I agree to the contest terms and conditions.").slice(0, 500),
+    termsUrl: normalizeText(req.body?.termsUrl ?? existing.termsUrl ?? "").slice(0, 1000),
+    termsVersion: normalizeText(req.body?.termsVersion ?? existing.termsVersion ?? "").slice(0, 120),
+    requiredReviewCount: Math.max(1, Math.min(Number(req.body?.requiredReviewCount) || Number(existing.requiredReviewCount) || 3, 20)),
     acceptingSubmissions: req.body?.acceptingSubmissions === true,
     opensAt: opensAt || null,
     closesAt: closesAt || null,
