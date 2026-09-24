@@ -32,7 +32,7 @@
     .error { color:var(--error); }
     .muted { color:var(--muted); font-size:14px; }
     #editor,#share,#banner-settings { display:none; }
-    #banner-preview { width:100%; max-height:240px; object-fit:cover; border-radius:8px; margin:12px 0; }
+    #banner-preview { width:100%; aspect-ratio:8/3; object-fit:cover; border-radius:8px; margin:12px 0; }
     .banner-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
     #share input { flex:1; min-width:240px; }
     @media(max-width:600px) { .dates { grid-template-columns:1fr; } .card { padding:18px; } }
@@ -57,6 +57,7 @@
         <input id="name" maxlength="160" required placeholder="e.g. 2027 Short Form Contest">
         <label for="description">Description for entrants</label>
         <textarea id="description" maxlength="1000" placeholder="What is this contest about?"></textarea>
+        <p class="muted">Optional banner after saving: recommended size 1600 × 600 pixels (8:3). Keep important text and logos near the center so they remain visible on smaller screens.</p>
         <div class="dates">
           <div><label for="opens">Opens</label><input id="opens" type="datetime-local" required></div>
           <div><label for="closes">Closes</label><input id="closes" type="datetime-local" required></div>
@@ -67,7 +68,7 @@
       </form>
       <section id="banner-settings" aria-label="Contest banner">
         <h2>Banner graphic</h2>
-        <p class="muted">Optional. Save the contest first, then upload a JPG, PNG, or WebP image (up to 5 MB). It will appear at the top of the entrant page.</p>
+        <p class="muted">Optional. Save the contest first, then upload a JPG, PNG, or WebP image (up to 5 MB). Recommended: 1600 × 600 pixels (8:3). The banner appears at the top of the contest page, even when submissions are closed.</p>
         <img id="banner-preview" alt="Current contest banner" hidden>
         <input id="banner-file" type="file" accept="image/jpeg,image/png,image/webp" aria-label="Choose banner graphic">
         <div class="banner-actions"><button id="banner-upload" type="button">Upload banner</button><span id="banner-status" class="muted"></span></div>
