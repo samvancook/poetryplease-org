@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Contest Builder | Poetry, Please</title>
+  <link rel="icon" href="/pp-loader-logo.png">
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <style>
+    :root { --paper:#fbf8f1; --ink:#1e1a15; --muted:#6c6558; --line:#dad0c1; --accent:#315f64; --error:#934536; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial,sans-serif; }
+    main { width:min(780px,calc(100% - 32px)); margin:28px auto 72px; }
+    header,.actions,.link-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    header { justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:16px; }
+    h1 { margin:28px 0 8px; font:500 clamp(38px,7vw,62px) Georgia,serif; }
+    p { color:var(--muted); line-height:1.5; }
+    a { color:var(--accent); }
+    .card { border:1px solid var(--line); border-radius:12px; background:#fff; padding:24px; margin-top:22px; }
+    label { display:block; margin:15px 0 6px; font-weight:700; }
+    input,textarea,select,button { font:inherit; }
+    input:not([type="checkbox"]),textarea,select { display:block; width:100%; border:1px solid var(--line); border-radius:6px; background:#fff; padding:12px; }
+    textarea { min-height:110px; resize:vertical; }
+    button { border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); padding:11px 16px; cursor:pointer; font-weight:700; }
+    button.primary { background:var(--accent); color:white; border-color:var(--accent); }
+    button:disabled { opacity:.55; cursor:not-allowed; }
+    .dates { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+    .check { display:flex; gap:10px; align-items:flex-start; font-weight:400; }
+    .check input { margin-top:3px; }
+    .status { min-height:24px; margin:14px 0; font-weight:700; }
+    .error { color:var(--error); }
+    .muted { color:var(--muted); font-size:14px; }
+    #editor,#share { display:none; }
+    #share input { flex:1; min-width:240px; }
+    @media(max-width:600px) { .dates { grid-template-columns:1fr; } .card { padding:18px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <a href="/">Back to Poetry, Please</a>
+      <span id="account" class="muted">Checking sign-in…</span>
+      <button id="login" type="button" hidden>Sign in with Google</button>
+      <button id="logout" type="button" hidden>Sign out</button>
+    </header>
+    <h1>Contest Builder</h1>
+    <p>Set up a contest, choose when submissions open and close, and share its link. Only accounts with the Contest builder role (or admins) can save contests.</p>
+    <div id="status" class="status">Checking access…</div>
+    <section id="editor" class="card">
+      <label for="program">Contest</label>
+      <select id="program"><option value="">Create a new contest</option></select>
+      <form id="form">
+        <label for="name">Contest name</label>
+        <input id="name" maxlength="160" required placeholder="e.g. 2027 Short Form Contest">
+        <label for="description">Description for entrants</label>
+        <textarea id="description" maxlength="1000" placeholder="What is this contest about?"></textarea>
+        <div class="dates">
+          <div><label for="opens">Opens</label><input id="opens" type="datetime-local" required></div>
+          <div><label for="closes">Closes</label><input id="closes" type="datetime-local" required></div>
+        </div>
+        <p class="muted">Dates use your computer's local time. The link can be shared before opening, but the form accepts entries only during these dates when submissions are enabled.</p>
+        <label class="check"><input id="accepting" type="checkbox"> Enable submissions for this contest</label>
+        <div class="actions"><button id="save" class="primary" type="submit">Save contest</button><span id="save-status" class="muted"></span></div>
+      </form>
+    </section>
+    <section id="share" class="card">
+      <h2>Contest link</h2>
+      <p>Send this link to entrants. The form will only accept entries while the contest is enabled and within its dates.</p>
+      <div class="link-actions"><input id="link" readonly aria-label="Contest submission link"><button id="copy" type="button">Copy link</button><a id="preview" target="_blank" rel="noopener">Open form</a></div>
+    </section>
+  </main>
+  <script>
+    firebase.initializeApp({
+      apiKey:"AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8",
+      authDomain:"poetry-please.firebaseapp.com",
+      projectId:"poetry-please",
+      storageBucket:"poetry-please.firebasestorage.app",
+      messagingSenderId:"609992589187",
+      appId:"1:609992589187:web:ea8aed51a08c3716b880b6",
+      measurementId:"G-FBLJHKQ70B"
+    });
+    const $ = (id) => document.getElementById(id);
+    let programs = [];
+    let saving = false;
+    function status(message,error) { $("status").textContent=message; $("status").className="status"+(error?" error":""); }
+    async function api(path,options) {
+      const user=firebase.auth().currentUser;
+      if (!user) throw new Error("Sign in first.");
+      const response=await fetch("/api/"+path, {
+        method:options&&options.method||"GET",
+        headers:{"content-type":"application/json","authorization":"Bearer "+await user.getIdToken(false)},
+        body:options&&options.body?JSON.stringify(options.body):undefined
+      });
+      const payload=await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(payload.error||"Request failed ("+response.status+")");
+      return payload;
+    }
+    function localDate(value) {
+      if (!value) return "";
+      const date=new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      const local=new Date(date.getTime()-date.getTimezoneOffset()*60000);
+      return local.toISOString().slice(0,16);
+    }
+    function share(id) {
+      const visible=!!id;
+      $("share").style.display=visible?"block":"none";
+      if (!visible) return;
+      const url=new URL("/contest-submit.html",location.origin);
+      url.searchParams.set("program",id);
+      $("link").value=url.href;
+      $("preview").href=url.href;
+    }
+    function selectProgram(id) {
+      const row=programs.find((item)=>item.id===id);
+      $("name").value=row&&row.name||"";
+      $("description").value=row&&row.description||"";
+      $("opens").value=localDate(row&&row.opensAt);
+      $("closes").value=localDate(row&&row.closesAt);
+      $("accepting").checked=!!(row&&row.acceptingSubmissions);
+      $("save-status").textContent="";
+      share(row&&row.id);
+    }
+    function renderPrograms(selected) {
+      const selector=$("program");
+      selector.replaceChildren(new Option("Create a new contest",""));
+      programs.forEach((row)=>selector.add(new Option(row.name+" ("+row.id+")",row.id)));
+      selector.value=selected||"";
+      selectProgram(selector.value);
+    }
+    async function load() {
+      status("Loading contests…");
+      try {
+        const data=await api("contest-builder/programs");
+        programs=data.programs||[];
+        renderPrograms($("program").value);
+        $("editor").style.display="block";
+        status("Ready.");
+      } catch(error) {
+        $("editor").style.display="none";
+        $("share").style.display="none";
+        status(error.message==="forbidden"?"This account does not have the Contest builder role. Ask an admin to assign it.":error.message,true);
+      }
+    }
+    $("program").addEventListener("change",()=>selectProgram($("program").value));
+    $("form").addEventListener("submit",async(event)=>{
+      event.preventDefault();
+      if (saving) return;
+      const name=$("name").value.trim();
+      const opens=new Date($("opens").value);
+      const closes=new Date($("closes").value);
+      if (!name||Number.isNaN(opens.getTime())||Number.isNaN(closes.getTime())||opens>=closes) {
+        $("save-status").textContent="Enter a name and a valid opening and closing time.";
+        return;
+      }
+      const existingId=$("program").value;
+      const slug=name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50)||"contest";
+      const random=crypto.randomUUID().slice(0,8);
+      const id=existingId||slug+"-"+random;
+      saving=true; $("save").disabled=true; $("save-status").textContent="Saving…";
+      try {
+        const result=await api("admin/submissionPrograms/"+encodeURIComponent(id),{
+          method:"POST",
+          body:{
+            name:name,
+            description:$("description").value.trim(),
+            opensAt:opens.toISOString(),
+            closesAt:closes.toISOString(),
+            acceptingSubmissions:$("accepting").checked
+          }
+        });
+        const data=await api("contest-builder/programs");
+        programs=data.programs||[];
+        renderPrograms(result.program.id);
+        $("save-status").textContent="Saved.";
+        status("Contest saved. Your link is below.");
+      } catch(error) {
+        $("save-status").textContent="Could not save: "+error.message;
+      } finally { saving=false; $("save").disabled=false; }
+    });
+    $("copy").addEventListener("click",async()=>{
+      try { await navigator.clipboard.writeText($("link").value); $("copy").textContent="Copied"; }
+      catch(error) { $("link").select(); $("copy").textContent="Select and copy link"; }
+    });
+    $("login").addEventListener("click",async()=>{
+      try { await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+      catch(error) { status("Sign-in failed. Please try again.",true); }
+    });
+    $("logout").addEventListener("click",()=>firebase.auth().signOut());
+    firebase.auth().onAuthStateChanged((user)=>{
+      $("account").textContent=user&&user.email||"Signed out";
+      $("login").hidden=!!user;
+      $("logout").hidden=!user;
+      if (user) load();
+      else { $("editor").style.display="none"; $("share").style.display="none"; status("Sign in with a Contest builder account."); }
+    });
+  </script>
+</body>
+</html>
