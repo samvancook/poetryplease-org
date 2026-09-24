@@ -61,6 +61,10 @@ const UPLOAD_RULES = {
     allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp"]),
     maxBytes: 5 * FILE_SIZE_MB,
   },
+  contestBanner: {
+    allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp"]),
+    maxBytes: 5 * FILE_SIZE_MB,
+  },
   replacementImage: {
     allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]),
     maxBytes: 10 * FILE_SIZE_MB,
@@ -5786,6 +5790,7 @@ app.get(getBoth("/submissionPrograms/:programId"), async (req, res) => {
       id: snap.id,
       name: normalizeText(data.name || snap.id),
       description: normalizeText(data.description || ""),
+      bannerUrl: normalizeText(data.bannerUrl || ""),
       termsLabel: normalizeText(data.termsLabel || "I agree to the contest terms and conditions."),
       termsUrl: normalizeText(data.termsUrl || ""),
       termsVersion: normalizeText(data.termsVersion || ""),
@@ -9487,6 +9492,7 @@ app.get(getBoth("/contest-builder/programs"), async (req, res) => {
       id: doc.id,
       name: normalizeText(data.name || doc.id),
       description: normalizeText(data.description || ""),
+      bannerUrl: normalizeText(data.bannerUrl || ""),
       opensAt: normalizeTimestamp(data.opensAt)?.toISOString() || null,
       closesAt: normalizeTimestamp(data.closesAt)?.toISOString() || null,
       acceptingSubmissions: data.acceptingSubmissions === true,
@@ -9495,6 +9501,38 @@ app.get(getBoth("/contest-builder/programs"), async (req, res) => {
     };
   }).sort((a, b) => a.name.localeCompare(b.name));
   res.json({ programs });
+});
+
+app.post(getBoth("/contest-builder/programs/:programId/banner"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_builder"]);
+  if (!ctx) return;
+
+  const programId = sanitizeDocIdSegment(req.params.programId).toLowerCase();
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const ref = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+
+  let upload;
+  try {
+    upload = parseBase64Upload(req.body, UPLOAD_RULES.contestBanner);
+  } catch (err) {
+    return res.status(err.status || 400).json({ error: err.message || "invalid_upload" });
+  }
+
+  const storagePath = `contest-banners/${programId}/${Date.now()}.${upload.extension}`;
+  const { publicUrl } = await saveImageUpload({
+    storagePath,
+    mimeType: upload.mimeType,
+    buffer: upload.buffer,
+  });
+  await ref.set({
+    bannerUrl: publicUrl,
+    bannerStoragePath: storagePath,
+    updatedAt: FieldValue.serverTimestamp(),
+    updatedBy: ctx.decoded.uid,
+  }, { merge: true });
+  res.json({ ok: true, bannerUrl: publicUrl });
 });
 
 app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
