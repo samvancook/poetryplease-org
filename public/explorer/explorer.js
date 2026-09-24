@@ -153,6 +153,65 @@
     return id ? "/app?item=" + encodeURIComponent(id) : "";
   }
 
+  function isDriveUrl(value) {
+    return /^https:\/\/(drive|docs)\.google\.com\//i.test(text(value));
+  }
+
+  function driveUrl(item) {
+    const candidates = item ? [
+      item.driveUrl, item.googleDriveUrl, item.googleDriveLink, item.fileLink,
+      item.downloadUrl, item.mediaUrl, item.imageUrl, item.sourceUrl,
+    ] : [];
+    return text(candidates.find(isDriveUrl));
+  }
+
+  function driveDownloadUrl(item) {
+    if (text(item && item.downloadUrl)) return text(item.downloadUrl);
+    const url = driveUrl(item);
+    if (!url) return "";
+    const match = url.match(/\/file\/d\/([^/]+)/i) || url.match(/[?&]id=([^&]+)/i);
+    return match ? "https://drive.google.com/uc?export=download&id=" + encodeURIComponent(match[1]) : "";
+  }
+
+  function assetRank(item) {
+    const rankFields = ["rank", "ranking", "imageRank", "curationRank", "qualityRank", "priorityRank", "rankPosition"];
+    const scoreFields = ["score", "rankingScore", "qualityScore", "priorityScore"];
+    for (const key of rankFields) {
+      const raw = item && item[key];
+      if (raw !== "" && raw != null && Number.isFinite(Number(raw))) {
+        return { kind: "rank", value: Number(raw), label: "Rank " + Number(raw) };
+      }
+    }
+    for (const key of scoreFields) {
+      const raw = item && item[key];
+      if (raw !== "" && raw != null && Number.isFinite(Number(raw))) {
+        return { kind: "score", value: Number(raw), label: "Score " + Number(raw) };
+      }
+    }
+    return null;
+  }
+
+  function rankingValue(item) {
+    const ranking = assetRank(item);
+    if (!ranking) return null;
+    return ranking.kind === "rank" ? -ranking.value : ranking.value;
+  }
+
+  function compareAssetRanking(left, right, mode) {
+    const a = rankingValue(left);
+    const b = rankingValue(right);
+    if (a == null && b == null) return 0;
+    if (a == null) return 1;
+    if (b == null) return -1;
+    return mode === "ranking-low" ? a - b : b - a;
+  }
+
+  function bestRowRanking(row) {
+    const values = (Array.isArray(row && row.connectedItems) ? row.connectedItems : [])
+      .map(rankingValue).filter((value) => value != null);
+    return values.length ? Math.max(...values) : null;
+  }
+
   function productLinks(row, summary) {
     const sources = [summary || {}, row || {}];
     const fields = [
@@ -245,6 +304,11 @@
     relationshipCounts,
     itemFlags,
     assetUrl,
+    driveUrl,
+    driveDownloadUrl,
+    assetRank,
+    compareAssetRanking,
+    bestRowRanking,
     productLinks,
     rowHasProductLink,
     coveragePresence,
@@ -344,6 +408,7 @@ if (typeof document !== "undefined") {
         confidence: $("confidence").value,
         coverage: { ...state.coverageFilters },
         productLink: $("product-link").value,
+        sort: $("sort").value,
         flagsOnly: $("flags-only").checked,
       };
     }
@@ -360,6 +425,7 @@ if (typeof document !== "undefined") {
       const coverage = Object.entries(filters.coverage).sort().map(([type, mode]) => type + ":" + mode).join(",");
       if (coverage) params.set("coverage", coverage);
       if (filters.productLink) params.set("productLink", filters.productLink);
+      if (filters.sort) params.set("sort", filters.sort);
       if (filters.flagsOnly) params.set("flags", "1");
       history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
     }
@@ -378,6 +444,7 @@ if (typeof document !== "undefined") {
         if (E.ASSET_TYPES.includes(type) && ["has", "missing"].includes(mode)) state.coverageFilters[type] = mode;
       }
       $("product-link").value = params.get("productLink") || "";
+      $("sort").value = params.get("sort") || "";
       $("flags-only").checked = params.get("flags") === "1";
     }
 
@@ -410,6 +477,23 @@ if (typeof document !== "undefined") {
       }).join("");
     }
 
+    function renderAssetLinks(item) {
+      const id = item.canonicalImageId || item.imageId || item.id || "";
+      const poetryPleaseUrl = id ? "/app?item=" + encodeURIComponent(id) : "";
+      const drive = E.driveUrl(item);
+      const download = E.driveDownloadUrl(item);
+      const source = E.assetUrl(item);
+      const links = [];
+      if (poetryPleaseUrl) links.push({ label: "Open in Poetry Please", url: poetryPleaseUrl });
+      if (drive) links.push({ label: "Open in Drive", url: drive });
+      if (download) links.push({ label: "Download", url: download });
+      if (source && ![poetryPleaseUrl, drive, download].includes(source)) links.push({ label: "Open source", url: source });
+      return links.length
+        ? '<div class="work-links">' + links.map((link) => '<a href="' + escapeHtml(link.url)
+          + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(link.label) + "</a>").join(" · ") + "</div>"
+        : '<span class="muted">No source link returned.</span>';
+    }
+
     function renderAsset(item, assetTypeFilter) {
       if (assetTypeFilter && E.getType(item) !== assetTypeFilter) return "";
       const identity = E.relationshipLabel(item);
@@ -418,22 +502,28 @@ if (typeof document !== "undefined") {
       const status = item.visibilityStatus || item.status || "available";
       const flags = E.itemFlags(item);
       const provenance = item.sourceSystem || item.source || item.origin || "";
+      const ranking = E.assetRank(item);
       return '<li class="asset">'
         + '<div class="asset-title"><strong>' + escapeHtml(E.getType(item)) + "</strong> · " + escapeHtml(item.title || item.poemTitle || id || "Untitled") + "</div>"
         + '<div class="meta"><span class="confidence ' + identity.key + '">' + escapeHtml(identity.label) + "</span> "
         + escapeHtml(identity.detail) + "</div>"
         + '<div class="meta">ID: ' + escapeHtml(id || "not returned") + " · Status: " + escapeHtml(status)
-        + (provenance ? " · Source: " + escapeHtml(provenance) : "") + "</div>"
+        + (provenance ? " · Source: " + escapeHtml(provenance) : "")
+        + (ranking ? " · " + escapeHtml(ranking.label) : "") + "</div>"
         + (item.excerpt || item.quote ? '<blockquote>' + escapeHtml(item.excerpt || item.quote) + "</blockquote>" : "")
         + (flags.length ? '<div class="flag">' + flags.map((flag) => escapeHtml(flag.note || flag.qualityLane || "Review flag")).join(" · ") + "</div>" : "")
-        + (url ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer">Open source</a>' : '<span class="muted">No source link returned.</span>')
+        + renderAssetLinks(item)
         + "</li>";
     }
 
-    function renderWork(row, assetTypeFilter) {
+    function renderWork(row, assetTypeFilter, sortMode) {
       const connected = Array.isArray(row.connectedItems) ? row.connectedItems : [];
       const visibleAssets = connected.filter((item) => !assetTypeFilter || E.getType(item) === assetTypeFilter);
       const ordered = visibleAssets.slice().sort((a, b) => {
+        if (sortMode) {
+          const ranked = E.compareAssetRanking(a, b, sortMode);
+          if (ranked) return ranked;
+        }
         const ai = E.ASSET_TYPES.indexOf(E.getType(a));
         const bi = E.ASSET_TYPES.indexOf(E.getType(b));
         return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
@@ -466,6 +556,15 @@ if (typeof document !== "undefined") {
       const filters = selectedFilters();
       state.filtered = E.filterWorks(state.rows, filters);
       state.filtered.sort((a, b) => {
+        if (filters.sort) {
+          const left = E.bestRowRanking(a);
+          const right = E.bestRowRanking(b);
+          if (left == null && right != null) return 1;
+          if (left != null && right == null) return -1;
+          if (left != null && right != null && left !== right) {
+            return filters.sort === "ranking-low" ? left - right : right - left;
+          }
+        }
         const book = String(a.book || a.bookTitle || "").localeCompare(String(b.book || b.bookTitle || ""));
         return book || String(a.title || a.poemTitle || "").localeCompare(String(b.title || b.poemTitle || ""));
       });
@@ -490,7 +589,7 @@ if (typeof document !== "undefined") {
           + '<div class="book-meta"><div><b>Release</b><span>' + escapeHtml(release || "Not returned") + "</span></div>"
           + "<div><b>Catalog</b><span>" + escapeHtml(catalog || "Not returned") + "</span></div>"
           + "<div><b>Product links</b><span>" + renderLinks(links) + "</span></div></div>"
-          + '<div class="works">' + rows.map((row) => renderWork(row, filters.assetType)).join("") + "</div></details>";
+          + '<div class="works">' + rows.map((row) => renderWork(row, filters.assetType, filters.sort)).join("") + "</div></details>";
       }).join("") : '<div class="empty">No works match these filters.</div>';
 
       renderSummary(state.filtered, state.rows);
@@ -509,7 +608,7 @@ if (typeof document !== "undefined") {
     }
 
     function resetFilters() {
-      ["search", "author", "book", "catalog", "asset-type", "confidence", "product-link"].forEach((id) => { $(id).value = ""; });
+      ["search", "author", "book", "catalog", "asset-type", "confidence", "product-link", "sort"].forEach((id) => { $(id).value = ""; });
       state.coverageFilters = {};
       $("flags-only").checked = false;
       filterChanged();
@@ -566,7 +665,7 @@ if (typeof document !== "undefined") {
     $("retry-auth").addEventListener("click", () => location.reload());
     $("logout").addEventListener("click", signOut);
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
-    ["author", "book", "catalog", "asset-type", "confidence", "product-link", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
+    ["author", "book", "catalog", "asset-type", "confidence", "product-link", "sort", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
     $("reset").addEventListener("click", resetFilters);
     $("coverage").addEventListener("click", (event) => {
       const button = event.target.closest("[data-coverage-filter]");
