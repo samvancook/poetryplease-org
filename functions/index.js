@@ -5822,12 +5822,12 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
   const phone = normalizeText(req.body?.phone || "").slice(0, 40);
   const instagramHandle = normalizeText(req.body?.instagramHandle || "").slice(0, 120);
   const followerCount = Math.max(0, Math.min(Number(req.body?.followerCount) || 0, 1000000000));
-  const title = normalizeText(req.body?.title || "").slice(0, USER_SUBMISSION_TITLE_MAX) || "Untitled";
+  const title = normalizeText(req.body?.title || "").slice(0, USER_SUBMISSION_TITLE_MAX);
   const text = normalizeText(req.body?.text || "");
   const termsAccepted = req.body?.termsAccepted === true;
   const maxCharacters = Math.max(1, Math.min(Number(program.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX));
 
-  if (!firstName || !lastName || !email || !text) {
+  if (!firstName || !lastName || !email || !title || !text) {
     return res.status(400).json({ error: "missing_required_submission_fields" });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
