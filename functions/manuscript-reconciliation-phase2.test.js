@@ -34,9 +34,14 @@ import {
   saveDecision,
 } from "../public/manuscript-reconciliation-phase2-preview.js";
 import {
+  COMMON_ACTIONS,
   candidateSourceMatches,
   filterRowsBySummary,
+  combineNeedsMerge,
+  needsNotes,
   reloadIfCandidateChanged,
+  sourcesForAction,
+  statusForAction,
 } from "../public/manuscript-reconciliation-live.js";
 
 const reviewer = { uid: "firebase-uid-1", email: "Reviewer@ButtonPoetry.com", roles: ["team", "admin"] };
@@ -290,6 +295,96 @@ test("note policy catches destructive, identity, title, non-candidate, OCR, pars
   assert.equal(decisionNeedsNotes(row, { resolutionAction: "review_retire", reviewStatus: "approved", canonicalTitle: "Title", stablePoemIdentity: "stable", textSourcePoemId: 2 }), true);
   assert.equal(decisionNeedsNotes(row, { resolutionAction: "adopt_candidate", reviewStatus: "approved", canonicalTitle: "Title", stablePoemIdentity: "stable", textSourcePoemId: 2 }), false);
   assert.equal(decisionNeedsNotes(row, { resolutionAction: "request_ocr", reviewStatus: "pending", canonicalTitle: "Title", stablePoemIdentity: "stable", textSourcePoemId: 2 }), true);
+});
+
+test("hand-edited text reaches Catalog and requires notes when it changes", () => {
+  // The proxy copies an allowlist, so an unnamed field never reaches the signed PATCH.
+  const sanitized = sanitizeDecision({ ...decision, manualText: "one line\nanother line" });
+  assert.equal(sanitized.manualText, "one line\nanother line");
+  assert.equal(sanitizeDecision({ ...decision, manualText: null }).manualText, null);
+  assert.equal(Object.hasOwn(sanitizeDecision({ ...decision, unexpectedField: "x" }), "unexpectedField"), false);
+
+  // Notes are required whenever the hand-edited text differs from what Catalog stores,
+  // including when a reviewer clears one, because clearing returns the poem to its sources.
+  const row = { identity: "fixture-poem", candidateTitle: "Fixture poem", candidate: { id: 9000011 }, manualText: "stored text" };
+  const unchanged = { ...decision, manualText: "stored text" };
+  assert.equal(needsNotes(row, unchanged), false);
+  assert.equal(needsNotes(row, { ...decision, manualText: "edited text" }), true);
+  assert.equal(needsNotes(row, { ...decision, manualText: null }), true);
+  // Whitespace-only is how Catalog spells "cleared", so it must not read as a change.
+  assert.equal(needsNotes({ ...row, manualText: null }, { ...decision, manualText: "   " }), false);
+});
+
+test("comparison headers stay the same height whatever the titles are", () => {
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  const html = fs.readFileSync(new URL("../public/manuscript-reconciliation.html", import.meta.url), "utf8");
+  // The side label and the poem title used to be one run of text, so a long title
+  // wrapped the whole header and pushed its own poem box down while the other stayed
+  // put. They are separate elements now, and the title is clamped to a fixed two lines,
+  // which is what keeps both columns level for line-by-line reading.
+  assert.match(client, /<span class="side">/);
+  assert.match(client, /<span class="ptitle" title="/);
+  assert.match(html, /\.texts>article h3 \.ptitle\{[^}]*height:2\.8em/);
+  assert.match(html, /\.texts>article h3 \.ptitle\{[^}]*-webkit-line-clamp:2/);
+  // Reserving two lines without clamping to two is the shipped fix that did not hold.
+  assert.doesNotMatch(html, /\.texts>article h3\{min-height:2\.8em/);
+});
+
+test("a reviewer can choose wording and formatting sources separately", () => {
+  // This was unreachable. The Decision control only offered pending/approved/rejected and
+  // mapped those to adopt_candidate or retain_prior, while the source pickers were revealed
+  // only when the skip-reason dropdown equalled combine_text_and_format, a value that
+  // dropdown never contained. So the action the roadmap prescribes for the prose poems
+  // could not be recorded at all. The Decision control names the action now.
+  const offered = COMMON_ACTIONS.map(([value]) => value);
+  assert.ok(offered.includes("combine_text_and_format"));
+  assert.ok(offered.includes("adopt_candidate"));
+  assert.ok(offered.includes("retain_prior"));
+
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  assert.match(client, /<select id="decision">/);
+  // The pickers must follow the Decision control, not the skip-reason dropdown.
+  assert.match(client, /const chosen = root\.querySelector\("#decision"\)\?\.value;[\s\S]{0,160}SOURCE_CHOICE_ACTION/);
+
+  // Each settled action carries its own status, so a saved decision cannot leave a poem queued.
+  assert.equal(statusForAction("combine_text_and_format"), "approved");
+  assert.equal(statusForAction("adopt_candidate"), "approved");
+  assert.equal(statusForAction("retain_prior"), "rejected");
+  assert.equal(statusForAction("request_ocr"), "pending");
+  assert.equal(statusForAction(""), "pending");
+
+  // Only the combine action defers to what the reviewer picked.
+  const row = { prior: { id: 11 }, candidate: { id: 22 } };
+  assert.deepEqual(sourcesForAction("adopt_candidate", row, 11, 11), { text: 22, format: 22 });
+  assert.deepEqual(sourcesForAction("retain_prior", row, 22, 22), { text: 11, format: 11 });
+  assert.deepEqual(sourcesForAction("combine_text_and_format", row, 22, 11), { text: 22, format: 11 });
+  // Catalog's seeder writes carry_forward_wording_adopt_final_format with BOTH ids set to
+  // the candidate, because publication_wording found the texts identical and nothing was
+  // carried forward. The action is not offered in the Decision control, so it only ever
+  // appears on a row Catalog already decided, and saving must preserve what it stored
+  // rather than rewriting the ids from the action name.
+  assert.deepEqual(sourcesForAction("carry_forward_wording_adopt_final_format", row, 22, 22), { text: 22, format: 22 });
+
+  // Wording from one source and formatting from the other is the subtle call; it needs a note.
+  const noteRow = { identity: "p", candidateTitle: "T", candidate: { id: 22 } };
+  const base = { reviewStatus: "approved", resolutionAction: "combine_text_and_format", canonicalTitle: "T", stablePoemIdentity: "p" };
+  assert.equal(needsNotes(noteRow, { ...base, textSourcePoemId: 22, formatSourcePoemId: 11 }), true);
+  assert.equal(needsNotes(noteRow, { ...base, textSourcePoemId: 22, formatSourcePoemId: 22 }), false);
+});
+
+test("an unmergeable combine is flagged before it blocks promotion", () => {
+  // Catalog's promotion build takes the formatting source's text verbatim when the two
+  // sources agree on wording once normalized, and returns needs_merge otherwise. The write
+  // API accepts either, so a reviewer would only learn at promotion. Same normalization as
+  // Catalog's publication_wording: strip all whitespace, lowercase.
+  const wrapped = { prior: { text: "one long line of prose that runs on" }, candidate: { text: "one long line\nof prose that\nruns on" } };
+  assert.equal(combineNeedsMerge(wrapped), false);
+  assert.equal(combineNeedsMerge({ prior: { text: "Same Words" }, candidate: { text: "same words" } }), false);
+  assert.equal(combineNeedsMerge({ prior: { text: "these words" }, candidate: { text: "different words" } }), true);
+
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  assert.match(client, /id="merge-warning"/);
+  assert.match(client, /would block promotion later/);
 });
 
 test("production proxy accepts only the guarded fixture and never editorial reconciliation 2", () => {
