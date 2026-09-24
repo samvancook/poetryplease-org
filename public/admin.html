@@ -423,6 +423,7 @@
             <option value="all">All roles</option>
             <option value="admin">Admins</option>
             <option value="team">Team</option>
+            <option value="contest_builder">Contest builders</option>
             <option value="author">Authors</option>
             <option value="user">Users</option>
           </select>
@@ -514,7 +515,7 @@
             <input id="submission-program-terms-label" style="width:100%;" value="I agree to the contest terms and conditions." />
           </label>
           <div id="submission-program-status" class="status">Programs remain closed until Open submissions is checked.</div>
-          <p><a href="/contest-review.html" target="_blank" rel="noopener">Open blinded team reviewer queue</a></p>
+          <p><a href="/contest-review.html" target="_blank" rel="noopener">Open blinded team reviewer queue</a> · <a href="/contest-builder.html" target="_blank" rel="noopener">Open contest builder</a></p>
           <div id="submission-program-list"></div>
         </details>
         <div class="controls" style="margin-bottom:16px;">
@@ -1396,6 +1397,7 @@
                   ${user.email === "sam@buttonpoetry.com" ? '<span class="pill">Bootstrap admin</span>' : ""}
                   ${(user.roles || []).includes("admin") ? '<span class="pill">Admin</span>' : ""}
                   ${(user.roles || []).includes("team") ? '<span class="pill">Team</span>' : ""}
+                  ${(user.roles || []).includes("contest_builder") ? '<span class="pill">Contest builder</span>' : ""}
                   ${(user.roles || []).includes("author") ? '<span class="pill">Author</span>' : ""}
                   ${String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com') ? `<div class="meta">Automatic team access: ${user.automaticTeamAccess === false ? 'Off' : 'On'}</div>` : ''}
                   <div class="meta">Last login: ${formatLastActive(user.lastLoginAt)}</div>
@@ -1406,6 +1408,7 @@
                     ${roleCheckbox(user.uid, "user", (user.roles || []).includes("user"))}
                     ${roleCheckbox(user.uid, "author", (user.roles || []).includes("author"))}
                     ${roleCheckbox(user.uid, "team", (user.roles || []).includes("team"))}
+                    ${roleCheckbox(user.uid, "contest_builder", (user.roles || []).includes("contest_builder"))}
                     ${roleCheckbox(user.uid, "admin", (user.roles || []).includes("admin"))}
                     `}
                   </div>
