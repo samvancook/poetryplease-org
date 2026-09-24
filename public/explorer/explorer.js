@@ -408,7 +408,7 @@ if (typeof document !== "undefined") {
         confidence: $("confidence").value,
         coverage: { ...state.coverageFilters },
         productLink: $("product-link").value,
-        sort: $("sort").value,
+        sort: $("sort") ? $("sort").value : "",
         flagsOnly: $("flags-only").checked,
       };
     }
@@ -444,7 +444,7 @@ if (typeof document !== "undefined") {
         if (E.ASSET_TYPES.includes(type) && ["has", "missing"].includes(mode)) state.coverageFilters[type] = mode;
       }
       $("product-link").value = params.get("productLink") || "";
-      $("sort").value = params.get("sort") || "";
+      if ($("sort")) $("sort").value = params.get("sort") || "";
       $("flags-only").checked = params.get("flags") === "1";
     }
 
@@ -608,7 +608,7 @@ if (typeof document !== "undefined") {
     }
 
     function resetFilters() {
-      ["search", "author", "book", "catalog", "asset-type", "confidence", "product-link", "sort"].forEach((id) => { $(id).value = ""; });
+      ["search", "author", "book", "catalog", "asset-type", "confidence", "product-link", "sort"].forEach((id) => { if ($(id)) $(id).value = ""; });
       state.coverageFilters = {};
       $("flags-only").checked = false;
       filterChanged();
@@ -665,7 +665,7 @@ if (typeof document !== "undefined") {
     $("retry-auth").addEventListener("click", () => location.reload());
     $("logout").addEventListener("click", signOut);
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
-    ["author", "book", "catalog", "asset-type", "confidence", "product-link", "sort", "flags-only"].forEach((id) => $(id).addEventListener("change", filterChanged));
+    ["author", "book", "catalog", "asset-type", "confidence", "product-link", "sort", "flags-only"].forEach((id) => { if ($(id)) $(id).addEventListener("change", filterChanged); });
     $("reset").addEventListener("click", resetFilters);
     $("coverage").addEventListener("click", (event) => {
       const button = event.target.closest("[data-coverage-filter]");
