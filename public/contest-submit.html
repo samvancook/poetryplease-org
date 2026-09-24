@@ -53,17 +53,18 @@
       <h2 id="program-name"></h2>
       <p id="program-description"></p>
       <form id="submission-form">
+        <p>Required: name, email address, poem title, submission, and terms agreement. Other details are optional.</p>
         <div class="grid">
           <label>First name<input name="firstName" autocomplete="given-name" required maxlength="80"></label>
           <label>Last name<input name="lastName" autocomplete="family-name" required maxlength="80"></label>
-          <label>Pronouns<input name="pronouns" autocomplete="off" maxlength="80"></label>
+          <label>Pronouns (optional)<input name="pronouns" autocomplete="off" maxlength="80"></label>
           <label>Email address<input name="email" type="email" autocomplete="email" required maxlength="240"></label>
-          <label>Zip or postal code<input name="postalCode" autocomplete="postal-code" maxlength="24"></label>
-          <label>Phone number<input name="phone" type="tel" autocomplete="tel" maxlength="40"></label>
-          <label>Public Instagram handle<input name="instagramHandle" autocomplete="off" maxlength="120"></label>
-          <label>Instagram followers<input name="followerCount" type="number" min="0" step="1"></label>
+          <label>Zip or postal code (optional)<input name="postalCode" autocomplete="postal-code" maxlength="24"></label>
+          <label>Phone number (optional)<input name="phone" type="tel" autocomplete="tel" maxlength="40"></label>
+          <label>Public Instagram handle (optional)<input name="instagramHandle" autocomplete="off" maxlength="120"></label>
+          <label>Instagram followers (optional)<input name="followerCount" type="number" min="0" step="1"></label>
         </div>
-        <label>Poem title<input name="title" maxlength="120" placeholder="Untitled"></label>
+        <label>Poem title<input name="title" required maxlength="120"></label>
         <label>
           Submission
           <textarea id="submission-text" name="text" required></textarea>
@@ -238,6 +239,7 @@
             duplicate_submission: "This poem has already been submitted with this email address.",
             text_too_long: "The poem is longer than this program allows.",
             terms_not_accepted: "Please accept the terms before submitting.",
+            missing_required_submission_fields: "Please complete your name, email address, poem title, and submission.",
             submission_program_closed: "Submissions have closed.",
             signed_in_email_mismatch: "Use the email address connected to your signed-in account.",
           };
