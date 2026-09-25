@@ -47,7 +47,7 @@
       <button id="logout" type="button" hidden>Sign out</button>
     </header>
     <h1>Contest Builder</h1>
-    <p>Set up a contest, choose when submissions open and close, and share its link. Only accounts with the Contest builder role (or admins) can save contests.</p>
+    <p>Create a live contest here: give it a name, set the opening and closing times, save, and share the link. Contest builders and admins can publish without an extra approval step.</p>
     <div id="status" class="status">Checking access…</div>
     <section id="editor" class="card">
       <label for="program">Contest</label>
@@ -64,9 +64,10 @@
           <div><label for="opens">Opens</label><input id="opens" type="datetime-local" required></div>
           <div><label for="closes">Closes</label><input id="closes" type="datetime-local" required></div>
         </div>
-        <p class="muted">Dates use your computer's local time. The link can be shared before opening, but the form accepts entries only during these dates when submissions are enabled.</p>
-        <label class="check"><input id="accepting" type="checkbox"> Enable submissions for this contest</label>
-        <div class="actions"><button id="save" class="primary" type="submit">Save contest</button><span id="save-status" class="muted"></span></div>
+        <p class="muted">Enter dates in your computer’s local time. The link can be shared before opening; entries start and stop automatically at the times you set.</p>
+        <label class="check"><input id="accepting" type="checkbox" checked> Accept entries during the dates above</label>
+        <p class="muted">Leave this checked for a live contest. Turn it off only for a draft or test that should not accept entries.</p>
+        <div class="actions"><button id="save" class="primary" type="submit">Save contest &amp; get link</button><span id="save-status" class="muted"></span></div>
       </form>
       <section id="banner-settings" aria-label="Contest banner">
         <h2>Banner graphic</h2>
@@ -78,7 +79,7 @@
     </section>
     <section id="share" class="card">
       <h2>Contest link</h2>
-      <p>Send this link to entrants. The form will only accept entries while the contest is enabled and within its dates.</p>
+      <p>Share this link with entrants. If “Accept entries” is checked, the form opens and closes automatically at the dates above.</p>
       <div class="link-actions"><input id="link" readonly aria-label="Contest submission link"><button id="copy" type="button">Copy link</button><a id="preview" target="_blank" rel="noopener">Open form</a></div>
     </section>
   </main>
@@ -130,7 +131,7 @@
       $("description").value=row&&row.description||"";
       $("opens").value=localDate(row&&row.opensAt);
       $("closes").value=localDate(row&&row.closesAt);
-      $("accepting").checked=!!(row&&row.acceptingSubmissions);
+      $("accepting").checked=row?row.acceptingSubmissions===true:true;
       $("short-form-rules").checked=row?row.shortFormRules===true:true;
       $("save-status").textContent="";
       $("banner-file").value="";
@@ -193,7 +194,10 @@
         programs=data.programs||[];
         renderPrograms(result.program.id);
         $("save-status").textContent="Saved.";
-        status("Contest saved. Your link is below.");
+        const now=Date.now();
+        status($("accepting").checked
+          ? (opens.getTime()>now ? "Contest saved and scheduled. Share the link below; entries open at the time you set." : closes.getTime()<=now ? "Contest saved, but its closing time has passed. Change the dates to accept entries." : "Contest saved and accepting entries now. Share the link below.")
+          : "Contest saved with entries off. You can preview the link below.");
       } catch(error) {
         $("save-status").textContent="Could not save: "+error.message;
       } finally { saving=false; $("save").disabled=false; }
