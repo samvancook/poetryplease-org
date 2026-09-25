@@ -48,6 +48,8 @@
     <section id="program-intro" hidden>
       <h2 id="program-name"></h2>
       <p id="program-description"></p>
+      <p id="program-dates" hidden></p>
+      <p id="program-rules" hidden><a id="program-rules-link" target="_blank" rel="noopener">Read the contest FAQ and rules</a></p>
     </section>
     <section id="loading"><p>Loading submission form...</p></section>
     <section id="unavailable" hidden>
@@ -57,7 +59,7 @@
 
     <section id="form-section" hidden>
       <form id="submission-form">
-        <p>Required: name, email address, poem title, submission, and terms agreement. Other details are optional.</p>
+        <p id="required-summary">Required: name, email address, poem title, submission, and terms agreement. Other details are optional.</p>
         <div class="grid">
           <label>First name<input name="firstName" autocomplete="given-name" required maxlength="80"></label>
           <label>Last name<input name="lastName" autocomplete="family-name" required maxlength="80"></label>
@@ -68,7 +70,7 @@
           <label>Public Instagram handle (optional)<input name="instagramHandle" autocomplete="off" maxlength="120"></label>
           <label>Instagram followers (optional)<input name="followerCount" type="number" min="0" step="1"></label>
         </div>
-        <label>Poem title<input name="title" required maxlength="120"></label>
+        <label><span id="title-label">Poem title</span><input id="submission-title" name="title" required maxlength="120"></label>
         <label>
           Submission
           <textarea id="submission-text" name="text" required></textarea>
@@ -85,8 +87,8 @@
     </section>
 
     <section id="complete" hidden>
-      <h2>Submission received</h2>
-      <p>Thank you. Your poem is now in the review queue.</p>
+      <h2 id="complete-heading">Submission received</h2>
+      <p id="complete-message">Thank you. Your poem is now in the review queue.</p>
       <p id="submission-reference"></p>
       <div class="account-invite">
         <h2>Keep track of your submission</h2>
@@ -113,6 +115,7 @@
     const form = document.getElementById("submission-form");
     const status = document.getElementById("status");
     const text = document.getElementById("submission-text");
+    const title = document.getElementById("submission-title");
     const counter = document.getElementById("character-count");
     const submitButton = document.getElementById("submit-button");
     const auth = firebase.auth();
@@ -185,7 +188,23 @@
 
     function updateCount() {
       const max = program?.maxCharacters || 250;
-      counter.textContent = text.value.length + " / " + max + " characters";
+      const count = program?.shortFormRules ? title.value.trim().length + text.value.trim().length : text.value.length;
+      counter.textContent = count + " / " + max + " characters" + (program?.shortFormRules ? " (title + poem)" : "");
+      counter.className = "counter" + (count > max ? " error" : "");
+    }
+
+    function showProgramDates() {
+      const dates = [];
+      const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeStyle: "short" });
+      for (const [label, value] of [["Opens", program.opensAt], ["Closes", program.closesAt]]) {
+        const date = value && new Date(value);
+        if (date && !Number.isNaN(date.getTime())) dates.push(label + " " + formatter.format(date));
+      }
+      const node = document.getElementById("program-dates");
+      if (!dates.length) return;
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "your local timezone";
+      node.textContent = dates.join(" · ") + " (your local time, " + zone + ")";
+      node.hidden = false;
     }
 
     async function loadProgram() {
@@ -204,8 +223,18 @@
         }
         document.getElementById("program-name").textContent = program.name;
         document.getElementById("program-description").textContent = program.description || "";
+        showProgramDates();
+        if (program.termsUrl) {
+          document.getElementById("program-rules-link").href = program.termsUrl;
+          document.getElementById("program-rules").hidden = false;
+        }
         document.getElementById("program-intro").hidden = false;
         if (!program.acceptingSubmissions) return showUnavailable("This submission program is not currently accepting work.");
+        title.required = !program.shortFormRules;
+        document.getElementById("title-label").textContent = program.shortFormRules ? "Poem title (optional; counts toward the character limit)" : "Poem title";
+        document.getElementById("required-summary").textContent = program.shortFormRules
+          ? "Required: name, email address, poem, and acknowledgement of the Short Form Contest FAQ. One entry per contestant; other details are optional."
+          : "Required: name, email address, poem title, submission, and terms agreement. Other details are optional.";
         text.maxLength = program.maxCharacters;
         const termsLabel = document.getElementById("terms-label");
         termsLabel.textContent = program.termsLabel;
@@ -227,8 +256,14 @@
     }
 
     text.addEventListener("input", updateCount);
+    title.addEventListener("input", updateCount);
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (program?.shortFormRules && title.value.trim().length + text.value.trim().length > program.maxCharacters) {
+        status.className = "status error";
+        status.textContent = "The optional title and poem together must be " + program.maxCharacters + " characters or fewer.";
+        return;
+      }
       submitButton.disabled = true;
       status.className = "status";
       status.textContent = "Submitting...";
@@ -248,15 +283,18 @@
         if (!response.ok) {
           const messages = {
             duplicate_submission: "This poem has already been submitted with this email address.",
-            text_too_long: "The poem is longer than this program allows.",
+            already_entered_contest: "You have already entered this contest. Only one entry per contestant is allowed.",
+            text_too_long: program?.shortFormRules ? "The optional title and poem together exceed the 250-character limit." : "The poem is longer than this program allows.",
             terms_not_accepted: "Please accept the terms before submitting.",
-            missing_required_submission_fields: "Please complete your name, email address, poem title, and submission.",
+            missing_required_submission_fields: program?.shortFormRules ? "Please complete your name, email address, and poem." : "Please complete your name, email address, poem title, and submission.",
             submission_program_closed: "Submissions have closed.",
             signed_in_email_mismatch: "Use the email address connected to your signed-in account.",
           };
           throw new Error(messages[payload.error] || "The submission could not be saved.");
         }
         formSection.hidden = true;
+        document.getElementById("complete-heading").textContent = payload.alreadySubmitted ? "Submission already received" : "Submission received";
+        document.getElementById("complete-message").textContent = payload.alreadySubmitted ? "We already have this poem. It has not been entered twice." : "Thank you. Your poem is now in the review queue.";
         document.getElementById("submission-reference").textContent = payload.submissionId ? "Confirmation reference: " + payload.submissionId : "";
         accountEmail.value = data.email || currentUser?.email || "";
         document.getElementById("complete").hidden = false;
