@@ -3,16 +3,19 @@
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
 ## Active Focus
-- User submissions and contest intake replacement:
-  - make this the top product project: replace the May 2026 Short Form Contest Google Form and response-sheet workflow with a first-class Poetry Please submission lane
-  - reproduce the current intake fields: submitter identity and contact details, public Instagram handle/follower count, pronouns, location, poem text with contest length rules, and terms acceptance
-  - reuse Poetry Please accounts and the existing User Submissions data model, while allowing a low-friction public submission flow when an account is not yet required
-  - replace the response sheet's three manual `Y` / `N` / `M` columns and derived score with an explicit multi-reviewer adjudication workflow, reviewer identity, timestamps, notes, and durable status history
-  - replace the manually copied `top 10` tab with a live ranked shortlist generated from completed reviews, with an admin override and export
-  - keep contest/program identity secondary to the submitted poem and submitter, using the existing event/lane metadata pattern rather than rewriting book metadata
-  - add duplicate-submission checks, eligibility validation, consent auditing, private-contact-data access controls, and clear submitted / under review / shortlisted / declined / selected states
-  - preserve Google Sheet export for staff handoff and archival needs, but make Poetry Please the source of truth
-  - first build: one contest configuration, one public submission form, one admin review queue, three-reviewer scoring, and one ranked shortlist
+- Contest program and judging workflow (live; initial pilot closed):
+  - native Poetry Please intake is live with Google and email-link sign-in, My Submissions, required poem title, eligibility/terms checks, and an internal test program
+  - three-reviewer Yes / Maybe / No adjudication and Admin totals are live; three synthetic entries reached three saved reviews, and the Admin totals display was repaired
+  - a separate Contest Builder role is live for selected staff; the builder supports contest name, opening/closing times, submission enablement, entrant link, and banner upload with a recommended 1600 × 600 image
+  - Emory verified that a test contest stayed closed until enabled and closed after its end time; the closed entrant page is intended to retain its banner and contest details
+  - next: visually verify an uploaded dummy banner and its crop on the entrant page; collect staff feedback on the builder and reviewer flow
+  - launch gate: confirm whether every verified @buttonpoetry.com address should have reviewer access, and verify reviewer/Admin denial with a non-Button contestant account
+  - next: confirm the ranked shortlist, admin override, export, and content-featuring path before declaring the Google Form/response-sheet replacement complete; the completed pilot entries are sufficient for the initial review check
+- Content Explorer (live at https://poetryplease.org/explorer/):
+  - staff can search and filter author, book, work, catalog, content type, coverage, relationship confidence, flags, and product-link presence; filters are shareable in the URL
+  - canonical product links now flow through the full-poem response; image assets offer Poetry Please, Drive, download, and source actions when available, plus optional ranking sort and visible rank labels
+  - next: observe 3–5 staff using Explorer for video-to-book and book-to-video discovery; record confusing controls separately from missing or uncertain source relationships
+  - follow-on: use that feedback to prioritize compact results, mobile presentation, platform filtering, grouping, and a lightweight correction-report action; keep matching confidence visible
 - Deployment integrity (top priority):
   - automate JavaScript/CSS asset versioning instead of hand-maintained date query strings
   - fail deployment when changed assets retain stale HTML references
@@ -53,7 +56,8 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 - Shared Drive migration for durable Poetry Please handoff docs, imports, exports, and operating notes
 
 ## Top Product Priorities
-- Replace the Short Form Contest Google Form and response sheet with Poetry Please's native User Submissions workflow, beginning with intake, three-reviewer adjudication, and a live shortlist.
+- Complete the native contest replacement: finish Contest Builder banner testing, resolve the reviewer access policy and non-Button denial check, verify the ranked shortlist/export, then prepare the first real contest for launch.
+- Validate the live Content Explorer with staff and use their feedback to improve the most common author/book/content discovery paths.
 - Smooth the general user experience:
   - make logged-out and anonymous entry feel intentional instead of like a loading state
   - keep first content load fast and predictable
@@ -75,6 +79,8 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - retire stale Poetry Please entrypoints such as `buttonpoetry.com/poetryplease` so old builds cannot create false bug reports
 
 ## Near-Term Build Order
+- Finish Contest Builder testing with Emory’s dummy banner. Use the completed judging pilot as the initial review evidence; resolve the non-Button access gate and shortlist/export behavior before the first real contest.
+- Run a short staff Explorer usability pass; prioritize fixes to common search, link, and asset-selection friction shown by that pass.
 - Establish a low-friction safety rail before larger product changes:
   - create a one-command smoke test covering public load, logged-in feed API, filtered queue API, scoreboard API, and admin health
   - create a tiny deploy notes template/checklist so each deploy records what changed and what was verified
@@ -228,7 +234,8 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - keep existing deep links compatible with unified filter state, including contest, author, FP, and FPI lanes
   - add fallbacks for legacy URLs and content with missing catalog metadata
 - Keep improving user submissions:
-  - stronger admin review tools (filters, search, status visibility)
+  - strengthen Admin review filters, search, and status visibility where staff testing shows friction
+  - validate shortlist override and export before retiring the response-sheet workflow
   - later convert approved submissions into regular Poetry Please content when that workflow is ready
 - Keep improving author accounts:
   - better admin diagnostics for invites, claims, and linked profiles
