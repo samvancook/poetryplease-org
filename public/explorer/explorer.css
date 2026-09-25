@@ -88,3 +88,20 @@ blockquote { margin:10px 0; padding:10px 14px; border-left:3px solid var(--accen
   .summary-stat:last-child { grid-column:1 / -1; }
   .filters .check { padding:7px 2px; }
 }
+
+
+.product-actions { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+.product-action { display:inline-flex; gap:6px; align-items:center; }
+.copy-link { padding:5px 8px; border-radius:8px; font-size:12px; }
+.copy-link.copied { background:var(--accent); color:white; border-color:var(--accent); }
+.product-table-wrap { overflow-x:auto; border:1px solid var(--line); border-radius:18px; background:var(--panel); }
+.product-table { width:100%; border-collapse:collapse; text-align:left; }
+.product-table th,.product-table td { padding:13px 16px; border-bottom:1px solid var(--line); vertical-align:top; }
+.product-table thead th { font-size:12px; text-transform:uppercase; letter-spacing:.07em; background:#f4f0e7; }
+.product-table tbody tr:last-child th,.product-table tbody tr:last-child td { border-bottom:0; }
+.product-table tbody th { min-width:230px; }
+.table-author { display:block; margin-top:3px; color:var(--muted); font-size:13px; font-weight:400; }
+@media (max-width:700px) {
+  .product-table th,.product-table td { padding:11px 12px; }
+  .product-table tbody th { min-width:190px; }
+}
