@@ -9578,7 +9578,7 @@ app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
     : req.body.shortFormRules === true;
   await ref.set({
     name,
-    description: normalizeText(req.body?.description ?? existing.description ?? "").slice(0, 1000),
+    description: normalizeText(req.body?.description ?? existing.description ?? "").slice(0, 2000),
     releaseCatalog: normalizeText(req.body?.releaseCatalog || existing.releaseCatalog || USER_SUBMISSION_CATALOG).slice(0, 120),
     sourceEvent: normalizeText(req.body?.sourceEvent || existing.sourceEvent || name).slice(0, 160),
     sourceEventLabel: normalizeText(req.body?.sourceEventLabel || existing.sourceEventLabel || req.body?.sourceEvent || name).slice(0, 160),
