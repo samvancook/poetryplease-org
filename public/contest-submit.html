@@ -13,7 +13,11 @@
     h1 { margin:0 0 8px; font-family:Georgia,serif; font-size:clamp(36px,7vw,60px); font-weight:500; letter-spacing:0; }
     h2 { margin:0 0 8px; font-size:24px; letter-spacing:0; }
     p { color:var(--muted); line-height:1.5; }
-    #program-description { white-space:pre-wrap; }
+    #program-description, #program-description-extra { white-space:pre-wrap; }
+    #description-more { border-top:1px solid var(--line); padding-top:12px; margin:16px 0; }
+    #description-more summary { cursor:pointer; color:var(--accent); font-weight:700; }
+    .winners-link { margin:18px 0; }
+    .winners-link a { color:var(--accent); font-weight:700; }
     #contest-banner { display:block; width:100%; aspect-ratio:8/3; object-fit:cover; border-radius:10px; margin:0 0 24px; }
     form { display:grid; gap:20px; }
     .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
@@ -45,10 +49,12 @@
       <p>Submit your work for consideration.</p>
     </header>
 
+    <p class="winners-link" hidden><a href="https://buttonpoetry.com/short-form-contest/" target="_blank" rel="noopener noreferrer">See previous Short Form Contest winners (opens in a new tab)</a></p>
     <img id="contest-banner" alt="" hidden>
     <section id="program-intro" hidden>
       <h2 id="program-name"></h2>
       <p id="program-description"></p>
+      <details id="description-more" hidden><summary>Read the rules</summary><p id="program-description-extra"></p></details>
       <p id="program-dates" hidden></p>
       <p id="program-rules" hidden><a id="program-rules-link" target="_blank" rel="noopener">Read the contest FAQ and rules</a></p>
     </section>
@@ -103,6 +109,7 @@
         <p><a href="/my-submissions.html">Already have an account? View my submissions</a></p>
       </div>
     </section>
+    <p class="winners-link" hidden><a href="https://buttonpoetry.com/short-form-contest/" target="_blank" rel="noopener noreferrer">See previous Short Form Contest winners (opens in a new tab)</a></p>
   </main>
   <script src="/__/firebase/8.10.1/firebase-app.js"></script>
   <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
@@ -194,6 +201,18 @@
       counter.className = "counter" + (count > max ? " error" : "");
     }
 
+    function showDescription(value) {
+      const description = String(value || "");
+      const marker = /^\s*-{3,}\s*$/m.exec(description);
+      const intro = document.getElementById("program-description");
+      const more = document.getElementById("description-more");
+      const extra = document.getElementById("program-description-extra");
+      intro.textContent = marker ? description.slice(0, marker.index).trim() : description;
+      extra.textContent = marker ? description.slice(marker.index + marker[0].length).trim() : "";
+      more.hidden = !extra.textContent;
+      more.open = false;
+    }
+
     function showProgramDates() {
       const dates = [];
       const formatter = new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeStyle: "short" });
@@ -223,7 +242,8 @@
           banner.hidden = false;
         }
         document.getElementById("program-name").textContent = program.name;
-        document.getElementById("program-description").textContent = program.description || "";
+        showDescription(program.description);
+        document.querySelectorAll(".winners-link").forEach((node) => { node.hidden = !program.shortFormRules; });
         showProgramDates();
         if (program.termsUrl) {
           document.getElementById("program-rules-link").href = program.termsUrl;
