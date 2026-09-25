@@ -57,6 +57,8 @@
         <input id="name" maxlength="160" required placeholder="e.g. 2027 Short Form Contest">
         <label for="description">Description for entrants</label>
         <textarea id="description" maxlength="1000" placeholder="What is this contest about?"></textarea>
+        <label class="check"><input id="short-form-rules" type="checkbox" checked> Use the Button Poetry Short Form Contest rules (250 characters including an optional title; one entry per contestant)</label>
+        <p class="muted"><a href="https://buttonpoetry.com/short-form-contest-faq/" target="_blank" rel="noopener">Read the Short Form Contest FAQ</a></p>
         <p class="muted">Optional banner after saving: recommended size 1600 × 600 pixels (8:3). Keep important text and logos near the center so they remain visible on smaller screens.</p>
         <div class="dates">
           <div><label for="opens">Opens</label><input id="opens" type="datetime-local" required></div>
@@ -129,6 +131,7 @@
       $("opens").value=localDate(row&&row.opensAt);
       $("closes").value=localDate(row&&row.closesAt);
       $("accepting").checked=!!(row&&row.acceptingSubmissions);
+      $("short-form-rules").checked=row?row.shortFormRules===true:true;
       $("save-status").textContent="";
       $("banner-file").value="";
       $("banner-status").textContent="";
@@ -182,7 +185,8 @@
             description:$("description").value.trim(),
             opensAt:opens.toISOString(),
             closesAt:closes.toISOString(),
-            acceptingSubmissions:$("accepting").checked
+            acceptingSubmissions:$("accepting").checked,
+            shortFormRules:$("short-form-rules").checked
           }
         });
         const data=await api("contest-builder/programs");
