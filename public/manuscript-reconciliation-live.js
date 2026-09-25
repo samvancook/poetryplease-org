@@ -11,6 +11,7 @@ export const COMMON_ACTIONS = [
   ["retain_prior", "Keep earlier source"],
   ["adopt_candidate", "Approve replacement"],
   ["combine_text_and_format", "Choose wording and formatting sources"],
+  ["review_retire", "Retire this record (not a separate poem)"],
 ];
 // This tool does one job: decide which underlying text wins. Anything needing a
 // split, merge, retirement, new canonical poem, or a rejected extraction is out of
@@ -74,6 +75,7 @@ const ACTION_STATUS = {
   retain_prior: "rejected",
   adopt_candidate: "approved",
   combine_text_and_format: "approved",
+  review_retire: "approved",
   carry_forward_wording_adopt_final_format: "approved",
   request_ocr: "pending",
   request_parser_correction: "pending",
@@ -84,7 +86,15 @@ export const statusForAction = (action) => ACTION_STATUS[action] || "pending";
 // Every label Catalog might already have stored, so a decision made before these
 // choices were narrowed still displays as itself instead of silently reading as
 // undecided.
-const ACTION_LABELS = Object.fromEntries([...COMMON_ACTIONS, ...MORE_ACTIONS, ...EXCEPTION_ACTIONS]);
+const UNOFFERED_ACTION_LABELS = [
+  ["review_replacement", "Reviewed replacement (no longer offered)"],
+  ["review_create", "Create a new canonical poem (no longer offered)"],
+  ["review_retire", "Retire this record (not a separate poem)"],
+  ["reject_extraction", "Reject the extraction (no longer offered)"],
+];
+const ACTION_LABELS = Object.fromEntries([
+  ...COMMON_ACTIONS, ...MORE_ACTIONS, ...EXCEPTION_ACTIONS, ...UNOFFERED_ACTION_LABELS,
+]);
 // Which text and formatting each settled action implies. Only the combine action asks
 // the reviewer, which is why it is the only one that reveals the source pickers.
 export const sourcesForAction = (action, row, pickedText, pickedFormat) => {
@@ -98,6 +108,7 @@ const DECISION_EFFECT = {
   retain_prior: "Rejected. The replacement is turned down and the earlier text stands.",
   adopt_candidate: "Approved. The replacement becomes the text for this poem.",
   combine_text_and_format: "Approved. The replacement is taken, using the sources you pick below.",
+  review_retire: "Retired. This record does not become a poem of its own, so the book's poem count drops by one. Say why in the notes.",
   carry_forward_wording_adopt_final_format: "Approved. The replacement's formatting is taken and the earlier wording is kept.",
   request_ocr: "Still needs review. Skipped to image review; say why in the notes.",
   request_parser_correction: "Still needs review. Skipped for editing; say why in the notes.",
@@ -138,6 +149,7 @@ const poemLines = (text, normalized) => (normalized ? normalizeWhitespace(text) 
 export const needsNotes = (row, decision) => {
   // A hand-edited text overrides both sources, so a reviewer must say why it exists.
   if (manualTextForSave(decision.manualText) !== manualTextForSave(manualTextOf(row))) return true;
+  if (decision.resolutionAction === "review_retire") return true;
   // Taking wording from one source and formatting from the other is a deliberate call
   // that the next reader cannot reconstruct from the row alone.
   if (Number(decision.textSourcePoemId) !== Number(decision.formatSourcePoemId)) return true;
@@ -330,6 +342,14 @@ function createApp(root, initialData, auth) {
       root.querySelector("#text-source")?.value,
       root.querySelector("#format-source")?.value,
     );
+    // A combine whose wording and formatting come from the same source is not a combine.
+    // It would store as one and behave as an ordinary approval, which nobody could see.
+    if (chosenAction === SOURCE_CHOICE_ACTION && Number(chosenSources.text) === Number(chosenSources.format)) {
+      message = "Choose different sources for wording and formatting. If one source is right for both, use Approve replacement or Keep earlier source instead.";
+      render();
+      root.querySelector("#format-source")?.focus();
+      return;
+    }
     const decision = {
       expectedReconciliationRevision: Number(data.reconciliation.writeRevision || row.reconciliationRevision),
       reviewStatus,
@@ -458,6 +478,7 @@ function createApp(root, initialData, auth) {
         <main class="panel comparison">${row ? `
           <div class="comparehead"><h2>Text comparison</h2><div><button data-mode="exact" aria-pressed="${mode === "exact"}">Source text</button><button data-mode="normalized" aria-pressed="${mode === "normalized"}">Spacing-normalized text</button></div></div>
           <p class="help">${mode === "exact" ? "Source text preserves extracted spaces and line breaks." : "Spacing-normalized text is only for comparison and does not change Catalog data."}</p>
+          <p class="help"><b>Italics and bold are missing from both columns.</b> Every extractor discards them at extraction, so emphasis is absent from the stored text for 29 of the 45 poems in this book. This is known and parked for a separate pass. Do not treat it as a difference between the sources, and do not try to repair it by hand-editing: the fix has to happen upstream.</p>
           <div class="texts">${[["Earlier source", row.priorTitle, row.prior?.text, sourceMeta(rec.priorSource)], ["Proposed replacement", row.candidateTitle, row.candidate?.text, sourceMeta(rec.candidateSource)]]
             .map(([side, poemTitle, text, sourceMeta]) => `<article><h3><span class="side">${esc(side)}</span><span class="ptitle" title="${esc(poemTitle || "Unavailable")}">${esc(poemTitle || "Unavailable")}</span><span class="srcmeta">${esc(sourceMeta)}</span></h3><div class="poem">${poemLines(text, mode === "normalized")}</div></article>`).join("")}</div>
           <details class="manual" ${manualInUse ? "open" : ""}>
@@ -539,6 +560,18 @@ function createApp(root, initialData, auth) {
     });
     root.querySelector("#decision")?.addEventListener("change", (event) => {
       draft.decision = event.target.value;
+      // Candidate wording with earlier formatting is the case this action exists for: it is
+      // what the roadmap prescribes for the prose poems whose candidate line breaks are page
+      // wraps. Propose it, but only when the pickers still agree, so a reviewer returning to
+      // a stored split never has their choice overwritten.
+      if (event.target.value === SOURCE_CHOICE_ACTION) {
+        const textPicker = root.querySelector("#text-source");
+        const formatPicker = root.querySelector("#format-source");
+        if (textPicker && formatPicker && textPicker.value === formatPicker.value) {
+          if (row?.candidate?.id) textPicker.value = String(row.candidate.id);
+          if (row?.prior?.id) formatPicker.value = String(row.prior.id);
+        }
+      }
       // Deciding a poem abandons any reason it was previously set aside with.
       if (event.target.value) draft.action = UNDECIDED;
       toggleSourceChoiceFields();
