@@ -84,6 +84,7 @@ const UPLOAD_RULES = {
 };
 
 const USER_SUBMISSION_CATALOG = "User submitted";
+const SHORT_FORM_FAQ_URL = "https://buttonpoetry.com/short-form-contest-faq/";
 const USER_SUBMISSION_TITLE_MAX = 120;
 const USER_SUBMISSION_TEXT_MAX = 2200;
 const USER_SUBMISSION_IMAGE_NOTE_MAX = 600;
@@ -5793,11 +5794,12 @@ app.get(getBoth("/submissionPrograms/:programId"), async (req, res) => {
       bannerUrl: normalizeText(data.bannerUrl || ""),
       termsLabel: normalizeText(data.termsLabel || "I agree to the contest terms and conditions."),
       termsUrl: normalizeText(data.termsUrl || ""),
+      shortFormRules: data.shortFormRules === true,
       termsVersion: normalizeText(data.termsVersion || ""),
       maxCharacters: Math.max(1, Math.min(Number(data.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
       acceptingSubmissions,
-      opensAt: data.opensAt || null,
-      closesAt: data.closesAt || null,
+      opensAt: normalizeTimestamp(data.opensAt)?.toISOString() || null,
+      closesAt: normalizeTimestamp(data.closesAt)?.toISOString() || null,
     },
   });
 });
@@ -5830,9 +5832,10 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
   const title = normalizeText(req.body?.title || "").slice(0, USER_SUBMISSION_TITLE_MAX);
   const text = normalizeText(req.body?.text || "");
   const termsAccepted = req.body?.termsAccepted === true;
+  const shortFormRules = program.shortFormRules === true;
   const maxCharacters = Math.max(1, Math.min(Number(program.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX));
 
-  if (!firstName || !lastName || !email || !title || !text) {
+  if (!firstName || !lastName || !email || (!shortFormRules && !title) || !text) {
     return res.status(400).json({ error: "missing_required_submission_fields" });
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -5844,7 +5847,7 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
   if (verifiedAccountEmail && verifiedAccountEmail !== email) {
     return res.status(400).json({ error: "signed_in_email_mismatch" });
   }
-  if (text.length > maxCharacters) {
+  if ((shortFormRules ? title.length + text.length : text.length) > maxCharacters) {
     return res.status(400).json({ error: "text_too_long", maxChars: maxCharacters });
   }
   if (!termsAccepted) return res.status(400).json({ error: "terms_not_accepted" });
@@ -5857,10 +5860,18 @@ app.post(getBoth("/submissionPrograms/:programId/submissions"), async (req, res)
     .limit(1)
     .get();
   if (!duplicateSnap.empty) {
+    if (shortFormRules) return res.json({ ok: true, submissionId: duplicateSnap.docs[0].id, alreadySubmitted: true });
     return res.status(409).json({
       error: "duplicate_submission",
       submissionId: duplicateSnap.docs[0].id,
     });
+  }
+  if (shortFormRules) {
+    const previousEntries = await db.collection(COLLECTIONS.submissionEntrants)
+      .where("email", "==", email).limit(250).get();
+    if (previousEntries.docs.some((doc) => normalizeText(doc.data()?.submissionProgramId) === programId)) {
+      return res.status(409).json({ error: "already_entered_contest" });
+    }
   }
 
   const submissionRef = db.collection(COLLECTIONS.contentSubmissions).doc();
@@ -9493,6 +9504,8 @@ app.get(getBoth("/contest-builder/programs"), async (req, res) => {
       name: normalizeText(data.name || doc.id),
       description: normalizeText(data.description || ""),
       bannerUrl: normalizeText(data.bannerUrl || ""),
+      shortFormRules: data.shortFormRules === true,
+      termsUrl: normalizeText(data.termsUrl || ""),
       opensAt: normalizeTimestamp(data.opensAt)?.toISOString() || null,
       closesAt: normalizeTimestamp(data.closesAt)?.toISOString() || null,
       acceptingSubmissions: data.acceptingSubmissions === true,
@@ -9560,15 +9573,19 @@ app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
   const ref = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
   const existingProgram = await ref.get();
   const existing = existingProgram.data() || {};
+  const shortFormRules = req.body?.shortFormRules === undefined
+    ? existing.shortFormRules === true
+    : req.body.shortFormRules === true;
   await ref.set({
     name,
     description: normalizeText(req.body?.description ?? existing.description ?? "").slice(0, 1000),
     releaseCatalog: normalizeText(req.body?.releaseCatalog || existing.releaseCatalog || USER_SUBMISSION_CATALOG).slice(0, 120),
     sourceEvent: normalizeText(req.body?.sourceEvent || existing.sourceEvent || name).slice(0, 160),
     sourceEventLabel: normalizeText(req.body?.sourceEventLabel || existing.sourceEventLabel || req.body?.sourceEvent || name).slice(0, 160),
-    maxCharacters: Math.max(1, Math.min(Number(req.body?.maxCharacters) || Number(existing.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
-    termsLabel: normalizeText(req.body?.termsLabel || existing.termsLabel || "I agree to the contest terms and conditions.").slice(0, 500),
-    termsUrl: normalizeText(req.body?.termsUrl ?? existing.termsUrl ?? "").slice(0, 1000),
+    maxCharacters: shortFormRules ? 250 : Math.max(1, Math.min(Number(req.body?.maxCharacters) || Number(existing.maxCharacters) || 250, USER_SUBMISSION_TEXT_MAX)),
+    shortFormRules,
+    termsLabel: shortFormRules ? "I have read the Short Form Contest FAQ." : normalizeText(req.body?.termsLabel || (existing.shortFormRules ? "" : existing.termsLabel) || "I agree to the contest terms and conditions.").slice(0, 500),
+    termsUrl: shortFormRules ? SHORT_FORM_FAQ_URL : normalizeText(req.body?.termsUrl ?? (existing.shortFormRules ? "" : existing.termsUrl) ?? "").slice(0, 1000),
     termsVersion: normalizeText(req.body?.termsVersion ?? existing.termsVersion ?? "").slice(0, 120),
     requiredReviewCount: Math.max(1, Math.min(Number(req.body?.requiredReviewCount) || Number(existing.requiredReviewCount) || 3, 20)),
     acceptingSubmissions: req.body?.acceptingSubmissions === true,
