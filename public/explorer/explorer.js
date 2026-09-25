@@ -408,6 +408,7 @@ if (typeof document !== "undefined") {
         confidence: $("confidence").value,
         coverage: { ...state.coverageFilters },
         productLink: $("product-link").value,
+        view: $("view") ? $("view").value : "",
         sort: $("sort") ? $("sort").value : "",
         flagsOnly: $("flags-only").checked,
       };
@@ -425,6 +426,7 @@ if (typeof document !== "undefined") {
       const coverage = Object.entries(filters.coverage).sort().map(([type, mode]) => type + ":" + mode).join(",");
       if (coverage) params.set("coverage", coverage);
       if (filters.productLink) params.set("productLink", filters.productLink);
+      if (filters.view) params.set("view", filters.view);
       if (filters.sort) params.set("sort", filters.sort);
       if (filters.flagsOnly) params.set("flags", "1");
       history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
@@ -444,13 +446,73 @@ if (typeof document !== "undefined") {
         if (E.ASSET_TYPES.includes(type) && ["has", "missing"].includes(mode)) state.coverageFilters[type] = mode;
       }
       $("product-link").value = params.get("productLink") || "";
+      if ($("view")) $("view").value = params.get("view") || "";
       if ($("sort")) $("sort").value = params.get("sort") || "";
       $("flags-only").checked = params.get("flags") === "1";
     }
 
     function renderLinks(links) {
       if (!links.length) return '<span class="muted">Not exposed by the current read-only Poetry Please response.</span>';
-      return links.map((link) => '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(link.label) + "</a>").join(" · ");
+      return '<span class="product-actions">' + links.map((link) =>
+        '<span class="product-action"><a href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">'
+        + escapeHtml(link.label) + '</a><button type="button" class="copy-link" data-copy-link="'
+        + escapeHtml(link.url) + '" aria-label="Copy ' + escapeHtml(link.label) + '">Copy link</button></span>'
+      ).join("") + "</span>";
+    }
+
+    function productLinkRows(rows) {
+      const summaryByBook = new Map(state.summaries.map((summary) => [E.normalized(summary.book || summary.bookTitle), summary]));
+      const seen = new Set();
+      return rows.map((row) => {
+        const book = row.book || row.bookTitle || "Book not returned";
+        const key = E.normalized(book);
+        if (seen.has(key)) return null;
+        seen.add(key);
+        const summary = summaryByBook.get(key) || {};
+        return {
+          book,
+          author: row.author || summary.author || "",
+          catalog: E.catalogValue(summary) || E.catalogValue(row),
+          links: E.productLinks(row, summary),
+        };
+      }).filter(Boolean).sort((a, b) => a.book.localeCompare(b.book));
+    }
+
+    function renderProductLinksView(rows) {
+      const products = productLinkRows(rows);
+      if (!products.length) return { html: '<div class="empty">No books match these filters.</div>', count: 0 };
+      const body = products.map((product) => '<tr><th scope="row">' + escapeHtml(product.book)
+        + '<span class="table-author">' + escapeHtml(product.author || "Author unavailable") + '</span></th>'
+        + '<td>' + escapeHtml(product.catalog || "Not returned") + '</td>'
+        + '<td>' + renderLinks(product.links) + '</td></tr>').join("");
+      return {
+        count: products.length,
+        html: '<div class="product-table-wrap"><table class="product-table"><thead><tr><th>Book</th><th>Catalog</th><th>Product links</th>'
+          + '</tr></thead><tbody>' + body + '</tbody></table></div>',
+      };
+    }
+
+    async function copyLink(value, button) {
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch (error) {
+        const field = document.createElement("textarea");
+        field.value = value;
+        field.setAttribute("readonly", "");
+        field.style.position = "fixed";
+        field.style.opacity = "0";
+        document.body.appendChild(field);
+        field.select();
+        document.execCommand("copy");
+        field.remove();
+      }
+      const original = button.textContent;
+      button.textContent = "Copied";
+      button.classList.add("copied");
+      setTimeout(() => {
+        button.textContent = original;
+        button.classList.remove("copied");
+      }, 1600);
     }
 
     function renderSummary(rows, facetRows) {
@@ -568,6 +630,16 @@ if (typeof document !== "undefined") {
         const book = String(a.book || a.bookTitle || "").localeCompare(String(b.book || b.bookTitle || ""));
         return book || String(a.title || a.poemTitle || "").localeCompare(String(b.title || b.poemTitle || ""));
       });
+      if (filters.view === "products") {
+        const products = renderProductLinksView(state.filtered);
+        $("results").innerHTML = products.html;
+        $("load-more").hidden = true;
+        renderSummary(state.filtered, state.rows);
+        setStatus(products.count + " matching book" + (products.count === 1 ? "" : "s")
+          + ". Read-only: no source records are changed.");
+        syncUrl();
+        return;
+      }
       const visibleRows = state.filtered.slice(0, state.visibleCount);
       const summaryByBook = new Map(state.summaries.map((summary) => [E.normalized(summary.book), summary]));
       const groups = new Map();
@@ -608,7 +680,7 @@ if (typeof document !== "undefined") {
     }
 
     function resetFilters() {
-      ["search", "author", "book", "catalog", "asset-type", "confidence", "product-link", "sort"].forEach((id) => { if ($(id)) $(id).value = ""; });
+      ["search", "author", "book", "catalog", "asset-type", "confidence", "product-link", "view", "sort"].forEach((id) => { if ($(id)) $(id).value = ""; });
       state.coverageFilters = {};
       $("flags-only").checked = false;
       filterChanged();
@@ -665,8 +737,12 @@ if (typeof document !== "undefined") {
     $("retry-auth").addEventListener("click", () => location.reload());
     $("logout").addEventListener("click", signOut);
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
-    ["author", "book", "catalog", "asset-type", "confidence", "product-link", "sort", "flags-only"].forEach((id) => { if ($(id)) $(id).addEventListener("change", filterChanged); });
+    ["author", "book", "catalog", "asset-type", "confidence", "product-link", "view", "sort", "flags-only"].forEach((id) => { if ($(id)) $(id).addEventListener("change", filterChanged); });
     $("reset").addEventListener("click", resetFilters);
+    $("results").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-copy-link]");
+      if (button) copyLink(button.getAttribute("data-copy-link"), button);
+    });
     $("coverage").addEventListener("click", (event) => {
       const button = event.target.closest("[data-coverage-filter]");
       if (!button) return;
