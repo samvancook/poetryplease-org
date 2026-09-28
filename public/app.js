@@ -2486,7 +2486,12 @@ function orderByCommunityPreference(list, options = {}) {
   });
 
   const sortWithin = (items) => items
-    .map((item) => ({ item, score: communityAffinityOf(item) + ((Math.random() - 0.5) * 0.22) }))
+    .map((item) => ({
+      item,
+      score: communityAffinityOf(item)
+        + (options.preferVisual && ['QI', 'INT'].includes(String(item.imageType || '').toUpperCase()) ? 0.8 : 0)
+        + ((Math.random() - 0.5) * 0.22),
+    }))
     .sort((a, b) => b.score - a.score)
     .map((entry) => entry.item);
 
@@ -2833,9 +2838,17 @@ function buildFilteredList(data) {
   // so newly repaired/imported sets do not get buried by random community interleaving.
   if (hasActiveFeedFilters()) return pinSelectedItem(list);
 
+  const currentUser = firebase.auth().currentUser;
+  const anonymousVisitor = !currentUser || currentUser.isAnonymous;
+  // The server curates the signed-out welcome lane, including its visual-first mix.
+  if (anonymousVisitor && activeWelcomeLane) return pinSelectedItem(list);
+
   // Guide the feed toward community-loved work while keeping room for exploration.
   const suppressMutedInitially = sessionVotes < 5;
-  return pinSelectedItem(orderByCommunityPreference(list, { includeMuted: !suppressMutedInitially }));
+  return pinSelectedItem(orderByCommunityPreference(list, {
+    includeMuted: !suppressMutedInitially,
+    preferVisual: anonymousVisitor,
+  }));
 }
 
 // ===== Preload =====
@@ -2979,9 +2992,9 @@ function initQueueFromData(data) {
       queue.unshift(target);
     }
   }
-  idx = (IS_EMBED_UI && data?.feedMode === 'embed-book' && queue.length > 1)
-    ? Math.floor(Math.random() * queue.length)
-    : 0;
+  // Start book embeds with the server-selected lead; random entry would bypass
+  // the visual-first pool order.
+  idx = 0;
   historyStack.length = 0;
   for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
   renderWhenReady(idx);
