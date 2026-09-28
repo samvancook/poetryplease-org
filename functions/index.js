@@ -1550,6 +1550,30 @@ async function getRatingsSummaryCached() {
   return ratingsCache.inFlight;
 }
 
+// Keep highly rated work within each group, while leading with visual QI/INT
+// and retaining a discovery slot for other content when it is available.
+function prioritizeVisualContent(entries, preferredTypes = new Set(["QI", "INT"]), limit = entries.length) {
+  const visual = [];
+  const other = [];
+  for (const entry of entries) {
+    const type = normalizeText(entry.item?.imageType || entry.item?.contentType || entry.item?.type).toUpperCase();
+    (preferredTypes.has(type) ? visual : other).push(entry);
+  }
+  const selected = [];
+  let visualIndex = 0;
+  let otherIndex = 0;
+  while (selected.length < limit && (visualIndex < visual.length || otherIndex < other.length)) {
+    for (let slot = 0; slot < 2 && selected.length < limit && visualIndex < visual.length; slot += 1) {
+      selected.push(visual[visualIndex++]);
+    }
+    if (selected.length < limit && otherIndex < other.length) selected.push(other[otherIndex++]);
+    if (visualIndex >= visual.length && otherIndex < other.length) {
+      while (selected.length < limit && otherIndex < other.length) selected.push(other[otherIndex++]);
+    }
+  }
+  return selected;
+}
+
 function buildWelcomeBatch(items = [], ratingsSummary = {}, limit = 12) {
   const ranked = items
     .map((item) => {
@@ -1566,7 +1590,7 @@ function buildWelcomeBatch(items = [], ratingsSummary = {}, limit = 12) {
   const selected = [];
   const bookCounts = new Map();
   const typeCounts = new Map();
-  for (const entry of ranked) {
+  for (const entry of prioritizeVisualContent(ranked)) {
     const bookKey = normalizeKey(entry.item.book || "no-book");
     const typeKey = normalizeKey(entry.item.imageType || "other");
     if ((bookCounts.get(bookKey) || 0) >= 2) continue;
@@ -4721,20 +4745,22 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   const filteredAll = filterContentByFeedFilters(all, filters);
   const filteredNew = filteredAll.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const rankedEmbedPool = embedBook
-    ? filteredNew
-      .map((item) => {
-        const rating = ratingsSummary?.[normalizeKey(item.imageId)] || ratingsSummary?.[item.imageId] || {};
-        return { item, rating };
-      })
-      .filter(({ rating }) => !rating.authorExcluded)
-      .sort((a, b) => (
-        (Number(b.rating.score || 0) - Number(a.rating.score || 0))
-        || (Number(b.rating.movedMe || 0) - Number(a.rating.movedMe || 0))
-        || (Number(b.rating.total || 0) - Number(a.rating.total || 0))
-        || normalizeText(a.item.title).localeCompare(normalizeText(b.item.title))
-      ))
-      .slice(0, Math.min(limit, 20))
-      .map(({ item }) => item)
+    ? prioritizeVisualContent(
+      filteredNew
+        .map((item) => {
+          const rating = ratingsSummary?.[normalizeKey(item.imageId)] || ratingsSummary?.[item.imageId] || {};
+          return { item, rating };
+        })
+        .filter(({ rating }) => !rating.authorExcluded)
+        .sort((a, b) => (
+          (Number(b.rating.score || 0) - Number(a.rating.score || 0))
+          || (Number(b.rating.movedMe || 0) - Number(a.rating.movedMe || 0))
+          || (Number(b.rating.total || 0) - Number(a.rating.total || 0))
+          || normalizeText(a.item.title).localeCompare(normalizeText(b.item.title))
+        )),
+      new Set(["QI", "INT"]),
+      Math.min(limit, 20),
+    ).map(({ item }) => item)
     : null;
 
   res.json({
@@ -4756,9 +4782,12 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   const book = normalizeText(req.query?.book);
   const catalog = normalizeText(req.query?.catalog);
   const type = normalizeText(req.query?.type);
-  const preferredTypes = new Set(normalizeText(req.query?.prefer).split(",")
+  const requestedPreferredTypes = new Set(normalizeText(req.query?.prefer).split(",")
     .map((value) => value.trim().toUpperCase())
     .filter((value) => value === "QI" || value === "INT"));
+  const preferredTypes = requestedPreferredTypes.size
+    ? requestedPreferredTypes
+    : new Set(["QI", "INT"]);
   if (!book && !catalog && !type) {
     return res.status(400).json({ error: "missing_embed_filter" });
   }
@@ -4788,10 +4817,6 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
       item.driveLink || item.thumbnailUrl || item.excerpt || item.fullText || item.text
     );
   }).sort((a, b) => {
-    const aType = normalizeText(a.item.imageType || a.item.contentType || a.item.type).toUpperCase();
-    const bType = normalizeText(b.item.imageType || b.item.contentType || b.item.type).toUpperCase();
-    const preferenceDiff = Number(preferredTypes.has(bType)) - Number(preferredTypes.has(aType));
-    if (preferenceDiff) return preferenceDiff;
     const scoreDiff = (Number(b.rating.score) || 0) - (Number(a.rating.score) || 0);
     if (scoreDiff) return scoreDiff;
     const movedDiff = (Number(b.rating.movedMe) || 0) - (Number(a.rating.movedMe) || 0);
@@ -4799,9 +4824,9 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
     const voteDiff = (Number(b.rating.total) || 0) - (Number(a.rating.total) || 0);
     if (voteDiff) return voteDiff;
     return normalizeText(a.item.title).localeCompare(normalizeText(b.item.title));
-  }).slice(0, 20);
+  });
 
-  const pool = eligible.map(({ item, imageId, rating }) => ({
+  const pool = prioritizeVisualContent(eligible, preferredTypes, 20).map(({ item, imageId, rating }) => ({
     id: imageId,
     contentId: normalizeText(item.contentId || imageId),
     imageType: normalizeText(item.imageType || item.contentType || item.type),
