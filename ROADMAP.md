@@ -2,6 +2,12 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Immediate Priorities (week of September 28–October 2, 2026)
+- First: protect the live public experience—verify first load, sign-in/anonymous entry, and deployed-build visibility with a small smoke check; use the existing approved deployment workflow only.
+- Second: prepare a small invited-author email pilot this week. Confirm a monitored staff/support reply destination, test invite creation through email-matched claim and author view, then send manually from the existing prefilled Gmail flow. See `AUTHOR_INVITE_ROLLOUT.md`.
+- Keep the live Fall contest in operational/judging follow-through for its October 5 close; keep Explorer in staff usability and legacy-product-link parity follow-through. Neither is the primary new build slice.
+- Defer the intern/staff scheduling concept and live-stream piping until these priorities are stable.
+
 ## Active Focus
 - Contest program and judging workflow (live; initial pilot closed):
   - native Poetry Please intake is live with Google and email-link sign-in, My Submissions, required poem title, eligibility/terms checks, and an internal test program
@@ -56,7 +62,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 - Shared Drive migration for durable Poetry Please handoff docs, imports, exports, and operating notes
 
 ## Top Product Priorities
-- Complete the native contest replacement: finish Contest Builder banner testing, resolve the reviewer access policy and non-Button denial check, verify the ranked shortlist/export, then prepare the first real contest for launch.
+- Complete the native contest replacement: finish Contest Builder banner testing, resolve the reviewer access policy and non-Button denial check, verify the ranked shortlist/export, then operate the live Fall contest through its October 5 close and judging.
 - Validate the live Content Explorer with staff and use their feedback to improve the most common author/book/content discovery paths.
 - Smooth the general user experience:
   - make logged-out and anonymous entry feel intentional instead of like a loading state
@@ -79,7 +85,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - retire stale Poetry Please entrypoints such as `buttonpoetry.com/poetryplease` so old builds cannot create false bug reports
 
 ## Near-Term Build Order
-- Finish Contest Builder testing with Emory’s dummy banner. Use the completed judging pilot as the initial review evidence; resolve the non-Button access gate and shortlist/export behavior before the first real contest.
+- Finish Contest Builder testing with Emory’s dummy banner. Use the completed judging pilot as the initial review evidence; resolve the non-Button access gate and shortlist/export behavior for the live Fall contest.
 - Run a short staff Explorer usability pass; prioritize fixes to common search, link, and asset-selection friction shown by that pass.
 - Establish a low-friction safety rail before larger product changes:
   - create a one-command smoke test covering public load, logged-in feed API, filtered queue API, scoreboard API, and admin health
