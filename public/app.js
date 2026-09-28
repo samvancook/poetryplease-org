@@ -799,6 +799,8 @@ function updateUserStatusUI() {
       const isTeam = !authorPreviewMode && !!currentAccount?.roles?.includes('team');
       const canEditAuthorProfile = authorPreviewMode || !!currentAccount?.roles?.some((role) => role === 'author' || role === 'admin') || isAdmin;
       const canAccessScoreboard = isAdmin || isTeam;
+      const canBuildContests = !authorPreviewMode && (isAdmin || !!currentAccount?.roles?.includes('contest_builder'));
+      const canReviewContests = !authorPreviewMode && (canAccessScoreboard || canBuildContests || (user.emailVerified && String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com')));
       const roleBadge = isAdmin
         ? ' <a id="admin-badge" href="/admin.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
         : '';
@@ -811,6 +813,12 @@ function updateUserStatusUI() {
         : '';
       const scoreboardBadge = canAccessScoreboard
         ? ' <a id="scoreboard-badge" href="/scoreboard" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e6efe1;color:#3f5f36;font-size:12px;font-weight:600;text-decoration:none;">Scoreboard</a>'
+        : '';
+      const contestBuilderBadge = canBuildContests
+        ? ' <a id="contest-builder-badge" href="/contest-builder.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e4eff0;color:#315f64;font-size:12px;font-weight:600;text-decoration:none;">Build contests</a>'
+        : '';
+      const contestReviewBadge = canReviewContests
+        ? ' <a id="contest-review-badge" href="/contest-review.html?view=all" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e4eff0;color:#315f64;font-size:12px;font-weight:600;text-decoration:none;">Review entries</a>'
         : '';
       const feedSignalsBadge = isAdmin
         ? ' <button id="feed-signals-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f5efe4;color:#6a5134;font-size:12px;font-weight:600;cursor:pointer;">Feed signals</button>'
@@ -836,7 +844,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
