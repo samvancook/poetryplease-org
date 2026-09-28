@@ -11,7 +11,9 @@
     * { box-sizing:border-box; }
     body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial,sans-serif; }
     main { width:min(880px,calc(100% - 32px)); margin:28px auto 72px; }
-    .topbar,.controls,.actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .topbar,.controls,.actions,.staff-nav { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .staff-nav { margin:18px 0 0; padding:12px 0; border-bottom:1px solid var(--line); }
+    .staff-nav [aria-current="page"] { font-weight:700; color:var(--ink); }
     .topbar { justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:18px; }
     h1 { margin:30px 0 8px; font:500 clamp(36px,7vw,60px) Georgia,serif; letter-spacing:0; }
     h2 { letter-spacing:0; }
@@ -44,8 +46,13 @@
         <button id="logout" type="button" hidden>Log out</button>
       </div>
     </div>
+    <nav class="staff-nav" aria-label="Contest staff pages">
+      <a href="/contest-builder.html">Build contests</a>
+      <a id="entrant-preview" target="_blank" rel="noopener" hidden>See entrant page</a>
+      <span aria-current="page">Review submissions</span>
+    </nav>
     <h1>Contest Review</h1>
-    <p>Blinded review. Entrant identity, contact information, and social metrics are intentionally hidden.</p>
+    <p>Blinded review. Entrant identity, contact information, and social metrics are intentionally hidden. Choose a contest below, use All available to compare its entries, and move between them with Previous and Next.</p>
     <div class="controls">
       <label>Program <select id="program"><option value="">All programs</option></select></label>
       <label>View
@@ -125,6 +132,9 @@
     function applyFilters() {
       const programId = document.getElementById("program").value;
       const view = document.getElementById("view").value;
+      const preview = document.getElementById("entrant-preview");
+      preview.hidden = !programId;
+      if (programId) preview.href = "/contest-submit.html?program=" + encodeURIComponent(programId);
       state.filtered = state.submissions.filter((row) => {
         if (programId && row.submissionProgramId !== programId) return false;
         if (view === "unreviewed") return !row.currentReviewerDecision && !row.reviewComplete;
@@ -167,11 +177,17 @@
         state.programs = payload.programs || [];
         state.submissions = payload.submissions || [];
         const select = document.getElementById("program");
-        const selected = select.value;
+        const params = new URLSearchParams(location.search);
+        const firstLoad = !state.filtersInitialized;
+        const selected = firstLoad ? (params.get("program") || "") : select.value;
         select.innerHTML = '<option value="">All programs</option>' + state.programs.map((program) =>
           '<option value="' + program.id + '">' + program.name + '</option>'
         ).join("");
-        select.value = selected;
+        select.value = state.programs.some((program) => program.id === selected) ? selected : "";
+        if (firstLoad && ["unreviewed", "reviewed", "all"].includes(params.get("view"))) {
+          document.getElementById("view").value = params.get("view");
+        }
+        state.filtersInitialized = true;
         setStatus("Ready.");
         applyFilters();
       } catch (error) {

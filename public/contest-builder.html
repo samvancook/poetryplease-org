@@ -13,7 +13,10 @@
     * { box-sizing:border-box; }
     body { margin:0; background:var(--paper); color:var(--ink); font-family:Arial,sans-serif; }
     main { width:min(780px,calc(100% - 32px)); margin:28px auto 72px; }
-    header,.actions,.link-actions { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    header,.actions,.link-actions,.staff-nav { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .staff-nav { margin:18px 0 0; padding:12px 0; border-bottom:1px solid var(--line); }
+    .staff-nav [aria-current="page"] { font-weight:700; color:var(--ink); }
+    .staff-nav [hidden] { display:none; }
     header { justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:16px; }
     h1 { margin:28px 0 8px; font:500 clamp(38px,7vw,62px) Georgia,serif; }
     p { color:var(--muted); line-height:1.5; }
@@ -47,6 +50,11 @@
       <button id="login" type="button" hidden>Sign in with Google</button>
       <button id="logout" type="button" hidden>Sign out</button>
     </header>
+    <nav class="staff-nav" aria-label="Contest staff pages">
+      <span aria-current="page">Build contests</span>
+      <a id="nav-preview" target="_blank" rel="noopener" hidden>See entrant page</a>
+      <a id="nav-review" href="/contest-review.html?view=all">Review submissions</a>
+    </nav>
     <h1>Contest Builder</h1>
     <p>Create a live contest here: give it a name, set the opening and closing times, save, and share the link. Contest builders and admins can publish without an extra approval step.</p>
     <div id="status" class="status">Checking access…</div>
@@ -120,11 +128,17 @@
     function share(id) {
       const visible=!!id;
       $("share").style.display=visible?"block":"none";
+      const reviewUrl=new URL("/contest-review.html",location.origin);
+      reviewUrl.searchParams.set("view","all");
+      if (visible) reviewUrl.searchParams.set("program",id);
+      $("nav-review").href=reviewUrl.href;
+      $("nav-preview").hidden=!visible;
       if (!visible) return;
       const url=new URL("/contest-submit.html",location.origin);
       url.searchParams.set("program",id);
       $("link").value=url.href;
       $("preview").href=url.href;
+      $("nav-preview").href=url.href;
     }
     function selectProgram(id) {
       const row=programs.find((item)=>item.id===id);
