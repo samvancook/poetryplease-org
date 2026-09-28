@@ -11,6 +11,10 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - next: visually verify an uploaded dummy banner and its crop on the entrant page; collect staff feedback on the builder and reviewer flow
   - launch gate: confirm whether every verified @buttonpoetry.com address should have reviewer access, and verify reviewer/Admin denial with a non-Button contestant account
   - next: confirm the ranked shortlist, admin override, export, and content-featuring path before declaring the Google Form/response-sheet replacement complete; the completed pilot entries are sufficient for the initial review check
+- Shared staff navigation (planned, incremental):
+  - replace scattered page-specific links with a consistent, persistent navigation shell across the main app, Admin, Contest Builder, Contest Review, and other staff tools
+  - show only destinations each signed-in role can use; preserve the current page, selected contest/program, and useful deep links when moving between screens
+  - make it clear on desktop and mobile where staff can build a contest, preview its entrant page, inspect submissions, and compare programs; roll it out page by page rather than requiring a one-shot redesign
 - Content Explorer (live at https://poetryplease.org/explorer/):
   - staff can search and filter author, book, work, catalog, content type, coverage, relationship confidence, flags, and product-link presence; filters are shareable in the URL
   - canonical product links now flow through the full-poem response; image assets offer Poetry Please, Drive, download, and source actions when available, plus optional ranking sort and visible rank labels
