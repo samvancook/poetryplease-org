@@ -13,7 +13,7 @@ Goal: prepare a one-time, personalized invitation batch for the four Fall 2026 a
 
 ## Send gate
 
-1. Confirmed: `support@buttonpoetry.com` is monitored. Make sure the sending staff member knows who will triage replies there this week; do not route authors to Sam by default.
+1. Confirmed: `support@buttonpoetry.com` is monitored. For this batch, Sam is the intended Reply-To and will personally answer replies; support remains the backup help route.
 2. Confirm the exact four-person Fall 2026 roster and each current address from direct correspondence; exclude PAGES Matam because that invite is claimed. Do not put addresses or secure invite links in this repository.
 3. Generate one unique link per approved recipient, verify the intended email and expiration, and send one personalized message at a time from Sam's connected Gmail account with Sam as Reply-To. Log Gmail send IDs privately and stop on any failure instead of blindly continuing.
 4. Check the first message's delivery and reply path before sending the other three. PAGES Matam and Kyle Tran Myhre have already used their author accounts to review content; do not make them repeat onboarding solely for this check.
