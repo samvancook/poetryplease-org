@@ -387,6 +387,36 @@ test("an unmergeable combine is flagged before it blocks promotion", () => {
   assert.match(client, /would block promotion later/);
 });
 
+test("a record can be retired so the poem count can reach the expected book", () => {
+  // Reconciliation 2 holds 49 comparison records for a 45-poem book. Every other decision
+  // publishes something, so the count could never reach 45: source 7 split one poem that
+  // source 10 has whole, and two titles have near-duplicate variants. Retiring says the
+  // record is not a separate poem.
+  const offered = COMMON_ACTIONS.map(([value]) => value);
+  assert.ok(offered.includes("review_retire"));
+  // Settled, so the row is not left queued, and Catalog publishes nothing for it.
+  assert.equal(statusForAction("review_retire"), "approved");
+  // Claiming a poem does not exist must never be silent.
+  const row = { identity: "p", candidateTitle: "T", candidate: { id: 22 } };
+  assert.equal(needsNotes(row, {
+    reviewStatus: "approved", resolutionAction: "review_retire",
+    canonicalTitle: "T", stablePoemIdentity: "p", textSourcePoemId: 22, formatSourcePoemId: 22,
+  }), true);
+  // Retiring asks nothing about sources, so it keeps whatever Catalog holds, which stays
+  // inside the resolution's own pair and cannot trip source_outside_reconciliation.
+  assert.deepEqual(sourcesForAction("review_retire", { prior: { id: 11 }, candidate: { id: 22 } }, 22, 22), { text: 22, format: 22 });
+
+  const client = fs.readFileSync(new URL("../public/manuscript-reconciliation-live.js", import.meta.url), "utf8");
+  // A stored decision this control no longer offers must read as itself, not as a raw slug.
+  for (const action of ["review_replacement", "review_create", "reject_extraction"]) {
+    assert.match(client, new RegExp(`\\["${action}", "[^"]+"\\]`));
+  }
+  // A combine that is not a split is refused rather than stored as an invisible approval.
+  assert.match(client, /Choose different sources for wording and formatting/);
+  // Reviewers were writing "Italics lost" as review notes; the UI now says it is upstream.
+  assert.match(client, /Italics and bold are missing from both columns/);
+});
+
 test("production proxy accepts only the guarded fixture and never editorial reconciliation 2", () => {
   assert.equal(CATALOG_PHASE2_API, "https://button-poetry-catalog-350789123099.us-central1.run.app");
   assert.equal(isSafePreviewTarget(1, 900001), true);
