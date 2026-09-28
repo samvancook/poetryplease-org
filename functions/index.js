@@ -4756,6 +4756,9 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   const book = normalizeText(req.query?.book);
   const catalog = normalizeText(req.query?.catalog);
   const type = normalizeText(req.query?.type);
+  const preferredTypes = new Set(normalizeText(req.query?.prefer).split(",")
+    .map((value) => value.trim().toUpperCase())
+    .filter((value) => value === "QI" || value === "INT"));
   if (!book && !catalog && !type) {
     return res.status(400).json({ error: "missing_embed_filter" });
   }
@@ -4785,6 +4788,10 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
       item.driveLink || item.thumbnailUrl || item.excerpt || item.fullText || item.text
     );
   }).sort((a, b) => {
+    const aType = normalizeText(a.item.imageType || a.item.contentType || a.item.type).toUpperCase();
+    const bType = normalizeText(b.item.imageType || b.item.contentType || b.item.type).toUpperCase();
+    const preferenceDiff = Number(preferredTypes.has(bType)) - Number(preferredTypes.has(aType));
+    if (preferenceDiff) return preferenceDiff;
     const scoreDiff = (Number(b.rating.score) || 0) - (Number(a.rating.score) || 0);
     if (scoreDiff) return scoreDiff;
     const movedDiff = (Number(b.rating.movedMe) || 0) - (Number(a.rating.movedMe) || 0);

@@ -155,6 +155,7 @@
       const book = (params.get("book") || "").trim();
       const catalog = (params.get("catalog") || "").trim();
       const type = (params.get("type") || "").trim();
+      const prefer = (params.get("prefer") || "").trim();
       const month = new Date().toISOString().slice(0, 7);
       const stage = document.getElementById("stage");
       const content = document.getElementById("content");
@@ -305,6 +306,7 @@
       endpoint.searchParams.set("embedVersion", "3");
       if (catalog) endpoint.searchParams.set("catalog", catalog);
       if (type) endpoint.searchParams.set("type", type);
+      if (prefer) endpoint.searchParams.set("prefer", prefer);
 
       fetch(endpoint, { headers: { Accept: "application/json" } })
         .then((response) => {
