@@ -482,6 +482,7 @@ async function api(path, { method = 'POST', body } = {}) {
 
 let authorInviteStatus = { checked: false, inFlight: false, redeemed: false };
 let currentAccount = null;
+let ownAuthorName = '';
 let lastFeedIdentityKey = null;
 
 function readAuthorInviteToken() {
@@ -811,6 +812,12 @@ function updateUserStatusUI() {
       const profileBadge = canEditAuthorProfile
         ? ` <a id="author-profile-badge" href="${profileHref}" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;text-decoration:none;">Edit profile</a>`
         : '';
+      const ownContentBadge = ownAuthorName && !authorPreviewMode
+        ? ` <a id="author-content-badge" href="/app?author=${encodeURIComponent(ownAuthorName)}&locked=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:600;text-decoration:none;">My content</a>`
+        : '';
+      const browseBadge = ownContentBadge && lockedLane && valuesMatch(selectedAuthor, ownAuthorName)
+        ? ' <a id="browse-all-badge" href="/app?browse=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#5f574b;font-size:12px;font-weight:600;text-decoration:none;">Browse all</a>'
+        : '';
       const scoreboardBadge = canAccessScoreboard
         ? ' <a id="scoreboard-badge" href="/scoreboard" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e6efe1;color:#3f5f36;font-size:12px;font-weight:600;text-decoration:none;">Scoreboard</a>'
         : '';
@@ -844,7 +851,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${ownContentBadge}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -965,6 +972,32 @@ async function refreshCurrentAccount() {
   }
   updateFilterControlsVisibility();
   return currentAccount;
+}
+
+async function prepareOwnAuthorLane(user) {
+  ownAuthorName = '';
+  if (!user || !currentAccount?.roles?.includes('author')) return;
+  try {
+    // The authenticated author editor resolves this account's profile; do not
+    // infer a pen name from email or let the browser select another author.
+    const data = await api('my/authorProfileEditorData', { method: 'GET' });
+    if (firebase.auth().currentUser?.uid !== user.uid) return;
+    ownAuthorName = String(data?.profile?.displayName || data?.workingProfile?.displayName || '').trim();
+  } catch (err) {
+    console.warn('Could not resolve own author profile for feed routing', err);
+    return;
+  }
+
+  const isAuthorOnly = !currentAccount?.roles?.some((role) => role === 'team' || role === 'admin');
+  const browseRequested = new URLSearchParams(window.location.search).get('browse') === '1';
+  if (!ownAuthorName || !isAuthorOnly || browseRequested || authorPreviewMode ||
+      readAuthorInviteToken() || selectedItemId || lockedLane || hasActiveFeedFilters()) return;
+
+  selectedAuthor = ownAuthorName;
+  filterByAuthor = true;
+  lockedLane = true;
+  syncFilterControls();
+  writeRouteState();
 }
 
 async function mergeAnonymousVotesIntoAccount() {
@@ -3722,8 +3755,9 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
   try {
     await refreshCurrentAccount();
+    await prepareOwnAuthorLane(visibleUser);
   } catch (err) {
-    console.warn('refreshCurrentAccount failed during auth bootstrap', err);
+    console.warn('Author account bootstrap failed', err);
   }
 
   const nextFeedIdentityKey = getFeedIdentityKey();
