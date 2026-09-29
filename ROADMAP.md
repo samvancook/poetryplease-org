@@ -69,6 +69,12 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - make login, continue-without-login, and account creation visually polished
   - add lightweight load/error timing so stuck sessions are easier to diagnose
 - Get author accounts fully usable:
+  - make the review queue the author starting point; keep the compact review guide collapsible and connect its QI, INT, EXC, and FP links to the relevant lanes
+  - split the current author editor into three clearly explained surfaces: public profile, featured selections, and granular issue review, with links between them and the review queue
+  - restrict featured selection to pieces this author voted Moved Me on; if none exist, show an empty state with a review queue link; add an author-scoped vote list to the editor API before changing the UI
+  - restrict granular issue review to pieces this author flagged, voted Meh on, or voted Dislike on; expose those author-scoped states in the API and keep the review list separate from profile editing
+  - separate adjustment notes from the existing `contentFlags` action: the current editor’s “Send note” uses `contentFlags`, which pauses/pulls a piece; add a distinct adjustment request when the author only wants formatting or version changes, with clear status and a deliberate pull action for urgent concerns
+  - measure author page load and list rendering, then lazy-fetch or paginate each module’s data so opening the profile does not load hundreds of content cards; verify desktop and mobile parity
   - finish author claim/invite flow
   - give authors a simple dashboard of their own content
   - let authors flag or suggest corrections on their own content
