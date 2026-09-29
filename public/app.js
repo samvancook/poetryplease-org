@@ -909,10 +909,25 @@ function renderAuthorReviewGuide() {
   if (guide.hidden) return;
   const laneHref = (type) => `/app?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
   const editorHref = isStaffPreview ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
-  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Choose where to go</h2>
+  const collapsed = safeLocalStorageGet('pp_author_review_guide_collapsed') === 'true';
+  guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <h2 style="margin:0;font-size:1.2rem;">Review guide</h2>
+    <button type="button" id="author-review-guide-toggle" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
+  </div>
+  <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Start with graphics:</strong> <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> · <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a></p>
-    <p style="margin:0 0 8px;"><strong>2. Optional adjustments:</strong> <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">Leave a note in the editor</a> about formatting or an earlier version.</p>
-    <p style="margin:0;"><strong>3. Vote on work to feature:</strong> <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> · <a href="${escapeHtml(laneHref('FP'))}">Full poems</a></p>`;
+    <p style="margin:0 0 8px;"><strong>2. Optional adjustments:</strong> <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">Open the editor</a> if formatting or an earlier version needs review. Sending a note there pauses the piece for the team.</p>
+    <p style="margin:0;"><strong>3. Vote on work to feature:</strong> <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> · <a href="${escapeHtml(laneHref('FP'))}">Full poems</a></p>
+  </div>`;
+  guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
+    const body = guide.querySelector('#author-review-guide-body');
+    const nextCollapsed = !body.hidden;
+    body.hidden = nextCollapsed;
+    const button = guide.querySelector('#author-review-guide-toggle');
+    button.textContent = nextCollapsed ? 'Expand' : 'Collapse';
+    button.setAttribute('aria-expanded', String(!nextCollapsed));
+    safeLocalStorageSet('pp_author_review_guide_collapsed', String(nextCollapsed));
+  });
 }
 
 function parseOptionalCount(value) {
