@@ -853,7 +853,7 @@
     }
 
     function reviewAuthorUrl(authorName = state.workingProfile?.displayName || state.reviewAuthor || "") {
-      return `/app${authorName ? `?author=${encodeURIComponent(authorName)}&locked=1` : ""}`;
+      return `/app${authorName ? `?author=${encodeURIComponent(authorName)}&locked=1${state.previewMode ? "&authorPreview=1" : ""}` : ""}`;
     }
 
     function fillProfile(profile = {}, workingProfile = profile) {
