@@ -46,6 +46,7 @@ const COLLECTIONS = {
   submissionEntrants: "submissionEntrants",
   submissionPrograms: "submissionPrograms",
   submissionResponses: "submissionResponses",
+  contestReviewAssignments: "contestReviewAssignments",
   importJobs: "importJobs",
   importJobItems: "importJobItems",
   systemState: "systemState",
@@ -9637,12 +9638,15 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
   if (!ctx) return;
 
   const requestedProgramId = normalizeText(req.query.programId || "");
-  const [submissionSnap, programSnap, decisionSnap] = await Promise.all([
-    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).limit(500).get(),
+  const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
+  const [submissionSnap, programSnap, decisionSnap, assignmentSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionPrograms).limit(100).get(),
-    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").limit(1000).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contestReviewAssignments).where("reviewerEmail", "==", reviewerEmail).get(),
   ]);
   const programsById = new Map(programSnap.docs.map((doc) => [doc.id, { id: doc.id, ...(doc.data() || {}) }]));
+  const assignedIds = new Set(assignmentSnap.docs.flatMap((doc) => doc.data()?.submissionIds || []));
   const decisionsBySubmissionId = new Map();
   decisionSnap.docs.forEach((doc) => {
     const row = { id: doc.id, ...(doc.data() || {}) };
@@ -9673,6 +9677,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
         contestScore: reviewCount >= requiredReviewCount ? Number(row.contestScore) || 0 : null,
         currentReviewerDecision: normalizeKey(currentDecision?.decision || ""),
         currentReviewerNote: normalizeText(currentDecision?.note || ""),
+        assignedToMe: assignedIds.has(row.id),
         createdAt: row.createdAt || null,
       };
     })
@@ -9693,6 +9698,145 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
     })),
     submissions,
   });
+});
+
+app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+  const [submissionSnap, decisionSnap, assignmentSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
+  ]);
+  const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
+  const submissionIds = new Set(submissions.map((row) => row.id));
+  const decisionsBySubmission = new Map();
+  for (const doc of decisionSnap.docs) {
+    const decision = doc.data() || {};
+    if (!submissionIds.has(decision.submissionId)) continue;
+    const list = decisionsBySubmission.get(decision.submissionId) || [];
+    list.push({
+      reviewerEmail: normalizeText(decision.reviewerEmail || "").toLowerCase(),
+      decision: normalizeKey(decision.decision || ""),
+    });
+    decisionsBySubmission.set(decision.submissionId, list);
+  }
+  const assignedBySubmission = new Map();
+  const reviewerProgress = new Map();
+  const reviewer = (email) => {
+    if (!reviewerProgress.has(email)) reviewerProgress.set(email, { email, assigned: 0, reviewedAssigned: 0, reviewedTotal: 0 });
+    return reviewerProgress.get(email);
+  };
+  for (const doc of assignmentSnap.docs) {
+    const data = doc.data() || {};
+    const email = normalizeText(data.reviewerEmail || "").toLowerCase();
+    if (!email) continue;
+    for (const submissionId of data.submissionIds || []) {
+      if (!submissionIds.has(submissionId)) continue;
+      const assigned = assignedBySubmission.get(submissionId) || [];
+      if (assigned.includes(email)) continue;
+      assigned.push(email);
+      assignedBySubmission.set(submissionId, assigned);
+      reviewer(email).assigned += 1;
+    }
+  }
+  const rows = submissions.map((row) => {
+    const decisions = decisionsBySubmission.get(row.id) || [];
+    const assignedTo = assignedBySubmission.get(row.id) || [];
+    for (const decision of decisions) {
+      if (!decision.reviewerEmail) continue;
+      reviewer(decision.reviewerEmail).reviewedTotal += 1;
+      if (assignedTo.includes(decision.reviewerEmail)) reviewer(decision.reviewerEmail).reviewedAssigned += 1;
+    }
+    return {
+      id: row.id,
+      title: row.title || "Untitled",
+      reviewCount: decisions.length,
+      requiredReviewCount,
+      reviewers: decisions,
+      assignedTo,
+    };
+  }).sort((a, b) => a.title.localeCompare(b.title));
+  res.json({
+    ok: true,
+    programId,
+    totalSubmissions: rows.length,
+    reviewedAtLeastOnce: rows.filter((row) => row.reviewCount > 0).length,
+    fullyReviewed: rows.filter((row) => row.reviewCount >= requiredReviewCount).length,
+    requiredReviewCount,
+    reviewers: Array.from(reviewerProgress.values()).sort((a, b) => a.email.localeCompare(b.email)),
+    submissions: rows,
+  });
+});
+
+app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  const batchSize = Number(req.body?.batchSize);
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  if (!/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail)) return res.status(400).json({ error: "invalid_reviewer_email" });
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 100) {
+    return res.status(400).json({ error: "batch_size_must_be_1_to_100" });
+  }
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+  const [submissionSnap, decisionSnap, assignmentSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
+  ]);
+  const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
+  const submissionIds = new Set(submissions.map((row) => row.id));
+  const occupiedBySubmission = new Map();
+  for (const doc of decisionSnap.docs) {
+    const decision = doc.data() || {};
+    if (!submissionIds.has(decision.submissionId)) continue;
+    const email = normalizeText(decision.reviewerEmail || "").toLowerCase();
+    if (!email) continue;
+    const occupied = occupiedBySubmission.get(decision.submissionId) || new Set();
+    occupied.add(email);
+    occupiedBySubmission.set(decision.submissionId, occupied);
+  }
+  for (const doc of assignmentSnap.docs) {
+    const data = doc.data() || {};
+    const email = normalizeText(data.reviewerEmail || "").toLowerCase();
+    if (!email) continue;
+    for (const submissionId of data.submissionIds || []) {
+      if (!submissionIds.has(submissionId)) continue;
+      const occupied = occupiedBySubmission.get(submissionId) || new Set();
+      occupied.add(email);
+      occupiedBySubmission.set(submissionId, occupied);
+    }
+  }
+  const eligible = submissions.filter((row) => {
+    const occupied = occupiedBySubmission.get(row.id) || new Set();
+    return !occupied.has(reviewerEmail) && occupied.size < requiredReviewCount;
+  }).sort((a, b) => {
+    const aCount = occupiedBySubmission.get(a.id)?.size || 0;
+    const bCount = occupiedBySubmission.get(b.id)?.size || 0;
+    if (aCount !== bCount) return aCount - bCount;
+    return (normalizeTimestamp(a.createdAt)?.getTime() || 0) - (normalizeTimestamp(b.createdAt)?.getTime() || 0);
+  });
+  const selectedIds = eligible.slice(0, batchSize).map((row) => row.id);
+  if (selectedIds.length) {
+    const assignmentId = createHash("sha256").update(programId + "|" + reviewerEmail).digest("hex").slice(0, 40);
+    await db.collection(COLLECTIONS.contestReviewAssignments).doc(assignmentId).set({
+      programId,
+      reviewerEmail,
+      submissionIds: FieldValue.arrayUnion(...selectedIds),
+      updatedBy: ctx.decoded.uid,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+  res.json({ ok: true, assigned: selectedIds.length, reviewerEmail, programId, requested: batchSize });
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), async (req, res) => {
