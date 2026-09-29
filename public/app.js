@@ -3721,6 +3721,162 @@ async function ppAutoloadFirstItem() {
 
 
 
+// A small, non-voting tour for an author's own locked queue and admin Author View.
+const AuthorQueueTour = (() => {
+  const steps = [
+    {
+      title: 'Start with your work',
+      copy: 'This is your content queue. Review one piece at a time; My content brings you back here.',
+      target: () => document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
+    },
+    {
+      title: 'Review the piece',
+      copy: 'Read or watch the work on screen before you respond. This tour will not record a reaction.',
+      target: () => document.getElementById('media-wrap'),
+    },
+    {
+      title: 'Your reaction moves you forward',
+      copy: 'Like, Dislike, Moved Me, or Meh records your response and brings up the next piece.',
+      target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row'),
+    },
+    {
+      title: 'Something needs a correction?',
+      copy: 'Flag the piece instead of guessing. On a phone, open Info to find the issue flag.',
+      target: () => document.querySelector('.info-btn') || Array.from(document.querySelectorAll('#media-wrap button')).find((button) => /flag issue/i.test(button.textContent || '')) || document.getElementById('media-wrap'),
+    },
+  ];
+  let step = 0;
+  let open = false;
+  let help = null;
+  let blocker = null;
+  let spotlight = null;
+  let card = null;
+
+  function audience() {
+    const user = getVisibleUser();
+    if (!user || IS_EMBED_UI || !currentItem || !lockedLane || readAuthorInviteToken()) return null;
+    if (authorPreviewMode) {
+      if (!selectedAuthor || !(currentUserIsAdmin() || currentAccount?.roles?.includes('team'))) return null;
+      return 'pp_author_tour_v1_' + user.uid + '_preview';
+    }
+    const roles = currentAccount?.roles || [];
+    if (!roles.includes('author') || roles.includes('team') || roles.includes('admin') ||
+        !ownAuthorName || !valuesMatch(selectedAuthor, ownAuthorName)) return null;
+    return 'pp_author_tour_v1_' + user.uid + '_own';
+  }
+
+  function ensureStyle() {
+    if (document.getElementById('pp-author-tour-style')) return;
+    const style = document.createElement('style');
+    style.id = 'pp-author-tour-style';
+    style.textContent = '#pp-author-tour-help{position:fixed;left:16px;bottom:max(16px,env(safe-area-inset-bottom));z-index:20000;border:1px solid #9dbfc0;border-radius:999px;background:#fffdf8;color:#2f5d62;padding:10px 15px;font:700 14px system-ui;box-shadow:0 4px 20px #0002;cursor:pointer}#pp-author-tour-blocker{position:fixed;inset:0;z-index:21000}#pp-author-tour-spotlight{position:fixed;z-index:21001;border:3px solid #fffdf8;border-radius:14px;box-shadow:0 0 0 9999px #17130fc2,0 0 0 5px #2f5d62;pointer-events:none}#pp-author-tour-card{position:fixed;z-index:21002;width:min(360px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;border:1px solid #dad0c1;border-radius:18px;background:#fffdf8;color:#1d1a16;padding:18px;font:16px/1.45 system-ui;box-shadow:0 20px 50px #0005}#pp-author-tour-card h2{font:700 21px/1.2 system-ui;margin:6px 0 8px}#pp-author-tour-card p{margin:0 0 15px}#pp-author-tour-card .pp-tour-progress{color:#6b6458;font-size:13px}#pp-author-tour-card .pp-tour-actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}#pp-author-tour-card button{min-height:44px;padding:8px 12px;border-radius:10px;border:1px solid #2f5d62;background:#2f5d62;color:#fff;font:700 14px system-ui;cursor:pointer}#pp-author-tour-card button[data-tour-action="skip"],#pp-author-tour-card button[data-tour-action="back"]{background:#fff;color:#2f5d62}#pp-author-tour-card button:disabled{opacity:.4;cursor:default}';
+    document.head.appendChild(style);
+  }
+
+  function close(completed) {
+    if (completed) {
+      const key = audience();
+      if (key) safeLocalStorageSet(key, 'done');
+    }
+    open = false;
+    blocker?.remove();
+    spotlight?.remove();
+    card?.remove();
+    blocker = spotlight = card = null;
+    help?.focus();
+  }
+
+  function render() {
+    if (!open || !card || !spotlight) return;
+    const current = steps[step];
+    card.querySelector('.pp-tour-progress').textContent = 'Step ' + (step + 1) + ' of ' + steps.length;
+    card.querySelector('h2').textContent = current.title;
+    card.querySelector('p').textContent = current.copy;
+    card.querySelector('[data-tour-action="back"]').disabled = step === 0;
+    card.querySelector('[data-tour-action="next"]').textContent = step === steps.length - 1 ? 'Start reviewing' : 'Next';
+    const target = current.target();
+    const rect = target?.getBoundingClientRect();
+    if (!rect) {
+      spotlight.style.display = 'none';
+      card.style.left = '12px';
+      card.style.top = '12px';
+      return;
+    }
+    spotlight.style.display = '';
+    const left = Math.max(4, Math.min(rect.left - 4, window.innerWidth - 20));
+    const top = Math.max(4, Math.min(rect.top - 4, window.innerHeight - 20));
+    spotlight.style.left = left + 'px';
+    spotlight.style.top = top + 'px';
+    spotlight.style.width = Math.max(16, Math.min(rect.width + 8, window.innerWidth - left - 4)) + 'px';
+    spotlight.style.height = Math.max(16, Math.min(rect.height + 8, window.innerHeight - top - 4)) + 'px';
+    const cardWidth = card.offsetWidth;
+    const cardHeight = card.offsetHeight;
+    card.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - cardWidth - 12)) + 'px';
+    card.style.top = (rect.bottom + cardHeight + 12 <= window.innerHeight
+      ? rect.bottom + 12
+      : Math.max(12, rect.top - cardHeight - 12)) + 'px';
+  }
+
+  function start() {
+    if (open || !audience()) return;
+    ensureStyle();
+    step = 0;
+    open = true;
+    blocker = document.createElement('div');
+    blocker.id = 'pp-author-tour-blocker';
+    spotlight = document.createElement('div');
+    spotlight.id = 'pp-author-tour-spotlight';
+    spotlight.setAttribute('aria-hidden', 'true');
+    card = document.createElement('section');
+    card.id = 'pp-author-tour-card';
+    card.setAttribute('role', 'dialog');
+    card.setAttribute('aria-modal', 'true');
+    card.setAttribute('aria-label', 'Author review guide');
+    card.innerHTML = '<div class="pp-tour-progress"></div><h2></h2><p></p><div class="pp-tour-actions"><button type="button" data-tour-action="skip">Skip</button><button type="button" data-tour-action="back">Back</button><button type="button" data-tour-action="next">Next</button></div>';
+    card.querySelector('[data-tour-action="skip"]').addEventListener('click', () => close(true));
+    card.querySelector('[data-tour-action="back"]').addEventListener('click', () => {
+      if (step > 0) { step -= 1; render(); }
+    });
+    card.querySelector('[data-tour-action="next"]').addEventListener('click', () => {
+      if (step === steps.length - 1) { close(true); return; }
+      step += 1;
+      render();
+    });
+    document.body.append(blocker, spotlight, card);
+    render();
+    card.querySelector('[data-tour-action="next"]').focus();
+  }
+
+  function maybeStart() {
+    const key = audience();
+    if (!key) {
+      if (open) close(false);
+      help?.remove();
+      help = null;
+      return;
+    }
+    ensureStyle();
+    if (!help) {
+      help = document.createElement('button');
+      help.id = 'pp-author-tour-help';
+      help.type = 'button';
+      help.textContent = 'Review guide';
+      help.setAttribute('aria-label', 'Replay author review guide');
+      help.addEventListener('click', start);
+      document.body.appendChild(help);
+    }
+    if (safeLocalStorageGet(key) !== 'done') start();
+  }
+
+  window.addEventListener('resize', render, { passive: true });
+  window.addEventListener('scroll', render, { passive: true });
+  window.addEventListener('keydown', (event) => {
+    if (open && event.key === 'Escape') close(true);
+  });
+  window.addEventListener('pp:state', () => window.setTimeout(maybeStart, 80));
+  return { maybeStart };
+})();
+
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
   window.__pp_authResolved = true;
@@ -3769,6 +3925,7 @@ firebase.auth().onAuthStateChanged(async (user) => {
 
   updateUserStatusUI();
   if (currentItem) renderMetaRows(currentItem);
+  AuthorQueueTour.maybeStart();
   dispatchEvent(new CustomEvent('pp:state'));
   ppAutoloadFirstItem();
   if (!visibleUser) {
