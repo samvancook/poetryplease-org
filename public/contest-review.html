@@ -31,6 +31,15 @@
     .status { min-height:24px; font-weight:700; }
     .error { color:var(--error); }
     .pill { display:inline-block; padding:5px 9px; border-radius:999px; background:var(--soft); font-size:13px; font-weight:700; }
+    .progress-table { width:100%; border-collapse:collapse; margin-top:14px; }
+    .progress-table th,.progress-table td { border-bottom:1px solid var(--line); padding:9px 7px; text-align:left; vertical-align:top; }
+    .progress-table th { color:var(--muted); font-size:13px; }
+    .table-wrap { overflow-x:auto; }
+    .metric-row { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+    .assignment-form { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:20px 0; }
+    .assignment-form label { display:grid; gap:5px; }
+    .assignment-form input[type="email"] { min-width:230px; }
+    .assignment-form input[type="number"] { width:100px; }
     [hidden] { display:none !important; }
   </style>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
@@ -58,13 +67,30 @@
       <label>View
         <select id="view">
           <option value="unreviewed">Needs my review</option>
+          <option value="assigned">My assigned batch</option>
           <option value="reviewed">Reviewed by me</option>
           <option value="all">All available</option>
         </select>
       </label>
       <span id="progress" class="pill">0 submissions</span>
+      <span id="my-batch" class="pill" hidden></span>
     </div>
     <div id="status" class="status">Sign in with a Button Poetry team account.</div>
+    <section id="admin-progress" class="card" hidden>
+      <h2>Contest review progress</h2>
+      <div id="progress-metrics" class="metric-row"></div>
+      <p>Assign the next available entries in batches. Each entry can be assigned to up to the contest’s required number of reviewers.</p>
+      <form id="assignment-form" class="assignment-form">
+        <label>Reviewer’s Button Poetry email<input id="assignment-email" type="email" required placeholder="name@buttonpoetry.com"></label>
+        <label>Batch size<input id="assignment-size" type="number" min="1" max="100" value="50" required></label>
+        <button type="submit" class="primary">Assign next batch</button>
+      </form>
+      <div id="assignment-status" class="status"></div>
+      <h3>Reviewer progress</h3>
+      <div id="reviewer-progress" class="table-wrap"></div>
+      <details style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
+      <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
+    </section>
     <section id="review-card" class="card" hidden>
       <div class="topbar">
         <div>
@@ -103,7 +129,7 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
-    const state = { programs: [], submissions: [], filtered: [], index: 0 };
+    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null };
 
     async function token() {
       return firebase.auth().currentUser ? firebase.auth().currentUser.getIdToken(false) : "";
@@ -129,6 +155,10 @@
       el.className = "status" + (error ? " error" : "");
     }
 
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"\']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;" })[char]);
+    }
+
     function applyFilters() {
       const programId = document.getElementById("program").value;
       const view = document.getElementById("view").value;
@@ -138,10 +168,15 @@
       state.filtered = state.submissions.filter((row) => {
         if (programId && row.submissionProgramId !== programId) return false;
         if (view === "unreviewed") return !row.currentReviewerDecision && !row.reviewComplete;
+        if (view === "assigned") return row.assignedToMe && !row.currentReviewerDecision && !row.reviewComplete;
         if (view === "reviewed") return !!row.currentReviewerDecision;
         return true;
       });
       state.index = Math.min(state.index, Math.max(0, state.filtered.length - 1));
+      const assigned = state.submissions.filter((row) => row.assignedToMe);
+      const batch = document.getElementById("my-batch");
+      batch.hidden = !assigned.length;
+      if (assigned.length) batch.textContent = "My batch: " + assigned.filter((row) => row.currentReviewerDecision).length + " of " + assigned.length + " reviewed";
       render();
     }
 
@@ -152,6 +187,9 @@
       if (!state.filtered.length) {
         card.hidden = true;
         empty.hidden = false;
+        empty.querySelector("p").textContent = document.getElementById("view").value === "assigned"
+          ? "Your assigned batch is complete, or no entries have been assigned to you yet."
+          : "There are no submissions matching this program and view.";
         return;
       }
       empty.hidden = true;
@@ -170,6 +208,71 @@
       document.getElementById("next").disabled = state.index >= state.filtered.length - 1;
     }
 
+    function renderProgress() {
+      const report = state.adminProgress;
+      if (!report) return;
+      document.getElementById("progress-metrics").innerHTML =
+        '<span class="pill">' + report.totalSubmissions + ' submissions</span>' +
+        '<span class="pill">' + report.reviewedAtLeastOnce + ' started</span>' +
+        '<span class="pill">' + report.fullyReviewed + ' fully reviewed</span>' +
+        '<span class="pill">' + report.requiredReviewCount + ' reviews required per entry</span>';
+      document.getElementById("reviewer-progress").innerHTML = report.reviewers.length
+        ? '<table class="progress-table"><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
+          report.reviewers.map((row) => '<tr><td>' + escapeHtml(row.email) + '</td><td>' + row.assigned +
+            '</td><td>' + row.reviewedAssigned + ' / ' + row.assigned + '</td><td>' + row.reviewedTotal + '</td></tr>').join("") +
+          '</tbody></table>'
+        : '<p>No reviews or assignments yet.</p>';
+      document.getElementById("submission-progress").innerHTML =
+        '<table class="progress-table"><thead><tr><th>Submission</th><th>Reviews</th><th>Reviewed by</th><th>Assigned to</th></tr></thead><tbody>' +
+        report.submissions.map((row) => '<tr><td>' + escapeHtml(row.title) + '<br><small>' + escapeHtml(row.id) + '</small></td><td>' + row.reviewCount + ' / ' +
+          row.requiredReviewCount + '</td><td>' + escapeHtml(row.reviewers.map((review) =>
+            review.reviewerEmail + ' (' + review.decision + ')').join(", ") || "—") + '</td><td>' +
+          escapeHtml(row.assignedTo.join(", ") || "—") + '</td></tr>').join("") + '</tbody></table>';
+    }
+
+    async function loadProgress() {
+      const panel = document.getElementById("admin-progress");
+      const programId = document.getElementById("program").value;
+      if (!programId || !firebase.auth().currentUser) {
+        panel.hidden = true;
+        state.adminProgress = null;
+        return;
+      }
+      try {
+        const report = await api("admin/contestReviewProgress?programId=" + encodeURIComponent(programId));
+        state.adminProgress = report;
+        panel.hidden = false;
+        renderProgress();
+      } catch (error) {
+        state.adminProgress = null;
+        panel.hidden = true;
+        if (error.message !== "forbidden") setStatus("Progress report: " + error.message, true);
+      }
+    }
+
+    function downloadProgress() {
+      const report = state.adminProgress;
+      if (!report) return;
+      const cell = (value) => {
+        const raw = String(value ?? "");
+        const safe = (/^[=+@-]/.test(raw) || raw.charCodeAt(0) === 9 || raw.charCodeAt(0) === 13) ? "'" + raw : raw;
+        return '"' + safe.replace(/"/g, '""') + '"';
+      };
+      const lines = [["Submission ID", "Title", "Reviews", "Required", "Reviewed by", "Assigned to"].map(cell).join(",")];
+      report.submissions.forEach((row) => lines.push([
+        row.id, row.title, row.reviewCount, row.requiredReviewCount,
+        row.reviewers.map((review) => review.reviewerEmail + " (" + review.decision + ")").join("; "),
+        row.assignedTo.join("; "),
+      ].map(cell).join(",")));
+      const file = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(file);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "contest-review-progress-" + report.programId + ".csv";
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
     async function loadQueue() {
       setStatus("Loading review queue...");
       try {
@@ -184,12 +287,17 @@
           '<option value="' + program.id + '">' + program.name + '</option>'
         ).join("");
         select.value = state.programs.some((program) => program.id === selected) ? selected : "";
-        if (firstLoad && ["unreviewed", "reviewed", "all"].includes(params.get("view"))) {
+        if (firstLoad && ["unreviewed", "assigned", "reviewed"].includes(params.get("view"))) {
           document.getElementById("view").value = params.get("view");
+        } else if (firstLoad && state.submissions.some((row) => row.assignedToMe)) {
+          document.getElementById("view").value = "assigned";
+        } else if (firstLoad && params.get("view") === "all") {
+          document.getElementById("view").value = "all";
         }
         state.filtersInitialized = true;
         setStatus("Ready.");
         applyFilters();
+        await loadProgress();
       } catch (error) {
         state.submissions = [];
         applyFilters();
@@ -200,6 +308,7 @@
     async function recordDecision(decision) {
       const row = state.filtered[state.index];
       if (!row) return;
+      const nextId = state.filtered[state.index + 1]?.id || "";
       setStatus("Saving decision...");
       try {
         await api("admin/contentSubmissions/" + encodeURIComponent(row.id) + "/contestDecision", {
@@ -207,12 +316,47 @@
           body: { decision, note: document.getElementById("note").value.trim() },
         });
         await loadQueue();
+        if (nextId) {
+          const nextIndex = state.filtered.findIndex((candidate) => candidate.id === nextId);
+          if (nextIndex >= 0) {
+            state.index = nextIndex;
+            render();
+          }
+        }
       } catch (error) {
         setStatus(error.message, true);
       }
     }
 
-    document.getElementById("program").addEventListener("change", applyFilters);
+    document.getElementById("program").addEventListener("change", () => { applyFilters(); loadProgress(); });
+    document.getElementById("assignment-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const programId = document.getElementById("program").value;
+      const status = document.getElementById("assignment-status");
+      if (!programId) {
+        status.textContent = "Choose a contest first.";
+        return;
+      }
+      status.textContent = "Assigning entries...";
+      try {
+        const result = await api("admin/contestReviewAssignments", {
+          method: "POST",
+          body: {
+            programId,
+            reviewerEmail: document.getElementById("assignment-email").value.trim(),
+            batchSize: Number(document.getElementById("assignment-size").value),
+          },
+        });
+        status.textContent = result.assigned
+          ? "Assigned " + result.assigned + " entries to " + result.reviewerEmail + "."
+          : "No unreserved entries remain for this reviewer.";
+        await loadQueue();
+      } catch (error) {
+        status.textContent = "Could not assign entries: " + error.message;
+      }
+    });
+    document.getElementById("download-progress").addEventListener("click", downloadProgress);
+
     document.getElementById("view").addEventListener("change", applyFilters);
     document.getElementById("previous").addEventListener("click", () => { state.index -= 1; render(); });
     document.getElementById("next").addEventListener("click", () => { state.index += 1; render(); });
