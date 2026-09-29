@@ -3002,7 +3002,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
       const action = document.createElement('button');
       action.type = 'button';
       action.textContent = retry ? 'Retry' : 'Show me more poems!';
-      action.style.cssText = 'min-height:44px;padding:10px 18px;border-radius:12px;border:0;background:#fff;color:#222;font-weight:700;';
+      action.style.cssText = 'min-height:44px;padding:10px 18px;border-radius:12px;border:0;background:#fff;color:#222;font-weight:700;pointer-events:auto;cursor:pointer;';
       action.addEventListener('click', retry ? ppAutoloadFirstItem : exitLockedLane);
       statusBox.appendChild(action);
     }
