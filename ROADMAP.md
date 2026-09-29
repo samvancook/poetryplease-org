@@ -303,7 +303,7 @@ Hi [First Name],
 We’re inviting you to try **Poetry Please**, a new way to review the graphics, photos, poems, and excerpts we may use to promote **[Book Title]**. Your choices help us make three decisions:
 
 1. **Which graphics should we use?** Mark the ones you like, feel neutral about, or don’t want us to run. **Moved Me** marks a favorite for more prominent use; **Dislike** tells our team to stop using that piece in future posts.
-2. **Have we got anything wrong?** Flag the piece in Poetry Please and leave a short note about what needs fixing. It will leave the regular Poetry Please feed while we review it. If a post is already live on social media or needs urgent attention, reply to this email or write to support@buttonpoetry.com.
+2. **Would you change anything?** If the formatting feels off or we used an early version of a piece, reply with the title and your notes. We can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info in Poetry Please.
 3. **What should we make more of?** Vote for the poems and excerpts you’d most like us to use in marketing your book. Those choices help us decide what to feature and what to make new graphics from.
 
 Start with [your author help page]([Personalized Help URL]) for instructions and an example. Then [open Poetry Please](https://poetryplease.org/) and sign in or create an account with the email address that received this invitation.
@@ -322,7 +322,7 @@ Hi [First Name],
 A quick follow-up to yesterday’s Poetry Please invitation: we’d love your help with three decisions about **[Book Title]**.
 
 1. **Which graphics should we use?** Like the ones you’d share, mark favorites with **Moved Me**, choose **Meh** if you have no strong preference, and **Dislike** anything you don’t want us to run again. We treat Dislike as a stop signal for future posts.
-2. **Is anything wrong?** Flag the piece in Poetry Please and leave a short note. It leaves the regular Poetry Please feed while we review it. If it is already live on social media or urgent, please also reply here or email support@buttonpoetry.com.
+2. **Would you change anything?** If you would prefer different formatting or we used an early version, reply with the title and a note. We can adjust or recreate it. Use Flag issue under Info if a piece needs to be pulled while we review it.
 3. **What should we make more of?** Vote for the poems and excerpts you most want featured in your book’s marketing. Your choices guide what we feature and what we make new graphics from.
 
 [Your author help page]([Personalized Help URL]) has the instructions and an example. You can [open Poetry Please here](https://poetryplease.org/) using the same email address that received your invitation. There’s no need to review everything at once.
@@ -344,7 +344,7 @@ Could you walk through Poetry Please as if you were Matt Mason reviewing *Roads*
 Poetry Please should help an author do three things:
 
 1. Tell us which graphics they love, feel neutral about, or do not want us to use. A Dislike should keep a graphic out of future posts; a favorite should get more prominent use and appear in more places.
-2. Tell us when anything is wrong, big or small. Flagging a piece pulls it from the regular feed while we review it and gives us a note about what to fix. They can also email or message us, especially about a post already on social media.
+2. Share optional, specific notes when the formatting feels off or we used an early version of a piece. Those notes help us adjust or recreate it. Flag issue remains available for the rare piece that should be pulled while we review it.
 3. Raise the poems and excerpts they most want used to market the book. Their votes should guide what we feature and what new graphics we make.
 
 Please review these in order:
@@ -364,6 +364,6 @@ The live page still has the older graphics-only introduction. Replace its introd
 
 **Start with the graphics for your book.** In Poetry Please, select **My content**, then start with **QI Quote Images** and **INT Interior Photos**. These are the quickest pieces to review. Like a graphic you want us to share; use **Moved Me** for a favorite you want in prominent positions and more places; choose **Meh** if you do not care either way; and **Dislike** a graphic you do not want us to run again.
 
-**Catch anything we got wrong.** If a piece has a mistake, big or small, flag it and leave a short note. It leaves the regular feed while our team reviews it. If the post is already live on social media or urgent, you can also reply to your invitation or email support@buttonpoetry.com.
+**Tell us what you would adjust.** If you do not like the formatting or we used an early version, reply to your invitation or email support@buttonpoetry.com with the title and your notes. We can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info.
 
 **Shape what we make next.** After reviewing graphics, vote for the poems and excerpts you most want used to market your book. Your choices guide what we feature and which new graphics we make. You do not need to review everything at once.
