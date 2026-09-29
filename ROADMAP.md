@@ -331,3 +331,39 @@ Thank you for helping us get this right. You can reply directly with questions o
 
 Best,  
 Button Poetry Team
+
+## Madison author walkthrough — draft, not sent (2026-09-29)
+
+**To:** mmelby@buttonpoetry.com  
+**Subject:** Can you test the author experience for Matt Mason / Roads?
+
+Hi Madison,
+
+Could you walk through Poetry Please as if you were Matt Mason reviewing *Roads*? The goal is to see whether the invitation, help page, guided tour, and app make the author’s job simple and clear.
+
+Poetry Please should help an author do three things:
+
+1. Tell us which graphics they love, feel neutral about, or do not want us to use. A Dislike should keep a graphic out of future posts; a favorite should get more prominent use and appear in more places.
+2. Tell us when anything is wrong, big or small. Flagging a piece pulls it from the regular feed while we review it and gives us a note about what to fix. They can also email or message us, especially about a post already on social media.
+3. Raise the poems and excerpts they most want used to market the book. Their votes should guide what we feature and what new graphics we make.
+
+Please review these in order:
+
+- [The invitation we sent](https://docs.google.com/document/d/1svGB_1PHSm6h6fr6BJ3qRn6ERaypM-3FRgO9fzLGerY/edit)
+- [The author help page for Roads](https://buttonpoetry.com/poetryplease/author-help/?book=Roads)
+- [The Matt Mason / Roads review queue and guided tour](https://poetryplease.org/app?author=Matt%20Mason&book=Roads&locked=1&authorPreview=1). Sign in with your Button Poetry account. If the tour does not open automatically, choose **Review guide** to replay it.
+
+The easiest first step for an author should be reviewing the Quote Images (QI) and Interior Photos (INT) graphics. Please tell us what you think an author would do after each step, what is unclear, and what would make the process clearer. Please inspect the voting and flag controls without submitting a vote or flag; those actions affect live content.
+
+Thanks,
+Sam
+
+### Author help page copy proposed; WordPress login required to publish
+
+The live page still has the older graphics-only introduction. Replace its introductory guidance and steps with this author-facing copy when WordPress editor access is available:
+
+**Start with the graphics for your book.** In Poetry Please, select **My content**, then start with **QI Quote Images** and **INT Interior Photos**. These are the quickest pieces to review. Like a graphic you want us to share; use **Moved Me** for a favorite you want in prominent positions and more places; choose **Meh** if you do not care either way; and **Dislike** a graphic you do not want us to run again.
+
+**Catch anything we got wrong.** If a piece has a mistake, big or small, flag it and leave a short note. It leaves the regular feed while our team reviews it. If the post is already live on social media or urgent, you can also reply to your invitation or email support@buttonpoetry.com.
+
+**Shape what we make next.** After reviewing graphics, vote for the poems and excerpts you most want used to market your book. Your choices guide what we feature and which new graphics we make. You do not need to review everything at once.
