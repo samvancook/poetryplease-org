@@ -76,7 +76,7 @@ const UPLOAD_RULES = {
   },
   libraryVideo: {
     allowedMimeTypes: new Set(["video/mp4", "video/quicktime", "video/webm", "video/ogg"]),
-    maxBytes: 400 * FILE_SIZE_MB,
+    maxBytes: 600 * FILE_SIZE_MB,
   },
   userSubmissionImage: {
     allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]),
