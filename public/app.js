@@ -907,16 +907,11 @@ function renderAuthorReviewGuide() {
     (currentUserIsAdmin() || currentAccount?.roles?.includes('team'));
   guide.hidden = !(isOwnAuthorLane || isStaffPreview);
   if (guide.hidden) return;
-  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Your review has three goals</h2>
+  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Help us choose what to share</h2>
     <p style="margin:0 0 8px;"><strong>1. Choose the graphics we use.</strong> Start with Quote Images (QI) and Interior Photos (INT). Like means share it; Moved Me marks a favorite for prominent placement and reuse; Meh means no strong preference; Dislike tells us not to run that graphic.</p>
-    <p style="margin:0 0 8px;"><strong>2. Catch mistakes.</strong> Flag a piece and tell us what needs fixing. It leaves the regular feed while staff reviews it. For an urgent or already published post, you can also email us.</p>
+    <p style="margin:0 0 8px;"><strong>2. Share any adjustments you would like.</strong> If the formatting does not feel right or we used an early version of a piece, reply to your invitation or email <a href="mailto:support@buttonpoetry.com">support@buttonpoetry.com</a> with the title and what you would change. We can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info.</p>
     <p style="margin:0 0 8px;"><strong>3. Shape what we make next.</strong> Vote on poems and excerpts you want featured in your book's marketing. Your choices guide what we feature and make more graphics from.</p>
-    <button type="button" id="author-flag-current" style="padding:8px 12px;margin:4px 0 10px;border-radius:8px;border:1px solid #2f5d62;background:#2f5d62;color:white;font-weight:700;cursor:pointer;">Flag the piece I am viewing</button>
-    <p style="margin:0;">Your feedback guides our choices for your work. To check or correct your author information, select <a href="/author/edit">Edit profile</a> above.</p>`;
-  guide.querySelector('#author-flag-current')?.addEventListener('click', () => {
-    if (!currentItem?.id) { alert('Open a piece first, then flag it.'); return; }
-    flagCurrentContent();
-  });
+    <p style="margin:0;">You can review a few pieces now and come back later. Your feedback guides our choices for your work.</p>`;
 }
 
 function parseOptionalCount(value) {
@@ -3819,7 +3814,7 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Three ways to guide your book',
-      copy: 'Choose the graphics we share, flag mistakes so a piece is pulled for review, and vote for poems or excerpts you want us to feature next.',
+      copy: 'Choose the graphics we share, tell us about any formatting or version you would change, and vote for poems or excerpts you want us to feature next.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
@@ -3828,9 +3823,9 @@ const AuthorQueueTour = (() => {
       target: () => document.getElementById('author-qi-preset') || document.getElementById('media-wrap'),
     },
     {
-      title: 'Catch anything we got wrong',
-      copy: 'Flag a piece and add a short note if anything is wrong. The flag removes it from the regular feed while staff reviews it. You can also email us about urgent or published posts.',
-      target: () => document.getElementById('author-flag-current') || document.querySelector('.info-btn') || document.getElementById('media-wrap'),
+      title: 'Tell us what you would adjust',
+      copy: 'If the formatting is not right or we used an early version, reply to your invitation or email us the title and your notes. We can adjust or recreate the piece. Use Flag issue under Info only if it needs to be pulled while we review it.',
+      target: () => document.getElementById('media-wrap'),
     },
     {
       title: 'Choose poems and excerpts for future graphics',
@@ -3850,12 +3845,12 @@ const AuthorQueueTour = (() => {
     if (!user || IS_EMBED_UI || !currentItem || !lockedLane || readAuthorInviteToken()) return null;
     if (authorPreviewMode) {
       if (!selectedAuthor || !(currentUserIsAdmin() || currentAccount?.roles?.includes('team'))) return null;
-      return 'pp_author_tour_v2_' + user.uid + '_preview_' + encodeURIComponent(String(selectedAuthor).toLowerCase());
+      return 'pp_author_tour_v3_' + user.uid + '_preview_' + encodeURIComponent(String(selectedAuthor).toLowerCase());
     }
     const roles = currentAccount?.roles || [];
     if (!roles.includes('author') || roles.includes('team') || roles.includes('admin') ||
         !ownAuthorName || !valuesMatch(selectedAuthor, ownAuthorName)) return null;
-    return 'pp_author_tour_v2_' + user.uid + '_own';
+    return 'pp_author_tour_v3_' + user.uid + '_own';
   }
 
   function ensureStyle() {
