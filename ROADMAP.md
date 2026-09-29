@@ -338,30 +338,62 @@ Thank you for helping us get this right. You can reply directly with questions o
 Best,  
 Button Poetry Team
 
-## Madison author walkthrough — draft, not sent (2026-09-29)
+## Eric and Madison author walkthrough — prepared 2026-09-29
 
-**To:** mmelby@buttonpoetry.com  
-**Subject:** Can you test the author experience for Matt Mason / Roads?
+**To:** Eric Tu <eric61tu@buttonpoetry.com>, Madison Melby <mmelby@buttonpoetry.com>  
+**Subject:** Timely: Please test Poetry Please on desktop and mobile today
 
-Hi Madison,
+Hi Eric and Madison,
 
-Could you walk through Poetry Please as if you were Matt Mason reviewing *Roads*? The goal is to see whether the invitation, help page, guided tour, and app make the author’s job simple and clear.
+Could you each do two separate passes through the author experience as if you were Matt Mason reviewing *Roads*: one on a desktop and one on a phone? Please reply to this email with your observations today if you can. We are testing whether the invitation, help page, tour, and app make the author’s choices clear.
 
-Poetry Please should help an author do three things:
+We want authors to understand three things: they can tell us which graphics they like, feel neutral about, or do not want used; they can tell us when formatting or an earlier version needs adjustment or recreation; and they can vote up the poems and excerpts they most want us to use to market the book and inspire new graphics. We want the quickest first step to be reviewing QI quote images and INT interior photos.
 
-1. Tell us which graphics they love, feel neutral about, or do not want us to use. A Dislike should keep a graphic out of future posts; a favorite should get more prominent use and appear in more places.
-2. Share optional, specific notes when the formatting feels off or we used an early version of a piece. Those notes help us adjust or recreate it. Flag issue remains available for the rare piece that should be pulled while we review it.
-3. Raise the poems and excerpts they most want used to market the book. Their votes should guide what we feature and what new graphics we make.
+**Desktop pass:** Read the exact invitation Matt received below. Then open the [Roads author help page](https://buttonpoetry.com/poetryplease/author-help/?book=Roads) and the [Matt Mason / Roads desktop author view](https://poetryplease.org/app?author=Matt%20Mason&book=Roads&locked=1&authorPreview=1). Use **Replay tour** if the guided tour does not appear. Explore the review guide, voting, and links to other sections.
 
-Please review these in order:
+**Mobile pass:** On a phone, read the same invitation and help page, then open the [Matt Mason / Roads mobile author view](https://poetryplease.org/m?author=Matt%20Mason&book=Roads&locked=1&authorPreview=1). Use **Replay tour** there too. Please note anything missing or harder to understand compared with desktop.
 
-- [The invitation we sent](https://docs.google.com/document/d/1svGB_1PHSm6h6fr6BJ3qRn6ERaypM-3FRgO9fzLGerY/edit)
-- [The author help page for Roads](https://buttonpoetry.com/poetryplease/author-help/?book=Roads)
-- [The Matt Mason / Roads review queue and guided tour](https://poetryplease.org/app?author=Matt%20Mason&book=Roads&locked=1&authorPreview=1). Sign in with your Button Poetry account. If the tour does not open automatically, choose **Review guide** to replay it.
+Please inspect the controls without casting votes, flagging or sending notes, or saving profile changes; these affect live content. If a link or author view is inaccessible, tell me where you got stuck.
 
-The easiest first step for an author should be reviewing the Quote Images (QI) and Interior Photos (INT) graphics. Please tell us what you think an author would do after each step, what is unclear, and what would make the process clearer. Please inspect the voting and flag controls without submitting a vote or flag; those actions affect live content.
+Please reply by email under **Invitation**, **Help page**, **Desktop**, and **Mobile**. For each, tell me what you thought you were supposed to do, what was unclear, and the one change that would help most. Please call out where one part contradicts another.
 
-Thanks,
+**The exact invitation sent to Matt on September 28** (included here so you do not need access to his mailbox):
+
+> Hi Matt Mason,
+>
+> This is an automated message from Button Poetry.
+>
+> We’re beginning to test a brand-new tool called **Poetry Please** with our authors, and we’d love for you to try it. The graphics, photos, and excerpts in the tool are pieces our team has already created or selected. What’s new is that Poetry Please gives us a way to share that work with you and makes it easy for you to tell us what you’d like to see more of, less of, or not at all.
+>
+> Please begin with your personalized author help page:
+>
+> **Review your Poetry Please instructions and example:**  
+> https://buttonpoetry.com/poetryplease/author-help/?book=Roads
+>
+> The page includes additional instructions for signing in and using the tool. At the bottom of the page, you’ll find an example of Poetry Please in action.
+>
+> When you’re ready to enter the tool, go here:
+>
+> **Open Poetry Please:**  
+> https://poetryplease.org/
+>
+> Please sign in or create an account using the same email address that received this message. Then review the materials connected to **Roads** and reply with your thoughts:
+>
+> - What you’re excited for us to share
+> - What you’d prefer we feature less
+> - Anything you think we’ve missed
+> - Any errors in the information about you or your book
+>
+> This message was sent automatically, but you can reply directly to it. Sam will personally respond to your questions. You can also contact our monitored support address at support@buttonpoetry.com.
+>
+> This link is intended for you, so please don’t forward it.
+>
+> We’re excited to hear what you think.
+>
+> Best,  
+> Button Poetry Team
+
+Thanks,  
 Sam
 
 ### Author help page copy proposed; WordPress login required to publish
