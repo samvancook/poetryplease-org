@@ -898,16 +898,12 @@ function renderAuthorReviewGuide() {
     filterByAuthor && valuesMatch(selectedAuthor, ownAuthorName);
   guide.hidden = !isOwnAuthorLane;
   if (!isOwnAuthorLane) return;
-  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Help choose what we share about your work</h2>
-    <p style="margin:0 0 10px;">Start with the graphics and photos our team has made. Your feedback gives us direction in three ways:</p>
-    <ol style="margin:0 0 10px;padding-left:22px;">
-      <li style="margin-bottom:8px;"><strong>Choose the visuals we use.</strong> <strong>Like</strong> means you want us to share it. <strong>Moved Me</strong> means it is a favorite for prominent placement and reuse across platforms. <strong>Meh</strong> means no strong preference. <strong>Dislike</strong> tells our staff you do not want us to run that graphic again. We treat that as a stop signal when planning future posts.</li>
-      <li style="margin-bottom:8px;"><strong>Catch mistakes.</strong> Flag a piece and tell us what is wrong, whether it is a small typo or a larger concern. A flag takes it out of the regular Poetry Please feed while staff reviews it. For an already published or urgent post, reply to your invitation or email <a href="mailto:support@buttonpoetry.com">support@buttonpoetry.com</a> too.</li>
-      <li><strong>Shape what we make next.</strong> Vote on the poems and excerpts you most want used to market your book. Your choices help us decide which work to feature and make more graphics from.</li>
-    </ol>
-    <p style="margin:0 0 10px;">Your reactions to your work carry more weight than general votes. They guide our team; they are not a grade on your poems.</p>
+  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Your review has three goals</h2>
+    <p style="margin:0 0 8px;"><strong>1. Choose the graphics we use.</strong> Like means share it; Moved Me marks a favorite for prominent placement and reuse; Meh means no strong preference; Dislike tells us not to run that graphic again. Staff treat Dislike as a stop signal for future posts.</p>
+    <p style="margin:0 0 8px;"><strong>2. Catch mistakes.</strong> Flag any piece with a note. It leaves the regular Poetry Please feed while staff reviews it. For an already published or urgent post, also reply to your invitation or email <a href="mailto:support@buttonpoetry.com">support@buttonpoetry.com</a>.</p>
+    <p style="margin:0 0 8px;"><strong>3. Shape what we make next.</strong> Vote on poems and excerpts you want featured in your book's marketing. Your choices help us decide what to feature and make more graphics from.</p>
     <button id="author-flag-current" type="button" style="min-height:44px;padding:8px 12px;border:1px solid #2f5d62;border-radius:8px;background:#2f5d62;color:#fff;font:700 14px system-ui;cursor:pointer;">Flag the piece I am viewing</button>
-    <p style="margin:10px 0 0;">To correct your author information, use <a href="/author/edit">Edit profile</a>.</p>`;
+    <p style="margin:10px 0 0;">Your reactions carry more weight than general votes. To correct your author information, use <a href="/author/edit">Edit profile</a>.</p>`;
   guide.querySelector('#author-flag-current')?.addEventListener('click', () => {
     if (!currentItem?.id) {
       alert('Open one of your pieces first, then flag it here.');
