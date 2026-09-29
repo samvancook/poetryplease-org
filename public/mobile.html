@@ -325,6 +325,15 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
       #media-wrap iframe {
         pointer-events: auto !important;
       }
+      #media-wrap .full-poem-scroll-shell,
+      #media-wrap .full-poem-scroll-controls,
+      #media-wrap .full-poem-scroll-controls button {
+        pointer-events: auto !important;
+      }
+      #media-wrap .full-poem-scroll-shell {
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+      }
 
       #mobile-google{
         justify-self:end;
