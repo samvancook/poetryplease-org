@@ -338,7 +338,9 @@ Thank you for helping us get this right. You can reply directly with questions o
 Best,  
 Button Poetry Team
 
-## Eric and Madison author walkthrough — prepared 2026-09-29
+## Eric and Madison author walkthrough — sent 2026-09-29
+
+Sent from sam@buttonpoetry.com to Eric Tu and Madison Melby. Gmail message ID: `1a0ee7b2a6a6e1d7`. Both recipients and the desktop/mobile links were verified in Sent.
 
 **To:** Eric Tu <eric61tu@buttonpoetry.com>, Madison Melby <mmelby@buttonpoetry.com>  
 **Subject:** Timely: Please test Poetry Please on desktop and mobile today
