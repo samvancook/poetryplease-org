@@ -815,6 +815,13 @@ function updateUserStatusUI() {
       const ownContentBadge = ownAuthorName && !authorPreviewMode
         ? ` <a id="author-content-badge" href="/app?author=${encodeURIComponent(ownAuthorName)}&locked=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:600;text-decoration:none;">My content</a>`
         : '';
+      const reviewAuthorName = authorPreviewMode && selectedAuthor ? selectedAuthor : ownAuthorName;
+      const reviewBase = reviewAuthorName
+        ? `/app?author=${encodeURIComponent(reviewAuthorName)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}`
+        : '';
+      const graphicsStartBadges = reviewBase
+        ? ` <a id="author-qi-preset" href="${reviewBase}&type=QI" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Start here: QI graphics</a> <a id="author-int-preset" href="${reviewBase}&type=INT" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Then INT photos</a>`
+        : '';
       const browseBadge = ownContentBadge && lockedLane && valuesMatch(selectedAuthor, ownAuthorName)
         ? ' <a id="browse-all-badge" href="/app?browse=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#5f574b;font-size:12px;font-weight:600;text-decoration:none;">Browse all</a>'
         : '';
@@ -851,7 +858,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${ownContentBadge}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${ownContentBadge}${graphicsStartBadges}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
@@ -901,7 +908,7 @@ function renderAuthorReviewGuide() {
   guide.hidden = !(isOwnAuthorLane || isStaffPreview);
   if (guide.hidden) return;
   guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Your review has three goals</h2>
-    <p style="margin:0 0 8px;"><strong>1. Choose the graphics we use.</strong> Like means share it; Moved Me marks a favorite for prominent placement and reuse; Meh means no strong preference; Dislike tells us not to run that graphic.</p>
+    <p style="margin:0 0 8px;"><strong>1. Choose the graphics we use.</strong> Start with Quote Images (QI) and Interior Photos (INT). Like means share it; Moved Me marks a favorite for prominent placement and reuse; Meh means no strong preference; Dislike tells us not to run that graphic.</p>
     <p style="margin:0 0 8px;"><strong>2. Catch mistakes.</strong> Flag a piece and tell us what needs fixing. It leaves the regular feed while staff reviews it. For an urgent or already published post, you can also email us.</p>
     <p style="margin:0 0 8px;"><strong>3. Shape what we make next.</strong> Vote on poems and excerpts you want featured in your book's marketing. Your choices guide what we feature and make more graphics from.</p>
     <button type="button" id="author-flag-current" style="padding:8px 12px;margin:4px 0 10px;border-radius:8px;border:1px solid #2f5d62;background:#2f5d62;color:white;font-weight:700;cursor:pointer;">Flag the piece I am viewing</button>
@@ -2915,10 +2922,11 @@ function buildFilteredList(data) {
   if (isOwnAuthorReview) {
     const visualRank = (item) => {
       const type = String(item?.imageType || '').toUpperCase();
-      if (['QI', 'INT', 'FPI'].includes(type)) return 0;
+      if (['QI', 'INT'].includes(type)) return 0;
+      if (type === 'FPI') return 1;
       if (item?.mediaUrl && !['YT', 'VV', 'VIDEO', 'HV'].includes(type) &&
-          !isVideoUrl(item.mediaUrl) && !isYouTubeUrl(item.mediaUrl)) return 0;
-      return 1;
+          !isVideoUrl(item.mediaUrl) && !isYouTubeUrl(item.mediaUrl)) return 1;
+      return 2;
     };
     return pinSelectedItem(list.slice().sort((a, b) => visualRank(a) - visualRank(b)));
   }
@@ -3816,8 +3824,8 @@ const AuthorQueueTour = (() => {
     },
     {
       title: 'Choose the graphics we use',
-      copy: 'Like means you want us to share a graphic. Moved Me marks a favorite for prominent placement and wider reuse. Meh means no strong preference. Dislike tells us to avoid that graphic.',
-      target: () => document.getElementById('media-wrap'),
+      copy: 'Use Start here: QI graphics, then INT photos. These are the easiest first pass. Like means share it; Moved Me marks a favorite for prominent use; Meh means no strong preference; Dislike means avoid it.',
+      target: () => document.getElementById('author-qi-preset') || document.getElementById('media-wrap'),
     },
     {
       title: 'Catch anything we got wrong',
