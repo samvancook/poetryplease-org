@@ -2568,7 +2568,7 @@ function orderByCommunityPreference(list, options = {}) {
 
 // ===== Data fetch wrappers =====
 async function fetchLatestBatch() {
-  const user = firebase.auth().currentUser;
+  const user = await waitForAuthReadyForFeed();
   if (user && !user.isAnonymous) return fetchBootstrapWrapped();
 
   const anonId = await getOrCreateAnonId();
@@ -2967,13 +2967,15 @@ async function refillCurrentViewWithRetry() {
   if (data) initQueueFromData(data);
 }
 
-function renderEmptyFilterState(message = getEmptyFilterMessage()) {
+function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false) {
   idx = -1;
   currentItem = null;
   window.currentItem = null;
   const gal = $('#gallery');
   if (gal) {
-    gal.innerHTML = lockedLane
+    gal.innerHTML = retry
+      ? '<p>Poetry, Please could not load the feed. Please try again.</p><button id="btn-feed-retry" type="button">Retry</button>'
+      : lockedLane
       ? `<div style="text-align:center;max-width:520px;margin:32px auto;">
           <p style="font-size:22px;font-weight:700;margin:0 0 10px;">${message}</p>
           <p style="margin:0 0 18px;color:#6c6558;">Want to keep going?</p>
@@ -2982,11 +2984,30 @@ function renderEmptyFilterState(message = getEmptyFilterMessage()) {
       : `<p>${message}</p>`;
     const showMore = $('#btn-show-more-poems');
     if (showMore) showMore.addEventListener('click', exitLockedLane);
+    const retryButton = $('#btn-feed-retry');
+    if (retryButton) retryButton.addEventListener('click', ppAutoloadFirstItem);
   }
   const mediaWrap = ensureMediaWrap();
   mediaWrap.querySelectorAll('.meta-row').forEach((n) => n.remove());
   const mediaBox = mediaWrap.querySelector('.media-box');
   if (mediaBox) mediaBox.remove();
+  if (IS_MOBILE_UI) {
+    const statusBox = document.createElement('div');
+    statusBox.className = 'media-box';
+    statusBox.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;min-height:50vh;padding:32px;text-align:center;color:#fff;';
+    const statusText = document.createElement('p');
+    statusText.textContent = retry ? 'Poetry, Please could not load the feed. Please try again.' : message;
+    statusBox.appendChild(statusText);
+    if (retry || lockedLane) {
+      const action = document.createElement('button');
+      action.type = 'button';
+      action.textContent = retry ? 'Retry' : 'Show me more poems!';
+      action.style.cssText = 'min-height:44px;padding:10px 18px;border-radius:12px;border:0;background:#fff;color:#222;font-weight:700;';
+      action.addEventListener('click', retry ? ppAutoloadFirstItem : exitLockedLane);
+      statusBox.appendChild(action);
+    }
+    mediaWrap.appendChild(statusBox);
+  }
   const back = $('#btn-go-back');
   if (back) back.disabled = historyStack.length === 0;
   setVoteButtonsDisabled(true);
@@ -3707,8 +3728,10 @@ async function ppAutoloadFirstItem() {
     }
 
     console.warn('[PP] autoload: no usable data after retries');
+    if (loadSeq === __pp_initialLoadSeq && !currentItem) renderEmptyFilterState(undefined, true);
   } catch (e) {
     console.warn('[PP] autoload: fatal error', e);
+    if (loadSeq === __pp_initialLoadSeq && !currentItem) renderEmptyFilterState(undefined, true);
   } finally {
     if (loadSeq === __pp_initialLoadSeq && !currentItem && !routeItemUnavailable) {
       __pp_initialLoad = false;
@@ -3723,6 +3746,7 @@ async function ppAutoloadFirstItem() {
 
 // ===== Auth listener =====
 firebase.auth().onAuthStateChanged(async (user) => {
+  window.__pp_authCallbackStarted = true;
   window.__pp_authResolved = true;
   const visibleUser = user && !user.isAnonymous ? user : null;
   if (visibleUser) hideWelcomeChoice();
@@ -3787,10 +3811,10 @@ firebase.auth().onAuthStateChanged(async (user) => {
 // ===== DOM Ready =====
 window.addEventListener('DOMContentLoaded', () => {
   LoaderController.markDomReady();
-  if (!currentItem) ppAutoloadFirstItem();
   window.setTimeout(() => {
     // If Firebase auth never fires, keep Poetry Please usable instead of
     // stranding returning visitors on the primary loading screen.
+    if (window.__pp_authCallbackStarted) return;
     LoaderController.markAuthResolved();
     window.__pp_authResolved = true;
     LoaderController.markScreenReady();
