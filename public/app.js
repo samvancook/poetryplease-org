@@ -1901,7 +1901,8 @@ function writeRouteState() {
     maxChars: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxCharacters : '',
     maxLines: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxLines : '',
     includeLengthMetadata: normalizeFilterValue(selectedType) === 'fp' && selectedLengthIncludesMetadata ? '1' : '',
-    locked: lockedLane ? '1' : ''
+    locked: lockedLane ? '1' : '',
+    authorPreview: authorPreviewMode ? '1' : ''
   };
 
   Object.entries(nextState).forEach(([key, value]) => {
@@ -2045,6 +2046,7 @@ function setEventFilter(value) {
 
 function exitLockedLane() {
   lockedLane = false;
+  authorPreviewMode = false;
   selectedItemId = '';
   selectedItemRecord = null;
   routeItemUnavailable = false;
@@ -2057,7 +2059,13 @@ function exitLockedLane() {
   filterByBook = false;
   syncFilterControls();
   writeRouteState();
-  ensureFilterReadyThenRebuild();
+  // The previous batch was fetched with the old locked filter. Refetch the
+  // general feed instead of rebuilding from that filtered batch.
+  lastData = null;
+  resetFeedForIdentityChange();
+  window.dispatchEvent(new CustomEvent('pp:state', { detail: { item: null } }));
+  LoaderController.showInline();
+  ppAutoloadFirstItem();
 }
 
 function setQueueMode(value) {
@@ -2950,12 +2958,21 @@ function adjustViewportFit() {
 
 function getEmptyFilterMessage() {
   if (lockedLane) {
-    return 'You’ve seen all of this set.';
+    if (filterByAuthor && selectedAuthor) return 'You’ve reached the end of this author-only set. You can browse all poems below.';
+    if (filterByBook && selectedBook) return 'You’ve reached the end of this book-only set. You can browse all poems below.';
+    return 'You’ve reached the end of this set. You can browse all poems below.';
   }
   if (hasActiveFeedFilters()) {
-    return 'No more items are available in this filter right now. Try Poetry, Please again or change filters.';
+    return 'No more items are available in this filter right now. Try again or change filters.';
   }
-  return 'No new items remain right now.';
+  const remaining = Number(lastData?.remainingImagesCount);
+  if (Number.isFinite(remaining) && remaining > 0) {
+    return `The feed reports ${remaining} unrated items for this account, but none appeared. Please retry.`;
+  }
+  if (Number.isFinite(remaining) && remaining === 0) {
+    return 'The feed reports no unrated items for this account right now.';
+  }
+  return 'No new items were returned right now. Please retry.';
 }
 
 async function refillCurrentViewWithRetry() {
@@ -2981,7 +2998,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
           <p style="margin:0 0 18px;color:#6c6558;">Want to keep going?</p>
           <button id="btn-show-more-poems" type="button" style="font-size:18px;font-weight:700;padding:12px 18px;border-radius:14px;border:1px solid #d9cfbe;background:#dceff1;color:#345f64;cursor:pointer;">Show me more poems!</button>
         </div>`
-      : `<p>${message}</p>`;
+      : `<p>${message}</p><button id="btn-feed-retry" type="button">Retry</button>`;
     const showMore = $('#btn-show-more-poems');
     if (showMore) showMore.addEventListener('click', exitLockedLane);
     const retryButton = $('#btn-feed-retry');
@@ -2998,12 +3015,12 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
     const statusText = document.createElement('p');
     statusText.textContent = retry ? 'Poetry, Please could not load the feed. Please try again.' : message;
     statusBox.appendChild(statusText);
-    if (retry || lockedLane) {
+    {
       const action = document.createElement('button');
       action.type = 'button';
-      action.textContent = retry ? 'Retry' : 'Show me more poems!';
+      action.textContent = lockedLane && !retry ? 'Show me more poems!' : 'Retry';
       action.style.cssText = 'min-height:44px;padding:10px 18px;border-radius:12px;border:0;background:#fff;color:#222;font-weight:700;pointer-events:auto;cursor:pointer;';
-      action.addEventListener('click', retry ? ppAutoloadFirstItem : exitLockedLane);
+      action.addEventListener('click', lockedLane && !retry ? exitLockedLane : ppAutoloadFirstItem);
       statusBox.appendChild(action);
     }
     mediaWrap.appendChild(statusBox);

@@ -174,7 +174,12 @@
     .wrap{max-width:640px;margin:0 auto;padding:var(--pad)}
     header{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:6px 10px}
     header h1{font-size:13px;margin:0;font-weight:600;letter-spacing:.06em;text-transform:uppercase;opacity:.78}
-    header .status{font-size:11px;opacity:.68;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46vw;justify-self:end}
+    header .status{font-size:11px;opacity:.68;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:38vw;justify-self:end}
+    .mobile-account{position:relative;justify-self:end;min-width:0}
+    .mobile-account [hidden]{display:none!important}
+    #mobile-account-toggle{display:inline-flex;align-items:center;gap:5px;min-height:44px;max-width:48vw;padding:4px 8px;border:0;background:transparent;color:inherit;cursor:pointer}
+    #mobile-account-menu{position:absolute;right:0;top:100%;z-index:10001;min-width:150px;padding:6px;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+    #mobile-signout{width:100%;min-height:44px;border:0;background:#fff;text-align:left;font-size:14px;cursor:pointer}
     #mobile-admin-tools{grid-column:1 / span 2;display:flex;gap:8px;flex-wrap:wrap}
     .media-outer{margin-top:6px;position:relative}
     #media-wrap{border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow);background:#fafafa}
@@ -470,7 +475,12 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
   <div class="wrap">
     <header>
       <h1>Poetry, Please</h1>
-      <div class="status" id="mobile-login-status">Loading…</div>
+      <div class="mobile-account">
+        <button id="mobile-account-toggle" type="button" aria-label="Account menu" aria-expanded="false" hidden>
+          <span class="status" id="mobile-login-status">Loading…</span><span aria-hidden="true">▾</span>
+        </button>
+        <div id="mobile-account-menu" hidden><button id="mobile-signout" type="button">Sign out</button></div>
+      </div>
       <div id="mobile-admin-tools"></div>
       <button id="mobile-google" style="font-size:12px;padding:6px 10px;border:1px solid #e6e6e6;border-radius:10px;background:#f7f7f7;">
         Sign in with Google
@@ -561,7 +571,37 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
   <!-- Force mobile mode for app.js and load it -->
   <script>window.__PP_FORCE_MOBILE = true;</script>
-  <script src="/app.js?v=20260928-feed-recovery" defer></script>
+  <script src="/app.js?v=20260928-feed-exit" defer></script>
   <script src="/app-mobile.js?v=20260928-feed-recovery" defer></script>
+  <script>
+    (() => {
+      const auth = firebase.auth();
+      const toggle = document.getElementById('mobile-account-toggle');
+      const menu = document.getElementById('mobile-account-menu');
+      const signout = document.getElementById('mobile-signout');
+      const closeMenu = () => { menu.hidden = true; toggle.setAttribute('aria-expanded', 'false'); };
+      auth.onAuthStateChanged((user) => {
+        toggle.hidden = !user || user.isAnonymous;
+        if (toggle.hidden) closeMenu();
+      });
+      toggle.addEventListener('click', () => {
+        menu.hidden = !menu.hidden;
+        toggle.setAttribute('aria-expanded', String(!menu.hidden));
+      });
+      document.addEventListener('click', (event) => {
+        if (!event.target.closest('.mobile-account')) closeMenu();
+      });
+      signout.addEventListener('click', async () => {
+        signout.disabled = true;
+        try {
+          await auth.signOut();
+          window.location.assign('/m');
+        } catch (error) {
+          signout.disabled = false;
+          signout.textContent = 'Could not sign out. Try again.';
+        }
+      });
+    })();
+  </script>
 
 </body>
