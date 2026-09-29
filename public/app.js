@@ -907,10 +907,12 @@ function renderAuthorReviewGuide() {
     (currentUserIsAdmin() || currentAccount?.roles?.includes('team'));
   guide.hidden = !(isOwnAuthorLane || isStaffPreview);
   if (guide.hidden) return;
+  const laneHref = (type) => `/app?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
+  const editorHref = isStaffPreview ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
   guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Help us choose what to share</h2>
-    <p style="margin:0 0 8px;"><strong>1. Choose the graphics we use.</strong> Start with Quote Images (QI) and Interior Photos (INT). Like means share it; Moved Me marks a favorite for prominent placement and reuse; Meh means no strong preference; Dislike tells us not to run that graphic.</p>
-    <p style="margin:0 0 8px;"><strong>2. Share any adjustments you would like.</strong> If the formatting does not feel right or we used an early version of a piece, reply to your invitation or email <a href="mailto:support@buttonpoetry.com">support@buttonpoetry.com</a> with the title and what you would change. We can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info.</p>
-    <p style="margin:0 0 8px;"><strong>3. Shape what we make next.</strong> Vote on poems and excerpts you want featured in your book's marketing. Your choices guide what we feature and make more graphics from.</p>
+    <p style="margin:0 0 8px;"><strong>1. Choose the graphics we use.</strong> Start with Quote Images (QI) and Interior Photos (INT). Like means share it; Moved Me marks a favorite for prominent placement and reuse; Meh means no strong preference; Dislike tells us not to run that graphic. <a href="${escapeHtml(laneHref('QI'))}">Review QI graphics</a> or <a href="${escapeHtml(laneHref('INT'))}">review INT photos</a>.</p>
+    <p style="margin:0 0 8px;"><strong>2. Share any adjustments you would like.</strong> If the formatting does not feel right or we used an early version of a piece, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor to leave a detailed note</a> so we can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info.</p>
+    <p style="margin:0 0 8px;"><strong>3. Shape what we make next.</strong> Vote on poems and excerpts you want featured in your book's marketing. Your choices guide what we feature and make more graphics from. <a href="${escapeHtml(laneHref('EXC'))}">Review excerpts</a> or <a href="${escapeHtml(laneHref('FP'))}">review full poems</a>.</p>
     <p style="margin:0;">You can review a few pieces now and come back later. Your feedback guides our choices for your work.</p>`;
 }
 
@@ -3824,12 +3826,12 @@ const AuthorQueueTour = (() => {
     },
     {
       title: 'Tell us what you would adjust',
-      copy: 'If the formatting is not right or we used an early version, reply to your invitation or email us the title and your notes. We can adjust or recreate the piece. Use Flag issue under Info only if it needs to be pulled while we review it.',
+      copy: 'If the formatting is not right or we used an early version, the guide links to the editor where you can leave a detailed note for adjustment or recreation. Use Flag issue under Info only if the piece needs to be pulled.',
       target: () => document.getElementById('media-wrap'),
     },
     {
       title: 'Choose poems and excerpts for future graphics',
-      copy: 'Vote on poems and excerpts you most want used to market your book. Your choices guide what we feature and what new graphics we make. Reactions move to the next piece; this tour records none.',
+      copy: 'After the tour, use the guide links to review Excerpts and Full Poems. Vote on the work you most want used to market your book; those choices guide future graphics. This tour records no reactions.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
   ];
@@ -3845,12 +3847,12 @@ const AuthorQueueTour = (() => {
     if (!user || IS_EMBED_UI || !currentItem || !lockedLane || readAuthorInviteToken()) return null;
     if (authorPreviewMode) {
       if (!selectedAuthor || !(currentUserIsAdmin() || currentAccount?.roles?.includes('team'))) return null;
-      return 'pp_author_tour_v3_' + user.uid + '_preview_' + encodeURIComponent(String(selectedAuthor).toLowerCase());
+      return 'pp_author_tour_v4_' + user.uid + '_preview_' + encodeURIComponent(String(selectedAuthor).toLowerCase());
     }
     const roles = currentAccount?.roles || [];
     if (!roles.includes('author') || roles.includes('team') || roles.includes('admin') ||
         !ownAuthorName || !valuesMatch(selectedAuthor, ownAuthorName)) return null;
-    return 'pp_author_tour_v3_' + user.uid + '_own';
+    return 'pp_author_tour_v4_' + user.uid + '_own';
   }
 
   function ensureStyle() {
