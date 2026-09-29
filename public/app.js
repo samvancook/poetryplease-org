@@ -896,7 +896,7 @@ function renderAuthorReviewGuide() {
   if (!guide) {
     guide = document.createElement('section');
     guide.id = 'author-review-guide';
-    guide.setAttribute('aria-label', 'How to review your content');
+    guide.setAttribute('aria-label', 'Author review shortcuts');
     guide.style.cssText = 'max-width:760px;margin:12px auto 18px;padding:16px 20px;border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;';
     status.insertAdjacentElement('afterend', guide);
   }
@@ -909,11 +909,10 @@ function renderAuthorReviewGuide() {
   if (guide.hidden) return;
   const laneHref = (type) => `/app?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
   const editorHref = isStaffPreview ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
-  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Help us choose what to share</h2>
-    <p style="margin:0 0 8px;"><strong>1. Choose the graphics we use.</strong> Start with Quote Images (QI) and Interior Photos (INT). Like means share it; Moved Me marks a favorite for prominent placement and reuse; Meh means no strong preference; Dislike tells us not to run that graphic. <a href="${escapeHtml(laneHref('QI'))}">Review QI graphics</a> or <a href="${escapeHtml(laneHref('INT'))}">review INT photos</a>.</p>
-    <p style="margin:0 0 8px;"><strong>2. Share any adjustments you would like.</strong> If the formatting does not feel right or we used an early version of a piece, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor to leave a detailed note</a> so we can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info.</p>
-    <p style="margin:0 0 8px;"><strong>3. Shape what we make next.</strong> Vote on poems and excerpts you want featured in your book's marketing. Your choices guide what we feature and make more graphics from. <a href="${escapeHtml(laneHref('EXC'))}">Review excerpts</a> or <a href="${escapeHtml(laneHref('FP'))}">review full poems</a>.</p>
-    <p style="margin:0;">You can review a few pieces now and come back later. Your feedback guides our choices for your work.</p>`;
+  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Choose where to go</h2>
+    <p style="margin:0 0 8px;"><strong>1. Start with graphics:</strong> <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> · <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a></p>
+    <p style="margin:0 0 8px;"><strong>2. Optional adjustments:</strong> <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">Leave a note in the editor</a> about formatting or an earlier version.</p>
+    <p style="margin:0;"><strong>3. Vote on work to feature:</strong> <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> · <a href="${escapeHtml(laneHref('FP'))}">Full poems</a></p>`;
 }
 
 function parseOptionalCount(value) {
@@ -3921,7 +3920,7 @@ const AuthorQueueTour = (() => {
     card.id = 'pp-author-tour-card';
     card.setAttribute('role', 'dialog');
     card.setAttribute('aria-modal', 'true');
-    card.setAttribute('aria-label', 'Author review guide');
+    card.setAttribute('aria-label', 'Author review tour');
     card.innerHTML = '<div class="pp-tour-progress"></div><h2></h2><p></p><div class="pp-tour-actions"><button type="button" data-tour-action="skip">Skip</button><button type="button" data-tour-action="back">Back</button><button type="button" data-tour-action="next">Next</button></div>';
     card.querySelector('[data-tour-action="skip"]').addEventListener('click', () => close(true));
     card.querySelector('[data-tour-action="back"]').addEventListener('click', () => {
@@ -3950,8 +3949,8 @@ const AuthorQueueTour = (() => {
       help = document.createElement('button');
       help.id = 'pp-author-tour-help';
       help.type = 'button';
-      help.textContent = 'Review guide';
-      help.setAttribute('aria-label', 'Replay author review guide');
+      help.textContent = 'Replay tour';
+      help.setAttribute('aria-label', 'Replay author review tour');
       help.addEventListener('click', start);
       document.body.appendChild(help);
     }
