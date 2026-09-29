@@ -18,7 +18,7 @@ import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
 import { getFunctions } from "firebase-admin/functions";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, FieldPath } from "firebase-admin/firestore";
 import { getAuth } from "firebase-admin/auth";
 import { getStorage, getDownloadURL } from "firebase-admin/storage";
 
@@ -6812,6 +6812,60 @@ app.post(getBoth("/admin/storageAsset/delete"), async (req, res) => {
     res.status(err?.statusCode || 500).json({
       error: err?.message || "storage_asset_delete_failed",
     });
+  }
+});
+
+app.get(getBoth("/admin/graphicsExport"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const collection = normalizeKey(req.query?.collection || "graphics");
+  const cursor = normalizeText(req.query?.cursor || "");
+  if (!(["graphics", "excerpts"].includes(collection)) || cursor.length > 512 || cursor.includes("/")) {
+    return res.status(400).json({ error: "invalid_export_request" });
+  }
+  try {
+    let query = db.collection(COLLECTIONS[collection]).orderBy(FieldPath.documentId()).limit(500);
+    if (cursor) query = query.startAfter(cursor);
+    const snapshot = await query.get();
+    const items = snapshot.docs.map((doc) => {
+      const data = doc.data() || {};
+      const imageType = normalizeText(data.imageType || (collection === "excerpts" ? "EXC" : "")).toUpperCase();
+      if (!["QI", "INT", "FPI", "EXC"].includes(imageType)) return null;
+      const storedYear = String(data.releaseYear ?? "").trim();
+      const catalogYear = String(data.releaseCatalog ?? "").match(/\b(?:19|20)\d{2}\b/)?.[0] || "";
+      const votes = typeof data.totalVotes === "number" ? data.totalVotes : (typeof data.votes === "number" ? data.votes : "");
+      const score = typeof data.score === "number" ? data.score : "";
+      return {
+        collection,
+        documentId: doc.id,
+        contentId: data.contentId || data.imageId || data.imageID || doc.id,
+        imageId: data.imageId || data.imageID || "",
+        imageType,
+        author: data.author || "",
+        poemTitle: data.poem || data.title || "",
+        bookTitle: data.book || "",
+        bookShortener: data.bookShortener || "",
+        quoteText: data.excerpt || data.quote || "",
+        driveLink: data.driveLink || "",
+        cloudStorageLink: data.imageUrl || data.cloudLink || data.url || "",
+        updatedFileName: data.updatedFileName || "",
+        releaseYear: storedYear || catalogYear,
+        yearSource: storedYear ? "releaseYear" : (catalogYear ? "releaseCatalog" : ""),
+        releaseCatalog: data.releaseCatalog || "",
+        votes,
+        score,
+        scoreSource: votes !== "" || score !== "" ? "stored_content_document" : "",
+        status: data.status || "",
+        storedFlagged: typeof data.flagged === "boolean" ? String(data.flagged) : "",
+        storedQuarantined: typeof data.quarantined === "boolean" ? String(data.quarantined) : "",
+        storedRetired: typeof data.retired === "boolean" ? String(data.retired) : "",
+      };
+    }).filter(Boolean);
+    res.set("Cache-Control", "private, no-store");
+    res.json({ items, scanned: snapshot.size, nextCursor: snapshot.size === 500 ? snapshot.docs[snapshot.docs.length - 1].id : null });
+  } catch (err) {
+    console.error("admin_graphics_export_failed", err?.message || err);
+    res.status(500).json({ error: "graphics_export_failed" });
   }
 });
 
