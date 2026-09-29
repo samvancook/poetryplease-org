@@ -289,3 +289,45 @@ Why this is parked:
 - Full Poems reading polish for shorter and medium-length poems
 - Scoreboard and admin diagnostics
 - General desktop/mobile presentation cleanup
+
+## Author email copy — draft, not sent
+
+Use the placeholders for each author and book. The personalized help page should point to that book’s `/poetryplease/author-help/?book=...` URL. These are copy drafts for review, not permission to send. The 2026-09-28 invitation has already been sent; the follow-up below is for those recipients.
+
+### Revised invitation for future authors
+
+**Subject:** Help shape how we share your work in Poetry Please
+
+Hi [First Name],
+
+We’re inviting you to try **Poetry Please**, a new way to review the graphics, photos, poems, and excerpts we may use to promote **[Book Title]**. Your choices help us make three decisions:
+
+1. **Which graphics should we use?** Mark the ones you like, feel neutral about, or don’t want us to run. **Moved Me** marks a favorite for more prominent use; **Dislike** tells our team to stop using that piece in future posts.
+2. **Have we got anything wrong?** Flag the piece in Poetry Please and leave a short note about what needs fixing. It will leave the regular Poetry Please feed while we review it. If a post is already live on social media or needs urgent attention, reply to this email or write to support@buttonpoetry.com.
+3. **What should we make more of?** Vote for the poems and excerpts you’d most like us to use in marketing your book. Those choices help us decide what to feature and what to make new graphics from.
+
+Start with [your author help page]([Personalized Help URL]) for instructions and an example. Then [open Poetry Please](https://poetryplease.org/) and sign in or create an account with the email address that received this invitation.
+
+There’s no need for a formal review. Your reactions and any corrections are exactly what we need. You can reply to this message with questions or ideas.
+
+Best,  
+Button Poetry Team
+
+### Follow-up to authors who received the 2026-09-28 invitation
+
+**Subject:** A quick follow-up on your Poetry Please review
+
+Hi [First Name],
+
+A quick follow-up to yesterday’s Poetry Please invitation: we’d love your help with three decisions about **[Book Title]**.
+
+1. **Which graphics should we use?** Like the ones you’d share, mark favorites with **Moved Me**, choose **Meh** if you have no strong preference, and **Dislike** anything you don’t want us to run again. We treat Dislike as a stop signal for future posts.
+2. **Is anything wrong?** Flag the piece in Poetry Please and leave a short note. It leaves the regular Poetry Please feed while we review it. If it is already live on social media or urgent, please also reply here or email support@buttonpoetry.com.
+3. **What should we make more of?** Vote for the poems and excerpts you most want featured in your book’s marketing. Your choices guide what we feature and what we make new graphics from.
+
+[Your author help page]([Personalized Help URL]) has the instructions and an example. You can [open Poetry Please here](https://poetryplease.org/) using the same email address that received your invitation. There’s no need to review everything at once.
+
+Thank you for helping us get this right. You can reply directly with questions or ideas.
+
+Best,  
+Button Poetry Team
