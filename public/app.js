@@ -879,6 +879,29 @@ function updateUserStatusUI() {
   }
   updateFilterControlsVisibility();
   updateResetControlsVisibility();
+  renderAuthorReviewGuide();
+}
+
+function renderAuthorReviewGuide() {
+  const status = document.getElementById('user-status');
+  if (!status || IS_EMBED_UI) return;
+  let guide = document.getElementById('author-review-guide');
+  if (!guide) {
+    guide = document.createElement('section');
+    guide.id = 'author-review-guide';
+    guide.setAttribute('aria-label', 'How to review your content');
+    guide.style.cssText = 'max-width:760px;margin:12px auto 18px;padding:16px 20px;border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;';
+    status.insertAdjacentElement('afterend', guide);
+  }
+  const isOwnAuthorLane = !!getVisibleUser() && !authorPreviewMode &&
+    currentAccount?.roles?.includes('author') && !!ownAuthorName &&
+    filterByAuthor && valuesMatch(selectedAuthor, ownAuthorName);
+  guide.hidden = !isOwnAuthorLane;
+  if (!isOwnAuthorLane) return;
+  guide.innerHTML = `<h2 style="margin:0 0 8px;font-size:1.2rem;">Review the visuals for your work</h2>
+    <p style="margin:0 0 8px;">Graphics and photos come first where available; excerpts follow. Use <strong>Like</strong> for something you'd like us to share, <strong>Moved Me</strong> for a favorite to prioritize or reuse, <strong>Dislike</strong> for something you'd prefer we avoid, and <strong>Meh</strong> when you have no strong preference.</p>
+    <p style="margin:0 0 8px;">Our staff can see your preferences. Your reactions carry more weight than general votes in our content ranking, helping the team decide what to feature again and across platforms. These buttons are available to everyone, but your review guides our choices for your work; it is not a grade on your poems.</p>
+    <p style="margin:0;">To check or correct your author information, select <a href="/author/edit">Edit profile</a> above. You can reply to your invitation email with ideas for work we haven't made yet.</p>`;
 }
 
 function parseOptionalCount(value) {
@@ -2877,6 +2900,18 @@ function buildFilteredList(data) {
 
   // Explicit filter views are usually admin/team review passes; preserve the server order
   // so newly repaired/imported sets do not get buried by random community interleaving.
+  const isOwnAuthorReview = !authorPreviewMode && currentAccount?.roles?.includes('author') &&
+    !!ownAuthorName && filterByAuthor && valuesMatch(selectedAuthor, ownAuthorName);
+  if (isOwnAuthorReview) {
+    const visualRank = (item) => {
+      const type = String(item?.imageType || '').toUpperCase();
+      if (['QI', 'INT', 'FPI'].includes(type)) return 0;
+      if (item?.mediaUrl && !['YT', 'VV', 'VIDEO', 'HV'].includes(type) &&
+          !isVideoUrl(item.mediaUrl) && !isYouTubeUrl(item.mediaUrl)) return 0;
+      return 1;
+    };
+    return pinSelectedItem(list.slice().sort((a, b) => visualRank(a) - visualRank(b)));
+  }
   if (hasActiveFeedFilters()) return pinSelectedItem(list);
 
   const currentUser = firebase.auth().currentUser;
@@ -2922,7 +2957,7 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','type-filter-container','fp-length-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
+  const ids = ['user-status','author-review-guide','type-filter-container','fp-length-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
   const mediaWrap = document.getElementById('media-wrap');
   const nodes = [
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
