@@ -3022,7 +3022,7 @@ function adjustViewportFit() {
 
 function getEmptyFilterMessage() {
   if (lockedLane) {
-    if (filterByAuthor && selectedAuthor) return 'You’ve reached the end of this author-only set. You can browse all poems below.';
+    if (filterByAuthor && selectedAuthor) return 'No items appeared in this author view right now. You can try the full author queue or reload.';
     if (filterByBook && selectedBook) return 'You’ve reached the end of this book-only set. You can browse all poems below.';
     return 'You’ve reached the end of this set. You can browse all poems below.';
   }
@@ -3068,6 +3068,21 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
     const retryButton = $('#btn-feed-retry');
     if (retryButton) retryButton.addEventListener('click', ppAutoloadFirstItem);
   }
+  const authorQueueUrl = new URL(window.location.href);
+  authorQueueUrl.searchParams.delete('book');
+  authorQueueUrl.searchParams.delete('type');
+  authorQueueUrl.searchParams.delete('catalog');
+  const showAuthorQueue = !retry && lockedLane && filterByAuthor && selectedAuthor && filterByBook && selectedBook;
+  const addAuthorQueueButton = (container) => {
+    if (!showAuthorQueue || !container) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Review all ' + selectedAuthor + ' items';
+    button.style.cssText = 'min-height:44px;padding:10px 18px;border-radius:12px;border:1px solid #9dbfc0;background:#dceff1;color:#345f64;font-weight:700;cursor:pointer;';
+    button.addEventListener('click', () => window.location.assign(authorQueueUrl.href));
+    container.appendChild(button);
+  };
+  addAuthorQueueButton(gal?.querySelector('div') || gal);
   const mediaWrap = ensureMediaWrap();
   mediaWrap.querySelectorAll('.meta-row').forEach((n) => n.remove());
   const mediaBox = mediaWrap.querySelector('.media-box');
@@ -3087,6 +3102,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
       action.addEventListener('click', lockedLane && !retry ? exitLockedLane : ppAutoloadFirstItem);
       statusBox.appendChild(action);
     }
+    addAuthorQueueButton(statusBox);
     mediaWrap.appendChild(statusBox);
   }
   const back = $('#btn-go-back');
@@ -3858,7 +3874,7 @@ const AuthorQueueTour = (() => {
 
   function audience() {
     const user = getVisibleUser();
-    if (!user || IS_EMBED_UI || !currentItem || !lockedLane || readAuthorInviteToken()) return null;
+    if (!user || IS_EMBED_UI || !lockedLane || readAuthorInviteToken()) return null;
     if (authorPreviewMode) {
       if (!selectedAuthor || !(currentUserIsAdmin() || currentAccount?.roles?.includes('team'))) return null;
       return 'pp_author_tour_v4_' + user.uid + '_preview_' + encodeURIComponent(String(selectedAuthor).toLowerCase());
