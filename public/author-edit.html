@@ -147,7 +147,8 @@
     </div>
 
     <h1>Author Profile Editor</h1>
-    <p class="lede">This editor controls the public author page, social links, and featured work. Slugs are generated automatically, and featured content comes from the content we currently associate with the author.</p>
+    <p class="lede">Start by reviewing graphics in Poetry Please. Use this editor when you want to update your public author profile or make a featured selection.</p>
+    <p class="lede"><a id="review-queue-link" href="/app">Go to your review queue</a></p>
 
     <section id="author-login-panel" class="card is-hidden" aria-label="Author account sign in">
       <h2>Sign in to your author account</h2>
@@ -191,10 +192,11 @@
 
     <section class="card is-hidden" data-panel="profile" aria-hidden="true">
       <div class="section-head">
-        <h2>Profile Details</h2>
+        <h2>Public Profile Details</h2>
         <button class="secondary" type="button" data-collapse-panel="profile">Collapse</button>
       </div>
       <div class="card-body" data-panel-body="profile">
+        <p class="hint">Your photo, bio, name, and links appear on your public author page. Save them here when they need updating. Review graphics and vote on poems in the <a id="profile-review-link" href="/app">Poetry Please queue</a>.</p>
         <div class="grid">
         <label>
           Display name
@@ -547,7 +549,7 @@
     }
 
     function initCollapsiblePanels() {
-      const defaultCollapsed = new Set(["profile", "claims"]);
+      const defaultCollapsed = new Set(["featured", "claims"]);
       document.querySelectorAll("[data-collapse-panel]").forEach((button) => {
         const panel = button.getAttribute("data-collapse-panel");
         const stored = localStorage.getItem(`pp_author_panel_${panel}_collapsed`);
@@ -555,7 +557,9 @@
         setPanelCollapsed(panel, collapsed);
         button.addEventListener("click", () => {
           const body = document.querySelector(`[data-panel-body="${panel}"]`);
-          setPanelCollapsed(panel, !body?.classList.contains("is-collapsed"));
+          const nextCollapsed = !body?.classList.contains("is-collapsed");
+          setPanelCollapsed(panel, nextCollapsed);
+          if (panel === "featured" && !nextCollapsed) renderContentPicker();
         });
       });
     }
@@ -759,7 +763,7 @@
           : "No associated work found yet.";
         count.insertAdjacentHTML("beforeend", ` <a class="preview" href="${appUrl}" target="_blank" rel="noopener">Review in Poetry Please</a>`);
       }
-      if (!state.authorReviewMode) {
+      if (document.querySelector('[data-panel-body="featured"]')?.classList.contains("is-collapsed") || !state.authorReviewMode) {
         container.innerHTML = "";
         return;
       }
@@ -918,6 +922,9 @@
       state.previewMode = !!payload.preview;
       state.authoredContent = payload.authoredContent || [];
       fillProfile(payload.profile || null, payload.workingProfile || payload.profile || {});
+      const queueUrl = reviewAuthorUrl();
+      document.getElementById("review-queue-link").href = queueUrl;
+      document.getElementById("profile-review-link").href = queueUrl;
       renderContentPicker();
       if (state.previewMode) {
         updatePreviewStatus();
