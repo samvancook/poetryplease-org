@@ -112,6 +112,7 @@
     $('#btnBook')?.addEventListener('click', () => PP.openBook && PP.openBook());
     $('#btnSkip')?.addEventListener('click', () => PP.skip && PP.skip());
     $('#btnMoreInfo')?.addEventListener('click', () => PP.toggleInfo(true));
+    syncItemActions();
   }
 
   document.getElementById('mobile-google')?.addEventListener('click', signInWithGoogle);
@@ -132,11 +133,23 @@
     else window.PP_FILTER_BOOK = !!e.target.checked;
   });
 
+  function syncItemActions() {
+    const hasItem = !!window.currentItem;
+    ['btn-mobile-moved', 'btn-mobile-meh', 'btn-mobile-like', 'btn-mobile-dislike', 'btnBack', 'btnBook', 'btnSkip', 'btnMoreInfo'].forEach((id) => {
+      const button = document.getElementById(id);
+      if (button) button.disabled = !hasItem;
+    });
+  }
+
   window.addEventListener('pp:state', (e) => {
-    const item = e?.detail?.item || e?.detail?.current || e?.detail || null;
-    if (item) window.currentItem = item;
+    if (e?.detail && Object.prototype.hasOwnProperty.call(e.detail, 'item')) {
+      window.currentItem = e.detail.item || null;
+    } else if (e?.detail?.current) {
+      window.currentItem = e.detail.current;
+    }
     PP.updateInfo(window.currentItem);
     if (!document.getElementById('btnSkip')) mountControls();
+    syncItemActions();
   }, { passive: true });
 
   const wrap = document.querySelector('.wrap');
@@ -152,7 +165,4 @@
   }
 
   setTimeout(() => PP.updateInfo(window.currentItem || {}), 100);
-  setTimeout(() => {
-    if (!window.currentItem && window.onSkip) onSkip();
-  }, 800);
 })();
