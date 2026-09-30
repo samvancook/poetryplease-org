@@ -69,6 +69,8 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - make login, continue-without-login, and account creation visually polished
   - add lightweight load/error timing so stuck sessions are easier to diagnose
 - Get author accounts fully usable:
+  - TOP TIER: let authors download the original, high-resolution QI/INT graphics and photos tied to their books, individually and in a practical batch; clearly label file type/quality and keep private review access separate from shareable/public assets
+  - TOP TIER: give authors a straightforward way to share approved assets to other platforms (download-first and copyable public links where appropriate), with mobile support, rights/approval safeguards, and no public exposure of private review links or unreleased work
   - make the review queue the author starting point; keep the compact review guide collapsible and connect its QI, INT, EXC, and FP links to the relevant lanes
   - split the current author editor into three clearly explained surfaces: public profile, featured selections, and granular issue review, with links between them and the review queue
   - restrict featured selection to pieces this author voted Moved Me on; if none exist, show an empty state with a review queue link; add an author-scoped vote list to the editor API before changing the UI
