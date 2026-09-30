@@ -919,6 +919,7 @@ function renderAuthorReviewGuide() {
   </div>
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Start with graphics:</strong> <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> · <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a></p>
+    <p style="margin:0 0 8px;">To save one, choose <strong>Download image</strong> beneath the graphic or photo. If it opens in a new tab instead, use your device’s Save image option.</p>
     <p style="margin:0 0 8px;"><strong>2. Optional adjustments:</strong> <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">Open the editor</a> if formatting or an earlier version needs review. Sending a note there pauses the piece for the team.</p>
     <p style="margin:0;"><strong>3. Vote on work to feature:</strong> <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> · <a href="${escapeHtml(laneHref('FP'))}">Full poems</a></p>
   </div>`;
