@@ -9075,6 +9075,12 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
 
   const email = normalizeKey(req.body?.email);
   if (!email) return res.status(400).json({ error: "missing_email" });
+  const requestedAuthorName = normalizeText(req.body?.authorName);
+  const authorName = requestedAuthorName
+    ? BOOK_CATALOG_LOOKUP_ROWS.find((record) => normalizeKey(record.entityType || "book") === "book"
+      && normalizeKey(record.author) === normalizeKey(requestedAuthorName))?.author || ""
+    : "";
+  if (requestedAuthorName && !authorName) return res.status(400).json({ error: "unknown_author" });
   const token = randomBytes(24).toString("hex");
   const inviteRef = db.collection(COLLECTIONS.authorInvites).doc();
   const expiresInDays = Math.max(1, Number(req.body?.expiresInDays || 14));
@@ -9082,6 +9088,7 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
 
   await inviteRef.set({
     email,
+    authorName,
     createdBy: ctx.decoded.uid,
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,
@@ -9096,6 +9103,7 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
     inviteId: inviteRef.id,
     inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
     email,
+    authorName,
     expiresAt: expiresAt.toISOString(),
   });
 });
@@ -9129,6 +9137,7 @@ app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) 
     ok: true,
     inviteId,
     email: invite.email || "",
+    authorName: invite.authorName || "",
     expiresAt: expiresAt.toISOString(),
     inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
   });
@@ -9166,7 +9175,7 @@ app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
   const profileRef = db.collection(COLLECTIONS.authorProfiles).doc(profileId);
   const profileSnap = await profileRef.get();
   const displayName = normalizeText(
-    profileSnap.data()?.displayName || ctx.decoded.name || userData.displayName || ctx.decoded.email
+    invite.authorName || profileSnap.data()?.displayName || ctx.decoded.name || userData.displayName || ctx.decoded.email
   );
 
   await profileRef.set(
@@ -9175,7 +9184,7 @@ app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
       email: ctx.decoded.email,
       displayName,
       slug: slugify(profileSnap.data()?.slug || displayName),
-      authorNameVariants: uniq(profileSnap.data()?.authorNameVariants || [displayName]),
+      authorNameVariants: uniq([...(profileSnap.data()?.authorNameVariants || []), displayName]),
       published: profileSnap.data()?.published ?? false,
       createdAt: profileSnap.data()?.createdAt || FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
@@ -10110,6 +10119,7 @@ app.get(getBoth("/admin/authorInvites"), async (req, res) => {
       return {
         id: invite.id,
         email: invite.email || '',
+        authorName: invite.authorName || '',
         status,
         createdBy: invite.createdBy || '',
         createdAt: invite.createdAt || null,

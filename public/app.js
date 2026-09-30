@@ -511,8 +511,11 @@ async function redeemAuthorInviteIfPresent() {
     clearAuthorInviteToken();
     flashMessage('Author invite redeemed.');
     console.info('Author invite redeemed', result);
+    const authorName = String(result?.profile?.displayName || '').trim();
     window.setTimeout(() => {
-      window.location.href = '/author/edit';
+      window.location.href = authorName
+        ? `/app?author=${encodeURIComponent(authorName)}&locked=1`
+        : '/author/edit';
     }, 500);
   } catch (err) {
     console.warn('Author invite redemption failed', err);
