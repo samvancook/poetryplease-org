@@ -919,6 +919,7 @@ function renderAuthorReviewGuide() {
   </div>
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Start with graphics:</strong> <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> · <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a></p>
+    <p style="margin:0 0 8px;">To save one, choose <strong>Download image</strong> beneath the graphic or photo. If it opens in a new tab instead, use your device’s Save image option.</p>
     <p style="margin:0 0 8px;"><strong>2. Optional adjustments:</strong> <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">Open the editor</a> if formatting or an earlier version needs review. Sending a note there pauses the piece for the team.</p>
     <p style="margin:0;"><strong>3. Vote on work to feature:</strong> <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> · <a href="${escapeHtml(laneHref('FP'))}">Full poems</a></p>
   </div>`;
@@ -1909,6 +1910,66 @@ function updateCounters({ like=0, dislike=0, moved=0, meh=0, skip=0 }){
 function userCanFlagContent() {
   const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
   return roles.some((role) => role === 'author' || role === 'team' || role === 'admin');
+}
+
+function downloadableAuthorAssetUrl(item) {
+  if (IS_EMBED_UI || !item?.author || !item?.mediaUrl) return '';
+  const type = String(item.imageType || '').toUpperCase();
+  if (['EXC', 'FP', 'YT', 'VV', 'VIDEO', 'HV'].includes(type) ||
+      isVideoUrl(item.mediaUrl) || isYouTubeUrl(item.mediaUrl)) return '';
+  try {
+    const url = new URL(item.mediaUrl, window.location.href);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : '';
+  } catch (_) { return ''; }
+}
+
+function userCanDownloadAuthorAsset(item) {
+  if (!getVisibleUser() || !downloadableAuthorAssetUrl(item)) return false;
+  const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
+  if (authorPreviewMode) return (currentUserIsAdmin() || roles.includes('team')) &&
+    !!selectedAuthor && valuesMatch(item.author, selectedAuthor);
+  if (currentUserIsAdmin() || roles.includes('team')) return true;
+  return roles.includes('author') && !!ownAuthorName && valuesMatch(item.author, ownAuthorName);
+}
+
+async function downloadAuthorAsset(item) {
+  const source = downloadableAuthorAssetUrl(item);
+  if (!source || !userCanDownloadAuthorAsset(item)) return;
+  const safeName = [item.author, item.book, item.title || item.id]
+    .filter(Boolean).join(' - ').replace(/[^a-z0-9._ -]+/gi, '').trim().slice(0, 120) || 'poetry-please-image';
+  const clickLink = (href, download) => {
+    const link = document.createElement('a');
+    link.href = href;
+    if (download) link.download = download;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+  const driveId = source.match(/^https:\/\/drive\.google\.com\/file\/d\/([^/?#]+)/i)?.[1];
+  if (driveId) {
+    clickLink('https://drive.google.com/uc?export=download&id=' + encodeURIComponent(driveId));
+    return;
+  }
+  try {
+    const response = await fetch(source);
+    if (!response.ok) throw new Error('Asset request failed');
+    const blob = await response.blob();
+    if (!blob.size || blob.type.startsWith('text/') || blob.type === 'application/json') {
+      throw new Error('Asset response was not an image');
+    }
+    const extension = ({ 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+      'image/gif': 'gif', 'image/avif': 'avif' })[blob.type] ||
+      source.split(/[?#]/)[0].match(/\.([a-z0-9]{2,5})$/i)?.[1] || 'img';
+    const objectUrl = URL.createObjectURL(blob);
+    clickLink(objectUrl, safeName + '.' + extension);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  } catch (error) {
+    console.warn('Direct asset download unavailable; opening the image instead', error);
+    clickLink(source, safeName);
+    flashMessage('The image opened in a new tab. Use Save image if your browser did not download it.');
+  }
 }
 
 function normalizeFilterValue(value) {
@@ -3393,6 +3454,7 @@ function renderItemMedia(item) {
   const mediaWrap = ensureMediaWrap();
   if (mediaWrap?.dataset) mediaWrap.dataset.kind = '';
   const oldBox = mediaWrap.querySelector('.media-box'); if (oldBox) oldBox.remove();
+  mediaWrap.querySelector('.asset-download-row')?.remove();
   const box = document.createElement('div'); box.className='media-box'; mediaWrap.appendChild(box);
 
   let img = null, v = null;
@@ -3487,6 +3549,19 @@ function renderItemMedia(item) {
   attachPinchZoomToImage_(img);
 }
  else { const p=document.createElement('p'); p.textContent='No media available for this item.'; box.appendChild(p); }
+
+  if (userCanDownloadAuthorAsset(item)) {
+    const row = document.createElement('div');
+    row.className = 'asset-download-row button-row';
+    row.style.margin = '8px auto';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = 'Download image';
+    button.setAttribute('aria-label', 'Download this author image');
+    button.addEventListener('click', () => downloadAuthorAsset(item));
+    row.appendChild(button);
+    mediaWrap.appendChild(row);
+  }
 
   placeRowsAroundMedia(mediaWrap, box);
 
