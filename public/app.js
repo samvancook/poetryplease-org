@@ -909,10 +909,16 @@ function renderAuthorReviewGuide() {
   const isStaffPreview = !!getVisibleUser() && authorPreviewMode && !!selectedAuthor &&
     (currentUserIsAdmin() || currentAccount?.roles?.includes('team'));
   guide.hidden = !(isOwnAuthorLane || isStaffPreview);
-  if (guide.hidden) return;
+  const topBar = guide.closest('.top-bar');
+  topBar?.classList.toggle('has-author-review-guide', !guide.hidden);
+  if (guide.hidden) {
+    topBar?.classList.remove('author-guide-collapsed');
+    return;
+  }
   const laneHref = (type) => `/app?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
   const editorHref = isStaffPreview ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
   const collapsed = safeLocalStorageGet('pp_author_review_guide_collapsed') === 'true';
+  topBar?.classList.toggle('author-guide-collapsed', collapsed);
   guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <h2 style="margin:0;font-size:1.2rem;">Review guide</h2>
     <button type="button" id="author-review-guide-toggle" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
@@ -931,6 +937,7 @@ function renderAuthorReviewGuide() {
     button.textContent = nextCollapsed ? 'Expand' : 'Collapse';
     button.setAttribute('aria-expanded', String(!nextCollapsed));
     safeLocalStorageSet('pp_author_review_guide_collapsed', String(nextCollapsed));
+    topBar?.classList.toggle('author-guide-collapsed', nextCollapsed);
     requestAnimationFrame(adjustViewportFit);
   });
 }
@@ -1339,6 +1346,17 @@ async function getOrCreateAnonId() {
   .top-bar{ display:flex; align-items:center; gap:12px; flex-wrap:nowrap; padding:8px 12px; }
   .top-bar .spacer{flex:1;}
   #user-status{ white-space:nowrap; font-size:.9rem; opacity:.9; }
+  @media (min-width: 900px) {
+    .top-bar.has-author-review-guide { align-items:flex-start; }
+    .top-bar.has-author-review-guide:not(.author-guide-collapsed) { flex-wrap:wrap; }
+    .top-bar.has-author-review-guide:not(.author-guide-collapsed) #author-review-guide { flex:1 1 100%; }
+    .top-bar.author-guide-collapsed { position:relative; padding-right:250px; }
+    .top-bar.author-guide-collapsed #user-status { white-space:normal; }
+    .top-bar.author-guide-collapsed #author-review-guide {
+      position:absolute; top:8px; right:12px; z-index:10;
+      margin:0 !important; max-width:420px !important; box-sizing:border-box;
+    }
+  }
 
   #media-wrap{ max-width:min(1280px,98vw); margin:6px auto 12px; text-align:center; }
   .button-row{ display:flex; justify-content:center; gap:10px; margin:10px 0 0; flex-wrap:wrap; }
@@ -3063,9 +3081,13 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['user-status','author-review-guide','type-filter-container','fp-length-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
+  const ids = ['type-filter-container','fp-length-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
+  const headerNodes = !IS_MOBILE_UI && !IS_EMBED_UI
+    ? [document.querySelector('.top-bar')]
+    : [document.getElementById('user-status'), document.getElementById('author-review-guide')];
   const mediaWrap = document.getElementById('media-wrap');
   const nodes = [
+    ...headerNodes.filter(Boolean),
     ...ids.map(id => document.getElementById(id)).filter(Boolean),
     document.querySelector('.button-container'),
     document.getElementById('error'),
@@ -4192,6 +4214,11 @@ window.addEventListener('DOMContentLoaded', () => {
   // Desktop-only extras
   if (!IS_MOBILE_UI) {
     on(document.getElementById('load-button'), 'click', onSkip);
+    if (!IS_EMBED_UI) {
+      const filterSlot = document.getElementById('filters');
+      const eventFilter = document.getElementById('event-filter-container');
+      if (filterSlot && eventFilter) filterSlot.appendChild(eventFilter);
+    }
   }
 
   updateUserStatusUI();
