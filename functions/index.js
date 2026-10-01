@@ -116,6 +116,9 @@ const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
 const CONTENT_SNAPSHOT_VERSION = 3;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const RATINGS_CACHE_TTL_MS = 2 * 60 * 1000;
+const RATINGS_SNAPSHOT_DOC_ID = "ratings-summary";
+const RATINGS_SNAPSHOT_PATH = "system/ratings-summary/latest.json";
+const RATINGS_SNAPSHOT_VERSION = 1;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
@@ -1532,24 +1535,80 @@ function aggregateRatings(voteDocs, options = {}) {
   return out;
 }
 
+async function readRatingsSnapshot() {
+  const metaSnap = await db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID).get();
+  if (!metaSnap.exists) return null;
+  const meta = metaSnap.data() || {};
+  const builtAtMs = timestampToMs(meta.builtAt);
+  if (!builtAtMs || Number(meta.version || 0) !== RATINGS_SNAPSHOT_VERSION) return null;
+  const storagePath = normalizeText(meta.storagePath || RATINGS_SNAPSHOT_PATH);
+  const [buffer] = await storage.bucket().file(storagePath).download();
+  const payload = JSON.parse(buffer.toString("utf8"));
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+  return { payload, builtAtMs };
+}
+
+async function writeRatingsSnapshot(payload) {
+  const builtAtMs = Date.now();
+  await storage.bucket().file(RATINGS_SNAPSHOT_PATH).save(JSON.stringify(payload), {
+    contentType: "application/json; charset=utf-8",
+    resumable: false,
+    metadata: { cacheControl: "no-store, max-age=0" },
+  });
+  await db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID).set({
+    storagePath: RATINGS_SNAPSHOT_PATH,
+    version: RATINGS_SNAPSHOT_VERSION,
+    builtAt: new Date(builtAtMs),
+    updatedBy: "server",
+  }, { merge: true });
+  return builtAtMs;
+}
+
+async function invalidateRatingsSnapshot() {
+  ratingsCache.builtAt = 0;
+  ratingsCache.payload = null;
+  ratingsCache.inFlight = null;
+  await db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID).set({
+    builtAt: null,
+    invalidatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 async function getRatingsSummaryCached() {
   const now = Date.now();
   if (ratingsCache.payload && (now - ratingsCache.builtAt) < RATINGS_CACHE_TTL_MS) {
     return ratingsCache.payload;
   }
   if (ratingsCache.inFlight) return ratingsCache.inFlight;
-  ratingsCache.inFlight = Promise.all([getAllVotes("ratings_summary"), getAuthorVoteUserIds()])
-    .then(([votes, authorVoteUserIds]) => aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds }))
-    .then((payload) => {
-      ratingsCache.payload = payload;
-      ratingsCache.builtAt = Date.now();
-      ratingsCache.inFlight = null;
-      return payload;
-    })
-    .catch((err) => {
-      ratingsCache.inFlight = null;
-      throw err;
-    });
+  ratingsCache.inFlight = (async () => {
+    try {
+      const snapshot = await readRatingsSnapshot();
+      if (snapshot && (Date.now() - snapshot.builtAtMs) < RATINGS_CACHE_TTL_MS) {
+        ratingsCache.payload = snapshot.payload;
+        ratingsCache.builtAt = snapshot.builtAtMs;
+        console.info("ratings_summary_source", { source: "snapshot", ageMs: Date.now() - snapshot.builtAtMs });
+        return snapshot.payload;
+      }
+    } catch (err) {
+      console.warn("Ratings snapshot read failed; falling back to Firestore", err);
+    }
+
+    const [votes, authorVoteUserIds] = await Promise.all([getAllVotes("ratings_summary"), getAuthorVoteUserIds()]);
+    const payload = aggregateRatings(votes.map((vote) => ({
+      imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId,
+    })), { authorVoteUserIds });
+    ratingsCache.payload = payload;
+    ratingsCache.builtAt = Date.now();
+    try {
+      await writeRatingsSnapshot(payload);
+    } catch (err) {
+      console.warn("Ratings snapshot write failed", err);
+    }
+    console.info("ratings_summary_source", { source: "firestore", voteCount: votes.length });
+    return payload;
+  })().finally(() => {
+    ratingsCache.inFlight = null;
+  });
   return ratingsCache.inFlight;
 }
 
@@ -5721,9 +5780,7 @@ app.post(getBoth("/vote"), async (req, res) => {
     // Keep routine votes from forcing a full historical scan on the next page load.
     // Dislikes still invalidate promptly because author dislikes exclude content.
     if (normalizeKey(voteType) === "dislike") {
-      ratingsCache.builtAt = 0;
-      ratingsCache.payload = null;
-      ratingsCache.inFlight = null;
+      await invalidateRatingsSnapshot();
     }
     await invalidateScoreboardSnapshot(`vote_created:${imageId}`);
     res.status(204).end(); // success
