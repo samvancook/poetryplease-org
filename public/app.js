@@ -931,6 +931,7 @@ function renderAuthorReviewGuide() {
     button.textContent = nextCollapsed ? 'Expand' : 'Collapse';
     button.setAttribute('aria-expanded', String(!nextCollapsed));
     safeLocalStorageSet('pp_author_review_guide_collapsed', String(nextCollapsed));
+    requestAnimationFrame(adjustViewportFit);
   });
 }
 
