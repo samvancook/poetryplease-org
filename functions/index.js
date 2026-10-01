@@ -4895,6 +4895,87 @@ app.get(getBoth("/contentById"), async (req, res) => {
   });
 });
 
+// Serve author graphics through the existing same-origin API so browsers can save them.
+app.get(getBoth("/authorAssetDownload/:imageId"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["author", "team", "admin"]);
+  if (!ctx) return;
+
+  const targetId = normalizeText(req.params?.imageId);
+  if (!targetId || targetId.length > 240) return res.status(400).json({ error: "invalid_image_id" });
+
+  try {
+    const [allContent, flaggedIds] = await Promise.all([
+      getAllContentCached(),
+      getFlaggedContentIds(),
+    ]);
+    const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+    const matches = all.filter((entry) => normalizeKey(entry.imageId) === normalizeKey(targetId));
+    if (matches.length > 1) return res.status(409).json({ error: "ambiguous_content_id" });
+    const item = matches[0];
+    if (!item) return res.status(404).json({ error: "not_found" });
+
+    const kind = normalizeText(item.imageType).toUpperCase();
+    if (["EXC", "FP", "YT", "VV", "VIDEO", "HV"].includes(kind)) {
+      return res.status(404).json({ error: "not_downloadable" });
+    }
+
+    const roles = Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [];
+    if (!roles.includes("team") && !roles.includes("admin")) {
+      const profileId = ctx.userRecord?.authorProfileId;
+      const profileSnap = profileId
+        ? await db.collection(COLLECTIONS.authorProfiles).doc(profileId).get()
+        : null;
+      if (!profileSnap?.exists ||
+          !pickProfileContent(mapProfileDoc(profileSnap.id, profileSnap.data()), [item], {}).authored.length) {
+        return res.status(403).json({ error: "forbidden" });
+      }
+    }
+
+    const source = normalizeText(item.imageUrl || item.url);
+    const url = new URL(source);
+    const prefix = "/v0/b/poetry-please.firebasestorage.app/o/";
+    if (url.protocol !== "https:" || url.hostname !== "firebasestorage.googleapis.com" ||
+        !url.pathname.startsWith(prefix)) {
+      return res.status(404).json({ error: "unsupported_asset" });
+    }
+    const objectPath = decodeURIComponent(url.pathname.slice(prefix.length));
+    if (!objectPath.startsWith("content-library/graphics/") || objectPath.split("/").includes("..")) {
+      return res.status(404).json({ error: "unsupported_asset" });
+    }
+
+    const file = storage.bucket().file(objectPath);
+    const [metadata] = await file.getMetadata();
+    const contentType = String(metadata.contentType || "").toLowerCase();
+    const sourceExtension = path.extname(objectPath).slice(1).toLowerCase();
+    const imageExtensions = new Set(["jpg", "jpeg", "png", "webp", "gif", "avif"]);
+    if (!contentType.startsWith("image/") && !imageExtensions.has(sourceExtension)) {
+      return res.status(415).json({ error: "unsupported_media_type" });
+    }
+    if (Number(metadata.size) > 25 * FILE_SIZE_MB) {
+      return res.status(413).json({ error: "asset_too_large" });
+    }
+
+    const [bytes] = await file.download();
+    const filename = [item.author, item.book, item.title || item.imageId]
+      .filter(Boolean).join(" - ").replace(/[^a-z0-9._ -]+/gi, "").trim().slice(0, 120)
+      || "poetry-please-image";
+    const extension = ({
+      "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+      "image/gif": "gif", "image/avif": "avif", "image/svg+xml": "svg",
+    })[contentType] || sourceExtension || "img";
+    res.set({
+      "Content-Type": contentType.startsWith("image/") ? contentType : "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${filename}.${extension}"`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+    });
+    return res.send(bytes);
+  } catch (error) {
+    console.error("author_asset_download_failed", error);
+    return res.status(error?.code === 404 ? 404 : 500).json({ error: "asset_download_failed" });
+  }
+});
+
 app.get(getBoth("/scoreboard/textPreview"), async (req, res) => {
   const targetId = normalizeText(req.query?.id);
   if (!targetId) return res.status(400).send("Missing content id.");
