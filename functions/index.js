@@ -1,5 +1,6 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import express from "express";
 import cors from "cors";
@@ -115,10 +116,9 @@ const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
 const CONTENT_SNAPSHOT_VERSION = 3;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
-const RATINGS_CACHE_TTL_MS = 2 * 60 * 1000;
 const RATINGS_SNAPSHOT_DOC_ID = "ratings-summary";
-const RATINGS_SNAPSHOT_PATH = "system/ratings-summary/latest.json";
-const RATINGS_SNAPSHOT_VERSION = 1;
+const RATINGS_SNAPSHOT_PATH = "system/ratings-summary";
+const RATINGS_SNAPSHOT_VERSION = 2;
 const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
@@ -141,7 +141,9 @@ let flaggedContentCache = {
 };
 let ratingsCache = {
   builtAt: 0,
-  payload: null,
+  basePayload: null,
+  authorVoteUserIds: null,
+  storagePath: "",
   inFlight: null,
   generation: 0,
 };
@@ -1542,84 +1544,123 @@ async function readRatingsSnapshot() {
   const meta = metaSnap.data() || {};
   const builtAtMs = timestampToMs(meta.builtAt);
   if (!builtAtMs || Number(meta.version || 0) !== RATINGS_SNAPSHOT_VERSION) return null;
-  if (timestampToMs(meta.invalidatedAt) >= builtAtMs) return null;
-  const storagePath = normalizeText(meta.storagePath || RATINGS_SNAPSHOT_PATH);
+  const storagePath = normalizeText(meta.storagePath);
+  if (!storagePath) return null;
+  if (ratingsCache.basePayload && ratingsCache.builtAt === builtAtMs && ratingsCache.storagePath === storagePath) {
+    return { payload: ratingsCache.basePayload, builtAtMs, authorVoteUserIds: ratingsCache.authorVoteUserIds };
+  }
   const [buffer] = await storage.bucket().file(storagePath).download();
-  const payload = JSON.parse(buffer.toString("utf8"));
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
-  return { payload, builtAtMs };
+  const stored = JSON.parse(buffer.toString("utf8"));
+  if (!stored?.ratings || typeof stored.ratings !== "object" || Array.isArray(stored.ratings)
+    || !Array.isArray(stored.authorVoteUserIds)) return null;
+  ratingsCache.basePayload = stored.ratings;
+  ratingsCache.builtAt = builtAtMs;
+  ratingsCache.authorVoteUserIds = new Set(stored.authorVoteUserIds);
+  ratingsCache.storagePath = storagePath;
+  return { payload: stored.ratings, builtAtMs, authorVoteUserIds: ratingsCache.authorVoteUserIds };
 }
 
-async function writeRatingsSnapshot(payload, builtAtMs) {
-  await storage.bucket().file(RATINGS_SNAPSHOT_PATH).save(JSON.stringify(payload), {
+async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
+  const storagePath = `${RATINGS_SNAPSHOT_PATH}/${builtAtMs}-${randomBytes(4).toString("hex")}.json`;
+  await storage.bucket().file(storagePath).save(JSON.stringify({
+    ratings: payload,
+    authorVoteUserIds: [...authorVoteUserIds],
+  }), {
     contentType: "application/json; charset=utf-8",
     resumable: false,
     metadata: { cacheControl: "no-store, max-age=0" },
   });
-  await db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID).set({
-    storagePath: RATINGS_SNAPSHOT_PATH,
-    version: RATINGS_SNAPSHOT_VERSION,
-    builtAt: new Date(builtAtMs),
-    updatedBy: "server",
-  }, { merge: true });
-  return builtAtMs;
+  const ref = db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID);
+  await db.runTransaction(async (tx) => {
+    const current = await tx.get(ref);
+    if (timestampToMs(current.data()?.builtAt) > builtAtMs) return;
+    tx.set(ref, {
+      storagePath,
+      version: RATINGS_SNAPSHOT_VERSION,
+      builtAt: new Date(builtAtMs),
+      updatedBy: "server",
+    }, { merge: true });
+  });
+  ratingsCache.basePayload = payload;
+  ratingsCache.builtAt = builtAtMs;
+  ratingsCache.authorVoteUserIds = authorVoteUserIds;
+  ratingsCache.storagePath = storagePath;
 }
 
-async function invalidateRatingsSnapshot() {
-  ratingsCache.builtAt = 0;
-  ratingsCache.payload = null;
+async function rebuildRatingsSnapshot(reason) {
+  const builtAtMs = Date.now();
+  const [votes, authorVoteUserIds] = await Promise.all([
+    getAllVotes(reason),
+    getAuthorVoteUserIds(),
+  ]);
+  // Votes committed after the cutoff are added by the recent-vote query below.
+  const baseVotes = votes.filter((vote) => {
+    const time = timestampToMs(vote.timestamp);
+    return !time || time <= builtAtMs;
+  });
+  const payload = aggregateRatings(baseVotes, { authorVoteUserIds });
+  await writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds);
+  console.info("ratings_snapshot_rebuilt", { reason, voteCount: baseVotes.length, builtAtMs });
+  return { payload, builtAtMs, authorVoteUserIds };
+}
+
+async function getVotesAfter(builtAtMs) {
+  const votes = [];
+  let page = await db.collection(COLLECTIONS.votes)
+    .where("timestamp", ">", new Date(builtAtMs))
+    .orderBy("timestamp")
+    .limit(1000).get();
+  while (!page.empty) {
+    page.forEach((doc) => {
+      const vote = doc.data() || {};
+      votes.push({ imageId: vote.imageId || "", voteType: vote.voteType || "", userId: vote.userId || "" });
+    });
+    const last = page.docs[page.docs.length - 1];
+    page = await db.collection(COLLECTIONS.votes)
+      .where("timestamp", ">", new Date(builtAtMs))
+      .orderBy("timestamp")
+      .startAfter(last)
+      .limit(1000).get();
+  }
+  return votes;
+}
+
+function mergeRatingsSummaries(base, delta) {
+  const out = { ...base };
+  const fields = ["score", "total", "likes", "dislikes", "meh", "movedMe", "authorLikes", "authorDislikes", "authorMovedMe"];
+  for (const [id, recent] of Object.entries(delta)) {
+    const existing = base[id] || {};
+    const combined = {};
+    for (const field of fields) combined[field] = (Number(existing[field]) || 0) + (Number(recent[field]) || 0);
+    combined.rating = combined.total ? combined.score / combined.total : 0;
+    combined.authorExcluded = combined.authorDislikes > 0;
+    out[id] = combined;
+  }
+  return out;
+}
+
+function invalidateRatingsSnapshot() {
   ratingsCache.inFlight = null;
   ratingsCache.generation += 1;
-  await db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID).set({
-    builtAt: null,
-    invalidatedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
 }
 
 async function getRatingsSummaryCached() {
-  const now = Date.now();
-  if (ratingsCache.payload && (now - ratingsCache.builtAt) < RATINGS_CACHE_TTL_MS) {
-    return ratingsCache.payload;
-  }
   if (ratingsCache.inFlight) return ratingsCache.inFlight;
   const generation = ratingsCache.generation;
-  const scanStartedAtMs = Date.now();
   const inFlight = (async () => {
-    try {
-      const snapshot = await readRatingsSnapshot();
-      if (snapshot && (Date.now() - snapshot.builtAtMs) < RATINGS_CACHE_TTL_MS) {
-        if (ratingsCache.generation === generation) {
-          ratingsCache.payload = snapshot.payload;
-          ratingsCache.builtAt = snapshot.builtAtMs;
-        }
-        console.info("ratings_summary_source", { source: "snapshot", ageMs: Date.now() - snapshot.builtAtMs });
-        return snapshot.payload;
-      }
-    } catch (err) {
-      console.warn("Ratings snapshot read failed; falling back to Firestore", err);
-    }
-
-    const [votes, authorVoteUserIds] = await Promise.all([getAllVotes("ratings_summary"), getAuthorVoteUserIds()]);
-    const payload = aggregateRatings(votes.map((vote) => ({
-      imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId,
-    })), { authorVoteUserIds });
-    if (ratingsCache.generation === generation) {
-      ratingsCache.payload = payload;
-      ratingsCache.builtAt = scanStartedAtMs;
-    }
-    try {
-      await writeRatingsSnapshot(payload, scanStartedAtMs);
-    } catch (err) {
-      console.warn("Ratings snapshot write failed", err);
-    }
-    console.info("ratings_summary_source", { source: "firestore", voteCount: votes.length });
+    let snapshot = await readRatingsSnapshot();
+    if (!snapshot) snapshot = await rebuildRatingsSnapshot("ratings_snapshot_bootstrap");
+    const recentVotes = await getVotesAfter(snapshot.builtAtMs);
+    const delta = aggregateRatings(recentVotes, { authorVoteUserIds: snapshot.authorVoteUserIds });
+    const payload = mergeRatingsSummaries(snapshot.payload, delta);
+    console.info("ratings_summary_source", { source: "snapshot_plus_recent", recentVoteCount: recentVotes.length });
     return payload;
   })();
   ratingsCache.inFlight = inFlight;
   try {
     return await inFlight;
   } finally {
-    if (ratingsCache.inFlight === inFlight) ratingsCache.inFlight = null;
+    if (ratingsCache.inFlight === inFlight && ratingsCache.generation === generation) ratingsCache.inFlight = null;
   }
 }
 
@@ -10489,6 +10530,16 @@ export const manuscriptreconciliationphase2preview = onRequest({
   invoker: "public",
   serviceAccount: "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com",
 }, manuscriptReconciliationPhase2App);
+
+export const ratingssummaryrefresh = onSchedule({
+  schedule: "0 3 * * *",
+  timeZone: "America/Chicago",
+  region: "us-central1",
+  memory: "1GiB",
+  timeoutSeconds: 540,
+}, async () => {
+  await rebuildRatingsSnapshot("scheduled_ratings_refresh");
+});
 
 // Keep this LAST
 export const api = onRequest({
