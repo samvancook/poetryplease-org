@@ -5637,9 +5637,13 @@ app.post(getBoth("/vote"), async (req, res) => {
     };
 
     await db.collection(COLLECTIONS.votes).add(vote);
-    ratingsCache.builtAt = 0;
-    ratingsCache.payload = null;
-    ratingsCache.inFlight = null;
+    // Keep routine votes from forcing a full historical scan on the next page load.
+    // Dislikes still invalidate promptly because author dislikes exclude content.
+    if (normalizeKey(voteType) === "dislike") {
+      ratingsCache.builtAt = 0;
+      ratingsCache.payload = null;
+      ratingsCache.inFlight = null;
+    }
     await invalidateScoreboardSnapshot(`vote_created:${imageId}`);
     res.status(204).end(); // success
   } catch (err) {
@@ -5769,16 +5773,14 @@ app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {
   const profile = mapProfileDoc(snap.docs[0].id, snap.docs[0].data());
   if (!profile.published) return res.status(404).json({ error: "not_found" });
 
-  const [g, e, fp, v, votes, flaggedIds, authorVoteUserIds] = await Promise.all([
+  const [g, e, fp, v, ratings, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllVotes("public_author_profile"),
+    getRatingsSummaryCached(),
     getFlaggedContentIds(),
-    getAuthorVoteUserIds(),
   ]);
-  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds });
   const allContent = excludeFlaggedContent([...g, ...e, ...fp, ...v], flaggedIds);
   const { authored, featured } = pickProfileContent(profile, allContent, ratings);
 
@@ -6211,16 +6213,14 @@ app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
     published: false,
   });
 
-  const [g, e, fp, v, votes, flaggedIds, authorVoteUserIds] = await Promise.all([
+  const [g, e, fp, v, ratings, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllVotes("author_profile_editor"),
+    getRatingsSummaryCached(),
     getFlaggedContentIds(),
-    getAuthorVoteUserIds(),
   ]);
-  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds });
   const allContent = excludeFlaggedContent([...g, ...e, ...fp, ...v], flaggedIds);
   const { authored, featured } = pickProfileContent(workingProfile, allContent, ratings);
 
@@ -6251,16 +6251,14 @@ app.get(getBoth("/admin/authorReviewPreview"), async (req, res) => {
     published: false,
   });
 
-  const [g, e, fp, v, votes, flaggedIds, authorVoteUserIds] = await Promise.all([
+  const [g, e, fp, v, ratings, flaggedIds] = await Promise.all([
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllVotes("admin_author_review_preview"),
+    getRatingsSummaryCached(),
     getFlaggedContentIds(),
-    getAuthorVoteUserIds(),
   ]);
-  const ratings = aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds });
   const allContent = excludeFlaggedContent([...g, ...e, ...fp, ...v], flaggedIds);
   const { authored, featured } = pickProfileContent(workingProfile, allContent, ratings);
 
