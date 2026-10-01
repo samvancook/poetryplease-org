@@ -143,6 +143,7 @@ let ratingsCache = {
   builtAt: 0,
   payload: null,
   inFlight: null,
+  generation: 0,
 };
 let scoreboardCache = {
   builtAt: 0,
@@ -1541,6 +1542,7 @@ async function readRatingsSnapshot() {
   const meta = metaSnap.data() || {};
   const builtAtMs = timestampToMs(meta.builtAt);
   if (!builtAtMs || Number(meta.version || 0) !== RATINGS_SNAPSHOT_VERSION) return null;
+  if (timestampToMs(meta.invalidatedAt) >= builtAtMs) return null;
   const storagePath = normalizeText(meta.storagePath || RATINGS_SNAPSHOT_PATH);
   const [buffer] = await storage.bucket().file(storagePath).download();
   const payload = JSON.parse(buffer.toString("utf8"));
@@ -1548,8 +1550,7 @@ async function readRatingsSnapshot() {
   return { payload, builtAtMs };
 }
 
-async function writeRatingsSnapshot(payload) {
-  const builtAtMs = Date.now();
+async function writeRatingsSnapshot(payload, builtAtMs) {
   await storage.bucket().file(RATINGS_SNAPSHOT_PATH).save(JSON.stringify(payload), {
     contentType: "application/json; charset=utf-8",
     resumable: false,
@@ -1568,6 +1569,7 @@ async function invalidateRatingsSnapshot() {
   ratingsCache.builtAt = 0;
   ratingsCache.payload = null;
   ratingsCache.inFlight = null;
+  ratingsCache.generation += 1;
   await db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID).set({
     builtAt: null,
     invalidatedAt: FieldValue.serverTimestamp(),
@@ -1580,12 +1582,16 @@ async function getRatingsSummaryCached() {
     return ratingsCache.payload;
   }
   if (ratingsCache.inFlight) return ratingsCache.inFlight;
-  ratingsCache.inFlight = (async () => {
+  const generation = ratingsCache.generation;
+  const scanStartedAtMs = Date.now();
+  const inFlight = (async () => {
     try {
       const snapshot = await readRatingsSnapshot();
       if (snapshot && (Date.now() - snapshot.builtAtMs) < RATINGS_CACHE_TTL_MS) {
-        ratingsCache.payload = snapshot.payload;
-        ratingsCache.builtAt = snapshot.builtAtMs;
+        if (ratingsCache.generation === generation) {
+          ratingsCache.payload = snapshot.payload;
+          ratingsCache.builtAt = snapshot.builtAtMs;
+        }
         console.info("ratings_summary_source", { source: "snapshot", ageMs: Date.now() - snapshot.builtAtMs });
         return snapshot.payload;
       }
@@ -1597,19 +1603,24 @@ async function getRatingsSummaryCached() {
     const payload = aggregateRatings(votes.map((vote) => ({
       imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId,
     })), { authorVoteUserIds });
-    ratingsCache.payload = payload;
-    ratingsCache.builtAt = Date.now();
+    if (ratingsCache.generation === generation) {
+      ratingsCache.payload = payload;
+      ratingsCache.builtAt = scanStartedAtMs;
+    }
     try {
-      await writeRatingsSnapshot(payload);
+      await writeRatingsSnapshot(payload, scanStartedAtMs);
     } catch (err) {
       console.warn("Ratings snapshot write failed", err);
     }
     console.info("ratings_summary_source", { source: "firestore", voteCount: votes.length });
     return payload;
-  })().finally(() => {
-    ratingsCache.inFlight = null;
-  });
-  return ratingsCache.inFlight;
+  })();
+  ratingsCache.inFlight = inFlight;
+  try {
+    return await inFlight;
+  } finally {
+    if (ratingsCache.inFlight === inFlight) ratingsCache.inFlight = null;
+  }
 }
 
 // Keep highly rated work within each group, while leading with visual QI/INT
