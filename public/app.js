@@ -1953,7 +1953,19 @@ async function downloadAuthorAsset(item) {
     return;
   }
   try {
-    const response = await fetch(source);
+    const sourceUrl = new URL(source);
+    const isLibraryAsset = sourceUrl.hostname === 'firebasestorage.googleapis.com' &&
+      sourceUrl.pathname.startsWith('/v0/b/poetry-please.firebasestorage.app/o/');
+    let response;
+    if (isLibraryAsset) {
+      const token = await getIdTokenOrNull();
+      if (!token || !item.id) throw new Error('Sign in to download this image');
+      response = await fetch(`${CONSTANTS.API_BASE}/authorAssetDownload/${encodeURIComponent(item.id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } else {
+      response = await fetch(source);
+    }
     if (!response.ok) throw new Error('Asset request failed');
     const blob = await response.blob();
     if (!blob.size || blob.type.startsWith('text/') || blob.type === 'application/json') {
