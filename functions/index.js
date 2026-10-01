@@ -1314,7 +1314,8 @@ async function getVoteDocsByUser(userId) {
   return list;
 }
 
-async function getAllVotes() {
+async function getAllVotes(reason = "unspecified") {
+  const startedAt = Date.now();
   const list = [];
   let page = await db.collection(COLLECTIONS.votes).limit(1000).get();
   while (!page.empty) {
@@ -1331,6 +1332,7 @@ async function getAllVotes() {
     const last = page.docs[page.docs.length - 1];
     page = await db.collection(COLLECTIONS.votes).startAfter(last).limit(1000).get();
   }
+  console.info("full_votes_scan", { reason, documentCount: list.length, durationMs: Date.now() - startedAt });
   return list;
 }
 
@@ -1536,7 +1538,7 @@ async function getRatingsSummaryCached() {
     return ratingsCache.payload;
   }
   if (ratingsCache.inFlight) return ratingsCache.inFlight;
-  ratingsCache.inFlight = Promise.all([getAllVotes(), getAuthorVoteUserIds()])
+  ratingsCache.inFlight = Promise.all([getAllVotes("ratings_summary"), getAuthorVoteUserIds()])
     .then(([votes, authorVoteUserIds]) => aggregateRatings(votes.map((vote) => ({ imageId: vote.imageId, voteType: vote.voteType, userId: vote.userId })), { authorVoteUserIds }))
     .then((payload) => {
       ratingsCache.payload = payload;
@@ -2384,7 +2386,7 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
 
 async function buildScoreboardPayload() {
   const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds, authorVoteIdentities] = await Promise.all([
-    getAllVotes(),
+    getAllVotes("scoreboard_rebuild"),
     getAllFrom(COLLECTIONS.graphics),
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
@@ -5772,7 +5774,7 @@ app.get(getBoth("/authorProfiles/:slug"), async (req, res) => {
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllVotes(),
+    getAllVotes("public_author_profile"),
     getFlaggedContentIds(),
     getAuthorVoteUserIds(),
   ]);
@@ -6214,7 +6216,7 @@ app.get(getBoth("/my/authorProfileEditorData"), async (req, res) => {
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllVotes(),
+    getAllVotes("author_profile_editor"),
     getFlaggedContentIds(),
     getAuthorVoteUserIds(),
   ]);
@@ -6254,7 +6256,7 @@ app.get(getBoth("/admin/authorReviewPreview"), async (req, res) => {
     getAllFrom(COLLECTIONS.excerpts),
     getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getAllVotes(),
+    getAllVotes("admin_author_review_preview"),
     getFlaggedContentIds(),
     getAuthorVoteUserIds(),
   ]);
@@ -8218,7 +8220,7 @@ app.get(getBoth("/internal/userCoverage"), async (req, res) => {
   try {
     const [allContent, votes, flaggedIds] = await Promise.all([
       getAllContentCached(),
-      getAllVotes(),
+      getAllVotes("user_coverage"),
       getFlaggedContentIds(),
     ]);
     const matching = allContent.filter((item) => (
