@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildWeaverVideoIntake, weaverVideoDocId } from "./weaver-video-intake.js";
+import fs from "node:fs";
+import { buildWeaverVideoIntake, weaverVideoDocId, weaverVideoImportWarnings } from "./weaver-video-intake.js";
 
 const validVideo = {
   contentType: "VV",
@@ -91,4 +92,26 @@ test("Weaver video intake de-duplicates review IDs for idempotent reimport", () 
 
   assert.equal(result.ok, true);
   assert.equal(result.item.weaverReviews.length, 1);
+});
+
+test("a Weaver video with no release catalog is reported, not rejected", () => {
+  // Poetry Please stores exactly what Weaver sends, and Weaver omits the release catalog.
+  // The 12 BPL Charm City videos in production landed with it blank, which makes them
+  // match no catalog filter: absent from embedBookLead?catalog=..., absent from the catalog
+  // facet, while the import still reports success. Report it instead of rejecting, because
+  // rejecting would stop the pipeline over a reporting gap.
+  assert.deepEqual(weaverVideoImportWarnings({ releaseCatalog: "", eventReleaseCatalog: "" }), ["missing_release_catalog"]);
+  assert.deepEqual(weaverVideoImportWarnings({}), ["missing_release_catalog"]);
+  assert.deepEqual(weaverVideoImportWarnings({ releaseCatalog: "   " }), ["missing_release_catalog"]);
+  // Either field is enough: the event catalog carries the identity when there is no book season.
+  assert.deepEqual(weaverVideoImportWarnings({ releaseCatalog: "BPL Events" }), []);
+  assert.deepEqual(weaverVideoImportWarnings({ eventReleaseCatalog: "BPL Events" }), []);
+
+  // The route has to surface it in all three places, or it stays invisible to the sender.
+  const server = fs.readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const route = server.slice(server.indexOf('/internal/weaverVideoImport'));
+  const body = route.slice(0, route.indexOf("app.post(", 40) > 0 ? route.indexOf("app.post(", 40) : 9000);
+  assert.match(body, /const importWarnings = weaverVideoImportWarnings\(/);
+  assert.match(body, /warningCount: importWarnings\.length/);
+  assert.match(body, /warnings: importWarnings/);
 });

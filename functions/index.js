@@ -14,7 +14,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
-import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoImportWarnings } from "./weaver-video-intake.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -7953,6 +7953,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const receivedSelectedExcerptIdCount = Array.isArray(result.item?.weaverSelectedExcerptRecordIds)
       ? result.item.weaverSelectedExcerptRecordIds.length
       : 0;
+    const importWarnings = weaverVideoImportWarnings(result.item || intake.item);
 
     invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:video");
@@ -7966,12 +7967,15 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       updatedCount: result.created ? 0 : 1,
       duplicateCount: 0,
       errorCount: 0,
+      warningCount: importWarnings.length,
+      warnings: importWarnings,
       receivedReviewCount,
       receivedSelectedExcerptIdCount,
       outcomes: [{
         contentId: canonicalVideoId,
         sourceRecordId: intake.item.sourceRecordId,
         outcome: status,
+        warnings: importWarnings,
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
       }],
@@ -7989,6 +7993,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         canonicalVideoId,
         canonicalVideoUrl,
         finalAssetUrl,
+        warnings: importWarnings,
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
       }],
