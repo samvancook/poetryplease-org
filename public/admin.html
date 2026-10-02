@@ -1006,6 +1006,8 @@
       contentTotalCount: 0,
       contentType: "all",
       contentQuery: "",
+      contentLoadEpoch: 0,
+      contentSearchTimer: null,
       contentOriginalDocId: "",
       storageAssetInspection: null,
       weaverPreview: null,
@@ -3614,18 +3616,46 @@
       }
     }
 
+    const CONTENT_SEARCH_DEBOUNCE_MS = 250;
+
+    function invalidateContentLibraryRequest() {
+      state.contentLoadEpoch += 1;
+    }
+
+    function clearContentSearchTimer() {
+      if (state.contentSearchTimer === null) return;
+      window.clearTimeout(state.contentSearchTimer);
+      state.contentSearchTimer = null;
+    }
+
+    function queueContentLibrarySearch() {
+      clearContentSearchTimer();
+      const statusEl = document.getElementById('content-status');
+      statusEl.textContent = 'Searching content library…';
+      statusEl.className = 'status';
+      document.getElementById('content-library-list').innerHTML = '<div class="empty">Searching content library…</div>';
+      state.contentSearchTimer = window.setTimeout(() => {
+        state.contentSearchTimer = null;
+        loadContentLibrary();
+      }, CONTENT_SEARCH_DEBOUNCE_MS);
+    }
+
     async function loadContentLibrary() {
       const statusEl = document.getElementById('content-status');
+      const requestEpoch = ++state.contentLoadEpoch;
+      const type = state.contentType || 'all';
+      const query = state.contentQuery || '';
       statusEl.textContent = 'Loading content library…';
       statusEl.className = 'status';
       try {
-        const type = state.contentType || 'all';
-        const q = encodeURIComponent(state.contentQuery || '');
+        const q = encodeURIComponent(query);
         const payload = await api(`admin/contentLibrary?type=${encodeURIComponent(type)}&q=${q}`, { method: 'GET' });
+        if (requestEpoch !== state.contentLoadEpoch) return;
         state.contentItems = payload.items || [];
         state.contentTotalCount = Number(payload.totalCount || state.contentItems.length || 0);
         renderContentLibrary();
       } catch (err) {
+        if (requestEpoch !== state.contentLoadEpoch) return;
         console.error(err);
         document.getElementById('content-library-list').innerHTML = '<div class="empty">Could not load content library.</div>';
         statusEl.textContent = err.message || 'Could not load content library.';
@@ -5109,13 +5139,20 @@
         state.contentType = event.target.value || "all";
         updateContentFormVisibility();
         clearContentForm();
+        clearContentSearchTimer();
+        invalidateContentLibraryRequest();
         loadContentLibrary();
       });
       document.getElementById("content-search").addEventListener("input", (event) => {
         state.contentQuery = event.target.value || "";
+        invalidateContentLibraryRequest();
+        queueContentLibrarySearch();
+      });
+      document.getElementById("refresh-content").addEventListener("click", () => {
+        clearContentSearchTimer();
+        invalidateContentLibraryRequest();
         loadContentLibrary();
       });
-      document.getElementById("refresh-content").addEventListener("click", () => loadContentLibrary());
       document.getElementById("inspect-storage-asset").addEventListener("click", () => inspectStorageAsset());
       document.getElementById("delete-storage-asset").addEventListener("click", () => deleteStorageAsset());
       document.getElementById("save-content").addEventListener("click", () => saveContent());
