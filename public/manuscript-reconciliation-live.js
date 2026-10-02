@@ -1,5 +1,9 @@
 const RECONCILIATION_ID = 2;
 const API = `/api/admin/manuscriptReconciliations/${RECONCILIATION_ID}`;
+const ROADS_RECONCILIATION_ID = 3;
+const ROADS_SOURCE_VERSION_ID = 12;
+const ROADS_EXPECTED_POEMS = 65;
+const roadsApi = `/api/admin/manuscriptReconciliations/${ROADS_RECONCILIATION_ID}`;
 // Reviewer feedback (Saff Drayton, Phase 1; Emory Thompson, Phase 4) both flagged this list as
 // too long and inconsistently worded for routine use. COMMON_ACTIONS covers the everyday cases;
 // MORE_ACTIONS holds the same underlying values Catalog already accepts, just tucked behind an
@@ -264,6 +268,91 @@ export async function load(token, fetcher = fetch) {
     throw Error("Live reconciliation write scope is not available.");
   }
   return { ...payload, rows: payload.rows.map(withSourceIds) };
+}
+
+export function roadsCandidatePoems(payload) {
+  const reconciliation = payload?.reconciliation;
+  if (Number(reconciliation?.id) !== ROADS_RECONCILIATION_ID
+    || reconciliation?.bookTitle !== "Roads"
+    || Number(reconciliation?.candidateSource?.id) !== ROADS_SOURCE_VERSION_ID
+    || reconciliation?.candidateSource?.isPreferred !== true
+    || payload?.readOnly !== true
+    || payload?.writeEnabled !== false
+    || !Array.isArray(payload?.rows)) {
+    throw Error("Catalog Roads source 12 is not available in the protected reconciliation.");
+  }
+  const candidateRows = payload.rows
+    .filter((row) => row?.candidate)
+    .map((row) => ({
+      id: Number(row.candidate.sourcePoemId ?? row.candidate.id),
+      sourceVersionId: Number(row.candidate.sourceVersionId),
+      position: Number(row.candidate.position),
+      title: String(row.candidate.title ?? row.candidateTitle ?? ""),
+      text: preserveText(row.candidate.text),
+    }));
+  const uniquePoems = new Map();
+  for (const poem of candidateRows) {
+    const previous = uniquePoems.get(poem.id);
+    if (previous && (previous.position !== poem.position || previous.title !== poem.title || previous.text !== poem.text)) {
+      throw Error("Catalog Roads reconciliation disagrees about a candidate poem.");
+    }
+    uniquePoems.set(poem.id, poem);
+  }
+  const poems = [...uniquePoems.values()].sort((a, b) => a.position - b.position);
+  if (poems.length !== ROADS_EXPECTED_POEMS
+    || poems.some((poem, index) => poem.position !== index + 1)
+    || poems.some((poem) => poem.sourceVersionId !== ROADS_SOURCE_VERSION_ID
+      || !Number.isInteger(poem.id) || poem.id <= 0
+      || !Number.isInteger(poem.position) || poem.position <= 0
+      || !poem.title || !poem.text.trim())) {
+    throw Error("Catalog Roads candidate does not contain 65 complete source-12 poems.");
+  }
+  const amazing = poems.filter((poem) => poem.title.toLowerCase() === "amazing");
+  if (amazing.length !== 1 || (amazing[0].text.match(/\n\n/g) || []).length !== 3
+    || poems.reduce((count, poem) => count + (poem.text.match(/\n\n/g) || []).length, 0) !== 266) {
+    throw Error("Catalog Roads source-12 stanza check failed for Amazing.");
+  }
+  return poems;
+}
+
+export async function loadRoads(token, fetcher = fetch) {
+  const response = await fetcher(roadsApi, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw Error(`Catalog Roads reconciliation request failed with HTTP ${response.status}.`);
+  const payload = await response.json();
+  return { payload, poems: roadsCandidatePoems(payload) };
+}
+
+function createRoadsView(root, initialData) {
+  const { payload, poems } = initialData;
+  let selectedId = poems[0].id;
+  let search = "";
+  let searchDraft = "";
+  const render = () => {
+    const visible = poems.filter((poem) => poem.title.toLowerCase().includes(search.toLowerCase()));
+    const selected = visible.find((poem) => poem.id === selectedId) || visible[0] || null;
+    if (selected) selectedId = selected.id;
+    root.innerHTML = `
+      <div class="banner readonly">Roads final EPUB · read-only Catalog source 12</div>
+      <section class="dashboard">
+        <p class="eyebrow">Reconciliation ${ROADS_RECONCILIATION_ID} · preferred source ${ROADS_SOURCE_VERSION_ID}</p>
+        <h1>Roads</h1>
+        <p>${poems.length} poems from the protected Catalog reconciliation · ${esc(payload.reconciliation?.candidateSource?.filename || "final EPUB")}</p>
+        <p class="help">This view preserves the Catalog text and blank-line stanza breaks. It does not edit reviewer decisions or import poems into the Poetry Please feed. <a href="/manuscript-reconciliation.html">Open Living at Baggage Claim review</a>.</p>
+      </section>
+      <section class="workspace roads-workspace">
+        <aside class="panel"><h2>Poems</h2>
+          <form id="roads-search-form"><label for="roads-search">Search titles</label><div class="search-row"><input id="roads-search" type="search" value="${esc(searchDraft)}"><button type="submit">Search</button><button type="button" id="roads-clear-search">Clear</button></div></form>
+          <p class="help">${visible.length} of ${poems.length} poems</p>
+          <div class="list">${visible.map((poem) => `<button type="button" data-road-poem="${poem.id}" aria-pressed="${poem.id === selected?.id}">${esc(poem.title)}</button>`).join("")}</div>
+        </aside>
+        <main class="panel comparison">${selected ? `<h2>${esc(selected.title)}</h2><p class="help">Catalog source ${ROADS_SOURCE_VERSION_ID} · poem ${esc(selected.position)} of ${poems.length}</p><div class="poem">${poemLines(selected.text, false)}</div>` : '<div class="empty">No poem matches this title search.</div>'}</main>
+      </section>`;
+    root.querySelector("#roads-search")?.addEventListener("input", (event) => { searchDraft = event.target.value; });
+    root.querySelector("#roads-search-form")?.addEventListener("submit", (event) => { event.preventDefault(); search = searchDraft; render(); });
+    root.querySelector("#roads-clear-search")?.addEventListener("click", () => { search = ""; searchDraft = ""; render(); });
+    for (const button of root.querySelectorAll("[data-road-poem]")) button.addEventListener("click", () => { selectedId = Number(button.dataset.roadPoem); render(); });
+  };
+  render();
 }
 
 export async function reloadIfCandidateChanged(token, reviewedRow, fetcher = fetch) {
@@ -646,10 +735,16 @@ async function boot() {
   const root = document.querySelector("#reconciliation-app");
   try {
     const auth = await authorize();
-    const data = await load(auth.token);
-    createApp(root, data, auth);
+    const requested = new URLSearchParams(window.location.search).get("reconciliationId");
+    if (requested === String(ROADS_RECONCILIATION_ID)) {
+      createRoadsView(root, await loadRoads(auth.token));
+    } else if (requested === null || requested === String(RECONCILIATION_ID)) {
+      createApp(root, await load(auth.token), auth);
+    } else {
+      throw Error("This reconciliation is not available in Poetry Please.");
+    }
   } catch (error) {
-    root.innerHTML = `<div class="state locked"><h1>Team access required</h1><p>${esc(error.message)}</p><p><a href="/admin.html">Return to Poetry Please Admin</a></p></div>`;
+    root.innerHTML = `<div class="state locked"><h1>Reconciliation unavailable</h1><p>${esc(error.message)}</p><p><a href="/admin.html">Return to Poetry Please Admin</a></p></div>`;
   }
 }
 
