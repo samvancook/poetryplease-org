@@ -1528,6 +1528,9 @@ async function getOrCreateAnonId() {
   .vote-btn.voted { opacity:.85; }
   .toast { color:#0a7e22; margin-top:8px; min-height:1.4em; }
   .vote-counter { padding:5px 10px; border:1px solid #e6e6e6; border-radius:6px; background:#fafafa; }
+  .review-progress { margin:0 auto 6px; padding:4px 12px; border-radius:999px; background:#efeade;
+    color:#4a4336; font-size:13px; font-weight:700; width:fit-content; max-width:100%; text-align:center; }
+  .review-progress[hidden] { display:none; }
   body[data-ui="embed"]{
     background:#f7f1e5;
     padding:0;
@@ -1542,6 +1545,7 @@ async function getOrCreateAnonId() {
   body[data-ui="embed"] #login-screen,
   body[data-ui="embed"] #registration-screen,
   body[data-ui="embed"] #load-button,
+  body[data-ui="embed"] #review-progress,
   body[data-ui="embed"] #vote-row,
   body[data-ui="embed"] #counters-bar,
   body[data-ui="embed"] #error,
@@ -3358,6 +3362,7 @@ function ensureMediaWrap() {
 }
 function placeRowsAroundMedia(mediaWrap, box){
   const voteRow = $('#vote-row'); if (voteRow) mediaWrap.insertBefore(voteRow, box);
+  const progress = $('#review-progress'); if (progress && voteRow) mediaWrap.insertBefore(progress, voteRow);
   const under   = $('#under-controls'); if (under) mediaWrap.appendChild(under);
 }
 function renderMetaRows(item) {
@@ -3476,6 +3481,32 @@ function renderCounter() {
   }
   if (counter) {
     counter.textContent = `Voted on ${votedInDomain} of ${displayTotal} — ${displayRemaining} remaining.`;
+  }
+
+  // Position of the item on screen within the current lane. The queue holds the items still
+  // to review, so the current one is the (already voted + index) th of the lane's total.
+  //
+  // Only shown for a filtered lane, which is the case this exists for: an author reviewing
+  // their own book sees "Item 3 of 25". Unfiltered, the denominator is the whole corpus,
+  // where measured live it reads "Item 2418 of 27944", which tells a reviewer nothing and
+  // reads as discouraging. The server's overall voted and remaining counts also do not
+  // reconcile with totalImages (27944 against 2417 + 25698), so that denominator is not
+  // sound enough to show anyone. Inside a lane the counts come from the lane itself, or
+  // from the server's domain counts when it supplies them.
+  const progress = $('#review-progress');
+  if (progress) {
+    const position = votedInDomain + Math.max(idx, 0) + 1;
+    const showProgress = !IS_EMBED_UI
+      && hasActiveFeedFilters()
+      && displayTotal > 0
+      && idx >= 0
+      && position <= displayTotal;
+    progress.hidden = !showProgress;
+    if (showProgress) {
+      progress.textContent = displayRemaining > 0
+        ? `Item ${position} of ${displayTotal} · ${displayRemaining} left to review`
+        : `Item ${position} of ${displayTotal} · last one`;
+    }
   }
   refreshCountsModalIfOpen();
 }
@@ -4247,6 +4278,20 @@ window.addEventListener('DOMContentLoaded', () => {
       row.append(openApp); mediaWrap.appendChild(row);
     }
     return;
+  }
+
+  // REVIEW PROGRESS (above the vote row)
+  // Authors reviewing a book had no way to tell how far through they were. The existing
+  // #domain-counter is an internal staff counter that lives inside #counters-bar, which is
+  // display:none since the counters moved into the admin modal, so nothing answered "where
+  // am I" for a reviewer. This is a separate, author-facing element.
+  if (!$('#review-progress')) {
+    const progress = document.createElement('div');
+    progress.id = 'review-progress';
+    progress.className = 'review-progress';
+    progress.setAttribute('aria-live', 'polite');
+    progress.hidden = true;
+    mediaWrap.appendChild(progress);
   }
 
   // VOTE ROW (above media)
