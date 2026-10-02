@@ -3223,6 +3223,12 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
 function initQueueFromData(data) {
   LoadTiming.mark('queueInit', `${Array.isArray(data?.newGraphics) ? data.newGraphics.length : 0} items`);
   lastData = data;
+  // The event options exist only inside the feed payload. Unlike types and catalogs there
+  // is no /sourceEvents endpoint to fall back to, so the boot path reads lastData while it
+  // is still null, fills the select with nothing, and never revisits it. Refill it whenever
+  // a payload lands. populateEventsSelect ends in syncFilterControls, which restores the
+  // reviewer's current selection, so this cannot clobber an active filter.
+  if (!IS_EMBED_UI && Array.isArray(data?.sourceEvents)) populateEventsSelect(data.sourceEvents);
   activeWelcomeLane = data?.feedMode === 'welcome';
   if (activeWelcomeLane) {
     flashMessage(`Welcome favorites · rate ${data.calibrationTarget || WELCOME_CALIBRATION_VOTES} to calibrate your feed.`);

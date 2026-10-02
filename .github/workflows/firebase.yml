@@ -42,7 +42,7 @@ jobs:
         run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js
 
       - name: Run Explorer tests
-        run: node --test tests/explorer.test.js
+        run: node --test tests/explorer.test.js tests/app-filters.test.js
 
       - name: Setup Java for Firebase emulators
         uses: actions/setup-java@v5
