@@ -1766,6 +1766,7 @@ function matchesRequestedType(item, requestedType) {
   if (!type) return true;
   const actual = normalizeText(item?.imageType).toUpperCase();
   if (type === "VIDEO") return actual === "VV" || actual === "YT";
+  if (type === "PROMO") return actual === "QI" || actual === "INT" || actual === "EXC";
   return actual === type;
 }
 
@@ -4858,6 +4859,13 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const filteredAll = filterContentByFeedFilters(all, filters);
   const filteredNew = filteredAll.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+  const promoLaneCounts = filters.author ? Object.fromEntries(
+    ["PROMO", "QI", "INT", "EXC"].map((type) => {
+      const lane = filterContentByFeedFilters(all, { ...filters, type });
+      const reviewed = lane.filter((item) => votedIds.has((item.imageId || "").trim().toLowerCase())).length;
+      return [type, { reviewed, total: lane.length }];
+    })
+  ) : null;
   const rankedEmbedPool = embedBook
     ? prioritizeVisualContent(
       filteredNew
@@ -4886,6 +4894,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     domainTotalImages: filteredAll.length,
     domainVotedImagesCount: Math.max(filteredAll.length - filteredNew.length, 0),
     domainRemainingImagesCount: filteredNew.length,
+    ...(promoLaneCounts ? { promoLaneCounts } : {}),
     releaseCatalogs: uniqueReleaseCatalogs(all),
     imageTypes: [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort(),
     ...(embedBook ? { ratingsSummary, feedMode: "embed-book", poolSize: rankedEmbedPool.length } : {}),
