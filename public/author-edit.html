@@ -695,7 +695,7 @@
             <p>${item.releaseCatalog || ''}</p>
             <div class="actions" style="margin-top:12px;">
               <button type="button" class="secondary" data-claim-image-id="${item.imageId}" ${disabled}>${buttonLabel}</button>
-              <a class="preview" href="/?item=${encodeURIComponent(item.imageId)}" target="_blank" rel="noopener">Open</a>
+              ${String(item.imageType || "").toUpperCase() === "FP" && !state.previewMode ? "" : `<a class="preview" href="/?item=${encodeURIComponent(item.imageId)}" target="_blank" rel="noopener">Open</a>`}
             </div>
           </article>
         `;
@@ -787,7 +787,7 @@
             <p><strong>Catalog:</strong> ${escapeHtml(item.releaseCatalog || '—')}</p>
             <div class="actions" style="margin-top:12px;">
               <button type="button" class="${isFeatured ? 'active-feature' : 'ghost'}" data-feature-id="${itemId}">${isFeatured ? 'Featured' : 'Add to featured'}</button>
-              <a class="preview" href="${reviewItemUrl(item)}" target="_blank" rel="noopener">Open in Poetry Please</a>
+              ${String(item.imageType || "").toUpperCase() === "FP" && !state.previewMode ? "" : `<a class="preview" href="${reviewItemUrl(item)}" target="_blank" rel="noopener">Open in Poetry Please</a>`}
             </div>
             <div class="review-note">
               <select data-feedback-reason="${itemId}">
