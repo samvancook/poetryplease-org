@@ -278,34 +278,27 @@ export function roadsCandidatePoems(payload) {
     || reconciliation?.candidateSource?.isPreferred !== true
     || payload?.readOnly !== true
     || payload?.writeEnabled !== false
-    || !Array.isArray(payload?.rows)) {
+    || !Array.isArray(payload?.roadPoems)) {
     throw Error("Catalog Roads source 12 is not available in the protected reconciliation.");
   }
-  const candidateRows = payload.rows
-    .filter((row) => row?.candidate)
-    .map((row) => ({
-      id: Number(row.candidate.sourcePoemId ?? row.candidate.id),
-      sourceVersionId: Number(row.candidate.sourceVersionId),
-      position: Number(row.candidate.position),
-      title: String(row.candidate.title ?? row.candidateTitle ?? ""),
-      text: preserveText(row.candidate.text),
-    }));
-  const uniquePoems = new Map();
-  for (const poem of candidateRows) {
-    const previous = uniquePoems.get(poem.id);
-    if (previous && (previous.position !== poem.position || previous.title !== poem.title || previous.text !== poem.text)) {
-      throw Error("Catalog Roads reconciliation disagrees about a candidate poem.");
-    }
-    uniquePoems.set(poem.id, poem);
-  }
-  const poems = [...uniquePoems.values()].sort((a, b) => a.position - b.position);
+  const poems = payload.roadPoems.map((row, index) => ({
+    id: Number(row.id),
+    position: index + 1,
+    title: String(row.title ?? ""),
+    text: preserveText(row.served_text ?? row.text),
+    originalText: preserveText(row.text),
+    bookTitle: row.book_title,
+    sourceFormat: row.source_format,
+    extractionMethod: row.extraction_method,
+  }));
+  const ids = new Set(poems.map((poem) => poem.id));
   if (poems.length !== ROADS_EXPECTED_POEMS
-    || poems.some((poem, index) => poem.position !== index + 1)
-    || poems.some((poem) => poem.sourceVersionId !== ROADS_SOURCE_VERSION_ID
-      || !Number.isInteger(poem.id) || poem.id <= 0
-      || !Number.isInteger(poem.position) || poem.position <= 0
-      || !poem.title || !poem.text.trim())) {
-    throw Error("Catalog Roads candidate does not contain 65 complete source-12 poems.");
+    || ids.size !== poems.length
+    || poems.some((poem) => !Number.isInteger(poem.id) || poem.id <= 0
+      || !poem.title || !poem.text.trim() || poem.text !== poem.originalText
+      || poem.bookTitle !== "Roads" || poem.sourceFormat !== "epub"
+      || poem.extractionMethod !== "epub_registry_preferred")) {
+    throw Error("Catalog Roads feed does not contain 65 complete preferred EPUB poems.");
   }
   const amazing = poems.filter((poem) => poem.title.toLowerCase() === "amazing");
   if (amazing.length !== 1 || (amazing[0].text.match(/\n\n/g) || []).length !== 3
