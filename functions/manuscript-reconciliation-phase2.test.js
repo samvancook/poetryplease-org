@@ -10,6 +10,7 @@ import {
   buildSignedCatalogHeaders,
   isSafePreviewTarget,
   normalizeReviewer,
+  readPhase2Reconciliation,
   sanitizeDecision,
   sanitizeVisualContextFlag,
   savePhase2Resolution,
@@ -50,25 +51,23 @@ const roadsFixture = () => ({
   readOnly: true,
   writeEnabled: false,
   reconciliation: { id: 3, bookTitle: "Roads", candidateSource: { id: 12, isPreferred: true } },
-  rows: [
-    ...Array.from({ length: 65 }, (_, index) => ({
-      candidate: {
-        sourcePoemId: index + 1,
-        sourceVersionId: 12,
-        position: index + 1,
-        title: index === 0 ? "Amazing" : `Poem ${index + 1}`,
-        text: index === 0 ? "a\n\nb\n\nc\n\nd" : `text\n\n${"x\n\n".repeat(index < 8 ? 4 : 3)}end`,
-      },
-    })),
-    ...Array.from({ length: 4 }, () => ({ candidate: null })),
-  ],
+  rows: [],
+  roadPoems: Array.from({ length: 65 }, (_, index) => ({
+    id: index + 1,
+    book_title: "Roads",
+    source_format: "epub",
+    extraction_method: "epub_registry_preferred",
+    title: index === 0 ? "Amazing" : `Poem ${index + 1}`,
+    text: index === 0 ? "a\n\nb\n\nc\n\nd" : `text\n\n${"x\n\n".repeat(index < 8 ? 4 : 3)}end`,
+  })),
 });
 
-test("Roads view accepts only the 65 preferred EPUB poems and preserves stanza structure", async () => {
+test("Roads view accepts the 65 preferred EPUB poems even with no resolution rows", async () => {
   const fixture = roadsFixture();
   assert.equal(roadsCandidatePoems(fixture).length, 65);
-  fixture.rows.push(fixture.rows[0]);
-  assert.equal(roadsCandidatePoems(fixture).length, 65);
+  fixture.roadPoems.push(fixture.roadPoems[0]);
+  assert.throws(() => roadsCandidatePoems(fixture), /65 complete/);
+  fixture.roadPoems.pop();
   const calls = [];
   const loaded = await loadRoads("test-token", async (url, options) => {
     calls.push({ url, options });
@@ -84,8 +83,32 @@ test("Roads view fails closed on wrong source, writable scope, or lost stanza br
   const fixture = roadsFixture();
   assert.throws(() => roadsCandidatePoems({ ...fixture, readOnly: false }), /not available/);
   assert.throws(() => roadsCandidatePoems({ ...fixture, reconciliation: { ...fixture.reconciliation, candidateSource: { id: 2, isPreferred: true } } }), /not available/);
-  fixture.rows[0].candidate.text = "a\nb\nc\nd";
+  fixture.roadPoems[0].text = "a\nb\nc\nd";
   assert.throws(() => roadsCandidatePoems(fixture), /stanza check/);
+});
+
+test("Roads proxy reads the live poem feed alongside protected reconciliation 3", async () => {
+  const fixture = roadsFixture();
+  const calls = [];
+  const data = await readPhase2Reconciliation(3, {
+    readSecret: async () => "fixture-read-secret",
+    fetcher: async (url) => {
+      calls.push(url);
+      if (url.endsWith("/reconciliations/3")) return new Response(JSON.stringify(fixture.reconciliation), { status: 200 });
+      if (url.endsWith("/reconciliations/3/resolutions")) return new Response("[]", { status: 200 });
+      if (url.endsWith("/books/Roads/poems?limit=100")) return new Response(JSON.stringify(fixture.roadPoems), { status: 200 });
+      throw Error(`Unexpected Catalog request: ${url}`);
+    },
+  });
+  assert.deepEqual(calls, [
+    `${CATALOG_PHASE2_API}/reconciliations/3`,
+    `${CATALOG_PHASE2_API}/reconciliations/3/resolutions`,
+    `${CATALOG_PHASE2_API}/books/Roads/poems?limit=100`,
+  ]);
+  assert.equal(data.readOnly, true);
+  assert.equal(data.writeEnabled, false);
+  assert.deepEqual(data.rows, []);
+  assert.equal(data.roadPoems.length, 65);
 });
 
 const reviewer = { uid: "firebase-uid-1", email: "Reviewer@ButtonPoetry.com", roles: ["team", "admin"] };
