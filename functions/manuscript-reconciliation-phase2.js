@@ -7,6 +7,7 @@ export const POETRY_PLEASE_REVIEWER_AUTHORITY = "https://poetryplease.org";
 export const SAFE_PREVIEW_RECONCILIATION_ID = 1;
 export const SAFE_PREVIEW_RESOLUTION_ID = 900001;
 export const LIVE_RECONCILIATION_ID = 2;
+const ROADS_READ_ONLY_RECONCILIATION_ID = 3;
 export const CATALOG_SECRET_PROJECT = "button-poetry-catalog";
 export const CATALOG_SECRET_NAMES = Object.freeze({
   read: "catalog-reconciliation-api-key",
@@ -224,11 +225,13 @@ async function catalogJson(path, { fetcher = fetch, readSecret = accessCatalogSe
 
 export async function readPhase2Reconciliation(reconciliationId, dependencies = {}) {
   const encoded = encodeURIComponent(reconciliationId);
-  const [reconciliation, rows] = await Promise.all([
+  const roadsMode = Number(reconciliationId) === ROADS_READ_ONLY_RECONCILIATION_ID;
+  const [reconciliation, rows, roadPoems] = await Promise.all([
     catalogJson(`/reconciliations/${encoded}`, dependencies),
     catalogJson(`/reconciliations/${encoded}/resolutions`, dependencies),
+    roadsMode ? catalogJson("/books/Roads/poems?limit=100", dependencies) : Promise.resolve(null),
   ]);
-  if (!reconciliation || !Array.isArray(rows)) {
+  if (!reconciliation || !Array.isArray(rows) || (roadsMode && !Array.isArray(roadPoems))) {
     const error = new Error("catalog_reconciliation_shape_invalid");
     error.status = 502;
     throw error;
@@ -254,6 +257,7 @@ export async function readPhase2Reconciliation(reconciliationId, dependencies = 
     },
     reconciliation,
     rows,
+    ...(roadsMode ? { roadPoems } : {}),
     contractGaps: Array.isArray(reconciliation.contractGaps) ? reconciliation.contractGaps : [],
   };
 }
