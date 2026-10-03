@@ -551,6 +551,52 @@ function currentUserIsTeamOrAdmin() {
   return currentUserIsAdmin() || !!currentAccount?.roles?.includes('team');
 }
 
+const PROMO_TYPES = ['QI', 'INT', 'EXC'];
+function isAuthorPromoLane() {
+  if (!getVisibleUser() || !filterByAuthor || !selectedAuthor) return false;
+  if (authorPreviewMode) return currentUserIsAdmin() || !!currentAccount?.roles?.includes('team');
+  const roles = currentAccount?.roles || [];
+  return roles.includes('author') && !roles.includes('team') && !roles.includes('admin') &&
+    !!ownAuthorName && valuesMatch(selectedAuthor, ownAuthorName);
+}
+function isPromoType(value) {
+  return value === 'PROMO' || PROMO_TYPES.includes(value);
+}
+function promoLaneLabel(value) {
+  return ({ PROMO: 'All promotional material', QI: 'Quote images', INT: 'Interior photos', EXC: 'Excerpts' })[value] || value;
+}
+function updateAuthorPromoControls() {
+  const container = document.getElementById('type-filter-container');
+  const select = document.getElementById('type-filter');
+  if (!container || !select) return;
+  const label = container.querySelector('label[for="type-filter"]');
+  const promo = isAuthorPromoLane();
+  if (label) label.textContent = promo ? 'Promotional material:' : 'Filter by Image Type:';
+  if (promo) {
+    const counts = lastData?.promoLaneCounts || {};
+    select.replaceChildren(...['PROMO', ...PROMO_TYPES].map((type) => {
+      const option = document.createElement('option');
+      option.value = type;
+      const count = counts[type];
+      option.textContent = `${promoLaneLabel(type)}${count ? ` — ${count.reviewed} of ${count.total} reviewed` : ''}`;
+      return option;
+    }));
+    select.value = isPromoType(selectedType) ? selectedType : 'PROMO';
+    let progress = document.getElementById('promo-review-progress');
+    if (!progress) {
+      progress = document.createElement('span');
+      progress.id = 'promo-review-progress';
+      progress.style.cssText = 'display:block;font-size:0.8rem;color:#5d625d;margin-top:3px;';
+      container.appendChild(progress);
+    }
+    const count = counts[select.value];
+    progress.textContent = count ? `${promoLaneLabel(select.value)}: ${count.reviewed} of ${count.total} reviewed` : '';
+    progress.hidden = !count;
+  } else {
+    document.getElementById('promo-review-progress')?.remove();
+  }
+}
+
 function getFeedIdentityKey() {
   const user = getVisibleUser();
   if (user?.email) return `user:${String(user.email).trim().toLowerCase()}`;
@@ -927,7 +973,7 @@ function renderAuthorReviewGuide() {
     <p style="margin:0 0 8px;"><strong>1. Start with graphics:</strong> <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> · <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a></p>
     <p style="margin:0 0 8px;">To save one, choose <strong>Download image</strong> beneath the graphic or photo. If it opens in a new tab instead, use your device’s Save image option.</p>
     <p style="margin:0 0 8px;"><strong>2. Optional adjustments:</strong> <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">Open the editor</a> if formatting or an earlier version needs review. Sending a note there pauses the piece for the team.</p>
-    <p style="margin:0;"><strong>3. Vote on work to feature:</strong> <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> · <a href="${escapeHtml(laneHref('FP'))}">Full poems</a></p>
+    <p style="margin:0;"><strong>3. Tell us your preferences:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">excerpts</a>, graphics, and photos. Your preferences help staff decide what to feature or reuse.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
@@ -990,7 +1036,7 @@ function ensureFullPoemLengthControls() {
 function updateFilterControlsVisibility() {
   const canSeeDropdownFilters = currentUserIsTeamOrAdmin();
   const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
-  const canSeeTypeFilter = canSeeDropdownFilters || (!authorPreviewMode && roles.includes('author'));
+  const canSeeTypeFilter = canSeeDropdownFilters || (!authorPreviewMode && roles.includes('author')) || isAuthorPromoLane();
   const typeContainer = document.getElementById('type-filter-container');
   const catalogContainer = document.getElementById('catalog-filter-container');
   const bookContainer = document.getElementById('book-filter-container');
@@ -1016,6 +1062,7 @@ function updateFilterControlsVisibility() {
     const showLengthFilters = canSeeDropdownFilters && normalizeFilterValue(selectedType) === 'fp' && !IS_EMBED_UI;
     lengthContainer.style.display = showLengthFilters ? 'flex' : 'none';
   }
+  updateAuthorPromoControls();
 }
 
 async function refreshCurrentAccount() {
@@ -1037,6 +1084,14 @@ async function refreshCurrentAccount() {
 
 async function prepareOwnAuthorLane(user) {
   ownAuthorName = '';
+  if (authorPreviewMode && selectedAuthor &&
+      (currentUserIsAdmin() || currentAccount?.roles?.includes('team'))) {
+    if (!isPromoType(selectedType)) selectedType = 'PROMO';
+    syncFilterControls();
+    writeRouteState();
+    updateFilterControlsVisibility();
+    return;
+  }
   if (!user || !currentAccount?.roles?.includes('author')) return;
   try {
     // The authenticated author editor resolves this account's profile; do not
@@ -1052,13 +1107,15 @@ async function prepareOwnAuthorLane(user) {
   const isAuthorOnly = !currentAccount?.roles?.some((role) => role === 'team' || role === 'admin');
   const browseRequested = new URLSearchParams(window.location.search).get('browse') === '1';
   if (!ownAuthorName || !isAuthorOnly || browseRequested || authorPreviewMode ||
-      readAuthorInviteToken() || selectedItemId || lockedLane || hasActiveFeedFilters()) return;
+      readAuthorInviteToken() || selectedItemId) return;
 
   selectedAuthor = ownAuthorName;
   filterByAuthor = true;
   lockedLane = true;
+  if (!isPromoType(selectedType)) selectedType = 'PROMO';
   syncFilterControls();
   writeRouteState();
+  updateFilterControlsVisibility();
 }
 
 async function mergeAnonymousVotesIntoAccount() {
@@ -1523,6 +1580,18 @@ async function getOrCreateAnonId() {
   }
   .full-poem-title { margin: 0 0 1.4rem; font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 700; line-height: 1.2; }
   .full-poem-body { margin: 0; }
+  .poem-logical-line { display:block; padding-left:1.25em; text-indent:-1.25em; overflow-wrap:anywhere; }
+  @media (max-width: 768px) {
+    .excerpt-text.excerpt-card,
+    .excerpt-text.full-poem-scroll-shell {
+      width: calc(100vw - 12px);
+      max-width: calc(100vw - 12px);
+      box-sizing: border-box;
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+    .full-poem-scroll-content { width: 100%; max-width: 100%; }
+  }
   .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
   .meta-row p { margin:0; }
   .vote-btn.voted { opacity:.85; }
@@ -2078,8 +2147,9 @@ function syncFilterControls() {
   if (maxCharactersInput) maxCharactersInput.value = selectedMaxCharacters;
   if (maxLinesInput) maxLinesInput.value = selectedMaxLines;
   if (includeMetadataInput) includeMetadataInput.checked = selectedLengthIncludesMetadata;
+  updateAuthorPromoControls();
   [typeSel, catalogSel, bookSel, eventSel, queueModeSel, maxCharactersInput, maxLinesInput, includeMetadataInput].forEach((control) => {
-    if (control) control.disabled = !!lockedLane;
+    if (control) control.disabled = !!lockedLane && !(control === typeSel && isAuthorPromoLane());
   });
 }
 
@@ -2105,12 +2175,14 @@ function initializeRouteState() {
 }
 
 function setTypeFilter(value) {
-  if (lockedLane) {
+  if (lockedLane && !isAuthorPromoLane()) {
     syncFilterControls();
     flashMessage('Finish this set first, then choose new settings.');
     return;
   }
-  selectedType = String(value || '').trim();
+  selectedType = isAuthorPromoLane()
+    ? (isPromoType(String(value || '').trim()) ? String(value).trim() : 'PROMO')
+    : String(value || '').trim();
   syncFilterControls();
   updateFilterControlsVisibility();
   writeRouteState();
@@ -2456,6 +2528,7 @@ function matchesSelectedType(item, typeValue) {
   const normalized = normalizeFilterValue(typeValue);
   if (!normalized) return true;
   const itemType = normalizeFilterValue(item?.imageType);
+  if (normalized === 'promo') return PROMO_TYPES.some((type) => normalizeFilterValue(type) === itemType);
   if (isAggregateVideoType(normalized)) {
     return itemType === 'vv' || itemType === 'yt';
   }
@@ -2902,6 +2975,7 @@ async function populateTypesSelect(types) {
     sel.appendChild(opt);
   });
   syncFilterControls();
+  updateAuthorPromoControls();
 }
 
 async function populateCatalogsSelect(cats) {
@@ -3223,6 +3297,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
 function initQueueFromData(data) {
   LoadTiming.mark('queueInit', `${Array.isArray(data?.newGraphics) ? data.newGraphics.length : 0} items`);
   lastData = data;
+  updateAuthorPromoControls();
   activeWelcomeLane = data?.feedMode === 'welcome';
   if (activeWelcomeLane) {
     flashMessage(`Welcome favorites · rate ${data.calibrationTarget || WELCOME_CALIBRATION_VOTES} to calibrate your feed.`);
@@ -3509,7 +3584,12 @@ function renderItemMedia(item) {
     }
     const p = document.createElement('p');
     p.className = item?.imageType === 'FP' ? 'full-poem-body' : '';
-    p.textContent = item?.excerpt || '';
+    String(item?.excerpt || '').replace(/\r\n?/g, '\n').split('\n').forEach((line) => {
+      const span = document.createElement('span');
+      span.className = 'poem-logical-line';
+      span.textContent = line || '\u00a0';
+      p.appendChild(span);
+    });
     textContent.appendChild(p);
     textDiv.appendChild(textContent);
     box.appendChild(textDiv);
