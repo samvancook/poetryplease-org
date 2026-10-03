@@ -1731,7 +1731,7 @@ function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, rat
     allGraphics: includeDomainMeta ? all.map(mapToCounterArr) : [],
     newGraphics: batch.map(mapToArr),
     totalImages: all.length,
-    votedImagesCount: votedIds.size,
+    votedImagesCount: all.length - newObjs.length,
     remainingImagesCount: newObjs.length,
     releaseCatalogs,
     imageTypes,
@@ -4642,6 +4642,22 @@ function excludeFlaggedContent(items, flaggedIds) {
   return (items || []).filter((item) => !flaggedIds.has(normalizeKey(item.imageId || item.id || "")));
 }
 
+async function canSeeFullPoemsInReview(decoded) {
+  if (!decoded?.uid) return false;
+  const snap = await db.collection(COLLECTIONS.users).doc(decoded.uid).get();
+  const record = snap.data() || {};
+  const roles = resolveRoles(record.roles, decoded.email || record.email, {
+    automaticTeamAccess: record.automaticTeamAccess !== false,
+  });
+  return roles.includes("team") || roles.includes("admin");
+}
+
+function reviewVisibleContent(items, canSeeFullPoems) {
+  return canSeeFullPoems
+    ? items
+    : items.filter((item) => normalizeText(item.imageType).toUpperCase() !== "FP");
+}
+
 async function requireDecodedUser(req, res) {
   const decoded = await verifyIdTokenFromHeader(req);
   if (!decoded?.uid || !decoded?.email) {
@@ -4763,12 +4779,14 @@ const manuscriptVisualReviewApp = createManuscriptVisualReviewApp({
 app.use(getBoth("/admin/manuscriptVisualReviews"), manuscriptVisualReviewApp);
 
 // imageTypes
-app.get(getBoth("/imageTypes"), async (_req, res) => {
-  const [allContent, flaggedIds] = await Promise.all([
+app.get(getBoth("/imageTypes"), async (req, res) => {
+  const decoded = await verifyIdTokenFromHeader(req);
+  const [allContent, flaggedIds, canSeeFullPoems] = await Promise.all([
     getAllContentCached(),
     getFlaggedContentIds(),
+    canSeeFullPoemsInReview(decoded),
   ]);
-  const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+  const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
   const imageTypes = [...new Set(all.map((i) => i.imageType).filter(Boolean))].sort();
   res.json(imageTypes);
 });
@@ -4817,14 +4835,15 @@ app.post(getBoth("/bootstrap"), async (req, res) => {
     getAllContentCached(),
     getFlaggedContentIds(),
     getUniqueVotedImageIdsByUser(userId),
+    canSeeFullPoemsInReview(decoded),
   ];
 
   if (includeRatingsSummary) {
     tasks.push(getRatingsSummaryCached());
   }
 
-  const [allContent, flaggedIds, votedIds, ratingsSummary = null] = await Promise.all(tasks);
-  const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+  const [allContent, flaggedIds, votedIds, canSeeFullPoems, ratingsSummary = null] = await Promise.all(tasks);
+  const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
   res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta: false, ratingsSummary, welcome }));
 });
 
@@ -4851,12 +4870,13 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     getAllContentCached(),
     getFlaggedContentIds(),
     getUniqueVotedImageIdsByUser(userId),
+    canSeeFullPoemsInReview(decoded),
   ];
   if (embedBook) tasks.push(getRatingsSummaryCached());
 
-  const [allContent, flaggedIds, votedIds, ratingsSummary = null] = await Promise.all(tasks);
+  const [allContent, flaggedIds, votedIds, canSeeFullPoems, ratingsSummary = null] = await Promise.all(tasks);
 
-  const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+  const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
   const filteredAll = filterContentByFeedFilters(all, filters);
   const filteredNew = filteredAll.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const promoLaneCounts = filters.author ? Object.fromEntries(
@@ -4889,7 +4909,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     allGraphics: filteredAll.map(mapToCounterArr),
     newGraphics: (rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
     totalImages: all.length,
-    votedImagesCount: votedIds.size,
+    votedImagesCount: all.length - all.filter((item) => !votedIds.has((item.imageId || "").trim().toLowerCase())).length,
     remainingImagesCount: filteredNew.length,
     domainTotalImages: filteredAll.length,
     domainVotedImagesCount: Math.max(filteredAll.length - filteredNew.length, 0),
@@ -5007,6 +5027,10 @@ app.get(getBoth("/contentById"), async (req, res) => {
   const item = matches[0];
 
   if (!item) return res.status(404).json({ error: "not_found" });
+  if (normalizeText(item.imageType).toUpperCase() === "FP" &&
+      !await canSeeFullPoemsInReview(await verifyIdTokenFromHeader(req))) {
+    return res.status(404).json({ error: "not_found" });
+  }
 
   res.json({
     item: mapToArr(item),
@@ -5770,12 +5794,13 @@ app.post(getBoth("/fetchData"), async (req, res) => {
   const maxLimit = includeDomainMeta ? 5000 : 120;
   const limit = Math.max(10, Math.min(Number(req.body?.limit) || 20, maxLimit));
 
-  const [allContent, flaggedIds, votedIds] = await Promise.all([
+  const [allContent, flaggedIds, votedIds, canSeeFullPoems] = await Promise.all([
     getAllContentCached(),
     getFlaggedContentIds(),
     getUniqueVotedImageIdsByUser(decoded.email),
+    canSeeFullPoemsInReview(decoded),
   ]);
-  const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+  const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
   res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta }));
 });
 
@@ -5792,7 +5817,7 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
     getFlaggedContentIds(),
     getUniqueVotedImageIdsByUser(anonId),
   ]);
-  const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+  const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), false);
   res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta }));
 });
 
