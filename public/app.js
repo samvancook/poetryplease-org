@@ -966,14 +966,14 @@ function renderAuthorReviewGuide() {
   const collapsed = safeLocalStorageGet('pp_author_review_guide_collapsed') === 'true';
   topBar?.classList.toggle('author-guide-collapsed', collapsed);
   guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <h2 style="margin:0;font-size:1.2rem;">Review guide</h2>
+    <h2 style="margin:0;font-size:1.2rem;">Wrong poem text? Editor · Don’t like an option? Queue</h2>
     <button type="button" id="author-review-guide-toggle" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
   </div>
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Start with graphics:</strong> <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> · <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a></p>
     <p style="margin:0 0 8px;">To save one, choose <strong>Download image</strong> beneath the graphic or photo. If it opens in a new tab instead, use your device’s Save image option.</p>
-    <p style="margin:0 0 8px;"><strong>2. Optional adjustments:</strong> <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">Open the editor</a> if formatting or an earlier version needs review. Sending a note there pauses the piece for the team.</p>
-    <p style="margin:0;"><strong>3. Tell us your preferences:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">excerpts</a>, graphics, and photos. Your preferences help staff decide what to feature or reuse.</p>
+    <p style="margin:0 0 8px;"><strong>2. Is something wrong with the poem?</strong> If the words or formatting are incorrect, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and leave a correction note. That pauses the piece for staff review.</p>
+    <p style="margin:0;"><strong>3. Don’t like an option?</strong> Stay in the review queue and choose <strong>Dislike</strong> or <strong>Meh</strong>. Use <strong>Like</strong> or <strong>Moved Me</strong> for favorites. These reactions tell staff what you prefer to feature or reuse; they are not correction requests.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
