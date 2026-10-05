@@ -182,8 +182,11 @@ async function fetchCanonicalPoems(bookTitle) {
   if (!response.ok) throw new Error(`catalog_poems_${response.status}`);
   const rows = await response.json();
   return (Array.isArray(rows) ? rows : []).filter((row) => (
-    Number(row?.is_likely_poem) === 1
-    && normalizeKey(row?.content_kind) === "poem"
+    (
+      (Number(row?.is_likely_poem) === 1 && normalizeKey(row?.content_kind) === "poem")
+      || (normalizeCatalogLookupKey(bookTitle) === "roads"
+        && normalizeCatalogLookupKey(row?.title) === "notes from the pandemic office")
+    )
     && normalizeText(row?.title)
     && normalizeText(row?.served_text || row?.cleaned_text || row?.text)
   ));
@@ -5550,7 +5553,11 @@ app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
     const importedRows = fullPoems.filter((row) => normalizeCatalogLookupKey(row.book) === normalizeCatalogLookupKey(summary.book));
     const canonicalTitleCounts = new Map();
     (canonicalPoems || []).forEach((poem) => {
-      const key = normalizeCatalogLookupKey(poem.title);
+      const title = normalizeCatalogLookupKey(summary.book) === "roads"
+        && normalizeText(poem.title) === "The Feeling of Being at Home1"
+          ? "The Feeling of Being at Home"
+          : poem.title;
+      const key = normalizeCatalogLookupKey(title);
       if (key) canonicalTitleCounts.set(key, (canonicalTitleCounts.get(key) || 0) + 1);
     });
     const importedByTitle = new Map();
