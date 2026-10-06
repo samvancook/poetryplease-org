@@ -4057,7 +4057,7 @@ const AuthorQueueTour = (() => {
       target: () => document.getElementById('media-wrap'),
     },
     {
-      title: 'Choose poems and excerpts for future graphics',
+      title: 'Choose excerpts and featured poems',
       copy: 'After the tour, vote on Excerpts you want us to use in marketing and new graphics. Full Poems are in the editor, where you can select work for your public author page.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
