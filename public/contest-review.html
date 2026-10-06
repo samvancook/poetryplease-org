@@ -116,9 +116,9 @@
       <p id="outcome-count"></p>
       <details style="margin:12px 0 18px;">
         <summary style="cursor:pointer;font-weight:700;">Act on filtered set: assign fourth reads</summary>
-        <p>Preview the current filter, then queue one fourth read per eligible submission. Reviewers can vote only after its first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped.</p>
-        <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
-        <div class="actions"><button id="preview-fourth" type="button">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" hidden>Assign fourth reads</button></div>
+        <p id="fourth-help">This acts on the submissions matching the filter above. One email gets every eligible fourth read; multiple emails split them roughly evenly. Preview shows the exact count and split without assigning anything. A queued fourth read becomes votable after the first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped; a reviewer cannot be assigned an entry they have already reviewed. This does not email reviewers.</p>
+        <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" aria-describedby="fourth-help" title="One email receives all eligible fourth reads; multiple emails divide them roughly evenly." style="width:100%;margin:8px 0;"></label>
+        <div class="actions"><button id="preview-fourth" type="button" title="See the exact eligible count and reviewer split without assigning anything.">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" title="Queue the previewed fourth reads for the listed reviewers. No email is sent." hidden>Assign fourth reads</button></div>
         <div id="fourth-status" class="status"></div>
       </details>
       <div id="outcome-results" class="table-wrap"></div>
