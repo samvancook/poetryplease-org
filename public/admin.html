@@ -492,7 +492,7 @@
         </button>
       </div>
       <div id="user-submissions-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Review ordinary user submissions and program-backed contest entries. Contest identity and contact details remain separate from the judging record.</p>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Use <a href="/contest-review.html?view=all">Review Entries</a> for the full blinded contest queue. Contest identity and contact details remain separate from judging.</p>
         <details style="margin-bottom:18px;">
           <summary style="font-weight:700;cursor:pointer;">Contest program setup</summary>
           <div class="controls" style="margin:14px 0;">
@@ -999,6 +999,7 @@
       submissionStatusFilter: "all",
       submissionTypeFilter: "all",
       submissionProgramFilter: "all",
+      submissionPage: 0,
       importAssistantResults: [],
       importAssistantPreviewRows: [],
       importAssistantBatchId: localStorage.getItem('pp_admin_last_import_batch_id') || '',
@@ -2343,8 +2344,17 @@
         ].filter(Boolean).join(' ').toLowerCase();
         return haystack.includes(query);
       });
-      statusEl.textContent = `${pending.length} pending submission${pending.length === 1 ? '' : 's'} out of ${state.submissions.length}. Showing ${filtered.length}.`;
+      const pageSize = 50;
+      const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+      state.submissionPage = Math.min(Math.max(0, state.submissionPage || 0), pageCount - 1);
+      const pageRows = filtered.slice(state.submissionPage * pageSize, (state.submissionPage + 1) * pageSize);
+      statusEl.textContent = `${pending.length} pending submission${pending.length === 1 ? '' : 's'} out of ${state.submissions.length}. ${filtered.length} match the filters; showing page ${state.submissionPage + 1} of ${pageCount}.`;
       container.innerHTML = `
+        <div class="actions" style="margin-bottom:12px;">
+          <button id="submission-previous-page" type="button" ${state.submissionPage === 0 ? 'disabled' : ''}>Previous page</button>
+          <span>Page ${state.submissionPage + 1} of ${pageCount}</span>
+          <button id="submission-next-page" type="button" ${state.submissionPage >= pageCount - 1 ? 'disabled' : ''}>Next page</button>
+        </div>
         <table>
           <thead>
             <tr>
@@ -2355,7 +2365,7 @@
             </tr>
           </thead>
           <tbody>
-            ${filtered.map((row) => `
+            ${pageRows.map((row) => `
               <tr>
                 <td>
                   <div class="user-name">${escapeHtml(row.title || row.id)}</div>
@@ -2391,6 +2401,8 @@
           </tbody>
         </table>
       `;
+      container.querySelector("#submission-previous-page").addEventListener("click", () => { state.submissionPage -= 1; renderUserSubmissions(); });
+      container.querySelector("#submission-next-page").addEventListener("click", () => { state.submissionPage += 1; renderUserSubmissions(); });
       container.querySelectorAll('[data-review-submission]').forEach((button) => {
         button.addEventListener('click', () => reviewSubmission(button.getAttribute('data-review-submission'), button.getAttribute('data-decision')));
       });
@@ -5061,18 +5073,22 @@
       });
       document.getElementById("user-submissions-query").addEventListener("input", (event) => {
         state.submissionQuery = event.target.value || "";
+        state.submissionPage = 0;
         renderUserSubmissions();
       });
       document.getElementById("user-submissions-status-filter").addEventListener("change", (event) => {
         state.submissionStatusFilter = event.target.value || "all";
+        state.submissionPage = 0;
         renderUserSubmissions();
       });
       document.getElementById("user-submissions-type-filter").addEventListener("change", (event) => {
         state.submissionTypeFilter = event.target.value || "all";
+        state.submissionPage = 0;
         renderUserSubmissions();
       });
       document.getElementById("user-submissions-program-filter").addEventListener("change", (event) => {
         state.submissionProgramFilter = event.target.value || "all";
+        state.submissionPage = 0;
         renderUserSubmissions();
       });
       document.getElementById("submission-program-editor-select").addEventListener("change", (event) => {
