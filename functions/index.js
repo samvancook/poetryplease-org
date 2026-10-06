@@ -10118,7 +10118,7 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/additionalReviewer"), 
   if (!ctx) return;
   const submissionId = normalizeText(req.params.submissionId);
   const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
-  if (!/^[^@\\s]+@buttonpoetry\\.com$/.test(reviewerEmail)) return res.status(400).json({ error: "invalid_reviewer_email" });
+  if (!/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail)) return res.status(400).json({ error: "invalid_reviewer_email" });
   const submissionRef = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
   const submissionSnap = await submissionRef.get();
   if (!submissionSnap.exists) return res.status(404).json({ error: "submission_not_found" });
