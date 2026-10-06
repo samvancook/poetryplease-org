@@ -594,6 +594,22 @@ function updateAuthorPromoControls() {
     progress.hidden = !count;
   } else {
     document.getElementById('promo-review-progress')?.remove();
+    let staffProgress = document.getElementById('staff-promo-review-progress');
+    if (currentUserIsTeamOrAdmin() && filterByAuthor && selectedAuthor && lastData?.promoLaneCounts) {
+      if (!staffProgress) {
+        staffProgress = document.createElement('span');
+        staffProgress.id = 'staff-promo-review-progress';
+        staffProgress.style.cssText = 'display:block;font-size:0.8rem;color:#5d625d;margin-top:3px;';
+        container.appendChild(staffProgress);
+      }
+      const counts = lastData.promoLaneCounts;
+      staffProgress.textContent = `Your review progress: ${PROMO_TYPES.map((type) => {
+        const count = counts[type];
+        return `${type} ${count?.reviewed ?? 0}/${count?.total ?? 0}`;
+      }).join(' · ')}`;
+    } else {
+      staffProgress?.remove();
+    }
   }
 }
 
@@ -3903,6 +3919,8 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
   if (IS_EMBED_UI) return;
   if (!currentItem || isTransitioning) return;
   isTransitioning = true;
+  const votedItem = currentItem;
+  const wasUnreviewed = queue.some((entry) => normalizeFilterValue(entry?.id) === normalizeFilterValue(votedItem.id));
   historyStack.push(currentItem);
 
   // optimistic UI
@@ -3913,6 +3931,14 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
 
   try {
     await submitVote(currentItem, value);
+    const promoType = String(votedItem.imageType || '').toUpperCase();
+    if (wasUnreviewed && PROMO_TYPES.includes(promoType) && lastData?.promoLaneCounts) {
+      for (const type of [promoType, 'PROMO']) {
+        const count = lastData.promoLaneCounts[type];
+        if (count) count.reviewed = Math.min(Number(count.reviewed || 0) + 1, Number(count.total || 0));
+      }
+      updateAuthorPromoControls();
+    }
     applyOptimisticVoteToRatings(currentItem.id, value);
     refreshItemFeedSignals(currentItem);
     if (value === 'like')     updateCounters({ like: 1 });
