@@ -88,6 +88,16 @@
       <div id="assignment-status" class="status"></div>
       <h3>Reviewer progress</h3>
       <div id="reviewer-progress" class="table-wrap"></div>
+      <h3>Review outcomes</h3>
+      <label>Show submissions
+        <select id="outcome-view">
+          <option value="complete">3 reviews</option>
+          <option value="positive">3 Yes reviews</option>
+          <option value="negative">3 No reviews</option>
+        </select>
+      </label>
+      <p id="outcome-count"></p>
+      <div id="outcome-results" class="table-wrap"></div>
       <details style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
       <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
     </section>
@@ -222,12 +232,33 @@
             '</td><td>' + row.reviewedAssigned + ' / ' + row.assigned + '</td><td>' + row.reviewedTotal + '</td></tr>').join("") +
           '</tbody></table>'
         : '<p>No reviews or assignments yet.</p>';
+      renderOutcomeViews();
       document.getElementById("submission-progress").innerHTML =
         '<table class="progress-table"><thead><tr><th>Submission</th><th>Reviews</th><th>Reviewed by</th><th>Assigned to</th></tr></thead><tbody>' +
         report.submissions.map((row) => '<tr><td>' + escapeHtml(row.title) + '<br><small>' + escapeHtml(row.id) + '</small></td><td>' + row.reviewCount + ' / ' +
           row.requiredReviewCount + '</td><td>' + escapeHtml(row.reviewers.map((review) =>
             review.reviewerEmail + ' (' + review.decision + ')').join(", ") || "—") + '</td><td>' +
           escapeHtml(row.assignedTo.join(", ") || "—") + '</td></tr>').join("") + '</tbody></table>';
+    }
+
+    function renderOutcomeViews() {
+      const report = state.adminProgress;
+      if (!report) return;
+      const view = document.getElementById("outcome-view").value;
+      const matching = report.submissions.filter((row) => {
+        if (row.reviewCount !== 3) return false;
+        if (view === "positive") return row.reviewers.filter((review) => review.decision === "yes").length === 3;
+        if (view === "negative") return row.reviewers.filter((review) => review.decision === "no").length === 3;
+        return true;
+      });
+      document.getElementById("outcome-count").textContent = matching.length + " matching submissions";
+      document.getElementById("outcome-results").innerHTML = matching.length
+        ? '<table class="progress-table"><thead><tr><th>Submission</th><th>Reviews</th><th></th></tr></thead><tbody>' +
+          matching.map((row) => '<tr><td>' + escapeHtml(row.title) + '</td><td>' +
+            escapeHtml(row.reviewers.map((review) => review.decision).join(", ")) +
+            '</td><td><button type="button" data-open-submission="' + escapeHtml(row.id) + '">Open</button></td></tr>').join("") +
+          "</tbody></table>"
+        : "<p>No submissions match this view.</p>";
     }
 
     async function loadProgress() {
@@ -357,6 +388,18 @@
     });
     document.getElementById("download-progress").addEventListener("click", downloadProgress);
 
+    document.getElementById("outcome-view").addEventListener("change", renderOutcomeViews);
+    document.getElementById("outcome-results").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-open-submission]");
+      if (!button) return;
+      document.getElementById("view").value = "all";
+      applyFilters();
+      const index = state.filtered.findIndex((row) => row.id === button.dataset.openSubmission);
+      if (index < 0) return setStatus("Submission not found in this review queue.", true);
+      state.index = index;
+      render();
+      document.getElementById("review-card").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     document.getElementById("view").addEventListener("change", applyFilters);
     document.getElementById("previous").addEventListener("click", () => { state.index -= 1; render(); });
     document.getElementById("next").addEventListener("click", () => { state.index += 1; render(); });
