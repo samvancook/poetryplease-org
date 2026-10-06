@@ -109,10 +109,18 @@
           <option value="negative">3+ No reviews</option>
           <option value="instagram">By Instagram handle</option>
           <option value="active">All active submissions</option>
+          <option value="all">All submissions</option>
           <option value="archived">Archived submissions</option>
         </select>
       </label>
       <p id="outcome-count"></p>
+      <details style="margin:12px 0 18px;">
+        <summary style="cursor:pointer;font-weight:700;">Act on filtered set: assign fourth reads</summary>
+        <p>Preview the current filter, then queue one fourth read per eligible submission. Reviewers can vote only after its first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped.</p>
+        <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
+        <div class="actions"><button id="preview-fourth" type="button">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" hidden>Assign fourth reads</button></div>
+        <div id="fourth-status" class="status"></div>
+      </details>
       <div id="outcome-results" class="table-wrap"></div>
       <details style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
       <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
@@ -155,7 +163,7 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
-    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null };
+    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null, fourthPreview: null };
 
     async function token() {
       return firebase.auth().currentUser ? firebase.auth().currentUser.getIdToken(false) : "";
@@ -265,11 +273,12 @@
           escapeHtml(row.assignedTo.join(", ") || "—") + '</td></tr>').join("") + '</tbody></table>';
     }
 
-    function renderOutcomeViews() {
+    function filteredOutcomeRows() {
       const report = state.adminProgress;
-      if (!report) return;
+      if (!report) return [];
       const view = document.getElementById("outcome-view").value;
       const matching = report.submissions.filter((row) => {
+        if (view === "all") return true;
         if (view === "archived") return row.archived;
         if (row.archived) return false;
         if (view === "instagram" || view === "active") return true;
@@ -279,6 +288,14 @@
         return true;
       });
       if (view === "instagram") matching.sort((a, b) => (a.instagramHandle || "\uffff").localeCompare(b.instagramHandle || "\uffff") || a.title.localeCompare(b.title));
+      return matching;
+    }
+
+    function renderOutcomeViews() {
+      const report = state.adminProgress;
+      if (!report) return;
+      const view = document.getElementById("outcome-view").value;
+      const matching = filteredOutcomeRows();
       document.getElementById("outcome-count").textContent = matching.length + " matching submissions";
       document.getElementById("outcome-results").innerHTML = matching.length
         ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th>Actions</th></tr></thead><tbody>' +
@@ -395,7 +412,23 @@
       }
     }
 
-    document.getElementById("program").addEventListener("change", () => { applyFilters(); loadProgress(); });
+    function invalidateFourthPreview() {
+      state.fourthPreview = null;
+      document.getElementById("confirm-fourth").hidden = true;
+      document.getElementById("fourth-status").textContent = "";
+    }
+
+    function fourthRequest() {
+      const select = document.getElementById("outcome-view");
+      return {
+        programId: document.getElementById("program").value,
+        submissionIds: filteredOutcomeRows().map((row) => row.id),
+        reviewerEmails: document.getElementById("fourth-reviewer-emails").value.split(",").map((email) => email.trim()).filter(Boolean),
+        filterLabel: select.options[select.selectedIndex]?.textContent || "",
+      };
+    }
+
+    document.getElementById("program").addEventListener("change", () => { invalidateFourthPreview(); applyFilters(); loadProgress(); });
     document.getElementById("assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const programId = document.getElementById("program").value;
@@ -442,9 +475,51 @@
         status.textContent = "Could not assign spot check: " + error.message;
       }
     });
+    document.getElementById("preview-fourth").addEventListener("click", async () => {
+      invalidateFourthPreview();
+      const body = fourthRequest();
+      const status = document.getElementById("fourth-status");
+      if (!body.programId) return void (status.textContent = "Choose a contest first.");
+      if (!body.submissionIds.length) return void (status.textContent = "No submissions match this filter.");
+      status.textContent = "Checking the filtered set...";
+      try {
+        const result = await api("admin/contestFourthReviewBatch", { method: "POST", body });
+        const skipped = result.skipped || {};
+        status.textContent = result.eligibleCount + " eligible for a fourth read out of " + result.selectedCount + " filtered. Skipped: " +
+          (skipped.archived || 0) + " archived, " + (skipped.alreadyHasFourth || 0) + " already queued/reviewed, " +
+          (skipped.reviewerConflict || 0) + " reviewer conflicts, " + (skipped.wrongProgram || 0) + " outside this contest. " +
+          "Reviewer split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") + ".";
+        state.fourthPreview = { ...body, previewToken: result.previewToken, eligibleCount: result.eligibleCount };
+        document.getElementById("confirm-fourth").hidden = !result.eligibleCount;
+        document.getElementById("confirm-fourth").textContent = "Assign " + result.eligibleCount + " fourth reads";
+      } catch (error) {
+        status.textContent = "Could not preview: " + error.message;
+      }
+    });
+    document.getElementById("confirm-fourth").addEventListener("click", async () => {
+      const preview = state.fourthPreview;
+      if (!preview) return;
+      if (!window.confirm("Assign " + preview.eligibleCount + " fourth reads from this saved preview?")) return;
+      const status = document.getElementById("fourth-status");
+      status.textContent = "Assigning fourth reads...";
+      try {
+        const result = await api("admin/contestFourthReviewBatch", {
+          method: "POST", body: { ...preview, commit: true },
+        });
+        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Reviewers can use My assigned batch as poems become ready.";
+        state.fourthPreview = null;
+        document.getElementById("confirm-fourth").hidden = true;
+        await loadQueue();
+      } catch (error) {
+        status.textContent = "Could not finish assignment: " + error.message + ". Refresh the preview before trying again.";
+        state.fourthPreview = null;
+        document.getElementById("confirm-fourth").hidden = true;
+      }
+    });
+    document.getElementById("fourth-reviewer-emails").addEventListener("input", invalidateFourthPreview);
     document.getElementById("download-progress").addEventListener("click", downloadProgress);
 
-    document.getElementById("outcome-view").addEventListener("change", renderOutcomeViews);
+    document.getElementById("outcome-view").addEventListener("change", () => { invalidateFourthPreview(); renderOutcomeViews(); });
     document.getElementById("outcome-results").addEventListener("click", async (event) => {
       const button = event.target.closest("button");
       if (!button) return;

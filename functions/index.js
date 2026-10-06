@@ -49,6 +49,7 @@ const COLLECTIONS = {
   submissionResponses: "submissionResponses",
   contestReviewAssignments: "contestReviewAssignments",
   contestSpotChecks: "contestSpotChecks",
+  contestReviewBulkActions: "contestReviewBulkActions",
   importJobs: "importJobs",
   importJobItems: "importJobItems",
   systemState: "systemState",
@@ -9913,7 +9914,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
       const reviewTarget = Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0);
       const reviewCount = decisions.length;
       const extraAssigned = row.contestExtraReviewerEmails.some((email) => normalizeText(email).toLowerCase() === reviewerEmail);
-      const canReview = !!currentDecision || reviewCount < requiredReviewCount || (reviewCount < reviewTarget && extraAssigned);
+      const canReview = !!currentDecision || (reviewCount < requiredReviewCount && !extraAssigned) || (reviewCount >= requiredReviewCount && reviewCount < reviewTarget && extraAssigned);
       return {
         id: row.id,
         title: row.title || "Untitled",
@@ -10112,6 +10113,163 @@ app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
     }, { merge: true });
   }
   res.json({ ok: true, assigned: selectedIds.length, reviewerEmail, programId, requested: batchSize });
+});
+
+app.post(getBoth("/admin/contestFourthReviewBatch"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const selectedIds = [...new Set((Array.isArray(req.body?.submissionIds) ? req.body.submissionIds : [])
+    .map(normalizeText).filter(Boolean))].sort();
+  const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
+    .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
+  if (!programId || !selectedIds.length || selectedIds.length > 2000) {
+    return res.status(400).json({ error: "select_1_to_2000_submissions" });
+  }
+  if (!reviewerEmails.length || reviewerEmails.length > 20 ||
+      reviewerEmails.some((email) => !/^[^@\s]+@buttonpoetry\.com$/.test(email))) {
+    return res.status(400).json({ error: "provide_1_to_20_button_poetry_reviewers" });
+  }
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  if (Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3) !== 3) {
+    return res.status(409).json({ error: "fourth_review_requires_three_initial_reviews" });
+  }
+
+  const [submissionSnap, decisionSnap, assignmentSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
+  ]);
+  const submissionsById = new Map(submissionSnap.docs.map((doc) => [doc.id, doc]));
+  const decisionsById = new Map();
+  for (const doc of decisionSnap.docs) {
+    const vote = doc.data() || {};
+    const list = decisionsById.get(vote.submissionId) || [];
+    list.push(vote);
+    decisionsById.set(vote.submissionId, list);
+  }
+  const assignedById = new Map();
+  for (const doc of assignmentSnap.docs) {
+    const data = doc.data() || {};
+    const email = normalizeText(data.reviewerEmail || "").toLowerCase();
+    for (const id of data.submissionIds || []) {
+      const assigned = assignedById.get(id) || new Set();
+      assigned.add(email);
+      assignedById.set(id, assigned);
+    }
+  }
+  const snapshotRows = selectedIds.map((id) => {
+    const row = submissionsById.get(id)?.data() || null;
+    const votes = (decisionsById.get(id) || [])
+      .map((vote) => [normalizeText(vote.reviewerEmail || "").toLowerCase(), normalizeKey(vote.decision || "")])
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+    return [id, row?.submissionProgramId || "", row?.contestArchived === true,
+      Number(row?.contestReviewTarget || 0), (row?.contestExtraReviewerEmails || []).slice().sort(),
+      votes, [...(assignedById.get(id) || [])].sort()];
+  });
+  const previewToken = createHash("sha256").update(JSON.stringify({
+    programId, reviewerEmails, snapshotRows,
+  })).digest("hex");
+  const skipped = { archived: 0, wrongProgram: 0, alreadyHasFourth: 0, reviewerConflict: 0 };
+  const plan = [];
+  let nextReviewerIndex = 0;
+  for (const id of selectedIds) {
+    const doc = submissionsById.get(id);
+    const row = doc?.data() || {};
+    if (!doc || row.submissionProgramId !== programId) { skipped.wrongProgram += 1; continue; }
+    if (row.contestArchived === true) { skipped.archived += 1; continue; }
+    if (Number(row.contestReviewTarget || 0) > 3 ||
+        (row.contestExtraReviewerEmails || []).length ||
+        (decisionsById.get(id) || []).length > 3) {
+      skipped.alreadyHasFourth += 1; continue;
+    }
+    const occupied = new Set([
+      ...(decisionsById.get(id) || []).map((vote) => normalizeText(vote.reviewerEmail || "").toLowerCase()),
+      ...(assignedById.get(id) || []),
+    ]);
+    let chosen = "";
+    for (let offset = 0; offset < reviewerEmails.length; offset += 1) {
+      const index = (nextReviewerIndex + offset) % reviewerEmails.length;
+      if (!occupied.has(reviewerEmails[index])) {
+        chosen = reviewerEmails[index];
+        nextReviewerIndex = (index + 1) % reviewerEmails.length;
+        break;
+      }
+    }
+    if (!chosen) { skipped.reviewerConflict += 1; continue; }
+    plan.push({ id, reviewerEmail: chosen, ref: doc.ref });
+  }
+  const byReviewer = Object.fromEntries(reviewerEmails.map((email) =>
+    [email, plan.filter((item) => item.reviewerEmail === email).length]));
+  if (req.body?.commit !== true) {
+    return res.json({
+      ok: true, programId, selectedCount: selectedIds.length, eligibleCount: plan.length,
+      skipped, byReviewer, previewToken,
+    });
+  }
+  if (normalizeText(req.body?.previewToken || "") !== previewToken) {
+    return res.status(409).json({ error: "selection_changed_preview_again" });
+  }
+  if (!plan.length) return res.status(409).json({ error: "no_eligible_submissions" });
+
+  const actionRef = db.collection(COLLECTIONS.contestReviewBulkActions).doc();
+  await actionRef.set({
+    action: "assign_fourth_review",
+    programId,
+    filterLabel: normalizeText(req.body?.filterLabel || "").slice(0, 80),
+    selectedIds,
+    assignments: plan.map((item) => ({ submissionId: item.id, reviewerEmail: item.reviewerEmail })),
+    selectedCount: selectedIds.length,
+    eligibleCount: plan.length,
+    skipped,
+    assignedCount: 0,
+    status: "in_progress",
+    createdBy: ctx.decoded.uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  let assignedCount = 0;
+  try {
+    for (let start = 0; start < plan.length; start += 350) {
+      const chunk = plan.slice(start, start + 350);
+      const batch = db.batch();
+      const byEmail = new Map();
+      for (const item of chunk) {
+        byEmail.set(item.reviewerEmail, [...(byEmail.get(item.reviewerEmail) || []), item.id]);
+        batch.set(item.ref, {
+          contestReviewTarget: 4,
+          contestExtraReviewerEmails: FieldValue.arrayUnion(item.reviewerEmail),
+          judgingStatus: "in_review",
+          contestReviewCompleteAt: null,
+          contestScore: null,
+          updatedBy: ctx.decoded.uid,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      for (const [email, ids] of byEmail) {
+        const assignmentId = createHash("sha256").update(programId + "|" + email).digest("hex").slice(0, 40);
+        batch.set(db.collection(COLLECTIONS.contestReviewAssignments).doc(assignmentId), {
+          programId,
+          reviewerEmail: email,
+          submissionIds: FieldValue.arrayUnion(...ids),
+          updatedBy: ctx.decoded.uid,
+          updatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      const nextAssignedCount = assignedCount + chunk.length;
+      batch.set(actionRef, {
+        assignedCount: nextAssignedCount,
+        status: nextAssignedCount === plan.length ? "completed" : "in_progress",
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      await batch.commit();
+      assignedCount = nextAssignedCount;
+    }
+  } catch (error) {
+    await actionRef.set({ status: "partial_failure", assignedCount, error: normalizeText(error.message || "").slice(0, 200) }, { merge: true });
+    return res.status(500).json({ error: "bulk_assignment_partial_failure_after_" + assignedCount, assignedCount, actionId: actionRef.id });
+  }
+  res.json({ ok: true, actionId: actionRef.id, selectedCount: selectedIds.length, assignedCount, skipped, byReviewer });
 });
 
 app.post(getBoth("/admin/contestSpotChecks"), async (req, res) => {
@@ -10318,10 +10476,13 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
     .map((doc) => ({ id: doc.id, ...(doc.data() || {}) }))
     .filter((row) => normalizeKey(row.responseType) === "contest_review");
   const reviewerAlreadyParticipated = existingDecisions.some((row) => row.reviewerUid === ctx.decoded.uid);
-  if (!reviewerAlreadyParticipated && existingDecisions.length >= requiredReviewCount) {
-    const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
-    const extraEmails = (submissionData.contestExtraReviewerEmails || []).map((email) => normalizeText(email).toLowerCase());
-    if (!extraEmails.includes(reviewerEmail)) return res.status(403).json({ error: "additional_review_not_assigned" });
+  const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
+  const extraEmails = (submissionData.contestExtraReviewerEmails || []).map((email) => normalizeText(email).toLowerCase());
+  if (!reviewerAlreadyParticipated && extraEmails.includes(reviewerEmail) && existingDecisions.length < requiredReviewCount) {
+    return res.status(409).json({ error: "fourth_review_waiting_for_initial_reviews" });
+  }
+  if (!reviewerAlreadyParticipated && existingDecisions.length >= requiredReviewCount && !extraEmails.includes(reviewerEmail)) {
+    return res.status(403).json({ error: "additional_review_not_assigned" });
   }
   if (!reviewerAlreadyParticipated && existingDecisions.length >= reviewTarget) {
     return res.status(409).json({ error: "contest_review_complete" });
