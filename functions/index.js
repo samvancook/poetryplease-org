@@ -1094,6 +1094,9 @@ function mapSubmissionDoc(doc) {
     submissionProgramName: data.submissionProgramName || "",
     judgingStatus: data.judgingStatus || "",
     contestReviewCount: Number(data.contestReviewCount || 0) || 0,
+    contestReviewTarget: Number(data.contestReviewTarget || 0) || 0,
+    contestArchived: data.contestArchived === true,
+    contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
     contestScore: Number(data.contestScore || 0) || 0,
     submitterUid: data.submitterUid || "",
     submitterEmail: data.submitterEmail || "",
@@ -9897,13 +9900,17 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
 
   const submissions = submissionSnap.docs
     .map(mapSubmissionDoc)
+    .filter((row) => row.contestArchived !== true)
     .filter((row) => !requestedProgramId || row.submissionProgramId === requestedProgramId)
     .map((row) => {
       const program = programsById.get(row.submissionProgramId) || {};
       const decisions = decisionsBySubmissionId.get(row.id) || [];
       const currentDecision = decisions.find((decision) => decision.reviewerUid === ctx.decoded.uid) || null;
       const requiredReviewCount = Math.max(1, Number(program.requiredReviewCount) || 3);
+      const reviewTarget = Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0);
       const reviewCount = decisions.length;
+      const extraAssigned = row.contestExtraReviewerEmails.some((email) => normalizeText(email).toLowerCase() === reviewerEmail);
+      const canReview = !!currentDecision || reviewCount < requiredReviewCount || (reviewCount < reviewTarget && extraAssigned);
       return {
         id: row.id,
         title: row.title || "Untitled",
@@ -9911,10 +9918,11 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
         submissionProgramId: row.submissionProgramId || "",
         submissionProgramName: row.submissionProgramName || program.name || row.submissionProgramId || "Contest",
         judgingStatus: row.judgingStatus || "unassigned",
-        requiredReviewCount,
+        requiredReviewCount: reviewTarget,
         reviewCount,
-        reviewComplete: reviewCount >= requiredReviewCount,
-        contestScore: reviewCount >= requiredReviewCount ? Number(row.contestScore) || 0 : null,
+        reviewComplete: reviewCount >= reviewTarget,
+        canReview,
+        contestScore: reviewCount >= reviewTarget ? Number(row.contestScore) || 0 : null,
         currentReviewerDecision: normalizeKey(currentDecision?.decision || ""),
         currentReviewerNote: normalizeText(currentDecision?.note || ""),
         assignedToMe: assignedIds.has(row.id),
@@ -9957,6 +9965,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   const instagramBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, normalizeText(doc.data()?.instagramHandle || "")]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
   const submissionIds = new Set(submissions.map((row) => row.id));
+  const archivedIds = new Set(submissions.filter((row) => row.contestArchived === true).map((row) => row.id));
   const decisionsBySubmission = new Map();
   for (const doc of decisionSnap.docs) {
     const decision = doc.data() || {};
@@ -9979,7 +9988,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     const email = normalizeText(data.reviewerEmail || "").toLowerCase();
     if (!email) continue;
     for (const submissionId of data.submissionIds || []) {
-      if (!submissionIds.has(submissionId)) continue;
+      if (!submissionIds.has(submissionId) || archivedIds.has(submissionId)) continue;
       const assigned = assignedBySubmission.get(submissionId) || [];
       if (assigned.includes(email)) continue;
       assigned.push(email);
@@ -9999,8 +10008,9 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       id: row.id,
       title: row.title || "Untitled",
       instagramHandle: instagramBySubmission.get(row.id) || "",
+      archived: row.contestArchived === true,
       reviewCount: decisions.length,
-      requiredReviewCount,
+      requiredReviewCount: Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0),
       reviewers: decisions,
       assignedTo,
     };
@@ -10010,7 +10020,8 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     programId,
     totalSubmissions: rows.length,
     reviewedAtLeastOnce: rows.filter((row) => row.reviewCount > 0).length,
-    fullyReviewed: rows.filter((row) => row.reviewCount >= requiredReviewCount).length,
+    fullyReviewed: rows.filter((row) => !row.archived && row.reviewCount >= row.requiredReviewCount).length,
+    archivedCount: rows.filter((row) => row.archived).length,
     requiredReviewCount,
     reviewers: Array.from(reviewerProgress.values()).sort((a, b) => a.email.localeCompare(b.email)),
     submissions: rows,
@@ -10036,7 +10047,7 @@ app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
   ]);
-  const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
+  const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId && row.contestArchived !== true);
   const submissionIds = new Set(submissions.map((row) => row.id));
   const occupiedBySubmission = new Map();
   for (const doc of decisionSnap.docs) {
@@ -10082,6 +10093,92 @@ app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
   res.json({ ok: true, assigned: selectedIds.length, reviewerEmail, programId, requested: batchSize });
 });
 
+app.post(getBoth("/admin/contentSubmissions/:submissionId/archive"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const submissionId = normalizeText(req.params.submissionId);
+  if (typeof req.body?.archived !== "boolean") return res.status(400).json({ error: "invalid_archive_state" });
+  const ref = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "submission_not_found" });
+  if (snap.data()?.contestSubmission !== true) return res.status(409).json({ error: "not_a_contest_submission" });
+  const current = snap.data() || {};
+  const priorStatus = current.contestArchived === true
+    ? (current.contestPreArchiveJudgingStatus || "unassigned")
+    : (current.judgingStatus || "unassigned");
+  await ref.set({
+    contestArchived: req.body.archived,
+    contestArchivedAt: req.body.archived ? FieldValue.serverTimestamp() : null,
+    contestArchivedBy: req.body.archived ? ctx.decoded.uid : null,
+    contestPreArchiveJudgingStatus: req.body.archived ? priorStatus : null,
+    judgingStatus: req.body.archived ? "archived" : priorStatus,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  res.json({ ok: true, submissionId, archived: req.body.archived });
+});
+
+app.post(getBoth("/admin/contentSubmissions/:submissionId/additionalReviewer"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const submissionId = normalizeText(req.params.submissionId);
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  if (!/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail)) return res.status(400).json({ error: "invalid_reviewer_email" });
+  const submissionRef = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+  const submissionSnap = await submissionRef.get();
+  if (!submissionSnap.exists) return res.status(404).json({ error: "submission_not_found" });
+  const submission = submissionSnap.data() || {};
+  if (submission.contestSubmission !== true) return res.status(409).json({ error: "not_a_contest_submission" });
+  if (submission.contestArchived === true) return res.status(409).json({ error: "contest_submission_archived" });
+  const programId = normalizeText(submission.submissionProgramId || "");
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+  const decisionSnap = await db.collection(COLLECTIONS.submissionResponses).where("submissionId", "==", submissionId).limit(50).get();
+  const decisions = decisionSnap.docs.map((doc) => doc.data() || {}).filter((row) => normalizeKey(row.responseType) === "contest_review");
+  if (decisions.length < requiredReviewCount) return res.status(409).json({ error: "initial_reviews_not_complete" });
+  if (decisions.some((row) => normalizeText(row.reviewerEmail || "").toLowerCase() === reviewerEmail)) {
+    return res.status(409).json({ error: "reviewer_already_reviewed" });
+  }
+  const assignmentId = createHash("sha256").update(programId + "|" + reviewerEmail).digest("hex").slice(0, 40);
+  const assignmentRef = db.collection(COLLECTIONS.contestReviewAssignments).doc(assignmentId);
+  let reviewTarget;
+  try {
+    await db.runTransaction(async (transaction) => {
+      const currentSubmission = await transaction.get(submissionRef);
+      const currentAssignment = await transaction.get(assignmentRef);
+      const current = currentSubmission.data() || {};
+      if (current.contestArchived === true) throw new Error("contest_submission_archived");
+      const extraEmails = (current.contestExtraReviewerEmails || []).map((email) => normalizeText(email).toLowerCase());
+      if (extraEmails.includes(reviewerEmail) || (currentAssignment.data()?.submissionIds || []).includes(submissionId)) {
+        throw new Error("reviewer_already_assigned");
+      }
+      reviewTarget = Math.max(requiredReviewCount, Number(current.contestReviewTarget) || 0, decisions.length) + 1;
+      if (reviewTarget > 20) throw new Error("review_limit_reached");
+      transaction.set(assignmentRef, {
+        programId,
+        reviewerEmail,
+        submissionIds: FieldValue.arrayUnion(submissionId),
+        updatedBy: ctx.decoded.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      transaction.set(submissionRef, {
+        contestReviewTarget: reviewTarget,
+        contestExtraReviewerEmails: FieldValue.arrayUnion(reviewerEmail),
+        judgingStatus: "in_review",
+        contestReviewCompleteAt: null,
+        contestScore: null,
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+  } catch (error) {
+    if (["contest_submission_archived", "reviewer_already_assigned", "review_limit_reached"].includes(error.message)) {
+      return res.status(409).json({ error: error.message });
+    }
+    throw error;
+  }
+  res.json({ ok: true, submissionId, reviewerEmail, reviewTarget });
+});
+
 app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
@@ -10100,11 +10197,13 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
   }
 
   const submissionData = submissionSnap.data() || {};
+  if (submissionData.contestArchived === true) return res.status(409).json({ error: "contest_submission_archived" });
   const programId = normalizeText(submissionData.submissionProgramId || "");
   const programSnap = programId
     ? await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get()
     : null;
   const requiredReviewCount = Math.max(1, Number(programSnap?.data()?.requiredReviewCount) || 3);
+  const reviewTarget = Math.max(requiredReviewCount, Number(submissionData.contestReviewTarget) || 0);
   const existingDecisionSnap = await db.collection(COLLECTIONS.submissionResponses)
     .where("submissionId", "==", submissionId)
     .limit(50)
@@ -10114,6 +10213,11 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
     .filter((row) => normalizeKey(row.responseType) === "contest_review");
   const reviewerAlreadyParticipated = existingDecisions.some((row) => row.reviewerUid === ctx.decoded.uid);
   if (!reviewerAlreadyParticipated && existingDecisions.length >= requiredReviewCount) {
+    const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
+    const extraEmails = (submissionData.contestExtraReviewerEmails || []).map((email) => normalizeText(email).toLowerCase());
+    if (!extraEmails.includes(reviewerEmail)) return res.status(403).json({ error: "additional_review_not_assigned" });
+  }
+  if (!reviewerAlreadyParticipated && existingDecisions.length >= reviewTarget) {
     return res.status(409).json({ error: "contest_review_complete" });
   }
 
@@ -10132,12 +10236,12 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
 
   const decisionsByReviewer = new Map(existingDecisions.map((row) => [row.reviewerUid, row]));
   decisionsByReviewer.set(ctx.decoded.uid, { reviewerUid: ctx.decoded.uid, decision });
-  const finalDecisions = Array.from(decisionsByReviewer.values()).slice(0, requiredReviewCount);
+  const finalDecisions = Array.from(decisionsByReviewer.values());
   const score = finalDecisions.reduce((total, row) => {
     const value = normalizeKey(row.decision);
     return total + (value === "yes" ? 1 : value === "no" ? -1 : 0);
   }, 0);
-  const reviewComplete = finalDecisions.length >= requiredReviewCount;
+  const reviewComplete = finalDecisions.length >= reviewTarget;
   await submissionRef.set({
     judgingStatus: reviewComplete ? "reviewed" : "in_review",
     contestReviewCount: finalDecisions.length,
@@ -10151,7 +10255,7 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
     submissionId,
     decision,
     contestReviewCount: finalDecisions.length,
-    requiredReviewCount,
+    requiredReviewCount: reviewTarget,
     contestScore: reviewComplete ? score : null,
     reviewComplete,
   });

@@ -79,7 +79,7 @@
     <section id="admin-progress" class="card" hidden>
       <h2>Contest review progress</h2>
       <div id="progress-metrics" class="metric-row"></div>
-      <p>Assign the next available entries in batches. Each entry can be assigned to up to the contest’s required number of reviewers.</p>
+      <p>Assign the next available entries in batches. After an entry has its first three reviews, use Queue extra reviewer beside that entry to request another named review.</p>
       <form id="assignment-form" class="assignment-form">
         <label>Reviewer’s Button Poetry email<input id="assignment-email" type="email" required placeholder="name@buttonpoetry.com"></label>
         <label>Batch size<input id="assignment-size" type="number" min="1" max="100" value="50" required></label>
@@ -91,10 +91,12 @@
       <h3>Review outcomes</h3>
       <label>Show submissions
         <select id="outcome-view">
-          <option value="complete">3 reviews</option>
-          <option value="positive">3 Yes reviews</option>
-          <option value="negative">3 No reviews</option>
+          <option value="complete">3+ reviews</option>
+          <option value="positive">3+ Yes reviews</option>
+          <option value="negative">3+ No reviews</option>
           <option value="instagram">By Instagram handle</option>
+          <option value="active">All active submissions</option>
+          <option value="archived">Archived submissions</option>
         </select>
       </label>
       <p id="outcome-count"></p>
@@ -178,8 +180,8 @@
       if (programId) preview.href = "/contest-submit.html?program=" + encodeURIComponent(programId);
       state.filtered = state.submissions.filter((row) => {
         if (programId && row.submissionProgramId !== programId) return false;
-        if (view === "unreviewed") return !row.currentReviewerDecision && !row.reviewComplete;
-        if (view === "assigned") return row.assignedToMe && !row.currentReviewerDecision && !row.reviewComplete;
+        if (view === "unreviewed") return row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
+        if (view === "assigned") return row.assignedToMe && row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
         if (view === "reviewed") return !!row.currentReviewerDecision;
         return true;
       });
@@ -213,7 +215,7 @@
       document.getElementById("note").value = row.currentReviewerNote || "";
       document.querySelectorAll("[data-decision]").forEach((button) => {
         button.classList.toggle("active", button.dataset.decision === row.currentReviewerDecision);
-        button.disabled = row.reviewComplete && !row.currentReviewerDecision;
+        button.disabled = !row.canReview || (row.reviewComplete && !row.currentReviewerDecision);
       });
       document.getElementById("previous").disabled = state.index === 0;
       document.getElementById("next").disabled = state.index >= state.filtered.length - 1;
@@ -226,7 +228,8 @@
         '<span class="pill">' + report.totalSubmissions + ' submissions</span>' +
         '<span class="pill">' + report.reviewedAtLeastOnce + ' started</span>' +
         '<span class="pill">' + report.fullyReviewed + ' fully reviewed</span>' +
-        '<span class="pill">' + report.requiredReviewCount + ' reviews required per entry</span>';
+        '<span class="pill">' + (report.archivedCount || 0) + ' archived</span>' +
+        '<span class="pill">' + report.requiredReviewCount + ' initial reviews required per entry</span>';
       document.getElementById("reviewer-progress").innerHTML = report.reviewers.length
         ? '<table class="progress-table"><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
           report.reviewers.map((row) => '<tr><td>' + escapeHtml(row.email) + '</td><td>' + row.assigned +
@@ -236,7 +239,7 @@
       renderOutcomeViews();
       document.getElementById("submission-progress").innerHTML =
         '<table class="progress-table"><thead><tr><th>Submission</th><th>Reviews</th><th>Reviewed by</th><th>Assigned to</th></tr></thead><tbody>' +
-        report.submissions.map((row) => '<tr><td>' + escapeHtml(row.title) + '<br><small>' + escapeHtml(row.id) + '</small></td><td>' + row.reviewCount + ' / ' +
+        report.submissions.map((row) => '<tr><td>' + escapeHtml(row.title) + (row.archived ? ' (archived)' : '') + '<br><small>' + escapeHtml(row.id) + '</small></td><td>' + row.reviewCount + ' / ' +
           row.requiredReviewCount + '</td><td>' + escapeHtml(row.reviewers.map((review) =>
             review.reviewerEmail + ' (' + review.decision + ')').join(", ") || "—") + '</td><td>' +
           escapeHtml(row.assignedTo.join(", ") || "—") + '</td></tr>').join("") + '</tbody></table>';
@@ -247,19 +250,24 @@
       if (!report) return;
       const view = document.getElementById("outcome-view").value;
       const matching = report.submissions.filter((row) => {
-        if (view === "instagram") return true;
-        if (row.reviewCount !== 3) return false;
-        if (view === "positive") return row.reviewers.filter((review) => review.decision === "yes").length === 3;
-        if (view === "negative") return row.reviewers.filter((review) => review.decision === "no").length === 3;
+        if (view === "archived") return row.archived;
+        if (row.archived) return false;
+        if (view === "instagram" || view === "active") return true;
+        if (row.reviewCount < 3) return false;
+        if (view === "positive") return row.reviewers.filter((review) => review.decision === "yes").length >= 3;
+        if (view === "negative") return row.reviewers.filter((review) => review.decision === "no").length >= 3;
         return true;
       });
       if (view === "instagram") matching.sort((a, b) => (a.instagramHandle || "\uffff").localeCompare(b.instagramHandle || "\uffff") || a.title.localeCompare(b.title));
       document.getElementById("outcome-count").textContent = matching.length + " matching submissions";
       document.getElementById("outcome-results").innerHTML = matching.length
-        ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th></th></tr></thead><tbody>' +
+        ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th>Actions</th></tr></thead><tbody>' +
           matching.map((row) => '<tr><td>' + escapeHtml(row.title) + '</td><td>' +
-            escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ")) +
-            '</td><td><button type="button" data-open-submission="' + escapeHtml(row.id) + '">Open</button></td></tr>').join("") +
+            escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ") || "—") +
+            ' <small>(' + row.reviewCount + ' / ' + row.requiredReviewCount + ')</small></td><td>' +
+            (row.archived ? '' : '<button type="button" data-open-submission="' + escapeHtml(row.id) + '">Open</button> ' +
+              '<button type="button" data-extra-submission="' + escapeHtml(row.id) + '" ' + (row.reviewCount < report.requiredReviewCount ? 'disabled title="Initial reviews are not complete"' : '') + '>Queue extra reviewer</button> ') +
+            '<button type="button" data-archive-submission="' + escapeHtml(row.id) + '" data-archived="' + (row.archived ? 'false' : 'true') + '">' + (row.archived ? 'Unarchive' : 'Archive') + '</button></td></tr>').join("") +
           "</tbody></table>"
         : "<p>No submissions match this view.</p>";
     }
@@ -392,9 +400,41 @@
     document.getElementById("download-progress").addEventListener("click", downloadProgress);
 
     document.getElementById("outcome-view").addEventListener("change", renderOutcomeViews);
-    document.getElementById("outcome-results").addEventListener("click", (event) => {
-      const button = event.target.closest("[data-open-submission]");
+    document.getElementById("outcome-results").addEventListener("click", async (event) => {
+      const button = event.target.closest("button");
       if (!button) return;
+      if (button.dataset.extraSubmission) {
+        const reviewerEmail = window.prompt("Button Poetry email for this additional reviewer:");
+        if (!reviewerEmail) return;
+        const status = document.getElementById("assignment-status");
+        status.textContent = "Queueing additional review...";
+        try {
+          const result = await api("admin/contentSubmissions/" + encodeURIComponent(button.dataset.extraSubmission) + "/additionalReviewer", {
+            method: "POST", body: { reviewerEmail: reviewerEmail.trim() },
+          });
+          status.textContent = "Queued review " + result.reviewTarget + " for " + result.reviewerEmail + ".";
+          await loadQueue();
+        } catch (error) {
+          status.textContent = "Could not queue additional review: " + error.message;
+        }
+        return;
+      }
+      if (button.dataset.archiveSubmission) {
+        const archived = button.dataset.archived === "true";
+        const status = document.getElementById("assignment-status");
+        status.textContent = archived ? "Archiving entry..." : "Restoring entry...";
+        try {
+          await api("admin/contentSubmissions/" + encodeURIComponent(button.dataset.archiveSubmission) + "/archive", {
+            method: "POST", body: { archived },
+          });
+          status.textContent = archived ? "Entry archived and removed from judging." : "Entry restored to judging.";
+          await loadQueue();
+        } catch (error) {
+          status.textContent = "Could not change archive status: " + error.message;
+        }
+        return;
+      }
+      if (!button.dataset.openSubmission) return;
       document.getElementById("view").value = "all";
       applyFilters();
       const index = state.filtered.findIndex((row) => row.id === button.dataset.openSubmission);
