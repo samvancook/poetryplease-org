@@ -9948,11 +9948,13 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
-  const [submissionSnap, decisionSnap, assignmentSnap] = await Promise.all([
+  const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
+    db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
   ]);
+  const instagramBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, normalizeText(doc.data()?.instagramHandle || "")]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
   const submissionIds = new Set(submissions.map((row) => row.id));
   const decisionsBySubmission = new Map();
@@ -9996,6 +9998,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     return {
       id: row.id,
       title: row.title || "Untitled",
+      instagramHandle: instagramBySubmission.get(row.id) || "",
       reviewCount: decisions.length,
       requiredReviewCount,
       reviewers: decisions,
