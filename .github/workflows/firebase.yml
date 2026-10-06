@@ -202,8 +202,9 @@ jobs:
   # ------------------------------------------------------------
   # DEPLOY PREVIEW CHANNEL for non-main branches
   # ------------------------------------------------------------
+  # Preview channels are paused; branch tests and main deployment still run.
   deploy_preview:
-    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+    if: ${{ false }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
