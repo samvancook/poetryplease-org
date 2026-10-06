@@ -4,7 +4,7 @@ import { onSchedule } from "firebase-functions/v2/scheduler";
 import { defineSecret } from "firebase-functions/params";
 import express from "express";
 import cors from "cors";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomInt } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -48,6 +48,7 @@ const COLLECTIONS = {
   submissionPrograms: "submissionPrograms",
   submissionResponses: "submissionResponses",
   contestReviewAssignments: "contestReviewAssignments",
+  contestSpotChecks: "contestSpotChecks",
   importJobs: "importJobs",
   importJobItems: "importJobItems",
   systemState: "systemState",
@@ -1097,6 +1098,8 @@ function mapSubmissionDoc(doc) {
     contestReviewTarget: Number(data.contestReviewTarget || 0) || 0,
     contestArchived: data.contestArchived === true,
     contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
+    contestSpotCheckBatchId: data.contestSpotCheckBatchId || "",
+    contestSpotCheckReviewerEmail: data.contestSpotCheckReviewerEmail || "",
     contestScore: Number(data.contestScore || 0) || 0,
     submitterUid: data.submitterUid || "",
     submitterEmail: data.submitterEmail || "",
@@ -3810,7 +3813,7 @@ function resolveRoles(existingRoles = [], email = "", options = {}) {
 }
 
 function sanitizeManagedRoles(inputRoles = [], email = "", options = {}) {
-  const allowed = new Set(["user", "author", "team", "admin", "contest_builder"]);
+  const allowed = new Set(["user", "author", "team", "admin", "contest_builder", "contest_admin"]);
   const roles = (Array.isArray(inputRoles) ? inputRoles : [])
     .map(normalizeText)
     .filter((role) => allowed.has(role));
@@ -9724,7 +9727,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
 });
 
 app.get(getBoth("/admin/contentSubmissions"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
 
   const [submissionSnap, programSnap, decisionSnap] = await Promise.all([
@@ -9769,7 +9772,7 @@ app.get(getBoth("/admin/contentSubmissions"), async (req, res) => {
 });
 
 app.get(getBoth("/contest-builder/programs"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin", "contest_builder"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_builder", "contest_admin"]);
   if (!ctx) return;
 
   const snap = await db.collection(COLLECTIONS.submissionPrograms).limit(100).get();
@@ -9793,7 +9796,7 @@ app.get(getBoth("/contest-builder/programs"), async (req, res) => {
 });
 
 app.post(getBoth("/contest-builder/programs/:programId/banner"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin", "contest_builder"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_builder", "contest_admin"]);
   if (!ctx) return;
 
   const programId = sanitizeDocIdSegment(req.params.programId).toLowerCase();
@@ -9825,7 +9828,7 @@ app.post(getBoth("/contest-builder/programs/:programId/banner"), async (req, res
 });
 
 app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin", "contest_builder"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_builder", "contest_admin"]);
   if (!ctx) return;
 
   const programId = sanitizeDocIdSegment(req.params.programId).toLowerCase();
@@ -9877,7 +9880,7 @@ app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
 });
 
 app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["team", "admin"]);
+  const ctx = await requireRole(req, res, ["team", "admin", "contest_admin"]);
   if (!ctx) return;
 
   const requestedProgramId = normalizeText(req.query.programId || "");
@@ -9926,6 +9929,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
         currentReviewerDecision: normalizeKey(currentDecision?.decision || ""),
         currentReviewerNote: normalizeText(currentDecision?.note || ""),
         assignedToMe: assignedIds.has(row.id),
+        spotCheckAssignedToMe: row.contestSpotCheckReviewerEmail.toLowerCase() === reviewerEmail,
         createdAt: row.createdAt || null,
       };
     })
@@ -9949,18 +9953,19 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
 });
 
 app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
   const programId = normalizeText(req.query.programId || "");
   if (!programId) return res.status(400).json({ error: "missing_program_id" });
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
-  const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap] = await Promise.all([
+  const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap, spotCheckSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
     db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
+    db.collection(COLLECTIONS.contestSpotChecks).where("programId", "==", programId).get(),
   ]);
   const instagramBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, normalizeText(doc.data()?.instagramHandle || "")]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
@@ -10015,9 +10020,25 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       assignedTo,
     };
   }).sort((a, b) => a.title.localeCompare(b.title));
+  const spotChecks = spotCheckSnap.docs.map((doc) => {
+    const batch = doc.data() || {};
+    const reviewerEmail = normalizeText(batch.reviewerEmail || "").toLowerCase();
+    const sampleIds = Array.isArray(batch.sampleIds) ? batch.sampleIds : [];
+    const votes = sampleIds.map((id) => (decisionsBySubmission.get(id) || []).find((vote) => vote.reviewerEmail === reviewerEmail)?.decision || "");
+    const reviewedCount = votes.filter(Boolean).length;
+    const yesCount = votes.filter((vote) => vote === "yes").length;
+    const maybeCount = votes.filter((vote) => vote === "maybe").length;
+    const noCount = votes.filter((vote) => vote === "no").length;
+    return {
+      id: doc.id, reviewerEmail, eligibleCount: Number(batch.eligibleCount) || 0,
+      sampleCount: sampleIds.length, reviewedCount, yesCount, maybeCount, noCount,
+      status: reviewedCount < sampleIds.length ? "in_progress" : yesCount || maybeCount ? "needs_attention" : "no_concerns_found",
+    };
+  });
   res.json({
     ok: true,
     programId,
+    spotChecks,
     totalSubmissions: rows.length,
     reviewedAtLeastOnce: rows.filter((row) => row.reviewCount > 0).length,
     fullyReviewed: rows.filter((row) => !row.archived && row.reviewCount >= row.requiredReviewCount).length,
@@ -10029,7 +10050,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
 });
 
 app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
   const programId = normalizeText(req.body?.programId || "");
   const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
@@ -10093,8 +10114,93 @@ app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
   res.json({ ok: true, assigned: selectedIds.length, reviewerEmail, programId, requested: batchSize });
 });
 
+app.post(getBoth("/admin/contestSpotChecks"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  if (!/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail)) return res.status(400).json({ error: "invalid_reviewer_email" });
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+
+  const [submissionSnap, decisionSnap, assignmentSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contestReviewAssignments).where("reviewerEmail", "==", reviewerEmail).get(),
+  ]);
+  const assignedIds = new Set(assignmentSnap.docs.flatMap((doc) => doc.data()?.submissionIds || []));
+  const decisionsBySubmission = new Map();
+  for (const doc of decisionSnap.docs) {
+    const vote = doc.data() || {};
+    const list = decisionsBySubmission.get(vote.submissionId) || [];
+    list.push(vote);
+    decisionsBySubmission.set(vote.submissionId, list);
+  }
+  const eligible = submissionSnap.docs.filter((doc) => {
+    const row = doc.data() || {};
+    const votes = decisionsBySubmission.get(doc.id) || [];
+    return row.submissionProgramId === programId &&
+      row.contestArchived !== true &&
+      !row.contestSpotCheckBatchId &&
+      Number(row.contestReviewTarget || 0) <= 3 &&
+      !(row.contestExtraReviewerEmails || []).length &&
+      votes.length === 3 &&
+      votes.every((vote) => normalizeKey(vote.decision) === "no") &&
+      !votes.some((vote) => normalizeText(vote.reviewerEmail || "").toLowerCase() === reviewerEmail) &&
+      !assignedIds.has(doc.id);
+  });
+  if (!eligible.length) return res.status(409).json({ error: "no_eligible_three_no_entries" });
+  const sampleCount = Math.min(eligible.length, Math.max(30, Math.ceil(eligible.length * 0.1)));
+  if (sampleCount > 450) return res.status(409).json({ error: "spot_check_batch_too_large" });
+  for (let i = eligible.length - 1; i > 0; i -= 1) {
+    const j = randomInt(i + 1);
+    [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+  }
+  const selected = eligible.slice(0, sampleCount);
+  const sampleIds = selected.map((doc) => doc.id);
+  const spotCheckRef = db.collection(COLLECTIONS.contestSpotChecks).doc();
+  const assignmentId = createHash("sha256").update(programId + "|" + reviewerEmail).digest("hex").slice(0, 40);
+  const assignmentRef = db.collection(COLLECTIONS.contestReviewAssignments).doc(assignmentId);
+  const batch = db.batch();
+  batch.set(spotCheckRef, {
+    programId,
+    reviewerEmail,
+    eligibleCount: eligible.length,
+    sampleIds,
+    samplePercent: sampleCount / eligible.length,
+    status: "assigned",
+    createdBy: ctx.decoded.uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  batch.set(assignmentRef, {
+    programId,
+    reviewerEmail,
+    submissionIds: FieldValue.arrayUnion(...sampleIds),
+    updatedBy: ctx.decoded.uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  for (const doc of selected) {
+    batch.set(doc.ref, {
+      contestReviewTarget: 4,
+      contestExtraReviewerEmails: FieldValue.arrayUnion(reviewerEmail),
+      contestSpotCheckBatchId: spotCheckRef.id,
+      contestSpotCheckReviewerEmail: reviewerEmail,
+      judgingStatus: "in_review",
+      contestReviewCompleteAt: null,
+      contestScore: null,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+  await batch.commit();
+  res.json({
+    ok: true, spotCheckId: spotCheckRef.id, programId, reviewerEmail,
+    eligibleCount: eligible.length, sampleCount,
+  });
+});
+
 app.post(getBoth("/admin/contentSubmissions/:submissionId/archive"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
   const submissionId = normalizeText(req.params.submissionId);
   if (typeof req.body?.archived !== "boolean") return res.status(400).json({ error: "invalid_archive_state" });
@@ -10118,7 +10224,7 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/archive"), async (req,
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/additionalReviewer"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
   const submissionId = normalizeText(req.params.submissionId);
   const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
@@ -10180,7 +10286,7 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/additionalReviewer"), 
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["team", "admin"]);
+  const ctx = await requireRole(req, res, ["team", "admin", "contest_admin"]);
   if (!ctx) return;
 
   const submissionId = normalizeText(req.params.submissionId);
@@ -10262,7 +10368,7 @@ app.post(getBoth("/admin/contentSubmissions/:submissionId/contestDecision"), asy
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/review"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin"]);
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
 
   const submissionId = normalizeText(req.params.submissionId);
