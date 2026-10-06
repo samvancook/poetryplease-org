@@ -72,6 +72,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - make the review queue the author starting point; keep the compact review guide collapsible and connect its QI, INT, EXC, and FP links to the relevant lanes
   - split the current author editor into three clearly explained surfaces: public profile, featured selections, and granular issue review, with links between them and the review queue
   - restrict featured selection to pieces this author voted Moved Me on; if none exist, show an empty state with a review queue link; add an author-scoped vote list to the editor API before changing the UI
+  - add author voting for Full Poems in the editor or another author-scoped surface so poem rankings can guide marketing, while keeping Full Poems out of the author review queue and public view
   - restrict granular issue review to pieces this author flagged, voted Meh on, or voted Dislike on; expose those author-scoped states in the API and keep the review list separate from profile editing
   - later add a separate, non-pausing adjustment request for formatting or version changes, with clear status and a deliberate pull action for urgent concerns; for now the editor’s “Send note” uses `contentFlags` and pauses the piece during team review
   - measure author page load and list rendering, then lazy-fetch or paginate each module’s data so opening the profile does not load hundreds of content cards; verify desktop and mobile parity

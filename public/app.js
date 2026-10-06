@@ -975,7 +975,7 @@ function renderAuthorReviewGuide() {
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
     <p style="margin:0 0 8px;"><strong>2. Ask for an adjustment:</strong> If the formatting is off or we used an earlier version, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.</p>
-    <p style="margin:0;"><strong>3. Choose what to feature next:</strong> Review <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> and <a href="${escapeHtml(laneHref('FP'))}">Full Poems</a>. Vote for the pieces you most want us to use to market your book and inspire new graphics.</p>
+    <p style="margin:0;"><strong>3. Choose what to feature next:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you want us to use in marketing and new graphics. You can browse Full Poems and select work for your public author page in <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">the editor</a>.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
@@ -4043,7 +4043,7 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Three ways to guide your book',
-      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and vote for poems or excerpts you want us to use in marketing.',
+      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts or poems you want to feature.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
@@ -4058,7 +4058,7 @@ const AuthorQueueTour = (() => {
     },
     {
       title: 'Choose poems and excerpts for future graphics',
-      copy: 'After the tour, use the guide links to review Excerpts and Full Poems. Vote on the pieces you most want us to use to market your book and inspire new graphics.',
+      copy: 'After the tour, vote on Excerpts you want us to use in marketing and new graphics. Full Poems are in the editor, where you can select work for your public author page.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
   ];
