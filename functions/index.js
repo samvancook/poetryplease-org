@@ -9725,9 +9725,9 @@ app.get(getBoth("/admin/contentSubmissions"), async (req, res) => {
   if (!ctx) return;
 
   const [submissionSnap, programSnap, decisionSnap] = await Promise.all([
-    db.collection(COLLECTIONS.contentSubmissions).limit(250).get(),
+    db.collection(COLLECTIONS.contentSubmissions).get(),
     db.collection(COLLECTIONS.submissionPrograms).limit(100).get(),
-    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").limit(1000).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
   ]);
   const decisionsBySubmissionId = new Map();
   decisionSnap.docs.forEach((doc) => {
