@@ -940,14 +940,16 @@ function updateUserStatusUI() {
 
 function renderAuthorReviewGuide() {
   const status = document.getElementById('user-status');
-  if (!status || IS_EMBED_UI) return;
+  const mobileHeader = IS_MOBILE_UI ? document.querySelector('.wrap > header') : null;
+  if ((!status && !mobileHeader) || IS_EMBED_UI) return;
   let guide = document.getElementById('author-review-guide');
   if (!guide) {
     guide = document.createElement('section');
     guide.id = 'author-review-guide';
     guide.setAttribute('aria-label', 'Author review shortcuts');
-    guide.style.cssText = 'max-width:760px;margin:12px auto 18px;padding:16px 20px;border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;';
-    status.insertAdjacentElement('afterend', guide);
+    guide.style.cssText = `${IS_MOBILE_UI ? 'grid-column:1/-1;width:100%;margin:2px 0 4px;padding:10px 12px;' : 'max-width:760px;margin:12px auto 18px;padding:16px 20px;'}border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;`;
+    if (status) status.insertAdjacentElement('afterend', guide);
+    else mobileHeader.appendChild(guide);
   }
   const isOwnAuthorLane = !!getVisibleUser() && !authorPreviewMode &&
     currentAccount?.roles?.includes('author') && !!ownAuthorName &&
@@ -961,19 +963,19 @@ function renderAuthorReviewGuide() {
     topBar?.classList.remove('author-guide-collapsed');
     return;
   }
-  const laneHref = (type) => `/app?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
+  const laneHref = (type) => `${IS_MOBILE_UI ? '/m' : '/app'}?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
   const editorHref = isStaffPreview ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
-  const collapsed = safeLocalStorageGet('pp_author_review_guide_collapsed') === 'true';
+  const savedCollapse = safeLocalStorageGet('pp_author_review_guide_collapsed');
+  const collapsed = savedCollapse === 'true' || (IS_MOBILE_UI && savedCollapse !== 'false');
   topBar?.classList.toggle('author-guide-collapsed', collapsed);
   guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <h2 style="margin:0;font-size:1.2rem;">Wrong poem text? Editor · Don’t like an option? Queue</h2>
-    <button type="button" id="author-review-guide-toggle" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
+    <h2 style="margin:0;font-size:${IS_MOBILE_UI ? '1rem' : '1.2rem'};">Start with your graphics</h2>
+    <button type="button" id="author-review-guide-toggle" style="min-height:44px;" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
   </div>
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
-    <p style="margin:0 0 8px;"><strong>1. Start with graphics:</strong> <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> · <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a></p>
-    <p style="margin:0 0 8px;">To save one, choose <strong>Download image</strong> beneath the graphic or photo. If it opens in a new tab instead, use your device’s Save image option.</p>
-    <p style="margin:0 0 8px;"><strong>2. Is something wrong with the poem?</strong> If the words or formatting are incorrect, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and leave a correction note. That pauses the piece for staff review.</p>
-    <p style="margin:0;"><strong>3. Don’t like an option?</strong> Stay in the review queue and choose <strong>Dislike</strong> or <strong>Meh</strong>. Use <strong>Like</strong> or <strong>Moved Me</strong> for favorites. These reactions tell staff what you prefer to feature or reuse; they are not correction requests.</p>
+    <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
+    <p style="margin:0 0 8px;"><strong>2. Ask for an adjustment:</strong> If the formatting is off or we used an earlier version, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.</p>
+    <p style="margin:0;"><strong>3. Choose what to feature next:</strong> Review <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> and <a href="${escapeHtml(laneHref('FP'))}">Full Poems</a>. Vote for the pieces you most want us to use to market your book and inspire new graphics.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
@@ -4041,22 +4043,22 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Three ways to guide your book',
-      copy: 'Choose the graphics we share, tell us about any formatting or version you would change, and vote for poems or excerpts you want us to feature next.',
+      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and vote for poems or excerpts you want us to use in marketing.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
       title: 'Choose the graphics we use',
-      copy: 'Use Start here: QI graphics, then INT photos. These are the easiest first pass. Like means share it; Moved Me marks a favorite for prominent use; Meh means no strong preference; Dislike means avoid it.',
+      copy: 'Start with QI quote images and INT interior photos. Like means you want us to use it; Moved Me marks a favorite for prominent positions and more places; Meh means no strong preference; Dislike means do not run it again.',
       target: () => document.getElementById('author-qi-preset') || document.getElementById('media-wrap'),
     },
     {
       title: 'Tell us what you would adjust',
-      copy: 'If the formatting is not right or we used an early version, the guide links to the editor where you can leave a detailed note for adjustment or recreation. Use Flag issue under Info only if the piece needs to be pulled.',
+      copy: 'If the formatting is off or we used an earlier version, open the editor from the guide and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.',
       target: () => document.getElementById('media-wrap'),
     },
     {
       title: 'Choose poems and excerpts for future graphics',
-      copy: 'After the tour, use the guide links to review Excerpts and Full Poems. Vote on the work you most want used to market your book; those choices guide future graphics. This tour records no reactions.',
+      copy: 'After the tour, use the guide links to review Excerpts and Full Poems. Vote on the pieces you most want us to use to market your book and inspire new graphics.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
   ];
