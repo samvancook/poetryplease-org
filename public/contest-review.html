@@ -27,6 +27,8 @@
     button:focus-visible { outline:3px solid #b7d7da; outline-offset:2px; }
     button:disabled { opacity:.5; cursor:not-allowed; }
     .card { margin-top:22px; border:1px solid var(--line); background:white; border-radius:8px; padding:24px; }
+    .admin-progress-summary { cursor:pointer; font-size:1.5em; font-weight:700; }
+    .admin-progress-summary:focus-visible { outline:3px solid #b7d7da; outline-offset:2px; }
     .poem { white-space:pre-wrap; font:18px/1.55 Georgia,serif; max-height:55vh; overflow:auto; border-block:1px solid var(--line); padding:24px 4px; margin:20px 0; }
     .status { min-height:24px; font-weight:700; }
     .error { color:var(--error); }
@@ -76,8 +78,8 @@
       <span id="my-batch" class="pill" hidden></span>
     </div>
     <div id="status" class="status">Sign in with a Button Poetry team account.</div>
-    <section id="admin-progress" class="card" hidden>
-      <h2>Contest review progress</h2>
+    <details id="admin-progress" class="card" hidden>
+      <summary class="admin-progress-summary">Contest review progress</summary>
       <div id="progress-metrics" class="metric-row"></div>
       <p>Assign the next available entries in batches. After an entry has its first three reviews, use Queue extra reviewer beside that entry to request another named review.</p>
       <form id="assignment-form" class="assignment-form">
@@ -103,7 +105,7 @@
       <div id="outcome-results" class="table-wrap"></div>
       <details style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
       <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
-    </section>
+    </details>
     <section id="review-card" class="card" hidden>
       <div class="topbar">
         <div>
