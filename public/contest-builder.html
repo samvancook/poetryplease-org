@@ -56,7 +56,7 @@
       <a id="nav-review" href="/contest-review.html?view=all">Review submissions</a>
     </nav>
     <h1>Contest Builder</h1>
-    <p>Create a live contest here: give it a name, set the opening and closing times, save, and share the link. Contest builders and admins can publish without an extra approval step.</p>
+    <p>Create a live contest here: give it a name, set the opening and closing times, save, and share the link. Contest builders, Contest Admins, and admins can publish without an extra approval step.</p>
     <div id="status" class="status">Checking access…</div>
     <section id="editor" class="card">
       <label for="program">Contest</label>
@@ -174,7 +174,7 @@
       } catch(error) {
         $("editor").style.display="none";
         $("share").style.display="none";
-        status(error.message==="forbidden"?"This account does not have the Contest builder role. Ask an admin to assign it.":error.message,true);
+        status(error.message==="forbidden"?"This account needs the Contest builder, Contest Admin, or Admin role.":error.message,true);
       }
     }
     $("program").addEventListener("change",()=>selectProgram($("program").value));
