@@ -1096,6 +1096,7 @@ function mapSubmissionDoc(doc) {
     contestReviewCount: Number(data.contestReviewCount || 0) || 0,
     contestReviewTarget: Number(data.contestReviewTarget || 0) || 0,
     contestArchived: data.contestArchived === true,
+    contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
     contestScore: Number(data.contestScore || 0) || 0,
     submitterUid: data.submitterUid || "",
     submitterEmail: data.submitterEmail || "",
@@ -9908,6 +9909,8 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
       const requiredReviewCount = Math.max(1, Number(program.requiredReviewCount) || 3);
       const reviewTarget = Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0);
       const reviewCount = decisions.length;
+      const extraAssigned = row.contestExtraReviewerEmails.some((email) => normalizeText(email).toLowerCase() === reviewerEmail);
+      const canReview = !!currentDecision || reviewCount < requiredReviewCount || (reviewCount < reviewTarget && extraAssigned);
       return {
         id: row.id,
         title: row.title || "Untitled",
@@ -9918,6 +9921,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
         requiredReviewCount: reviewTarget,
         reviewCount,
         reviewComplete: reviewCount >= reviewTarget,
+        canReview,
         contestScore: reviewCount >= reviewTarget ? Number(row.contestScore) || 0 : null,
         currentReviewerDecision: normalizeKey(currentDecision?.decision || ""),
         currentReviewerNote: normalizeText(currentDecision?.note || ""),
