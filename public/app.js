@@ -3528,8 +3528,8 @@ function renderMetaRows(item) {
     return;
   }
 
-  // On mobile we still show the metadata, but the checkboxes still work
-  mediaWrap.prepend(row(`Title: ${item.title || ''}`));
+  // Excerpt titles appear with their source caption inside the card.
+  if (item.imageType !== 'EXC') mediaWrap.prepend(row(`Title: ${item.title || ''}`));
   mediaWrap.prepend(row(
     `From their book: ${item.book || ''}`,
     'bookCheckbox',
@@ -3653,7 +3653,7 @@ function renderItemMedia(item) {
       p.appendChild(span);
     });
     textContent.appendChild(p);
-    if (IS_MOBILE_UI && item?.imageType === 'EXC' && (item?.title || item?.author)) {
+    if (item?.imageType === 'EXC' && (IS_MOBILE_UI || !IS_EMBED_UI) && (item?.title || item?.author)) {
       const caption = document.createElement('div');
       caption.className = 'excerpt-source-caption';
       const source = document.createElement('span');
