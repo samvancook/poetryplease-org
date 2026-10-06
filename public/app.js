@@ -1609,6 +1609,14 @@ async function getOrCreateAnonId() {
     }
     .full-poem-scroll-content { width: 100%; max-width: 100%; }
   }
+  body[data-ui="mobile"] .text-media-heading,
+  body[data-ui="mobile"] .excerpt-text.excerpt-card,
+  body[data-ui="mobile"] .excerpt-text.full-poem-scroll-shell {
+    width: calc(100% - 82px);
+    max-width: calc(100% - 82px);
+    align-self: flex-start;
+    margin-left: 8px;
+  }
   .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
   .meta-row p { margin:0; }
   .vote-btn.voted { opacity:.85; }
