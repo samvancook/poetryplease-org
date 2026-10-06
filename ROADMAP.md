@@ -73,7 +73,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - split the current author editor into three clearly explained surfaces: public profile, featured selections, and granular issue review, with links between them and the review queue
   - restrict featured selection to pieces this author voted Moved Me on; if none exist, show an empty state with a review queue link; add an author-scoped vote list to the editor API before changing the UI
   - restrict granular issue review to pieces this author flagged, voted Meh on, or voted Dislike on; expose those author-scoped states in the API and keep the review list separate from profile editing
-  - separate adjustment notes from the existing `contentFlags` action: the current editor’s “Send note” uses `contentFlags`, which pauses/pulls a piece; add a distinct adjustment request when the author only wants formatting or version changes, with clear status and a deliberate pull action for urgent concerns
+  - later add a separate, non-pausing adjustment request for formatting or version changes, with clear status and a deliberate pull action for urgent concerns; for now the editor’s “Send note” uses `contentFlags` and pauses the piece during team review
   - measure author page load and list rendering, then lazy-fetch or paginate each module’s data so opening the profile does not load hundreds of content cards; verify desktop and mobile parity
   - finish author claim/invite flow
   - give authors a simple dashboard of their own content
