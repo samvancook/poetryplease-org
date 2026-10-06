@@ -1563,6 +1563,9 @@ async function getOrCreateAnonId() {
   body[data-ui="mobile"] .text-media-heading { display: block; color: #fff; }
   .text-media-heading-title { display: block; font-weight: 700; }
   .text-media-heading-author { display: block; opacity: .78; font-size: .85em; }
+  .excerpt-source-caption { margin-top: 1rem; font-size: .85em; line-height: 1.35; opacity: .8; }
+  .excerpt-source-caption-title, .excerpt-source-caption-author { display: block; }
+  .excerpt-source-caption-title { font-style: italic; }
   .excerpt-text.full-poem-scroll-shell.is-overflowing {
     overflow-y: auto;
     scrollbar-width: none;
@@ -3598,7 +3601,7 @@ function renderItemMedia(item) {
   if (item?.imageType === 'EXC' || item?.imageType === 'FP') {
     if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'text';
     box.classList.add('text-media-box');
-    if (item?.title || item?.author) {
+    if (item?.imageType === 'FP' && (item?.title || item?.author)) {
       const heading = document.createElement('div');
       heading.className = 'text-media-heading';
       if (item.title) {
@@ -3634,6 +3637,21 @@ function renderItemMedia(item) {
       p.appendChild(span);
     });
     textContent.appendChild(p);
+    if (IS_MOBILE_UI && item?.imageType === 'EXC' && (item?.title || item?.author)) {
+      const caption = document.createElement('div');
+      caption.className = 'excerpt-source-caption';
+      const source = document.createElement('span');
+      source.className = 'excerpt-source-caption-title';
+      source.textContent = item.title ? `Excerpt from “${item.title}”` : 'Excerpt';
+      caption.appendChild(source);
+      if (item.author) {
+        const author = document.createElement('span');
+        author.className = 'excerpt-source-caption-author';
+        author.textContent = item.author;
+        caption.appendChild(author);
+      }
+      textContent.appendChild(caption);
+    }
     textDiv.appendChild(textContent);
     box.appendChild(textDiv);
     if (item?.imageType === 'FP') {
