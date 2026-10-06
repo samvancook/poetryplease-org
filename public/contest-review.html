@@ -94,6 +94,7 @@
           <option value="complete">3 reviews</option>
           <option value="positive">3 Yes reviews</option>
           <option value="negative">3 No reviews</option>
+          <option value="instagram">By Instagram handle</option>
         </select>
       </label>
       <p id="outcome-count"></p>
@@ -246,16 +247,18 @@
       if (!report) return;
       const view = document.getElementById("outcome-view").value;
       const matching = report.submissions.filter((row) => {
+        if (view === "instagram") return true;
         if (row.reviewCount !== 3) return false;
         if (view === "positive") return row.reviewers.filter((review) => review.decision === "yes").length === 3;
         if (view === "negative") return row.reviewers.filter((review) => review.decision === "no").length === 3;
         return true;
       });
+      if (view === "instagram") matching.sort((a, b) => (a.instagramHandle || "\uffff").localeCompare(b.instagramHandle || "\uffff") || a.title.localeCompare(b.title));
       document.getElementById("outcome-count").textContent = matching.length + " matching submissions";
       document.getElementById("outcome-results").innerHTML = matching.length
-        ? '<table class="progress-table"><thead><tr><th>Submission</th><th>Reviews</th><th></th></tr></thead><tbody>' +
+        ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th></th></tr></thead><tbody>' +
           matching.map((row) => '<tr><td>' + escapeHtml(row.title) + '</td><td>' +
-            escapeHtml(row.reviewers.map((review) => review.decision).join(", ")) +
+            escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ")) +
             '</td><td><button type="button" data-open-submission="' + escapeHtml(row.id) + '">Open</button></td></tr>').join("") +
           "</tbody></table>"
         : "<p>No submissions match this view.</p>";
