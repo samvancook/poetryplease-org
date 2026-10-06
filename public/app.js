@@ -1055,7 +1055,7 @@ function updateFilterControlsVisibility() {
   const canSeeDropdownFilters = currentUserIsTeamOrAdmin();
   const roles = Array.isArray(currentAccount?.roles) ? currentAccount.roles : [];
   const canSeeTypeFilter = IS_MOBILE_UI
-    ? isAuthorPromoLane()
+    ? (isAuthorPromoLane() || (canSeeDropdownFilters && filterByAuthor && selectedAuthor))
     : (canSeeDropdownFilters || (!authorPreviewMode && roles.includes('author')) || isAuthorPromoLane());
   const typeContainer = document.getElementById('type-filter-container');
   const catalogContainer = document.getElementById('catalog-filter-container');
