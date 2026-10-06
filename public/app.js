@@ -1471,7 +1471,8 @@ async function getOrCreateAnonId() {
     height: auto;
     max-height: none;
     min-height: 0;
-    align-items: flex-start;
+    flex-direction: column;
+    align-items: center;
     overflow: visible;
     padding-top: 8px;
   }
@@ -1529,13 +1530,13 @@ async function getOrCreateAnonId() {
 
   .excerpt-text { max-width: min(1000px, 95vw); margin: 0 auto; text-align: left; white-space: pre-wrap; }
   .excerpt-text.excerpt-card {
-    width: min(700px, 88vw);
-    max-width: min(700px, 88vw);
+    width: min(1000px, 88vw);
+    max-width: min(1000px, 88vw);
     padding: 4px 10px 0;
   }
   .excerpt-text.full-poem-scroll-shell {
-    width: min(720px, 88vw);
-    max-width: min(720px, 88vw);
+    width: min(1000px, 88vw);
+    max-width: min(1000px, 88vw);
     max-height: min(var(--media-max-h, 70dvh), 58dvh);
     height: auto;
     overflow: hidden;
@@ -1547,10 +1548,21 @@ async function getOrCreateAnonId() {
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
-    width: fit-content;
-    max-width: min(100%, 42ch);
+    width: 100%;
+    max-width: 100%;
     margin: 0 auto;
   }
+  .text-media-heading {
+    display: none;
+    width: min(1000px, 88vw);
+    box-sizing: border-box;
+    padding: 0 14px 10px;
+    text-align: left;
+    line-height: 1.3;
+  }
+  body[data-ui="mobile"] .text-media-heading { display: block; color: #fff; }
+  .text-media-heading-title { display: block; font-weight: 700; }
+  .text-media-heading-author { display: block; opacity: .78; font-size: .85em; }
   .excerpt-text.full-poem-scroll-shell.is-overflowing {
     overflow-y: auto;
     scrollbar-width: none;
@@ -1584,8 +1596,9 @@ async function getOrCreateAnonId() {
   }
   .full-poem-title { margin: 0 0 1.4rem; font-size: clamp(1.1rem, 2vw, 1.35rem); font-weight: 700; line-height: 1.2; }
   .full-poem-body { margin: 0; }
-  .poem-logical-line { display:block; padding-left:1.25em; text-indent:-1.25em; overflow-wrap:anywhere; }
+  .poem-logical-line { display:block; padding-left:2em; text-indent:-2em; overflow-wrap:break-word; }
   @media (max-width: 768px) {
+    .text-media-heading,
     .excerpt-text.excerpt-card,
     .excerpt-text.full-poem-scroll-shell {
       width: calc(100vw - 12px);
@@ -1595,6 +1608,14 @@ async function getOrCreateAnonId() {
       padding-right: 8px;
     }
     .full-poem-scroll-content { width: 100%; max-width: 100%; }
+  }
+  body[data-ui="mobile"] .text-media-heading,
+  body[data-ui="mobile"] .excerpt-text.excerpt-card,
+  body[data-ui="mobile"] .excerpt-text.full-poem-scroll-shell {
+    width: calc(100% - 82px);
+    max-width: calc(100% - 82px);
+    align-self: flex-start;
+    margin-left: 8px;
   }
   .meta-row { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:6px 0; padding:0 6px; }
   .meta-row p { margin:0; }
@@ -3576,11 +3597,28 @@ function renderItemMedia(item) {
   if (item?.imageType === 'EXC' || item?.imageType === 'FP') {
     if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'text';
     box.classList.add('text-media-box');
+    if (item?.title || item?.author) {
+      const heading = document.createElement('div');
+      heading.className = 'text-media-heading';
+      if (item.title) {
+        const title = document.createElement('span');
+        title.className = 'text-media-heading-title';
+        title.textContent = item.title;
+        heading.appendChild(title);
+      }
+      if (item.author) {
+        const author = document.createElement('span');
+        author.className = 'text-media-heading-author';
+        author.textContent = item.author;
+        heading.appendChild(author);
+      }
+      box.appendChild(heading);
+    }
     const textDiv = document.createElement('div');
     textDiv.className = item?.imageType === 'FP' ? 'excerpt-text full-poem-scroll-shell' : 'excerpt-text excerpt-card';
     const textContent = document.createElement('div');
     textContent.className = item?.imageType === 'FP' ? 'full-poem-scroll-content' : '';
-    if (item?.imageType === 'FP' && item?.title) {
+    if (!IS_MOBILE_UI && item?.imageType === 'FP' && item?.title) {
       const title = document.createElement('div');
       title.className = 'full-poem-title';
       title.textContent = item.title;
