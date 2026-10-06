@@ -385,6 +385,8 @@
       }
       td { border-bottom: 0; }
     }
+    body.contest-admin-only main.shell > section.card:not(#contest-submissions-card) { display:none; }
+    body.contest-admin-only .topbar-actions a:not([href*="contest-"]) { display:none; }
   </style>
 </head>
 <body>
@@ -426,6 +428,7 @@
             <option value="admin">Admins</option>
             <option value="team">Team</option>
             <option value="contest_builder">Contest builders</option>
+            <option value="contest_admin">Contest admins</option>
             <option value="author">Authors</option>
             <option value="user">Users</option>
           </select>
@@ -483,7 +486,7 @@
       </div>
     </section>
 
-    <section class="card" style="margin-top:20px;">
+    <section id="contest-submissions-card" class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">User Submissions</h2>
         <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="user-submissions-section-body">
@@ -1363,7 +1366,7 @@
       return `
         <label>
           <input type="checkbox" data-uid="${uid}" data-role="${role}" ${checked ? "checked" : ""} />
-          ${role}
+          ${role === "contest_admin" ? "Contest Admin" : role}
         </label>
       `;
     }
@@ -1401,6 +1404,7 @@
                   ${(user.roles || []).includes("admin") ? '<span class="pill">Admin</span>' : ""}
                   ${(user.roles || []).includes("team") ? '<span class="pill">Team</span>' : ""}
                   ${(user.roles || []).includes("contest_builder") ? '<span class="pill">Contest builder</span>' : ""}
+                  ${(user.roles || []).includes("contest_admin") ? '<span class="pill">Contest Admin</span>' : ""}
                   ${(user.roles || []).includes("author") ? '<span class="pill">Author</span>' : ""}
                   ${String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com') ? `<div class="meta">Automatic team access: ${user.automaticTeamAccess === false ? 'Off' : 'On'}</div>` : ''}
                   <div class="meta">Last login: ${formatLastActive(user.lastLoginAt)}</div>
@@ -1412,6 +1416,7 @@
                     ${roleCheckbox(user.uid, "author", (user.roles || []).includes("author"))}
                     ${roleCheckbox(user.uid, "team", (user.roles || []).includes("team"))}
                     ${roleCheckbox(user.uid, "contest_builder", (user.roles || []).includes("contest_builder"))}
+                    ${roleCheckbox(user.uid, "contest_admin", (user.roles || []).includes("contest_admin"))}
                     ${roleCheckbox(user.uid, "admin", (user.roles || []).includes("admin"))}
                     `}
                   </div>
@@ -4994,7 +4999,8 @@
 
         const isAdmin = state.me?.roles?.includes("admin");
         const isTeam = state.me?.roles?.includes("team");
-        if (!isAdmin && !isTeam) {
+        const isContestAdmin = state.me?.roles?.includes("contest_admin");
+        if (!isAdmin && !isTeam && !isContestAdmin) {
           setStatus("This account does not have admin or team access.", true);
           document.getElementById("results").innerHTML = '<div class="empty">Admin or team access is required for this page.</div>';
           renderAdminPreviewToggle();
@@ -5002,6 +5008,13 @@
         }
 
         renderAdminPreviewToggle();
+        document.body.classList.toggle("contest-admin-only", !isAdmin && isContestAdmin);
+        if (!isAdmin && isContestAdmin) {
+          document.querySelector("h1").textContent = "Contest Admin";
+          document.querySelector("main.shell > p.lede").textContent = "Manage contest submissions and reviews without access to general site administration.";
+          await loadUserSubmissions();
+          return;
+        }
         if (!isAdmin && isTeam) {
           setStatus("Team access loaded. Flagged author feedback is available for review.", false);
           await loadFlags();
