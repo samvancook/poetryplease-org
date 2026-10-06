@@ -98,10 +98,9 @@
     #mobile-side-votes {
   position: absolute;
   right: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
+  bottom: calc(env(safe-area-inset-bottom) + 12px);
+  display: grid;
+  grid-template-columns: repeat(2, var(--mobile-vote-size, 58px));
   gap: 14px;
   z-index: 5000;
   pointer-events: auto;
@@ -157,7 +156,6 @@
       --mobile-vote-font-size:28px;
       --mobile-vote-right:12px;
       --mobile-vote-gap:14px;
-      --mobile-vote-bottom-offset:144px;
       --mobile-controls-shell-pad:8px;
       --mobile-controls-gap:8px;
       --mobile-controls-width:min(640px,100%);
@@ -353,7 +351,6 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
           --mobile-vote-font-size:24px;
           --mobile-vote-right:10px;
           --mobile-vote-gap:10px;
-          --mobile-vote-bottom-offset:136px;
           --mobile-controls-shell-pad:6px;
           --mobile-controls-gap:6px;
           --mobile-controls-width:min(100%,396px);
@@ -372,7 +369,6 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
           --mobile-vote-font-size:21px;
           --mobile-vote-right:8px;
           --mobile-vote-gap:8px;
-          --mobile-vote-bottom-offset:126px;
           --mobile-controls-shell-pad:5px;
           --mobile-controls-gap:5px;
           --mobile-controls-width:min(100%,382px);
@@ -390,14 +386,10 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
           --mobile-vote-size:48px;
           --mobile-vote-font-size:22px;
           --mobile-vote-gap:8px;
-          --mobile-vote-bottom-offset:102px;
           --mobile-controls-width:min(760px,100%);
           --mobile-controls-min-height:38px;
           --mobile-controls-padding-y:8px;
           --mobile-controls-padding-x:10px;
-        }
-        #mobile-side-votes{
-          bottom:calc(env(safe-area-inset-bottom) + var(--mobile-vote-bottom-offset));
         }
       }
 
@@ -428,11 +420,6 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
         #btnMoreInfo{grid-area:info}
         #btnBook{grid-area:book}
         #btnSkip{grid-area:next}
-        #mobile-side-votes{
-          top:auto;
-          bottom:calc(env(safe-area-inset-bottom) + var(--mobile-vote-bottom-offset));
-          transform:none;
-        }
       }
 
 
