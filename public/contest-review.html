@@ -180,8 +180,8 @@
       if (programId) preview.href = "/contest-submit.html?program=" + encodeURIComponent(programId);
       state.filtered = state.submissions.filter((row) => {
         if (programId && row.submissionProgramId !== programId) return false;
-        if (view === "unreviewed") return !row.currentReviewerDecision && !row.reviewComplete;
-        if (view === "assigned") return row.assignedToMe && !row.currentReviewerDecision && !row.reviewComplete;
+        if (view === "unreviewed") return row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
+        if (view === "assigned") return row.assignedToMe && row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
         if (view === "reviewed") return !!row.currentReviewerDecision;
         return true;
       });
@@ -215,7 +215,7 @@
       document.getElementById("note").value = row.currentReviewerNote || "";
       document.querySelectorAll("[data-decision]").forEach((button) => {
         button.classList.toggle("active", button.dataset.decision === row.currentReviewerDecision);
-        button.disabled = row.reviewComplete && !row.currentReviewerDecision;
+        button.disabled = !row.canReview || (row.reviewComplete && !row.currentReviewerDecision);
       });
       document.getElementById("previous").disabled = state.index === 0;
       document.getElementById("next").disabled = state.index >= state.filtered.length - 1;
