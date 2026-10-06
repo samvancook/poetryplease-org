@@ -232,6 +232,9 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - remember a user's preferred reading mode without changing the poem's stored text
   - add previous/next page controls, page position, and accessible keyboard/touch navigation
   - test page boundaries across small phones, large phones, and desktop before making pagination the default
+- Clarify excerpt presentation across viewers and generated graphics:
+  - explore a stylized opening quotation mark at the top of excerpt graphics as an additional visual cue that the text is an excerpt
+  - standardize whether excerpts include quotation marks across formats, including how marks interact with the new "Excerpt from" caption and poem punctuation
 - Add visible book-disambiguation diagnostics to Scoreboard:
   - show possible duplicate book records caused by punctuation, case, spacing, or subtitle variants such as `The Willies` / `Thewillies`
   - flag subtitle-style splits where one canonical book is being counted as two scoreboard books
