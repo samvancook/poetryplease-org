@@ -96,12 +96,15 @@
     }
 
     #mobile-side-votes {
-  position: absolute;
-  right: 12px;
-  bottom: calc(env(safe-area-inset-bottom) + 12px);
+  position: relative;
+  order: -1;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 0 10px;
   display: grid;
-  grid-template-columns: repeat(2, var(--mobile-vote-size, 58px));
-  gap: 14px;
+  grid-template-columns: repeat(4, var(--mobile-vote-size, 58px));
+  justify-content: center;
+  gap: clamp(8px, 3vw, 18px);
   z-index: 5000;
   pointer-events: auto;
 }
@@ -200,6 +203,7 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
   flex: 1;          /* take remaining vertical space */
   min-height: 0;    /* critical so children can shrink inside a flex column */
   display: flex;
+  flex-direction: column;
 }
 
 /* Center the media and let it expand to the full available height */
@@ -255,7 +259,7 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
     #counters-bar,.top-bar{display:none!important}
 
     /* Floating "i" button */
-    .info-btn{position:absolute;left:8px;top:8px;width:32px;height:32px;border-radius:50%;
+    .info-btn{position:absolute;left:8px;top:calc(var(--mobile-vote-size, 58px) + 18px);width:32px;height:32px;border-radius:50%;
       border:1px solid #e6e6e6;background:#fff;box-shadow:var(--shadow);font-weight:700;
       pointer-events:auto!important;z-index:999999!important}
 
@@ -308,7 +312,6 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
       #mobile-side-votes {
         z-index: 999999 !important;
         pointer-events: auto !important;
-        right: var(--mobile-vote-right);
         gap: var(--mobile-vote-gap);
       }
       
@@ -575,7 +578,7 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 
   <!-- Force mobile mode for app.js and load it -->
   <script>window.__PP_FORCE_MOBILE = true;</script>
-  <script src="/app.js?v=20261006-tour-heading" defer></script>
+  <script src="/app.js?v=20261007-int-caption" defer></script>
   <script src="/app-mobile.js?v=20260928-feed-recovery" defer></script>
   <script>
     (() => {
