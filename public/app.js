@@ -3246,7 +3246,14 @@ function adjustViewportFit() {
   }
 
   const buffer = 14;
-  const maxH = Math.max(160, vh - occupied - buffer);
+  let maxH = Math.max(160, vh - occupied - buffer);
+  if (IS_MOBILE_UI) {
+    const mediaTop = mediaWrap?.querySelector('.media-box')?.getBoundingClientRect().top;
+    const controlsTop = document.querySelector('.sticky-controls')?.getBoundingClientRect().top;
+    if (Number.isFinite(mediaTop) && Number.isFinite(controlsTop)) {
+      maxH = Math.max(160, Math.min(maxH, controlsTop - mediaTop - 12));
+    }
+  }
   document.documentElement.style.setProperty('--media-max-h', `${Math.floor(maxH)}px`);
   const poemShell = document.querySelector('.full-poem-scroll-shell');
   if (poemShell) requestAnimationFrame(() => setupFullPoemAutoScroll_(poemShell));
