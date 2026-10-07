@@ -63,6 +63,20 @@ export function weaverVideoDocId(sourceRecordId) {
   return `WEAVER-VV-${digest}`;
 }
 
+// Weaver sends sourceEvent but may omit a release catalog. Poetry Please stores exactly
+// what it is sent, so a blank catalog is accepted and the video then matches no catalog
+// filter: it is absent from embedBookLead?catalog=..., from the catalog facet, and from
+// anything built on them, while still looking like a successful import. That is the same
+// shape of silent failure the required-field gates above exist to prevent, so report it
+// rather than reject it: rejecting would stop the pipeline for a reporting gap.
+export function weaverVideoImportWarnings(item = {}) {
+  const warnings = [];
+  const releaseCatalog = normalizeText(item.releaseCatalog);
+  const eventReleaseCatalog = normalizeText(item.eventReleaseCatalog);
+  if (!releaseCatalog && !eventReleaseCatalog) warnings.push("missing_release_catalog");
+  return warnings;
+}
+
 export function buildWeaverVideoIntake(body = {}) {
   const contentType = normalizeText(body.contentType).toUpperCase();
   if (contentType !== "VV") {
