@@ -10199,6 +10199,29 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   res.json({ ...result, assignedCount });
 });
 
+app.post(getBoth("/admin/contestFinalistAssignments"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  if (!programId || !/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail)) {
+    return res.status(400).json({ error: "invalid_finalist_assignment_request" });
+  }
+  const readSnap = await db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get();
+  const pendingRefs = readSnap.docs.filter((doc) =>
+    normalizeText(doc.data()?.reviewerEmail || "").toLowerCase() === reviewerEmail &&
+    !normalizeKey(doc.data()?.decision || "")).map((doc) => doc.ref);
+  if (pendingRefs.length > 200) return res.status(409).json({ error: "too_many_pending_reads_to_remove_at_once" });
+  if (!pendingRefs.length) return res.json({ ok: true, removedCount: 0 });
+  const removedCount = await db.runTransaction(async (transaction) => {
+    const current = await Promise.all(pendingRefs.map((ref) => transaction.get(ref)));
+    const stillPending = current.filter((snap) => snap.exists && !normalizeKey(snap.data()?.decision || ""));
+    stillPending.forEach((snap) => transaction.delete(snap.ref));
+    return stillPending.length;
+  });
+  res.json({ ok: true, removedCount });
+});
+
 app.post(getBoth("/team/contestFinalistRead"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin", "contest_admin"]);
   if (!ctx) return;
@@ -10226,10 +10249,16 @@ app.post(getBoth("/team/contestFinalistRead"), async (req, res) => {
   }
   const voteCount = voteSnap.docs.filter((doc) => normalizeKey(doc.data()?.responseType || "") === "contest_review").length;
   if (voteCount < 3) return res.status(409).json({ error: "initial_reviews_not_complete" });
-  await readRef.set({
-    decision, note, reviewerUid: ctx.decoded.uid,
-    reviewedAt: FieldValue.serverTimestamp(),
-  }, { merge: true });
+  await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(readRef);
+    if (!current.exists || current.data()?.reviewerEmail !== reviewerEmail) {
+      throw new Error("finalist_read_not_assigned");
+    }
+    transaction.set(readRef, {
+      decision, note, reviewerUid: ctx.decoded.uid,
+      reviewedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
   res.json({ ok: true, submissionId, decision });
 });
 
