@@ -114,6 +114,7 @@
         <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
         <div id="finalist-status" class="status"></div>
         <div id="finalist-progress" class="table-wrap"></div>
+        <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
       </details>
       <h3>Review outcomes</h3>
       <label>Show submissions
@@ -331,10 +332,12 @@
       });
       document.getElementById("finalist-progress").innerHTML = reads.length
         ? '<p>' + reads.filter((read) => read.decision).length + ' of ' + reads.length + ' finalist reads complete.</p>' +
-          '<table class="progress-table"><thead><tr><th>Reader</th><th>Done</th><th>Champion</th><th>Possible</th><th>Pass</th></tr></thead><tbody>' +
+          '<table class="progress-table"><thead><tr><th>Reader</th><th>Done</th><th>Champion</th><th>Possible</th><th>Pass</th><th>Actions</th></tr></thead><tbody>' +
           [...byReader.values()].sort((a, b) => a.email.localeCompare(b.email)).map((row) =>
             '<tr><td>' + escapeHtml(row.email) + '</td><td>' + row.completed + ' / ' + row.assigned +
-            '</td><td>' + row.champion + '</td><td>' + row.possible + '</td><td>' + row.pass + '</td></tr>').join("") +
+            '</td><td>' + row.champion + '</td><td>' + row.possible + '</td><td>' + row.pass + '</td><td>' +
+            (row.assigned > row.completed ? '<button type="button" data-remove-finalist="' + escapeHtml(row.email) + '">Remove ' + (row.assigned - row.completed) + ' pending</button>' : '—') +
+            '</td></tr>').join("") +
           '</tbody></table>'
         : '<p>No finalist reads assigned yet.</p>';
     }
@@ -621,6 +624,28 @@
         status.textContent = "Could not finish assignment: " + error.message + ". Refresh the preview before trying again.";
         state.fourthPreview = null;
         document.getElementById("confirm-fourth").hidden = true;
+      }
+    });
+    document.getElementById("finalist-progress").addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-remove-finalist]");
+      if (!button) return;
+      const reviewerEmail = button.dataset.removeFinalist;
+      const programId = document.getElementById("program").value;
+      if (!programId || !window.confirm("Remove all pending finalist reads for " + reviewerEmail + " in this contest? Completed finalist decisions will remain.")) return;
+      const status = document.getElementById("finalist-status");
+      button.disabled = true;
+      status.textContent = "Removing pending finalist reads...";
+      try {
+        const result = await api("admin/contestFinalistAssignments", {
+          method: "POST", body: { programId, reviewerEmail },
+        });
+        status.textContent = "Removed " + result.removedCount + " pending reads for " + reviewerEmail + ". Enter the correct reader emails above, then preview and assign again.";
+        invalidateFinalistPreview();
+        await loadQueue();
+        status.textContent = "Removed " + result.removedCount + " pending reads for " + reviewerEmail + ". Enter the correct reader emails above, then preview and assign again.";
+      } catch (error) {
+        status.textContent = "Could not remove pending reads: " + error.message;
+        button.disabled = false;
       }
     });
     document.getElementById("fourth-reviewer-emails").addEventListener("input", invalidateFourthPreview);
