@@ -174,6 +174,9 @@
           <input id="invite-days" type="number" min="1" max="90" value="14" aria-label="Invite expiration in days" />
           <button type="submit">Create invite</button>
         </form>
+        <div class="controls" style="margin-top:10px;">
+          <button id="send-invite-test" class="secondary" type="button" hidden>Send controlled email test to Sam</button>
+        </div>
         <div id="invite-status" class="status">No invite created yet.</div>
         <div id="invite-result" class="empty">New invite links will appear here.</div>
         <div id="invite-list-status" class="status" style="margin-top:14px;">Loading invites...</div>
@@ -234,6 +237,7 @@
     }
 
     function inviteStatusLabel(invite = {}) {
+      if (invite.testOnly) return `Controlled email test${invite.deliveryStatus ? ` — ${invite.deliveryStatus}` : ""}`;
       const status = normalize(invite.status || "active");
       if (status === "claimed") return invite.claimedAt ? `Claimed ${formatDate(invite.claimedAt)}` : "Claimed";
       if (status === "expired") return "Invite expired";
@@ -304,6 +308,7 @@
       document.getElementById("auth-note").textContent = user ? `Signed in as ${user.email}` : "Not signed in";
       document.getElementById("login-google").hidden = !!user;
       document.getElementById("logout").hidden = !user;
+      document.getElementById("send-invite-test").hidden = normalize(user?.email) !== "sam@buttonpoetry.com";
     }
 
     function renderCommandCenter() {
@@ -452,7 +457,7 @@
     function renderInvites() {
       const container = document.getElementById("invite-list");
       const statusEl = document.getElementById("invite-list-status");
-      const openInvites = state.invites.filter((invite) => normalize(invite.status || "active") === "active");
+      const openInvites = state.invites.filter((invite) => !invite.testOnly && normalize(invite.status || "active") === "active");
       const claimedInvites = state.invites.filter((invite) => normalize(invite.status) === "claimed");
       const expiredInvites = state.invites.filter((invite) => normalize(invite.status) === "expired");
       statusEl.textContent = `${openInvites.length} invite open, ${claimedInvites.length} claimed, ${expiredInvites.length} expired.`;
@@ -534,6 +539,22 @@
       }
     }
 
+    async function sendTestInvite() {
+      const button = document.getElementById("send-invite-test");
+      const statusEl = document.getElementById("invite-status");
+      button.disabled = true;
+      statusEl.className = "status";
+      statusEl.textContent = "Sending the controlled test to sam@buttonpoetry.com...";
+      try {
+        const result = await api("admin/authorInvites/sendTest", { method: "POST" });
+        statusEl.textContent = `Mailchimp accepted the test for ${result.email} (${result.delivery.status}). Check that inbox for the message.`;
+        await loadInvites();
+      } catch (err) {
+        statusEl.textContent = err.message || "The test send could not be confirmed.";
+        statusEl.className = "status error";
+      }
+    }
+
     async function emailInvite(inviteId, email) {
       if (!inviteId || !email) return;
       const statusEl = document.getElementById("command-status-line");
@@ -594,6 +615,7 @@
     document.getElementById("refresh-command").addEventListener("click", loadCommandCenter);
     document.getElementById("refresh-invites").addEventListener("click", loadInvites);
     document.getElementById("invite-form").addEventListener("submit", createInvite);
+    document.getElementById("send-invite-test").addEventListener("click", sendTestInvite);
     document.getElementById("command-search").addEventListener("input", (event) => {
       state.query = normalize(event.target.value);
       renderCommandCenter();

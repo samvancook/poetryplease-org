@@ -15,6 +15,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
+import { buildAuthorInviteMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -27,6 +28,8 @@ import { getStorage, getDownloadURL } from "firebase-admin/storage";
 const POETRY_PLEASE_API_KEY_SECRET = defineSecret("POETRY_PLEASE_API_KEY");
 const PIG_POETRY_PLEASE_API_KEY_SECRET = defineSecret("PIG_POETRY_PLEASE_API_KEY");
 const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATION_API_KEY");
+const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
+const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
   excerpts: "excerpts",
@@ -9347,6 +9350,61 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
   });
 });
 
+app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
+
+  // A stable record prevents retries from creating a second invite identity.
+  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc("mandrill-test-sam");
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const inviteUrl = `https://poetryplease.org/app?authorInvite=${token}`;
+  const reserved = await db.runTransaction(async (transaction) => {
+    const prior = (await transaction.get(inviteRef)).data() || {};
+    if (["sending", "sent", "uncertain"].includes(prior.deliveryStatus)) return false;
+    transaction.set(inviteRef, {
+      email: AUTHOR_INVITE_TEST_EMAIL,
+      authorName: "",
+      testOnly: true,
+      status: "active",
+      tokenHash: sha256(token),
+      expiresAt,
+      claimedAt: null,
+      claimedByUserId: "",
+      createdBy: ctx.decoded.uid,
+      createdAt: FieldValue.serverTimestamp(),
+      deliveryStatus: "sending",
+      deliveryUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+  if (!reserved) return res.status(409).json({ error: "author_invite_test_already_attempted" });
+
+  const message = buildAuthorInviteMessage({
+    name: "Sam",
+    email: AUTHOR_INVITE_TEST_EMAIL,
+    inviteUrl,
+    expiresAt: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(expiresAt),
+    testOnly: true,
+  });
+  let delivery;
+  try {
+    delivery = await sendAuthorInviteWithMandrill({ apiKey, email: AUTHOR_INVITE_TEST_EMAIL, message });
+  } catch (error) {
+    await inviteRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.status(502).json({ error: "author_invite_test_send_unconfirmed" });
+  }
+  await inviteRef.set({
+    deliveryStatus: "sent",
+    deliveryMessageId: delivery.messageId,
+    deliveryUpdatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  res.json({ ok: true, inviteId: inviteRef.id, email: AUTHOR_INVITE_TEST_EMAIL, delivery });
+});
+
 app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -9399,6 +9457,7 @@ app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
 
   const inviteDoc = snap.docs[0];
   const invite = inviteDoc.data() || {};
+  if (invite.testOnly) return res.status(403).json({ error: "test_invite_not_claimable" });
   const inviteEmail = normalizeKey(invite.email);
   if (inviteEmail !== normalizeKey(ctx.decoded.email)) {
     return res.status(403).json({ error: "email_mismatch", inviteEmail });
@@ -10937,6 +10996,8 @@ app.get(getBoth("/admin/authorInvites"), async (req, res) => {
         id: invite.id,
         email: invite.email || '',
         authorName: invite.authorName || '',
+        testOnly: invite.testOnly === true,
+        deliveryStatus: invite.deliveryStatus || '',
         status,
         createdBy: invite.createdBy || '',
         createdAt: invite.createdAt || null,
@@ -11174,5 +11235,5 @@ export const api = onRequest({
   memory: "1GiB",
   minInstances: 1,
   timeoutSeconds: 540,
-  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET, CATALOG_RECONCILIATION_API_KEY_SECRET],
+  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET, CATALOG_RECONCILIATION_API_KEY_SECRET, MANDRILL_AUTHOR_INVITE_API_KEY_SECRET],
 }, app);
