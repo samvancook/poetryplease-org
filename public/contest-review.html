@@ -157,6 +157,7 @@
         <label>Private reviewer note
           <textarea id="note" placeholder="Optional context for your decision"></textarea>
         </label>
+        <p class="muted">Your draft stays while you browse this page. Your vote saves the note with your decision.</p>
         <div class="actions" style="margin-top:14px;">
           <button data-decision="yes" type="button">Yes</button>
           <button data-decision="maybe" type="button">Maybe</button>
@@ -166,6 +167,7 @@
       <div id="finalist-controls" hidden>
         <p id="finalist-prompt">Finalist pass: would you champion this poem for the winners’ circle?</p>
         <label>Private finalist note<textarea id="finalist-note" placeholder="What makes this a champion, possible, or pass?"></textarea></label>
+        <p class="muted">Your draft stays here while you browse. Your finalist choice saves the note.</p>
         <div class="actions" style="margin-top:14px;">
           <button data-finalist-decision="champion" type="button">Champion</button>
           <button data-finalist-decision="possible" type="button">Possible</button>
@@ -193,7 +195,7 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
-    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null, fourthPreview: null, finalistPreview: null };
+    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null, fourthPreview: null, finalistPreview: null, noteDrafts: new Map(), noteOwnerUid: "" };
 
     async function token() {
       return firebase.auth().currentUser ? firebase.auth().currentUser.getIdToken(false) : "";
@@ -272,8 +274,8 @@
       const finalistMode = document.getElementById("view").value === "finalist";
       document.getElementById("regular-review-controls").hidden = finalistMode;
       document.getElementById("finalist-controls").hidden = !finalistMode;
-      document.getElementById("note").value = row.currentReviewerNote || "";
-      document.getElementById("finalist-note").value = row.finalistNote || "";
+      document.getElementById("note").value = state.noteDrafts.has("regular:" + row.id) ? state.noteDrafts.get("regular:" + row.id) : (row.currentReviewerNote || "");
+      document.getElementById("finalist-note").value = state.noteDrafts.has("finalist:" + row.id) ? state.noteDrafts.get("finalist:" + row.id) : (row.finalistNote || "");
       document.getElementById("finalist-prompt").textContent = (row.finalistTier === "rescue" ? "Rescue pass" : "Finalist pass") + ": would you champion this poem for the winners’ circle?";
       document.querySelectorAll("[data-finalist-decision]").forEach((button) => {
         button.classList.toggle("active", button.dataset.finalistDecision === row.finalistDecision);
@@ -475,6 +477,8 @@
           body: { decision, note: document.getElementById("note").value.trim() },
         });
         await loadQueue();
+        state.noteDrafts.delete("regular:" + row.id);
+        setStatus("Vote and private note saved.");
         if (nextId) {
           const nextIndex = state.filtered.findIndex((candidate) => candidate.id === nextId);
           if (nextIndex >= 0) {
@@ -498,6 +502,8 @@
           body: { submissionId: row.id, decision, note: document.getElementById("finalist-note").value.trim() },
         });
         await loadQueue();
+        state.noteDrafts.delete("finalist:" + row.id);
+        setStatus("Finalist choice and private note saved.");
         if (nextId) {
           const nextIndex = state.filtered.findIndex((candidate) => candidate.id === nextId);
           if (nextIndex >= 0) { state.index = nextIndex; render(); }
@@ -736,6 +742,12 @@
       document.getElementById("review-card").scrollIntoView({ behavior: "smooth", block: "start" });
     });
     document.getElementById("view").addEventListener("change", applyFilters);
+    ["note", "finalist-note"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", (event) => {
+        const row = state.filtered[state.index];
+        if (row) state.noteDrafts.set((id === "note" ? "regular:" : "finalist:") + row.id, event.target.value);
+      });
+    });
     document.getElementById("previous").addEventListener("click", () => { state.index -= 1; render(); });
     document.getElementById("next").addEventListener("click", () => { state.index += 1; render(); });
     document.querySelectorAll("[data-decision]").forEach((button) => {
@@ -749,6 +761,8 @@
     });
     document.getElementById("logout").addEventListener("click", () => firebase.auth().signOut());
     firebase.auth().onAuthStateChanged((user) => {
+      const uid = user?.uid || "";
+      if (state.noteOwnerUid !== uid) { state.noteDrafts.clear(); state.noteOwnerUid = uid; }
       document.getElementById("account").textContent = user?.email || "Signed out";
       document.getElementById("login").hidden = !!user;
       document.getElementById("logout").hidden = !user;
