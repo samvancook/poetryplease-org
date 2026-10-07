@@ -50,6 +50,7 @@ const COLLECTIONS = {
   contestReviewAssignments: "contestReviewAssignments",
   contestSpotChecks: "contestSpotChecks",
   contestReviewBulkActions: "contestReviewBulkActions",
+  contestFinalistReads: "contestFinalistReads",
   importJobs: "importJobs",
   importJobItems: "importJobItems",
   systemState: "systemState",
@@ -9880,20 +9881,27 @@ app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
   res.json({ ok: true, program: { id: saved.id, ...(saved.data() || {}) } });
 });
 
+function initialContestDecisions(decisions, count = 3) {
+  return [...decisions].sort((a, b) =>
+    (a.reviewedAt?.toMillis?.() || 0) - (b.reviewedAt?.toMillis?.() || 0)).slice(0, count);
+}
+
 app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin", "contest_admin"]);
   if (!ctx) return;
 
   const requestedProgramId = normalizeText(req.query.programId || "");
   const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
-  const [submissionSnap, programSnap, decisionSnap, assignmentSnap] = await Promise.all([
+  const [submissionSnap, programSnap, decisionSnap, assignmentSnap, finalistSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionPrograms).limit(100).get(),
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("reviewerEmail", "==", reviewerEmail).get(),
+    db.collection(COLLECTIONS.contestFinalistReads).where("reviewerEmail", "==", reviewerEmail).get(),
   ]);
   const programsById = new Map(programSnap.docs.map((doc) => [doc.id, { id: doc.id, ...(doc.data() || {}) }]));
   const assignedIds = new Set(assignmentSnap.docs.flatMap((doc) => doc.data()?.submissionIds || []));
+  const finalistBySubmission = new Map(finalistSnap.docs.map((doc) => [doc.data()?.submissionId, doc.data() || {}]));
   const decisionsBySubmissionId = new Map();
   decisionSnap.docs.forEach((doc) => {
     const row = { id: doc.id, ...(doc.data() || {}) };
@@ -9914,6 +9922,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
       const reviewTarget = Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0);
       const reviewCount = decisions.length;
       const extraAssigned = row.contestExtraReviewerEmails.some((email) => normalizeText(email).toLowerCase() === reviewerEmail);
+      const finalistRead = finalistBySubmission.get(row.id) || null;
       const canReview = !!currentDecision || (reviewCount < requiredReviewCount && !extraAssigned) || (reviewCount >= requiredReviewCount && reviewCount < reviewTarget && extraAssigned);
       return {
         id: row.id,
@@ -9931,6 +9940,10 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
         currentReviewerNote: normalizeText(currentDecision?.note || ""),
         assignedToMe: assignedIds.has(row.id),
         spotCheckAssignedToMe: row.contestSpotCheckReviewerEmail.toLowerCase() === reviewerEmail,
+        finalistAssignedToMe: !!finalistRead,
+        finalistTier: finalistRead?.tier || "",
+        finalistDecision: normalizeKey(finalistRead?.decision || ""),
+        finalistNote: normalizeText(finalistRead?.note || ""),
         createdAt: row.createdAt || null,
       };
     })
@@ -9961,12 +9974,13 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
-  const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap, spotCheckSnap] = await Promise.all([
+  const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap, spotCheckSnap, finalistSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
     db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
     db.collection(COLLECTIONS.contestSpotChecks).where("programId", "==", programId).get(),
+    db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get(),
   ]);
   const instagramBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, normalizeText(doc.data()?.instagramHandle || "")]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
@@ -9980,8 +9994,20 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     list.push({
       reviewerEmail: normalizeText(decision.reviewerEmail || "").toLowerCase(),
       decision: normalizeKey(decision.decision || ""),
+      reviewedAt: decision.reviewedAt || null,
     });
     decisionsBySubmission.set(decision.submissionId, list);
+  }
+  const finalistBySubmission = new Map();
+  for (const doc of finalistSnap.docs) {
+    const read = doc.data() || {};
+    const list = finalistBySubmission.get(read.submissionId) || [];
+    list.push({
+      reviewerEmail: normalizeText(read.reviewerEmail || "").toLowerCase(),
+      tier: normalizeKey(read.tier || ""),
+      decision: normalizeKey(read.decision || ""),
+    });
+    finalistBySubmission.set(read.submissionId, list);
   }
   const assignedBySubmission = new Map();
   const reviewerProgress = new Map();
@@ -10017,7 +10043,9 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       archived: row.contestArchived === true,
       reviewCount: decisions.length,
       requiredReviewCount: Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0),
-      reviewers: decisions,
+      reviewers: decisions.map(({ reviewerEmail, decision }) => ({ reviewerEmail, decision })),
+      initialYesCount: initialContestDecisions(decisions, requiredReviewCount).filter((vote) => vote.decision === "yes").length,
+      finalistReads: finalistBySubmission.get(row.id) || [],
       assignedTo,
     };
   }).sort((a, b) => a.title.localeCompare(b.title));
@@ -10048,6 +10076,161 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     reviewers: Array.from(reviewerProgress.values()).sort((a, b) => a.email.localeCompare(b.email)),
     submissions: rows,
   });
+});
+
+app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const tier = normalizeKey(req.body?.tier || "");
+  const readsPerEntry = Number(req.body?.readsPerEntry || 1);
+  const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
+    .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
+  if (!programId || !["strong", "rescue"].includes(tier) || ![1, 2].includes(readsPerEntry)) {
+    return res.status(400).json({ error: "invalid_finalist_batch" });
+  }
+  if (!reviewerEmails.length || reviewerEmails.length > 20 ||
+      reviewerEmails.some((email) => !/^[^@\s]+@buttonpoetry\.com$/.test(email))) {
+    return res.status(400).json({ error: "provide_1_to_20_button_poetry_reviewers" });
+  }
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+  if (requiredReviewCount !== 3) return res.status(409).json({ error: "finalist_pass_requires_three_initial_reviews" });
+
+  const [submissionSnap, voteSnap, readSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get(),
+  ]);
+  const votesById = new Map();
+  for (const doc of voteSnap.docs) {
+    const vote = doc.data() || {};
+    const list = votesById.get(vote.submissionId) || [];
+    list.push(vote);
+    votesById.set(vote.submissionId, list);
+  }
+  const readsById = new Map();
+  for (const doc of readSnap.docs) {
+    const read = doc.data() || {};
+    const list = readsById.get(read.submissionId) || [];
+    list.push(read);
+    readsById.set(read.submissionId, list);
+  }
+  const matching = submissionSnap.docs
+    .filter((doc) => doc.data()?.submissionProgramId === programId && doc.data()?.contestArchived !== true)
+    .map((doc) => ({ doc, votes: votesById.get(doc.id) || [], reads: readsById.get(doc.id) || [] }))
+    .filter((item) => item.votes.length >= requiredReviewCount)
+    .filter((item) => {
+      const yesCount = initialContestDecisions(item.votes, requiredReviewCount)
+        .filter((vote) => normalizeKey(vote.decision || "") === "yes").length;
+      return tier === "strong" ? yesCount >= 2 : yesCount === 1;
+    })
+    .sort((a, b) => a.doc.id.localeCompare(b.doc.id));
+  const snapshot = matching.map(({ doc, votes, reads }) => [
+    doc.id,
+    votes.map((vote) => [normalizeText(vote.reviewerEmail || "").toLowerCase(),
+      normalizeKey(vote.decision || ""), vote.reviewedAt?.toMillis?.() || 0]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    reads.map((read) => [normalizeText(read.reviewerEmail || "").toLowerCase(), normalizeKey(read.decision || "")])
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+  ]);
+  const previewToken = createHash("sha256").update(JSON.stringify({
+    programId, tier, readsPerEntry, reviewerEmails, snapshot,
+  })).digest("hex");
+  const plan = [];
+  let nextReviewer = 0;
+  let alreadyCovered = 0;
+  let reviewerConflicts = 0;
+  for (const { doc, votes, reads } of matching) {
+    const needed = Math.max(0, readsPerEntry - reads.length);
+    if (!needed) { alreadyCovered += 1; continue; }
+    const occupied = new Set([
+      ...votes.map((vote) => normalizeText(vote.reviewerEmail || "").toLowerCase()),
+      ...reads.map((read) => normalizeText(read.reviewerEmail || "").toLowerCase()),
+    ]);
+    let assigned = 0;
+    for (let slot = 0; slot < needed; slot += 1) {
+      let selected = "";
+      for (let offset = 0; offset < reviewerEmails.length; offset += 1) {
+        const index = (nextReviewer + offset) % reviewerEmails.length;
+        if (!occupied.has(reviewerEmails[index])) {
+          selected = reviewerEmails[index];
+          nextReviewer = (index + 1) % reviewerEmails.length;
+          break;
+        }
+      }
+      if (!selected) break;
+      occupied.add(selected);
+      plan.push({ submissionId: doc.id, reviewerEmail: selected });
+      assigned += 1;
+    }
+    if (assigned < needed) reviewerConflicts += 1;
+  }
+  const byReviewer = Object.fromEntries(reviewerEmails.map((email) =>
+    [email, plan.filter((item) => item.reviewerEmail === email).length]));
+  const result = {
+    ok: true, programId, tier, matchingCount: matching.length,
+    newReadCount: plan.length, alreadyCovered, reviewerConflicts, byReviewer, previewToken,
+  };
+  if (req.body?.commit !== true) return res.json(result);
+  if (normalizeText(req.body?.previewToken || "") !== previewToken) {
+    return res.status(409).json({ error: "selection_changed_preview_again" });
+  }
+  if (!plan.length) return res.status(409).json({ error: "no_eligible_finalist_reads" });
+  let assignedCount = 0;
+  try {
+    for (let start = 0; start < plan.length; start += 350) {
+      const batch = db.batch();
+      const chunk = plan.slice(start, start + 350);
+      for (const item of chunk) {
+        const id = createHash("sha256").update(item.submissionId + "|" + item.reviewerEmail).digest("hex").slice(0, 40);
+        batch.create(db.collection(COLLECTIONS.contestFinalistReads).doc(id), {
+          programId, submissionId: item.submissionId, reviewerEmail: item.reviewerEmail,
+          tier, decision: "", note: "", assignedBy: ctx.decoded.uid,
+          assignedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      assignedCount += chunk.length;
+    }
+  } catch (error) {
+    return res.status(500).json({ error: "finalist_batch_partial_failure", assignedCount });
+  }
+  res.json({ ...result, assignedCount });
+});
+
+app.post(getBoth("/team/contestFinalistRead"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin", "contest_admin"]);
+  if (!ctx) return;
+  const submissionId = normalizeText(req.body?.submissionId || "");
+  const decision = normalizeKey(req.body?.decision || "");
+  const note = normalizeText(req.body?.note || "").slice(0, 1000);
+  if (!submissionId || !["champion", "possible", "pass"].includes(decision)) {
+    return res.status(400).json({ error: "invalid_finalist_decision" });
+  }
+  const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
+  const id = createHash("sha256").update(submissionId + "|" + reviewerEmail).digest("hex").slice(0, 40);
+  const readRef = db.collection(COLLECTIONS.contestFinalistReads).doc(id);
+  const [readSnap, submissionSnap, voteSnap] = await Promise.all([
+    readRef.get(),
+    db.collection(COLLECTIONS.contentSubmissions).doc(submissionId).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("submissionId", "==", submissionId).limit(50).get(),
+  ]);
+  if (!readSnap.exists || readSnap.data()?.reviewerEmail !== reviewerEmail) {
+    return res.status(403).json({ error: "finalist_read_not_assigned" });
+  }
+  const submission = submissionSnap.data() || {};
+  if (!submissionSnap.exists || submission.contestArchived === true ||
+      submission.submissionProgramId !== readSnap.data()?.programId) {
+    return res.status(409).json({ error: "finalist_submission_unavailable" });
+  }
+  const voteCount = voteSnap.docs.filter((doc) => normalizeKey(doc.data()?.responseType || "") === "contest_review").length;
+  if (voteCount < 3) return res.status(409).json({ error: "initial_reviews_not_complete" });
+  await readRef.set({
+    decision, note, reviewerUid: ctx.decoded.uid,
+    reviewedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  res.json({ ok: true, submissionId, decision });
 });
 
 app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
