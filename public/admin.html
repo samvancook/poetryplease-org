@@ -567,6 +567,7 @@
           </select>
           <input id="content-search" type="search" placeholder="Search recent content by ID, title, author, or catalog" />
           <button id="refresh-content" type="button" class="secondary">Refresh content</button>
+          <button id="export-graphics-inventory" type="button" class="secondary" hidden>Export graphics inventory CSV</button>
         </div>
         <div class="hint">For graphics, you can upload the image file here and the app will store it in Firebase Storage before saving the Firestore record. Video JSON imports now ingest linked workshop/media files into Poetry Please storage so they do not need to keep serving from Drive. Full Poems can also be imported from a JSON file in the same content shape. YouTube can be added as its own review lane using a YouTube link plus optional thumbnail and metadata.</div>
         <div id="content-status" class="status">Loading content library…</div>
@@ -4582,6 +4583,65 @@
       return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
     }
 
+    async function exportGraphicsInventoryCsv() {
+      const button = document.getElementById('export-graphics-inventory');
+      const statusEl = document.getElementById('content-status');
+      if (!state.me?.roles?.includes('admin')) {
+        statusEl.textContent = 'Admin access is required for this export.';
+        statusEl.className = 'status error';
+        return;
+      }
+      const headers = ['collection', 'documentId', 'contentId', 'imageId', 'imageType', 'author', 'poemTitle', 'bookTitle', 'bookShortener', 'quoteText', 'driveLink', 'cloudStorageLink', 'updatedFileName', 'releaseYear', 'yearSource', 'releaseCatalog', 'votes', 'score', 'scoreSource', 'status', 'storedFlagged', 'storedQuarantined', 'storedRetired'];
+      const lines = [headers.join(',')];
+      const countsByType = {};
+      const countsByYear = {};
+      const seenRows = new Set();
+      button.disabled = true;
+      statusEl.className = 'status';
+      try {
+        for (const collection of ['graphics', 'excerpts']) {
+          let cursor = '';
+          const seenCursors = new Set();
+          do {
+            statusEl.textContent = 'Reading ' + collection + '… ' + seenRows.size + ' matching rows collected.';
+            const path = 'admin/graphicsExport?collection=' + collection + (cursor ? '&cursor=' + encodeURIComponent(cursor) : '');
+            const page = await api(path);
+            if (!Array.isArray(page.items)) throw new Error('The export response was incomplete. No file was downloaded.');
+            for (const row of page.items) {
+              const key = collection + '/' + row.documentId;
+              if (seenRows.has(key)) throw new Error('The export returned a duplicate row. No file was downloaded.');
+              seenRows.add(key);
+              lines.push(headers.map((header) => csvEscape(row[header])).join(','));
+              const type = row.imageType || 'Unknown';
+              const year = row.releaseYear || 'Unknown';
+              countsByType[type] = (countsByType[type] || 0) + 1;
+              countsByYear[year] = (countsByYear[year] || 0) + 1;
+            }
+            cursor = page.nextCursor || '';
+            if (cursor && seenCursors.has(cursor)) throw new Error('The export pagination repeated. No file was downloaded.');
+            if (cursor) seenCursors.add(cursor);
+          } while (cursor);
+        }
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'poetry_please_graphics_' + new Date().toISOString().slice(0, 10) + '.csv';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        const typeSummary = Object.entries(countsByType).sort().map(([type, count]) => type + ': ' + count).join(', ');
+        const yearSummary = Object.entries(countsByYear).sort().map(([year, count]) => year + ': ' + count).join(', ');
+        statusEl.textContent = 'Downloaded ' + seenRows.size + ' rows. Types: ' + (typeSummary || 'none') + '. Years: ' + (yearSummary || 'none') + '.';
+      } catch (err) {
+        statusEl.textContent = err.message || 'Graphics export failed. No file was downloaded.';
+        statusEl.className = 'status error';
+      } finally {
+        button.disabled = false;
+      }
+    }
+
     function exportFilteredFlagsCsv() {
       const rows = filteredFlags();
       const headers = ['imageId', 'title', 'author', 'imageType', 'releaseCatalog', 'qualityLane', 'status', 'flaggedBy', 'createdAt', 'note'];
@@ -4998,6 +5058,7 @@
         }
 
         const isAdmin = state.me?.roles?.includes("admin");
+        document.getElementById("export-graphics-inventory").hidden = !isAdmin;
         const isTeam = state.me?.roles?.includes("team");
         const isContestAdmin = state.me?.roles?.includes("contest_admin");
         if (!isAdmin && !isTeam && !isContestAdmin) {
@@ -5145,6 +5206,7 @@
         loadContentLibrary();
       });
       document.getElementById("refresh-content").addEventListener("click", () => loadContentLibrary());
+      document.getElementById("export-graphics-inventory").addEventListener("click", () => exportGraphicsInventoryCsv());
       document.getElementById("inspect-storage-asset").addEventListener("click", () => inspectStorageAsset());
       document.getElementById("delete-storage-asset").addEventListener("click", () => deleteStorageAsset());
       document.getElementById("save-content").addEventListener("click", () => saveContent());

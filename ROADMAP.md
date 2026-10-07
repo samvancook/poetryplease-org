@@ -288,6 +288,11 @@ Why this is parked:
 - It makes sense to pause until we want to re-open that product decision.
 
 ## Next Good Threads
+- Read-only graphics inventory export (planned; no app or data changes yet):
+  - build an admin-only, paginated Firestore read path for every QI, INT, FPI, and EXC asset across all years, including 2026; do not use the Scoreboard's visible-page export as a full inventory
+  - provide a stable CSV schema with content/image ID, type, author, poem and book titles, book shortener, quote/excerpt text, Drive and Cloud Storage links, updated filename, stored year, and available status flags; include votes/score only with a clearly identified source and as-of time
+  - keep internal excerpt text access-controlled, avoid Firestore writes or snapshot refreshes during export, and verify row counts by type and stored year before placing a dated CSV in the shared Social Media Data Warehouse
+  - test pagination, duplicate IDs, missing metadata, CSV escaping, and 2026 coverage before adding an Admin download button or considering deployment
 - Protect Poetry Please production deployment ownership:
   - [ ] make the full smoke test an enforced post-deploy requirement rather than a manual follow-up
   - [ ] move production deployment to a dedicated Poetry Please service account unavailable to unrelated projects and generated workspaces
