@@ -1533,6 +1533,20 @@ async function getOrCreateAnonId() {
     height: auto;
     object-fit: contain;
   }
+  .media-box.int-media-box { flex-direction: column; background: #000; }
+  .int-media-box img { flex: 1 1 auto; min-height: 0; }
+  .int-source-caption {
+    flex: 0 0 auto;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 8px 16px 12px;
+    color: #fff;
+    font: 13px/1.3 system-ui, sans-serif;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+  .int-source-caption span { display: block; }
+  .int-source-caption .int-source-book { font-style: italic; opacity: .8; }
 
   /* Mobile: transform only the IMAGE pixels, not the UI/layout */
   .media-box img {
@@ -3730,6 +3744,7 @@ function renderItemMedia(item) {
     }
  } else if (item?.mediaUrl) {
   if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'image';
+  if (item.imageType === 'INT') box.classList.add('int-media-box');
   img = document.createElement('img');
   img.src = item.mediaUrl;
   img.alt = item?.id || '';
@@ -3737,6 +3752,22 @@ function renderItemMedia(item) {
   img.style.height = 'auto';
 
   box.appendChild(img);
+  if (item.imageType === 'INT' && (item.author || item.book)) {
+    const caption = document.createElement('div');
+    caption.className = 'int-source-caption';
+    if (item.author) {
+      const author = document.createElement('span');
+      author.textContent = item.author;
+      caption.appendChild(author);
+    }
+    if (item.book) {
+      const book = document.createElement('span');
+      book.className = 'int-source-book';
+      book.textContent = item.book;
+      caption.appendChild(book);
+    }
+    box.appendChild(caption);
+  }
 
   attachPinchZoomToImage_(img);
 }
