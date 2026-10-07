@@ -92,6 +92,7 @@
         <button type="submit" class="primary">Assign next batch</button>
       </form>
       <div id="assignment-status" class="status"></div>
+      <div id="assignment-email-links" class="actions"></div>
       <h3>Spot check: three No votes</h3>
       <p>Randomly assign 10% of eligible three-No entries (at least 30, or all if fewer). The spot checker must not be one of the original reviewers. This adds a fourth blinded vote to each sampled entry; it does not archive anything automatically.</p>
       <form id="spot-check-form" class="assignment-form">
@@ -99,6 +100,7 @@
         <button type="submit">Assign random spot check</button>
       </form>
       <div id="spot-check-status" class="status"></div>
+      <div id="spot-check-email-links" class="actions"></div>
       <a id="spot-check-link" hidden target="_blank" rel="noopener">Open reviewer spot-check link</a>
       <div id="spot-check-results" class="table-wrap"></div>
       <h3>Reviewer progress</h3>
@@ -113,6 +115,7 @@
         <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
         <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
         <div id="finalist-status" class="status"></div>
+        <div id="finalist-email-links" class="actions"></div>
         <div id="finalist-progress" class="table-wrap"></div>
       </details>
       <h3>Review outcomes</h3>
@@ -138,6 +141,7 @@
         <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" aria-describedby="fourth-help" title="One email receives all eligible fourth reads; multiple emails divide them roughly evenly." style="width:100%;margin:8px 0;"></label>
         <div class="actions"><button id="preview-fourth" type="button" title="See the exact eligible count and reviewer split without assigning anything.">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" title="Queue the previewed fourth reads for the listed reviewers. No email is sent." hidden>Assign fourth reads</button></div>
         <div id="fourth-status" class="status"></div>
+        <div id="fourth-email-links" class="actions"></div>
       </details>
       <div id="outcome-results" class="table-wrap"></div>
       <details style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
@@ -220,6 +224,52 @@
 
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"\']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;" })[char]);
+    }
+
+    function clearAssignmentEmails() {
+      ["assignment-email-links", "spot-check-email-links", "fourth-email-links", "finalist-email-links"].forEach((id) =>
+        document.getElementById(id).replaceChildren());
+    }
+
+    function prepareAssignmentEmails(containerId, programId, byReviewer, view, label) {
+      const container = document.getElementById(containerId);
+      container.replaceChildren();
+      const programName = state.programs.find((program) => program.id === programId)?.name || "the contest";
+      const reviewUrl = new URL("/contest-review.html", location.origin);
+      reviewUrl.searchParams.set("program", programId);
+      reviewUrl.searchParams.set("view", view);
+      Object.entries(byReviewer || {}).filter(([, count]) => Number(count) > 0).forEach(([email, count]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Open Gmail message to " + email + " (" + count + ")";
+        button.addEventListener("click", () => {
+          const body = [
+            "Hi,",
+            "",
+            "I've assigned you " + count + " " + label + (count === 1 ? "" : "s") + " for " + programName + " in Poetry Please.",
+            "",
+            "Open your assignment: " + reviewUrl.href,
+            "",
+            "Please sign in with " + email + ". If anything doesn't work, reply to this email and let me know.",
+            "",
+            "Thank you!",
+            "— Button Poetry",
+          ].join("\n");
+          const params = new URLSearchParams({
+            view: "cm", fs: "1", tf: "1", to: email,
+            su: "Poetry Please review assignment — " + programName,
+            body,
+          });
+          const opened = window.open("https://mail.google.com/mail/?" + params.toString(), "_blank", "noopener,noreferrer");
+          const status = container.previousElementSibling;
+          if (status?.classList.contains("status")) {
+            status.textContent = opened
+              ? "Gmail compose opened for " + email + ". Review it and click Send in Gmail; Poetry Please has not sent it."
+              : "Gmail pop-up was blocked. Allow pop-ups and use this button again.";
+          }
+        });
+        container.appendChild(button);
+      });
     }
 
     function applyFilters() {
@@ -535,7 +585,7 @@
       };
     }
 
-    document.getElementById("program").addEventListener("change", () => { invalidateFourthPreview(); invalidateFinalistPreview(); applyFilters(); loadProgress(); });
+    document.getElementById("program").addEventListener("change", () => { invalidateFourthPreview(); invalidateFinalistPreview(); clearAssignmentEmails(); applyFilters(); loadProgress(); });
     document.getElementById("assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const programId = document.getElementById("program").value;
@@ -544,6 +594,7 @@
         status.textContent = "Choose a contest first.";
         return;
       }
+      clearAssignmentEmails();
       status.textContent = "Assigning entries...";
       try {
         const result = await api("admin/contestReviewAssignments", {
@@ -555,9 +606,10 @@
           },
         });
         status.textContent = result.assigned
-          ? "Assigned " + result.assigned + " entries to " + result.reviewerEmail + "."
+          ? "Assigned " + result.assigned + " entries to " + result.reviewerEmail + ". Use the Gmail button below to prepare the message; nothing has been sent."
           : "No unreserved entries remain for this reviewer.";
         await loadQueue();
+        if (result.assigned) prepareAssignmentEmails("assignment-email-links", programId, { [result.reviewerEmail]: result.assigned }, "assigned", "review");
       } catch (error) {
         status.textContent = "Could not assign entries: " + error.message;
       }
@@ -567,17 +619,19 @@
       const programId = document.getElementById("program").value;
       const status = document.getElementById("spot-check-status");
       if (!programId) return void (status.textContent = "Choose a contest first.");
+      clearAssignmentEmails();
       status.textContent = "Selecting and assigning a random sample...";
       try {
         const result = await api("admin/contestSpotChecks", {
           method: "POST",
           body: { programId, reviewerEmail: document.getElementById("spot-check-email").value.trim() },
         });
-        status.textContent = "Assigned " + result.sampleCount + " of " + result.eligibleCount + " eligible three-No entries to " + result.reviewerEmail + ". Send them the reviewer link below.";
+        status.textContent = "Assigned " + result.sampleCount + " of " + result.eligibleCount + " eligible three-No entries to " + result.reviewerEmail + ". Use the Gmail button below to prepare the message; nothing has been sent.";
         const link = document.getElementById("spot-check-link");
         link.href = "/contest-review.html?program=" + encodeURIComponent(programId) + "&view=spotcheck";
         link.hidden = false;
         await loadQueue();
+        if (result.sampleCount) prepareAssignmentEmails("spot-check-email-links", programId, { [result.reviewerEmail]: result.sampleCount }, "spotcheck", "spot-check review");
       } catch (error) {
         status.textContent = "Could not assign spot check: " + error.message;
       }
@@ -608,15 +662,17 @@
       if (!preview) return;
       if (!window.confirm("Assign " + preview.eligibleCount + " fourth reads from this saved preview?")) return;
       const status = document.getElementById("fourth-status");
+      clearAssignmentEmails();
       status.textContent = "Assigning fourth reads...";
       try {
         const result = await api("admin/contestFourthReviewBatch", {
           method: "POST", body: { ...preview, commit: true },
         });
-        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Reviewers can use My assigned batch as poems become ready.";
+        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Use the Gmail buttons below to prepare each message; nothing has been sent.";
         state.fourthPreview = null;
         document.getElementById("confirm-fourth").hidden = true;
         await loadQueue();
+        prepareAssignmentEmails("fourth-email-links", preview.programId, result.byReviewer, "assigned", "fourth read");
       } catch (error) {
         status.textContent = "Could not finish assignment: " + error.message + ". Refresh the preview before trying again.";
         state.fourthPreview = null;
@@ -650,14 +706,15 @@
       const preview = state.finalistPreview;
       if (!preview || !window.confirm("Assign " + preview.newReadCount + " finalist reads? No email will be sent.")) return;
       const status = document.getElementById("finalist-status");
+      clearAssignmentEmails();
       status.textContent = "Assigning finalist reads...";
       try {
         const result = await api("admin/contestFinalistBatch", { method: "POST", body: { ...preview, commit: true } });
-        status.textContent = "Assigned " + result.assignedCount + " finalist reads. Send readers this link: " +
-          location.origin + "/contest-review.html?program=" + encodeURIComponent(preview.programId) + "&view=finalist";
+        status.textContent = "Assigned " + result.assignedCount + " finalist reads. Use the Gmail buttons below to prepare each message; nothing has been sent.";
         state.finalistPreview = null;
         document.getElementById("confirm-finalist").hidden = true;
         await loadQueue();
+        prepareAssignmentEmails("finalist-email-links", preview.programId, result.byReviewer, "finalist", "finalist read");
       } catch (error) {
         status.textContent = "Could not finish assignment: " + error.message + ". Check progress and preview again before retrying.";
         state.finalistPreview = null;
