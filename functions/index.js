@@ -9415,6 +9415,7 @@ app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) 
   const inviteSnap = await inviteRef.get();
   if (!inviteSnap.exists) return res.status(404).json({ error: "invite_not_found" });
   const invite = inviteSnap.data() || {};
+  if (invite.testOnly) return res.status(409).json({ error: "test_invite_not_regeneratable" });
   if (invite.status === "claimed" || normalizeText(invite.claimedByUserId)) {
     return res.status(409).json({ error: "invite_already_claimed" });
   }
@@ -9560,7 +9561,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
   ]);
 
   const profiles = profileSnap.docs.map((doc) => mapProfileDoc(doc.id, doc.data()));
-  const invites = inviteSnap.docs.map((doc) => {
+  const invites = inviteSnap.docs.filter((doc) => doc.data()?.testOnly !== true).map((doc) => {
     const data = doc.data() || {};
     const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : (data.expiresAt || null);
     const claimedAt = data.claimedAt?.toDate ? data.claimedAt.toDate() : (data.claimedAt || null);
