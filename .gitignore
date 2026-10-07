@@ -5,3 +5,7 @@ exports/
 functions/node_modules/
 functions/package-lock.json
 functions/.env
+
+# Line-break backfill: overlay inputs and backups contain poem text; keep them out of this public repo.
+excerpt-linebreak-backup-*.json
+*linebreak_overlay*.jsonl
