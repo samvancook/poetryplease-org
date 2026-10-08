@@ -94,8 +94,8 @@
       <div id="assignment-status" class="status"></div>
       <div class="card" style="margin:12px 0;">
         <strong>Email a committed assignment via Mandrill</strong>
-        <p>Assign first, then send a separate notice. The reviewer receives a direct link to the selected queue. A notice for the same assignment set cannot be sent twice.</p>
-        <form id="assignment-notice-form" class="assignment-form">
+        <p>Assignment notices are prepared but paused until the message and recipients are approved.</p>
+        <form id="assignment-notice-form" class="assignment-form" hidden>
           <label>Reviewer’s Button Poetry email<input id="notice-email" type="email" required placeholder="name@buttonpoetry.com"></label>
           <label>Queue<select id="notice-view"><option value="assigned">Assigned batch or fourth reads</option><option value="spotcheck">Spot check</option><option value="finalist">Finalist pass</option></select></label>
           <button type="submit">Send assignment notice</button>
