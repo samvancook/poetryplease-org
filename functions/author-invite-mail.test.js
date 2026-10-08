@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAuthorInviteMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
+import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 
 test("controlled invite explains review actions and cannot be mistaken for a claimable invitation", () => {
   const message = buildAuthorInviteMessage({
@@ -9,11 +9,32 @@ test("controlled invite explains review actions and cannot be mistaken for a cla
     expiresAt: "October 21, 2026", testOnly: true,
   });
   assert.match(message.subject, /^\[TEST\]/);
-  assert.match(message.text, /QI and INT graphics/);
+  assert.match(message.text, /QI quote images and INT interior photos/);
   assert.match(message.text, /early version of a piece/);
   assert.match(message.text, /poems and excerpts/);
   assert.match(message.text, /cannot claim an author account/);
   assert.match(message.text, /private-test-token/);
+});
+
+test("real author invite includes claim link and book-specific help", () => {
+  const message = buildAuthorInviteMessage({
+    name: "Matt", email: "matt@example.com", bookTitle: "Roads",
+    helpUrl: "https://buttonpoetry.com/poetryplease/author-help/?book=Roads",
+    inviteUrl: "https://poetryplease.org/app?authorInvite=private-token", expiresAt: "October 22, 2026",
+  });
+  assert.match(message.text, /Roads/);
+  assert.match(message.text, /author-help\/\?book=Roads/);
+  assert.match(message.text, /private-token/);
+  assert.doesNotMatch(message.subject, /\[TEST\]/);
+});
+
+test("contest assignment notice links to its specific queue", () => {
+  const message = buildContestAssignmentMessage({
+    programName: "Poetry Contest", view: "spotcheck",
+    reviewUrl: "https://poetryplease.org/contest-review.html?program=contest-1&view=spotcheck",
+  });
+  assert.match(message.subject, /spot check/);
+  assert.match(message.text, /view=spotcheck/);
 });
 
 test("Mandrill send uses one recipient and disables invite-link click tracking", async () => {

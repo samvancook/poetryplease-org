@@ -92,6 +92,16 @@
         <button type="submit" class="primary">Assign next batch</button>
       </form>
       <div id="assignment-status" class="status"></div>
+      <div class="card" style="margin:12px 0;">
+        <strong>Email a committed assignment via Mandrill</strong>
+        <p>Assignment notices are prepared but paused until the message and recipients are approved.</p>
+        <form id="assignment-notice-form" class="assignment-form" hidden>
+          <label>Reviewer’s Button Poetry email<input id="notice-email" type="email" required placeholder="name@buttonpoetry.com"></label>
+          <label>Queue<select id="notice-view"><option value="assigned">Assigned batch or fourth reads</option><option value="spotcheck">Spot check</option><option value="finalist">Finalist pass</option></select></label>
+          <button type="submit">Send assignment notice</button>
+        </form>
+        <div id="notice-status" class="status"></div>
+      </div>
       <h3>Spot check: three No votes</h3>
       <p>Randomly assign 10% of eligible three-No entries (at least 30, or all if fewer). The spot checker must not be one of the original reviewers. This adds a fourth blinded vote to each sampled entry; it does not archive anything automatically.</p>
       <form id="spot-check-form" class="assignment-form">
@@ -566,6 +576,10 @@
         status.textContent = result.assigned
           ? "Assigned " + result.assigned + " entries to " + result.reviewerEmail + "."
           : "No unreserved entries remain for this reviewer.";
+        if (result.assigned) {
+          document.getElementById("notice-email").value = result.reviewerEmail;
+          document.getElementById("notice-view").value = "assigned";
+        }
         await loadQueue();
       } catch (error) {
         status.textContent = "Could not assign entries: " + error.message;
@@ -583,12 +597,32 @@
           body: { programId, reviewerEmail: document.getElementById("spot-check-email").value.trim() },
         });
         status.textContent = "Assigned " + result.sampleCount + " of " + result.eligibleCount + " eligible three-No entries to " + result.reviewerEmail + ". Send them the reviewer link below.";
+        document.getElementById("notice-email").value = result.reviewerEmail;
+        document.getElementById("notice-view").value = "spotcheck";
         const link = document.getElementById("spot-check-link");
         link.href = "/contest-review.html?program=" + encodeURIComponent(programId) + "&view=spotcheck";
         link.hidden = false;
         await loadQueue();
       } catch (error) {
         status.textContent = "Could not assign spot check: " + error.message;
+      }
+    });
+    document.getElementById("assignment-notice-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const programId = document.getElementById("program").value;
+      const reviewerEmail = document.getElementById("notice-email").value.trim().toLowerCase();
+      const view = document.getElementById("notice-view").value;
+      const status = document.getElementById("notice-status");
+      if (!programId) return void (status.textContent = "Choose a contest first.");
+      if (!window.confirm("Send one " + view + " assignment notice via Mandrill to " + reviewerEmail + "?")) return;
+      status.textContent = "Sending via Mandrill...";
+      try {
+        const result = await api("admin/contestAssignmentNotices/send", {
+          method: "POST", body: { programId, reviewerEmail, view },
+        });
+        status.textContent = "Mandrill accepted the notice for " + result.reviewerEmail + " (" + result.delivery.status + ").";
+      } catch (error) {
+        status.textContent = "Send unconfirmed: " + error.message + ". Check notice status before trying again.";
       }
     });
     document.getElementById("preview-fourth").addEventListener("click", async () => {
@@ -622,7 +656,12 @@
         const result = await api("admin/contestFourthReviewBatch", {
           method: "POST", body: { ...preview, commit: true },
         });
-        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Reviewers can use My assigned batch as poems become ready.";
+        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Send a separate Mandrill notice for each reviewer listed above.";
+        const fourthRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
+        if (fourthRecipients.length) {
+          document.getElementById("notice-email").value = fourthRecipients[0];
+          document.getElementById("notice-view").value = "assigned";
+        }
         state.fourthPreview = null;
         document.getElementById("confirm-fourth").hidden = true;
         await loadQueue();
@@ -684,8 +723,12 @@
       status.textContent = "Assigning finalist reads...";
       try {
         const result = await api("admin/contestFinalistBatch", { method: "POST", body: { ...preview, commit: true } });
-        status.textContent = "Assigned " + result.assignedCount + " finalist reads. Send readers this link: " +
-          location.origin + "/contest-review.html?program=" + encodeURIComponent(preview.programId) + "&view=finalist";
+        status.textContent = "Assigned " + result.assignedCount + " finalist reads. Send a separate Mandrill notice for each reviewer listed above.";
+        const finalistRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
+        if (finalistRecipients.length) {
+          document.getElementById("notice-email").value = finalistRecipients[0];
+          document.getElementById("notice-view").value = "finalist";
+        }
         state.finalistPreview = null;
         document.getElementById("confirm-finalist").hidden = true;
         await loadQueue();
