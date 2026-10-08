@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, reattachOpeningMarks, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
+import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, reattachOpeningMarks, splitProductionNote, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
 
 // Expected values produced by Weaver's excerpt_library.normalize_lookup_text / fingerprint_excerpt.
 const WEAVER_FIXTURES = [
@@ -111,11 +111,11 @@ test("lays the excerpt's own words out on the book's lines", () => {
 });
 
 test("lays out the excerpt's own words only when asked", () => {
-  const noted = "\"The river doesn't ask permission to bend.\" - Wood BG";
+  const noted = "\"The river doesn't ask permission to bend.\" she said";
   const map = new Map([[excerptHash(noted), { ...overlay.get(excerptHash(ORIGINAL)), text_original: noted, text_linebroken: "The river doesn't ask\npermission to bend." }]]);
   assert.equal(planLinebreakUpdate({ excerpt: noted }, map).reason, "words_changed");
   const plan = planLinebreakUpdate({ excerpt: noted }, map, { ownWords: true });
-  assert.equal(plan.fields.excerpt, "\"The river doesn't ask\npermission to bend.\" - Wood BG");
+  assert.equal(plan.fields.excerpt, "\"The river doesn't ask\npermission to bend.\" she said");
   assert.equal(plan.fields.linebreakSource, "book_lines_own_words");
 });
 
@@ -140,4 +140,19 @@ test("moves stranded opening marks onto the next line", () => {
   assert.equal(reattachOpeningMarks("the sad aisle, (\nwhich would"), "the sad aisle,\n(which would");
   assert.equal(reattachOpeningMarks("to be smiling \u2018\nround pretty"), "to be smiling\n\u2018round pretty");
   assert.equal(reattachOpeningMarks("she said \"no\"\nand left"), "she said \"no\"\nand left");
+});
+
+test("splits trailing production notes", () => {
+  assert.deepEqual(splitProductionNote("\"one two\" - Wood BG"), { text: "\"one two\"", note: "Wood BG" });
+  assert.deepEqual(splitProductionNote("one two [FB] (video)"), { text: "one two", note: "[FB] (video)" });
+  assert.deepEqual(splitProductionNote("one two"), { text: "one two", note: "" });
+});
+
+test("takes the book's text and keeps a production note aside", () => {
+  const noted = "“The river doesn’t ask permission to bend.” [FB]";
+  const map = new Map([[excerptHash(noted), { ...overlay.get(excerptHash(ORIGINAL)), text_original: noted }]]);
+  const plan = planLinebreakUpdate({ excerpt: noted }, map);
+  assert.equal(plan.fields.excerpt, "The river doesn’t ask\npermission to bend.");
+  assert.equal(plan.fields.linebreakSource, "book_note_removed");
+  assert.equal(plan.fields.excerptNote, "[FB]");
 });

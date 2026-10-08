@@ -105,6 +105,7 @@ async function main() {
           linebreakConfidence: FieldValue.delete(),
           linebreakCatalogPoemId: FieldValue.delete(),
           linebreakOverlayVersion: FieldValue.delete(),
+          excerptNote: FieldValue.delete(),
         });
       } else {
         fields.linebreakOverlayVersion = overlay.version;

@@ -55,6 +55,20 @@ export function reattachOpeningMarks(value) {
     .replace(/^\n/, "");
 }
 
+// Production notes appended to excerpt text: "[FB]", "(video)", "- Wood BG" and similar.
+const NOTE_RE = /\s*(\((?:video|pick[^)]*|fb|ig)\)|\[[^\]]*\]|\s[-\u2013\u2014]\s*[A-Z][\w ]{0,20}BG)\s*$/i;
+
+// Split trailing production notes off an excerpt: { text, note }.
+export function splitProductionNote(value) {
+  let text = String(value || "").trim();
+  const notes = [];
+  for (let match = text.match(NOTE_RE); match && match.index > 0; match = text.match(NOTE_RE)) {
+    notes.unshift(match[1].trim().replace(/^[-\u2013\u2014]\s*/, "").trim());
+    text = text.slice(0, match.index).trim();
+  }
+  return { text, note: notes.join(" ") };
+}
+
 function lookupTokens(value) {
   const normalized = normalizeLookupText(value);
   return normalized ? normalized.split(" ") : [];
@@ -142,9 +156,15 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   const bookRejection = rejection === "words_changed" && normalizeLookupText(current) === normalizeLookupText(excerpt)
     ? linebreakRejection(excerpt, excerpt)
     : "skip";
+  const { text: withoutNote, note } = splitProductionNote(current);
+  let noteField = {};
   if (rejection && !bookRejection) {
     // Same words, different punctuation or capitals: defer to the book's text.
     source = "book_punctuation";
+  } else if (rejection && note && normalizeLookupText(withoutNote) === normalizeLookupText(excerpt) && !linebreakRejection(excerpt, excerpt)) {
+    // Same words once a production note is set aside: take the book's text and keep the note in its own field.
+    source = "book_note_removed";
+    noteField = { excerptNote: note };
   } else if (rejection) {
     // Optionally lay the excerpt's own words out on the book's lines.
     const projected = ownWords ? projectBreaksOntoText(current, excerpt) : "";
@@ -164,6 +184,7 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
       linebreakSource: source,
       linebreakConfidence: entry.ratio,
       linebreakCatalogPoemId: entry.catalog_poem_id,
+      ...noteField,
     },
   };
 }
