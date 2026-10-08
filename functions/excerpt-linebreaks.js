@@ -35,6 +35,12 @@ function flatWords(value) {
     .trim();
 }
 
+function balancedQuotes(value) {
+  const text = String(value || "");
+  return (text.match(/"/g) || []).length % 2 === 0 &&
+    (text.match(/\u201c/g) || []).length === (text.match(/\u201d/g) || []).length;
+}
+
 // Why a line-broken text should not replace the current one, or "" when it is a pure layout change.
 export function linebreakRejection(current, linebroken, bookText = "") {
   if (flatWords(linebroken) !== flatWords(current)) return "words_changed";
@@ -151,7 +157,7 @@ export function projectBreaksOntoText(current, linebroken) {
   let text = out.map((line) => line.join(" ")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   // Drop quote marks that wrap the whole excerpt, as the book text does.
   const wrapped = text.match(/^["“]([\s\S]*)["”]$/);
-  if (wrapped && !/["“”]/.test(wrapped[1])) text = wrapped[1].trim();
+  if (wrapped && balancedQuotes(wrapped[1])) text = wrapped[1].trim();
   return text;
 }
 
@@ -179,6 +185,14 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   if (book && !/["\u201c\u201d]/.test(book) && rejectionFor(current, excerpt) === "unbalanced_quotes") {
     excerpt = excerpt.replace(/["\u201c\u201d]/g, "").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
   }
+  // Dialogue inside outer quotes: the line-broken text can lose one inner mark. Lay the excerpt's own
+  // text (outer pair stripped, inner pair kept) on the book's lines instead.
+  if (rejectionFor(current, excerpt) === "unbalanced_quotes") {
+    const own = projectBreaksOntoText(current, excerpt);
+    if (own && !rejectionFor(current, own)) excerpt = own;
+  }
+  // A " / " the excerpt has exactly where the book breaks the line is redundant.
+  if (!/\/[ \t]*\n/.test(book)) excerpt = excerpt.replace(/[ \t]+\/[ \t]*\n/g, "\n");
   let source = entry.status.startsWith("exact") ? "book_exact" : "book_projected";
   const rejection = rejectionFor(current, excerpt);
   const bookRejection = rejection === "words_changed" && normalizeLookupText(current) === normalizeLookupText(excerpt)

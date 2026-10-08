@@ -194,3 +194,12 @@ test("takes a leftover note off any result", () => {
   assert.equal(plan.fields.excerpt, "one two\nthree four...");
   assert.equal(plan.fields.excerptNote, "wood BG");
 });
+
+test("keeps inner dialogue quotes and drops a slash at a line break", () => {
+  const dialog = "\u201che says \u201cCool, let\u2019s go.\u201d and we go\u201d";
+  const map = new Map([[excerptHash(dialog), { ...overlay.get(excerptHash(ORIGINAL)), text_original: dialog, text_linebroken: "he says \u201cCool,\nlet\u2019s go. and we go", text_book: "he says \u201cCool,\nlet\u2019s go.\u201d and we go" }]]);
+  assert.equal(planLinebreakUpdate({ excerpt: dialog }, map).fields.excerpt, "he says \u201cCool,\nlet\u2019s go.\u201d and we go");
+  const slashed = "one / two / three four";
+  const map2 = new Map([[excerptHash(slashed), { ...overlay.get(excerptHash(ORIGINAL)), text_original: slashed, text_linebroken: "one / two /\nthree four", text_book: "one / two\nthree four" }]]);
+  assert.equal(planLinebreakUpdate({ excerpt: slashed }, map2).fields.excerpt, "one / two\nthree four");
+});
