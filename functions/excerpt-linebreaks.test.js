@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { excerptHash, normalizeLookupText, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
+import { excerptHash, linebreakRejection, normalizeLookupText, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
 
 // Expected values produced by Weaver's excerpt_library.normalize_lookup_text / fingerprint_excerpt.
 const WEAVER_FIXTURES = [
@@ -86,4 +86,19 @@ test("skips review-tier entries unless asked", () => {
 test("undo restores the saved original", () => {
   assert.equal(planLinebreakUndo({ excerpt: "a\nb", excerptOriginal: "a b", linebreakSource: "book_exact" }).fields.excerpt, "a b");
   assert.equal(planLinebreakUndo({ excerpt: "a b" }).action, "skip");
+});
+
+test("accepts only pure layout changes", () => {
+  assert.equal(linebreakRejection("\u201cone two / three four\u201d", "one two\nthree four"), "");
+  assert.equal(linebreakRejection("crooked cop runs", "crooked-cop\nruns"), "words_changed");
+  assert.equal(linebreakRejection("one two -- three", "one two\n\u2014 three"), "words_changed");
+  assert.equal(linebreakRejection("one two wood BG", "one two"), "words_changed");
+  assert.equal(linebreakRejection("one two / three four / five", "one two\nthree four / five"), "stray_separator");
+  assert.equal(linebreakRejection("\"with someone...\" wood BG", "with\nsomeone...\" wood BG"), "unbalanced_quotes");
+  assert.equal(linebreakRejection("hide \u201cand\u201d seek", "hide \u201c\nand\u201d seek"), "stranded_quote");
+});
+
+test("skips overlay text that changes the words", () => {
+  const reworded = new Map([[excerptHash(ORIGINAL), { ...overlay.get(excerptHash(ORIGINAL)), text_linebroken: "The river does not ask\npermission to bend." }]]);
+  assert.equal(planLinebreakUpdate({ excerpt: ORIGINAL }, reworded).reason, "words_changed");
 });
