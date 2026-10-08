@@ -134,7 +134,8 @@
           <option value="negative">3+ No reviews</option>
           <option value="strong">2+ initial Yes votes</option>
           <option value="rescue">Exactly 1 initial Yes vote</option>
-          <option value="champion">Finalist: Champion</option>
+          <option value="champion">Finalist: 1+ Champion vote</option>
+          <option value="champion-double">Finalist: 2+ Champion votes</option>
           <option value="possible">Finalist: Possible</option>
           <option value="instagram">By Instagram handle</option>
           <option value="active">All active submissions</option>
@@ -365,6 +366,7 @@
         if (view === "instagram" || view === "active") return true;
         if (view === "strong") return row.reviewCount >= 3 && row.initialYesCount >= 2;
         if (view === "rescue") return row.reviewCount >= 3 && row.initialYesCount === 1;
+        if (view === "champion-double") return row.finalistReads?.filter((read) => read.decision === "champion").length >= 2;
         if (view === "champion" || view === "possible") return row.finalistReads?.some((read) => read.decision === view);
         if (row.reviewCount < 3) return false;
         if (view === "positive") return row.reviewers.filter((review) => review.decision === "yes").length >= 3;
@@ -372,6 +374,8 @@
         return true;
       });
       if (view === "instagram") matching.sort((a, b) => (a.instagramHandle || "\uffff").localeCompare(b.instagramHandle || "\uffff") || a.title.localeCompare(b.title));
+      if (view === "champion" || view === "champion-double") matching.sort((a, b) =>
+        b.finalistReads.filter((read) => read.decision === "champion").length - a.finalistReads.filter((read) => read.decision === "champion").length || a.title.localeCompare(b.title));
       return matching;
     }
 
@@ -380,10 +384,15 @@
       if (!report) return;
       const view = document.getElementById("outcome-view").value;
       const matching = filteredOutcomeRows();
-      document.getElementById("outcome-count").textContent = matching.length + " matching submissions";
+      const championCounts = matching.map((row) => row.finalistReads?.filter((read) => read.decision === "champion").length || 0);
+      document.getElementById("outcome-count").textContent = view === "champion"
+        ? matching.length + " poems with Champion votes (" + championCounts.reduce((sum, count) => sum + count, 0) + " votes total); " + championCounts.filter((count) => count >= 2).length + " poems have 2+ Champion votes."
+        : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching submissions";
       document.getElementById("outcome-results").innerHTML = matching.length
         ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th>Actions</th></tr></thead><tbody>' +
-          matching.map((row) => '<tr><td>' + escapeHtml(row.title) + '</td><td>' +
+          matching.map((row) => '<tr><td>' + escapeHtml(row.title) +
+            ((view === "champion" || view === "champion-double") ? '<br><strong>' + row.finalistReads.filter((read) => read.decision === "champion").length + ' Champion vote' + (row.finalistReads.filter((read) => read.decision === "champion").length === 1 ? '' : 's') + '</strong>' : '') +
+            '</td><td>' +
             escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ") || "—") +
             (row.finalistReads?.length ? '<br><small>Finalist: ' + escapeHtml(row.finalistReads.map((read) => read.decision || "waiting").join(", ")) + '</small>' : '') +
             ' <small>(' + row.reviewCount + ' / ' + row.requiredReviewCount + ')</small></td><td>' +
