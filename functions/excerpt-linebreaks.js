@@ -47,8 +47,74 @@ export function linebreakRejection(current, linebroken) {
   return "";
 }
 
+function lookupTokens(value) {
+  const normalized = normalizeLookupText(value);
+  return normalized ? normalized.split(" ") : [];
+}
+
+// Lay the current excerpt's own words out on the line-broken text's lines, so only the layout changes.
+// Words the excerpt has beyond the matched span (a trailing design note, say) stay on the first or last line.
+// Returns "" when the two texts' words can't be lined up.
+export function projectBreaksOntoText(current, linebroken) {
+  const words = String(current || "").split(/\s+/).filter((word) => word && word !== "/");
+  const counts = words.map((word) => lookupTokens(word).length);
+  const flat = words.flatMap((word) => lookupTokens(word));
+  const lines = String(linebroken || "").split("\n").map((line) => ({ blank: !line.trim(), size: lookupTokens(line).length }));
+  const target = lookupTokens(linebroken);
+  if (!target.length) return "";
+
+  // Find the matched span inside the current words, allowing extra words before and after it.
+  let offset = -1;
+  for (let i = 0; i + target.length <= flat.length && offset < 0; i += 1) {
+    if (target.every((token, j) => flat[i + j] === token)) offset = i;
+  }
+  if (offset < 0) return "";
+
+  let wordIndex = 0;
+  let seen = 0;
+  const lead = [];
+  while (wordIndex < words.length && seen + counts[wordIndex] <= offset && (seen < offset || !counts[wordIndex])) {
+    lead.push(words[wordIndex]);
+    seen += counts[wordIndex];
+    wordIndex += 1;
+  }
+  if (seen !== offset) return "";
+
+  const out = [];
+  for (const line of lines) {
+    if (line.blank) {
+      out.push([]);
+      continue;
+    }
+    const lineWords = [];
+    let size = 0;
+    while (wordIndex < words.length && size < line.size) {
+      lineWords.push(words[wordIndex]);
+      size += counts[wordIndex];
+      wordIndex += 1;
+    }
+    if (size !== line.size) return "";
+    // Punctuation-only words ("—", "...") stay with the line they follow.
+    while (wordIndex < words.length && !counts[wordIndex] && wordIndex < words.length - 1) {
+      lineWords.push(words[wordIndex]);
+      wordIndex += 1;
+    }
+    out.push(lineWords);
+  }
+  const textLines = out.filter((line) => line.length);
+  if (!textLines.length) return "";
+  textLines[0].unshift(...lead);
+  textLines[textLines.length - 1].push(...words.slice(wordIndex));
+
+  let text = out.map((line) => line.join(" ")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  // Drop quote marks that wrap the whole excerpt, as the book text does.
+  const wrapped = text.match(/^["“]([\s\S]*)["”]$/);
+  if (wrapped && !/["“”]/.test(wrapped[1])) text = wrapped[1].trim();
+  return text;
+}
+
 // Decide what to do with one EXC document given an overlay index keyed by excerpt hash.
-export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"] } = {}) {
+export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], ownWords = false } = {}) {
   const current = String(data.excerpt || "");
   if (!current.trim()) return { action: "skip", reason: "no_excerpt" };
   if (data.linebreakSource && data.excerptOriginal) return { action: "skip", reason: "already_applied" };
@@ -62,16 +128,32 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"] } = 
   if (excerptHash(entry.text_original) !== currentHash) return { action: "skip", reason: "text_changed_since_overlay" };
   if (lineCount(entry.text_linebroken) <= lineCount(current)) return { action: "skip", reason: "no_gain" };
   // Only add line breaks and drop wrapping quotes; anything that would change the words waits for review.
-  const rejection = linebreakRejection(current, entry.text_linebroken);
-  if (rejection) return { action: "skip", reason: rejection };
+  let excerpt = entry.text_linebroken;
+  let source = entry.status.startsWith("exact") ? "book_exact" : "book_projected";
+  const rejection = linebreakRejection(current, excerpt);
+  const bookRejection = rejection === "words_changed" && normalizeLookupText(current) === normalizeLookupText(excerpt)
+    ? linebreakRejection(excerpt, excerpt)
+    : "skip";
+  if (rejection && !bookRejection) {
+    // Same words, different punctuation or capitals: defer to the book's text.
+    source = "book_punctuation";
+  } else if (rejection) {
+    // Optionally lay the excerpt's own words out on the book's lines.
+    const projected = ownWords ? projectBreaksOntoText(current, excerpt) : "";
+    if (!projected || linebreakRejection(current, projected) || lineCount(projected) <= lineCount(current)) {
+      return { action: "skip", reason: rejection };
+    }
+    excerpt = projected;
+    source = "book_lines_own_words";
+  }
 
   return {
     action: "update",
     hash: currentHash,
     fields: {
       excerptOriginal: current,
-      excerpt: entry.text_linebroken,
-      linebreakSource: entry.status.startsWith("exact") ? "book_exact" : "book_projected",
+      excerpt,
+      linebreakSource: source,
       linebreakConfidence: entry.ratio,
       linebreakCatalogPoemId: entry.catalog_poem_id,
     },

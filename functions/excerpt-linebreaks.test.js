@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { excerptHash, linebreakRejection, normalizeLookupText, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
+import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
 
 // Expected values produced by Weaver's excerpt_library.normalize_lookup_text / fingerprint_excerpt.
 const WEAVER_FIXTURES = [
@@ -99,6 +99,32 @@ test("accepts only pure layout changes", () => {
 });
 
 test("skips overlay text that changes the words", () => {
+  const reworded = new Map([[excerptHash(ORIGINAL), { ...overlay.get(excerptHash(ORIGINAL)), text_linebroken: "The river does not ask\npermission to bend." }]]);
+  assert.equal(planLinebreakUpdate({ excerpt: ORIGINAL }, reworded).reason, "words_changed");
+});
+
+test("lays the excerpt's own words out on the book's lines", () => {
+  assert.equal(projectBreaksOntoText("\u201cone two -- three four.\u201d", "one two \u2014\nthree four"), "one two --\nthree four.");
+  assert.equal(projectBreaksOntoText("\"one two three four\" - Wood BG", "one two\nthree four"), "\"one two\nthree four\" - Wood BG");
+  assert.equal(projectBreaksOntoText("one two / three four", "one two\n\nthree four"), "one two\n\nthree four");
+  assert.equal(projectBreaksOntoText("one two three", "one two\nfour"), "");
+});
+
+test("lays out the excerpt's own words only when asked", () => {
+  const noted = "\"The river doesn't ask permission to bend.\" - Wood BG";
+  const map = new Map([[excerptHash(noted), { ...overlay.get(excerptHash(ORIGINAL)), text_original: noted, text_linebroken: "The river doesn't ask\npermission to bend." }]]);
+  assert.equal(planLinebreakUpdate({ excerpt: noted }, map).reason, "words_changed");
+  const plan = planLinebreakUpdate({ excerpt: noted }, map, { ownWords: true });
+  assert.equal(plan.fields.excerpt, "\"The river doesn't ask\npermission to bend.\" - Wood BG");
+  assert.equal(plan.fields.linebreakSource, "book_lines_own_words");
+});
+
+test("defers to the book's punctuation when the words are the same", () => {
+  const book = "The river doesn’t ask —\npermission to bend";
+  const punct = new Map([[excerptHash(ORIGINAL), { ...overlay.get(excerptHash(ORIGINAL)), text_linebroken: book }]]);
+  const plan = planLinebreakUpdate({ excerpt: ORIGINAL }, punct);
+  assert.equal(plan.fields.excerpt, book);
+  assert.equal(plan.fields.linebreakSource, "book_punctuation");
   const reworded = new Map([[excerptHash(ORIGINAL), { ...overlay.get(excerptHash(ORIGINAL)), text_linebroken: "The river does not ask\npermission to bend." }]]);
   assert.equal(planLinebreakUpdate({ excerpt: ORIGINAL }, reworded).reason, "words_changed");
 });

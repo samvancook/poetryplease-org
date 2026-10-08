@@ -3,6 +3,7 @@
 //   node backfill_excerpt_linebreaks.js --overlay <file.jsonl>                    coverage report + dry run (no writes)
 //   node backfill_excerpt_linebreaks.js --overlay <file.jsonl> --apply --limit 50 write the first 50 planned updates
 //   node backfill_excerpt_linebreaks.js --undo --apply                            restore excerptOriginal everywhere
+//   ... --tiers auto,review --only book_punctuation                              only rows whose punctuation follows the book
 //   node backfill_excerpt_linebreaks.js --refresh-feed                            only mark the app's content feed stale
 //
 // Every apply writes a JSON backup of the touched documents before committing.
@@ -21,6 +22,8 @@ const apply = process.argv.includes("--apply");
 const undo = process.argv.includes("--undo");
 const limit = Number(argValue("--limit") || 0);
 const tiers = (argValue("--tiers") || "auto").split(",");
+const only = argValue("--only") ? argValue("--only").split(",") : null;
+const ownWords = process.argv.includes("--own-words");
 
 function loadOverlay(path) {
   const byHash = new Map();
@@ -63,7 +66,10 @@ async function main() {
 
   const reasons = {};
   let planned = docs
-    .map((entry) => ({ ...entry, plan: undo ? planLinebreakUndo(entry.data) : planLinebreakUpdate(entry.data, overlay.byHash, { tiers }) }))
+    .map((entry) => ({ ...entry, plan: undo ? planLinebreakUndo(entry.data) : planLinebreakUpdate(entry.data, overlay.byHash, { tiers, ownWords }) }))
+    .map((entry) => (only && entry.plan.action === "update" && !only.includes(entry.plan.fields.linebreakSource)
+      ? { ...entry, plan: { action: "skip", reason: `source_${entry.plan.fields.linebreakSource}` } }
+      : entry))
     .filter((entry) => {
       if (entry.plan.action === "skip") reasons[entry.plan.reason] = (reasons[entry.plan.reason] || 0) + 1;
       return entry.plan.action !== "skip";
