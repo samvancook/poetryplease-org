@@ -3790,7 +3790,7 @@ function renderItemMedia(item) {
     const mobileUi = window.__PP_FORCE_MOBILE || document.body?.dataset.ui === 'mobile';
     if (mobileUi) {
       box.style.position = 'relative';
-      row.style.cssText = 'position:absolute;top:12px;right:12px;z-index:2;margin:0;';
+      row.style.cssText = 'position:absolute;top:12px;right:12px;z-index:2;width:44px;height:44px;margin:0;';
       button.style.cssText = 'display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #ddd;border-radius:50%;background:rgba(255,255,255,.94);color:#111;box-shadow:0 2px 8px rgba(0,0,0,.2);touch-action:manipulation;cursor:pointer;';
       button.innerHTML = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg>';
     } else {
