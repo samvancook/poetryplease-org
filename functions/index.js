@@ -15,7 +15,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
-import { buildAuthorInviteMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
+import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -54,6 +54,7 @@ const COLLECTIONS = {
   contestSpotChecks: "contestSpotChecks",
   contestReviewBulkActions: "contestReviewBulkActions",
   contestFinalistReads: "contestFinalistReads",
+  contestAssignmentNotices: "contestAssignmentNotices",
   importJobs: "importJobs",
   importJobItems: "importJobItems",
   systemState: "systemState",
@@ -9323,6 +9324,11 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
       && normalizeKey(record.author) === normalizeKey(requestedAuthorName))?.author || ""
     : "";
   if (requestedAuthorName && !authorName) return res.status(400).json({ error: "unknown_author" });
+  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
+    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
+  const requestedBookTitle = normalizeText(req.body?.bookTitle || "");
+  const bookTitle = authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requestedBookTitle))?.title || "";
+  if (requestedBookTitle && !bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
   const token = randomBytes(24).toString("hex");
   const inviteRef = db.collection(COLLECTIONS.authorInvites).doc();
   const expiresInDays = Math.max(1, Number(req.body?.expiresInDays || 14));
@@ -9331,6 +9337,7 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
   await inviteRef.set({
     email,
     authorName,
+    bookTitle,
     createdBy: ctx.decoded.uid,
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,
@@ -9346,6 +9353,7 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
     inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
     email,
     authorName,
+    bookTitle,
     expiresAt: expiresAt.toISOString(),
   });
 });
@@ -9392,7 +9400,7 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   });
   let delivery;
   try {
-    delivery = await sendAuthorInviteWithMandrill({ apiKey, email: AUTHOR_INVITE_TEST_EMAIL, message });
+    delivery = await sendAuthorInviteWithMandrill({ apiKey, email: AUTHOR_INVITE_TEST_EMAIL, message, tag: "poetry-please-author-invite-test" });
   } catch (error) {
     await inviteRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return res.status(502).json({ error: "author_invite_test_send_unconfirmed" });
@@ -9403,6 +9411,60 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
     deliveryUpdatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
   res.json({ ok: true, inviteId: inviteRef.id, email: AUTHOR_INVITE_TEST_EMAIL, delivery });
+});
+
+app.post(getBoth("/admin/authorInvites/:inviteId/send"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
+  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc(normalizeText(req.params.inviteId));
+  const snap = await inviteRef.get();
+  if (!snap.exists) return res.status(404).json({ error: "invite_not_found" });
+  const invite = snap.data() || {};
+  if (invite.testOnly || invite.status === "claimed" || normalizeText(invite.claimedByUserId)) {
+    return res.status(409).json({ error: "invite_not_sendable" });
+  }
+  const email = normalizeText(invite.email || "").toLowerCase();
+  const authorName = normalizeText(invite.authorName || "");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !authorName) {
+    return res.status(400).json({ error: "invite_needs_author_and_email" });
+  }
+  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
+    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
+  const requestedBookTitle = normalizeText(req.body?.bookTitle || invite.bookTitle || "");
+  const bookTitle = authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requestedBookTitle))?.title
+    || (!requestedBookTitle && authorBooks.length === 1 ? authorBooks[0].title : "");
+  if (!bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const reserved = await db.runTransaction(async (transaction) => {
+    const current = (await transaction.get(inviteRef)).data() || {};
+    if (current.testOnly || current.status === "claimed" || normalizeText(current.claimedByUserId) ||
+        ["sending", "sent", "uncertain"].includes(current.deliveryStatus)) return false;
+    transaction.set(inviteRef, {
+      bookTitle, tokenHash: sha256(token), expiresAt, status: "active",
+      deliveryStatus: "sending", deliveryUpdatedAt: FieldValue.serverTimestamp(),
+      sentBy: ctx.decoded.uid,
+    }, { merge: true });
+    return true;
+  });
+  if (!reserved) return res.status(409).json({ error: "invite_already_sent_or_in_progress" });
+  const message = buildAuthorInviteMessage({
+    name: authorName.split(/\s+/)[0], email, bookTitle,
+    helpUrl: `https://buttonpoetry.com/poetryplease/author-help/?book=${encodeURIComponent(bookTitle)}`,
+    inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
+    expiresAt: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(expiresAt),
+  });
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email, message });
+    await inviteRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.json({ ok: true, inviteId: inviteRef.id, email, bookTitle, delivery });
+  } catch (error) {
+    await inviteRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.status(502).json({ error: "author_invite_send_unconfirmed" });
+  }
 });
 
 app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) => {
@@ -9418,6 +9480,9 @@ app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) 
   if (invite.testOnly) return res.status(409).json({ error: "test_invite_not_regeneratable" });
   if (invite.status === "claimed" || normalizeText(invite.claimedByUserId)) {
     return res.status(409).json({ error: "invite_already_claimed" });
+  }
+  if (["sending", "sent", "uncertain"].includes(invite.deliveryStatus)) {
+    return res.status(409).json({ error: "sent_invite_cannot_be_regenerated" });
   }
 
   const token = randomBytes(24).toString("hex");
@@ -9773,8 +9838,16 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     return aName.localeCompare(bName, undefined, { sensitivity: "base" });
   });
 
+  const authorBooks = {};
+  for (const record of BOOK_CATALOG_LOOKUP_ROWS) {
+    if (normalizeKey(record.entityType || "book") !== "book" || !record.author || !record.title) continue;
+    authorBooks[record.author] ||= [];
+    if (!authorBooks[record.author].includes(record.title)) authorBooks[record.author].push(record.title);
+  }
+
   res.json({
     ok: true,
+    authorBooks,
     summary: {
       total: rows.length,
       previewReady: rows.filter((row) => row.status === "preview ready").length,
@@ -10136,6 +10209,51 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     reviewers: Array.from(reviewerProgress.values()).sort((a, b) => a.email.localeCompare(b.email)),
     submissions: rows,
   });
+});
+
+app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  const view = normalizeKey(req.body?.view || "");
+  if (!programId || !/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail) || !["assigned", "spotcheck", "finalist"].includes(view)) {
+    return res.status(400).json({ error: "invalid_contest_notice_request" });
+  }
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const collection = view === "spotcheck" ? COLLECTIONS.contestSpotChecks
+    : view === "finalist" ? COLLECTIONS.contestFinalistReads : COLLECTIONS.contestReviewAssignments;
+  const snap = await db.collection(collection).where("programId", "==", programId).get();
+  const ids = [...new Set(snap.docs.filter((doc) => normalizeText(doc.data()?.reviewerEmail || "").toLowerCase() === reviewerEmail)
+    .flatMap((doc) => view === "spotcheck" ? doc.data()?.sampleIds || []
+      : view === "finalist" ? [doc.id] : doc.data()?.submissionIds || []))].sort();
+  if (!ids.length) return res.status(409).json({ error: "no_committed_assignment_for_reviewer" });
+  const fingerprint = createHash("sha256").update(JSON.stringify([programId, reviewerEmail, view, ids])).digest("hex");
+  const noticeRef = db.collection(COLLECTIONS.contestAssignmentNotices).doc(fingerprint);
+  const reserved = await db.runTransaction(async (transaction) => {
+    const prior = (await transaction.get(noticeRef)).data() || {};
+    if (["sending", "sent", "uncertain"].includes(prior.deliveryStatus)) return false;
+    transaction.set(noticeRef, { programId, reviewerEmail, view, assignmentIds: ids,
+      deliveryStatus: "sending", deliveryUpdatedAt: FieldValue.serverTimestamp(), sentBy: ctx.decoded.uid });
+    return true;
+  });
+  if (!reserved) return res.status(409).json({ error: "contest_notice_already_attempted" });
+  const reviewUrl = `https://poetryplease.org/contest-review.html?program=${encodeURIComponent(programId)}&view=${view}`;
+  const message = buildContestAssignmentMessage({
+    programName: normalizeText(programSnap.data()?.name || programSnap.data()?.title || programId), view, reviewUrl,
+  });
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment" });
+    await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.json({ ok: true, reviewerEmail, view, reviewUrl, assignmentCount: ids.length, delivery });
+  } catch (error) {
+    await noticeRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.status(502).json({ error: "contest_notice_send_unconfirmed" });
+  }
 });
 
 app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
