@@ -9366,7 +9366,7 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
 
   // A stable record prevents retries from creating a second invite identity.
-  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc("mandrill-test-sam");
+  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc("mandrill-test-sam-v2");
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
   const inviteUrl = `https://poetryplease.org/app?authorInvite=${token}`;
@@ -9394,6 +9394,8 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   const message = buildAuthorInviteMessage({
     name: "Sam",
     email: AUTHOR_INVITE_TEST_EMAIL,
+    bookTitle: "Roads",
+    helpUrl: "https://buttonpoetry.com/poetryplease/author-help/?book=Roads",
     inviteUrl,
     expiresAt: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(expiresAt),
     testOnly: true,
