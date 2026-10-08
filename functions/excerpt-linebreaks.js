@@ -44,6 +44,8 @@ export function linebreakRejection(current, linebroken) {
   const closes = (linebroken.match(/\u201d/g) || []).length;
   if (straight % 2 || opens !== closes) return "unbalanced_quotes";
   if (/^\s*[\u201d]|[\u201c]\s*$/m.test(linebroken)) return "stranded_quote";
+  // An opening quote or bracket left at the end of a line, or a closing bracket starting one.
+  if (/(^|\s)["'\u2018\u201c(\[]$/m.test(linebroken) || /\n\s*[)\]]/.test(linebroken)) return "stranded_quote";
   return "";
 }
 
