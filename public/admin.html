@@ -983,6 +983,9 @@
     const state = {
       me: null,
       users: [],
+      exactUserResults: null,
+      userSearchRequestId: 0,
+      userSearchTimer: null,
       query: "",
       roleFilter: "all",
       statusFilter: "all",
@@ -1249,7 +1252,7 @@
 
     function filteredUsers() {
       const q = state.query.trim().toLowerCase();
-      const filtered = state.users.filter((user) => {
+      const filtered = (state.exactUserResults || state.users).filter((user) => {
         const haystack = [
           user.email,
           user.displayName,
@@ -1523,6 +1526,19 @@
       } catch (err) {
         console.error(err);
         setStatus(err.message || "Failed to remove access.", true);
+      }
+    }
+
+    async function lookupUserEmail(email, requestId) {
+      try {
+        const payload = await api("admin/users?q=" + encodeURIComponent(email), { method: "GET" });
+        if (requestId !== state.userSearchRequestId || state.query.trim().toLowerCase() !== email) return;
+        state.exactUserResults = payload.users || [];
+        renderUsers();
+        setStatus(state.exactUserResults.length ? "Found account for " + email + "." : "No account found for " + email + ".");
+      } catch (err) {
+        if (requestId !== state.userSearchRequestId) return;
+        setStatus("Could not search accounts: " + err.message, true);
       }
     }
 
@@ -4950,7 +4966,16 @@
 
       document.getElementById("search").addEventListener("input", (event) => {
         state.query = event.target.value || "";
+        state.exactUserResults = null;
+        state.userSearchRequestId += 1;
+        clearTimeout(state.userSearchTimer);
         renderUsers();
+        const email = state.query.trim().toLowerCase();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          const requestId = state.userSearchRequestId;
+          setStatus("Searching all accounts for " + email + "…");
+          state.userSearchTimer = setTimeout(() => lookupUserEmail(email, requestId), 250);
+        }
       });
       document.getElementById("role-filter").addEventListener("change", (event) => {
         state.roleFilter = event.target.value || "all";
