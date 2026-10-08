@@ -4,6 +4,7 @@
 //   node backfill_excerpt_linebreaks.js --overlay <file.jsonl> --apply --limit 50 write the first 50 planned updates
 //   node backfill_excerpt_linebreaks.js --undo --apply                            restore excerptOriginal everywhere
 //   ... --tiers auto,review --only book_punctuation                              only rows whose punctuation follows the book
+//   ... --ids ID1,ID2                                                             limit any run, including --undo, to these documents
 //   node backfill_excerpt_linebreaks.js --refresh-feed                            only mark the app's content feed stale
 //
 // Every apply writes a JSON backup of the touched documents before committing.
@@ -24,6 +25,7 @@ const limit = Number(argValue("--limit") || 0);
 const tiers = (argValue("--tiers") || "auto").split(",");
 const only = argValue("--only") ? argValue("--only").split(",") : null;
 const ownWords = process.argv.includes("--own-words");
+const ids = argValue("--ids") ? new Set(argValue("--ids").split(",")) : null;
 
 function loadOverlay(path) {
   const byHash = new Map();
@@ -62,7 +64,8 @@ async function main() {
   const snap = await db.collection("excerpts").get();
   const docs = snap.docs
     .map((doc) => ({ doc, data: doc.data() || {} }))
-    .filter(({ data }) => String(data.imageType || "EXC").toUpperCase() === "EXC");
+    .filter(({ data }) => String(data.imageType || "EXC").toUpperCase() === "EXC")
+    .filter(({ doc }) => !ids || ids.has(doc.id));
 
   const reasons = {};
   let planned = docs
