@@ -243,6 +243,84 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   };
 }
 
+// Catalog poem text as lookup tokens, each with the character span of the word it came from.
+function tokenSpans(text) {
+  const tokens = [];
+  const spans = [];
+  for (const match of String(text || "").matchAll(/[\p{L}\p{N}]+(?:['\u2019][\p{L}\p{N}]+)*/gu)) {
+    for (const token of lookupTokens(match[0])) {
+      tokens.push(token);
+      spans.push([match.index, match.index + match[0].length]);
+    }
+  }
+  return { tokens, spans };
+}
+
+// Catalog poems ({ id, title, book, text }) prepared for planEllipsisFill.
+export function indexPoems(poems) {
+  return poems.map((poem) => ({ ...poem, ...tokenSpans(poem.text) }));
+}
+
+function findRun(tokens, run, from = 0) {
+  for (let i = from; i + run.length <= tokens.length; i += 1) {
+    if (run.every((token, j) => tokens[i + j] === token)) return i;
+  }
+  return -1;
+}
+
+const MIDDLE_ELLIPSIS = /\s*(?:\.\s?\.\s?\.+|\u2026)\s*/;
+
+// Excerpts stored as "first words...last words" mark where a passage starts and ends.
+// Fill the gap with the book's passage, line breaks included, when both ends are found in order in exactly one place.
+export function planEllipsisFill(data, indexedPoems, { minEndTokens = 3 } = {}) {
+  const current = String(data.excerpt || "");
+  if (!current.trim()) return { action: "skip", reason: "no_excerpt" };
+  if (data.linebreakSource && data.excerptOriginal) return { action: "skip", reason: "already_applied" };
+  if (current.includes("\n")) return { action: "skip", reason: "has_line_breaks" };
+  const { note } = splitProductionNote(current);
+  const parts = stripNoteAndQuotes(current).split(MIDDLE_ELLIPSIS);
+  if (parts.length !== 2 || !lookupTokens(parts[0]).length || !lookupTokens(parts[1]).length) {
+    return { action: "skip", reason: "no_middle_ellipsis" };
+  }
+  const [head, tail] = parts.map(lookupTokens);
+  if (head.length < minEndTokens || tail.length < minEndTokens) return { action: "skip", reason: "end_too_short" };
+
+  const found = new Map();
+  for (const poem of indexedPoems) {
+    // Pair each start with the nearest end after it; a repeated opening line pairs with its last repeat.
+    const pairs = new Map();
+    for (let start = findRun(poem.tokens, head); start >= 0; start = findRun(poem.tokens, head, start + 1)) {
+      const end = findRun(poem.tokens, tail, start + head.length);
+      if (end >= 0) pairs.set(end, start);
+    }
+    for (const [end, start] of pairs) {
+      let to = poem.spans[end + tail.length - 1][1];
+      // Keep the punctuation that closes the last word on its line.
+      to += (poem.text.slice(to).match(/^[^\w\s]*/) || [""])[0].length;
+      const text = poem.text.slice(poem.spans[start][0], to).replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+      // The same passage in two editions of a book counts as one place.
+      const key = text.split("\n").map((line) => lookupTokens(line).join(" ")).filter(Boolean).join("\n");
+      if (!found.has(key)) found.set(key, { text, poem });
+    }
+  }
+  if (!found.size) return { action: "skip", reason: "ends_not_found" };
+  if (found.size > 1) return { action: "skip", reason: "ambiguous" };
+  const [{ text: excerpt, poem }] = found.values();
+  if (lineCount(excerpt) < 2) return { action: "skip", reason: "no_gain" };
+  return {
+    action: "update",
+    hash: excerptHash(current),
+    fields: {
+      excerptOriginal: current,
+      excerpt,
+      linebreakSource: "book_filled",
+      linebreakConfidence: 1,
+      linebreakCatalogPoemId: poem.id,
+      ...(note ? { excerptNote: note } : {}),
+    },
+  };
+}
+
 export function planLinebreakUndo(data) {
   if (!data.linebreakSource || !String(data.excerptOriginal || "").trim()) return { action: "skip", reason: "not_applied" };
   return { action: "undo", fields: { excerpt: data.excerptOriginal } };

@@ -6,13 +6,14 @@
 //   ... --tiers auto,review --only book_punctuation                              only rows whose punctuation follows the book
 //   ... --tiers review --min-ratio 0.85                                          stronger weaker matches only
 //   ... --ids ID1,ID2                                                             limit any run, including --undo, to these documents
+//   node backfill_excerpt_linebreaks.js --fill-ellipsis --poems <poems.jsonl>   fill "start...end" excerpts from the book
 //   node backfill_excerpt_linebreaks.js --refresh-feed                            only mark the app's content feed stale
 //
 // Every apply writes a JSON backup of the touched documents before committing.
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { readFileSync, writeFileSync } from "node:fs";
-import { excerptHash, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
+import { excerptHash, indexPoems, planEllipsisFill, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
 
 function argValue(name) {
   const idx = process.argv.indexOf(name);
@@ -27,6 +28,8 @@ const tiers = (argValue("--tiers") || "auto").split(",");
 const only = argValue("--only") ? argValue("--only").split(",") : null;
 const ownWords = process.argv.includes("--own-words");
 const minRatio = Number(argValue("--min-ratio") || 0);
+const fillEllipsis = process.argv.includes("--fill-ellipsis");
+const poemsPath = argValue("--poems");
 const ids = argValue("--ids") ? new Set(argValue("--ids").split(",")) : null;
 
 function loadOverlay(path) {
@@ -58,10 +61,19 @@ async function main() {
     console.log(JSON.stringify({ contentFeedInvalidated: true }));
     return;
   }
-  if (!undo && !overlayPath) throw new Error("--overlay is required unless --undo");
+  if (fillEllipsis && !poemsPath) throw new Error("--fill-ellipsis needs --poems (export_poems.py output)");
+  if (!undo && !fillEllipsis && !overlayPath) throw new Error("--overlay is required unless --undo or --fill-ellipsis");
   initializeApp();
   const db = getFirestore(undefined, "poetrypleasedatabase");
-  const overlay = undo ? null : loadOverlay(overlayPath);
+  const overlay = undo || fillEllipsis ? null : loadOverlay(overlayPath);
+  const poems = fillEllipsis
+    ? indexPoems(readFileSync(poemsPath, "utf8").split("\n").filter((line) => line.trim()).map((line) => JSON.parse(line)))
+    : null;
+  const planFor = (data) => {
+    if (undo) return planLinebreakUndo(data);
+    if (fillEllipsis) return planEllipsisFill(data, poems);
+    return planLinebreakUpdate(data, overlay.byHash, { tiers, ownWords, minRatio });
+  };
 
   const snap = await db.collection("excerpts").get();
   const docs = snap.docs
@@ -71,7 +83,7 @@ async function main() {
 
   const reasons = {};
   let planned = docs
-    .map((entry) => ({ ...entry, plan: undo ? planLinebreakUndo(entry.data) : planLinebreakUpdate(entry.data, overlay.byHash, { tiers, ownWords, minRatio }) }))
+    .map((entry) => ({ ...entry, plan: planFor(entry.data) }))
     .map((entry) => (only && entry.plan.action === "update" && !only.includes(entry.plan.fields.linebreakSource)
       ? { ...entry, plan: { action: "skip", reason: `source_${entry.plan.fields.linebreakSource}` } }
       : entry))
@@ -83,7 +95,7 @@ async function main() {
 
   const report = {
     mode: apply ? "apply" : "dry-run",
-    operation: undo ? "undo" : "backfill",
+    operation: undo ? "undo" : fillEllipsis ? "fill-ellipsis" : "backfill",
     excDocuments: docs.length,
     planned: planned.length,
     skipped: reasons,
@@ -109,7 +121,7 @@ async function main() {
           linebreakOverlayVersion: FieldValue.delete(),
           excerptNote: FieldValue.delete(),
         });
-      } else {
+      } else if (overlay) {
         fields.linebreakOverlayVersion = overlay.version;
       }
       batch.update(doc.ref, fields);

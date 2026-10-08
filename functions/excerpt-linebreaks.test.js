@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, reattachOpeningMarks, runOnLine, splitProductionNote, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
+import { excerptHash, indexPoems, planEllipsisFill, linebreakRejection, normalizeLookupText, projectBreaksOntoText, reattachOpeningMarks, runOnLine, splitProductionNote, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
 
 // Expected values produced by Weaver's excerpt_library.normalize_lookup_text / fingerprint_excerpt.
 const WEAVER_FIXTURES = [
@@ -202,4 +202,29 @@ test("keeps inner dialogue quotes and drops a slash at a line break", () => {
   const slashed = "one / two / three four";
   const map2 = new Map([[excerptHash(slashed), { ...overlay.get(excerptHash(ORIGINAL)), text_original: slashed, text_linebroken: "one / two /\nthree four", text_book: "one / two\nthree four" }]]);
   assert.equal(planLinebreakUpdate({ excerpt: slashed }, map2).fields.excerpt, "one / two\nthree four");
+});
+
+test("planEllipsisFill fills a start...end excerpt with the book passage", () => {
+  const poems = indexPoems([
+    { id: 7, text: "I tightrope to the bathroom\natop a poor decision of stilts\nand fall right off.\nThe end." },
+    { id: 8, text: "a different poem\nabout nothing" },
+  ]);
+  const plan = planEllipsisFill({ excerpt: "“I tightrope to the bathroom...and fall right off” [FB]" }, poems);
+  assert.equal(plan.action, "update");
+  assert.equal(plan.fields.excerpt, "I tightrope to the bathroom\natop a poor decision of stilts\nand fall right off.");
+  assert.equal(plan.fields.linebreakSource, "book_filled");
+  assert.equal(plan.fields.linebreakCatalogPoemId, 7);
+  assert.equal(plan.fields.excerptNote, "[FB]");
+  assert.match(plan.fields.excerptOriginal, /\.\.\./);
+});
+
+test("planEllipsisFill skips trailing ellipses, short ends and passages found in two places", () => {
+  const poems = indexPoems([
+    { id: 1, text: "we come to you in fear\nsand and stone\nwelcome us home" },
+    { id: 2, text: "we come to you in fear\nwater and salt\nwelcome us home" },
+  ]);
+  assert.equal(planEllipsisFill({ excerpt: "we come to you in fear..." }, poems).reason, "no_middle_ellipsis");
+  assert.equal(planEllipsisFill({ excerpt: "we come...us home" }, poems).reason, "end_too_short");
+  assert.equal(planEllipsisFill({ excerpt: "we come to you in fear...welcome us home" }, poems).reason, "ambiguous");
+  assert.equal(planEllipsisFill({ excerpt: "we come to you in fear...welcome us home" }, poems.slice(0, 1)).action, "update");
 });
