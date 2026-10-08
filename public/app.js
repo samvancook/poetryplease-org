@@ -1546,6 +1546,7 @@ async function getOrCreateAnonId() {
     overflow-wrap: anywhere;
   }
   .int-source-caption span { display: block; }
+  .int-source-caption-title { font-weight: 600; margin-bottom: 2px; }
   .int-source-caption .int-source-book { font-style: italic; opacity: .8; }
 
   /* Mobile: transform only the IMAGE pixels, not the UI/layout */
@@ -3759,9 +3760,15 @@ function renderItemMedia(item) {
   img.style.height = 'auto';
 
   box.appendChild(img);
-  if (item.imageType === 'INT' && (item.author || item.book)) {
+  if (item.imageType === 'INT' && (item.title || item.author || item.book)) {
     const caption = document.createElement('div');
     caption.className = 'int-source-caption';
+    if (item.title) {
+      const title = document.createElement('span');
+      title.className = 'int-source-caption-title';
+      title.textContent = item.title;
+      caption.appendChild(title);
+    }
     if (item.author) {
       const author = document.createElement('span');
       author.textContent = item.author;
