@@ -49,6 +49,12 @@ export function linebreakRejection(current, linebroken) {
   return "";
 }
 
+// Move an opening quote or bracket left alone at a line end onto the next line, beside its word.
+export function reattachOpeningMarks(value) {
+  return String(value || "").replace(/(^|[ \t])(["'\u2018\u201c(\[])[ \t]*\n[ \t]*/gm, (_, lead, mark) => `${lead ? "" : lead}\n${mark}`)
+    .replace(/^\n/, "");
+}
+
 function lookupTokens(value) {
   const normalized = normalizeLookupText(value);
   return normalized ? normalized.split(" ") : [];
@@ -130,7 +136,7 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   if (excerptHash(entry.text_original) !== currentHash) return { action: "skip", reason: "text_changed_since_overlay" };
   if (lineCount(entry.text_linebroken) <= lineCount(current)) return { action: "skip", reason: "no_gain" };
   // Only add line breaks and drop wrapping quotes; anything that would change the words waits for review.
-  let excerpt = entry.text_linebroken;
+  let excerpt = reattachOpeningMarks(entry.text_linebroken);
   let source = entry.status.startsWith("exact") ? "book_exact" : "book_projected";
   const rejection = linebreakRejection(current, excerpt);
   const bookRejection = rejection === "words_changed" && normalizeLookupText(current) === normalizeLookupText(excerpt)

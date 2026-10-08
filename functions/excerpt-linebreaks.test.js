@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
+import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, reattachOpeningMarks, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
 
 // Expected values produced by Weaver's excerpt_library.normalize_lookup_text / fingerprint_excerpt.
 const WEAVER_FIXTURES = [
@@ -133,4 +133,11 @@ test("rejects quotes and brackets stranded at a line end", () => {
   assert.equal(linebreakRejection("sob ‘\nI want to be dead’ now", "sob ‘\nI want to be dead’ now"), "stranded_quote");
   assert.equal(linebreakRejection("the sad aisle, (\nwhich would", "the sad aisle, (\nwhich would"), "stranded_quote");
   assert.equal(linebreakRejection("sob ‘I want’ now", "sob ‘I want’\nnow"), "");
+});
+
+test("moves stranded opening marks onto the next line", () => {
+  assert.equal(reattachOpeningMarks("someone sob \u2018\nI want to be dead\u2019"), "someone sob\n\u2018I want to be dead\u2019");
+  assert.equal(reattachOpeningMarks("the sad aisle, (\nwhich would"), "the sad aisle,\n(which would");
+  assert.equal(reattachOpeningMarks("to be smiling \u2018\nround pretty"), "to be smiling\n\u2018round pretty");
+  assert.equal(reattachOpeningMarks("she said \"no\"\nand left"), "she said \"no\"\nand left");
 });
