@@ -11170,8 +11170,14 @@ app.get(getBoth("/admin/users"), async (req, res) => {
   if (!ctx) return;
 
   const queryText = normalizeKey(req.query?.q || "");
+  const exactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(queryText) ? queryText : "";
   const [authUsers, voteStats] = await Promise.all([
-    listAllAuthUsers(1000),
+    exactEmail
+      ? auth.getUserByEmail(exactEmail).then((user) => [user]).catch((error) => {
+        if (error.code === "auth/user-not-found") return [];
+        throw error;
+      })
+      : listAllAuthUsers(1000),
     getVoteStatsByUserId(),
   ]);
   const synced = await Promise.all(authUsers.map((authUser) => syncUserRecordFromAuthUser(authUser)));
