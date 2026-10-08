@@ -192,7 +192,8 @@
 html, body { height: 100%; }
 body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 .wrap { 
-  min-height: 100%;
+  height: calc(100svh - 58px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
@@ -209,6 +210,8 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
 /* Center the media and let it expand to the full available height */
 #media-wrap{
   flex: 1;
+  width: 100%;
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -217,6 +220,8 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
   box-shadow: var(--shadow);
   background: #000;  /* optional: gives photos a clean frame */
 }
+#media-wrap .text-media-box { height: 100%; max-height: 100%; overflow: hidden; }
+#media-wrap .excerpt-card { max-height: 100%; overflow-y: auto; }
 
 /* Media fills the box while preserving aspect ratio */
 #media-wrap img,
@@ -330,6 +335,9 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
       #media-wrap iframe {
         pointer-events: auto !important;
       }
+      #media-wrap .asset-download-row,
+      #media-wrap .asset-download-row button,
+      #media-wrap .excerpt-card,
       #media-wrap .full-poem-scroll-shell,
       #media-wrap .full-poem-scroll-controls,
       #media-wrap .full-poem-scroll-controls button {
