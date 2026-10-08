@@ -146,6 +146,12 @@ test("splits trailing production notes", () => {
   assert.deepEqual(splitProductionNote("\"one two\" - Wood BG"), { text: "\"one two\"", note: "Wood BG" });
   assert.deepEqual(splitProductionNote("one two [FB] (video)"), { text: "one two", note: "[FB] (video)" });
   assert.deepEqual(splitProductionNote("one two"), { text: "one two", note: "" });
+  assert.deepEqual(splitProductionNote("\u201cone two...\u201d dark green BG"), { text: "\u201cone two...\u201d", note: "dark green BG" });
+  assert.deepEqual(splitProductionNote("\"one two\" green w/stars BG"), { text: "\"one two\"", note: "green w/stars BG" });
+  assert.deepEqual(splitProductionNote("\"one two\" no BG"), { text: "\"one two\"", note: "no BG" });
+  assert.deepEqual(splitProductionNote("\"one two\" - Wood BG 2"), { text: "\"one two\"", note: "Wood BG 2" });
+  assert.deepEqual(splitProductionNote("\"one two\" (video) [FB]"), { text: "\"one two\"", note: "(video) [FB]" });
+  assert.deepEqual(splitProductionNote("\"one two\" (old image)"), { text: "\"one two\"", note: "(old image)" });
 });
 
 test("takes the book's text and keeps a production note aside", () => {
@@ -155,4 +161,12 @@ test("takes the book's text and keeps a production note aside", () => {
   assert.equal(plan.fields.excerpt, "The river doesn’t ask\npermission to bend.");
   assert.equal(plan.fields.linebreakSource, "book_note_removed");
   assert.equal(plan.fields.excerptNote, "[FB]");
+});
+
+test("strips a note the line-broken text kept as well", () => {
+  const noted = "\"The river doesn't ask permission to bend...\" wood BG";
+  const map = new Map([[excerptHash(noted), { ...overlay.get(excerptHash(ORIGINAL)), text_original: noted, text_linebroken: "The river doesn't ask\npermission to bend...\" wood BG" }]]);
+  const plan = planLinebreakUpdate({ excerpt: noted }, map);
+  assert.equal(plan.fields.excerpt, "The river doesn't ask\npermission to bend...");
+  assert.equal(plan.fields.excerptNote, "wood BG");
 });

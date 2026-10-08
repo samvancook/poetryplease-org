@@ -56,7 +56,8 @@ export function reattachOpeningMarks(value) {
 }
 
 // Production notes appended to excerpt text: "[FB]", "(video)", "- Wood BG" and similar.
-const NOTE_RE = /\s*(\((?:video|pick[^)]*|fb|ig)\)|\[[^\]]*\]|\s[-\u2013\u2014]\s*[A-Z][\w ]{0,20}BG)\s*$/i;
+// A wrong strip is caught later: the remaining words must still match the book.
+const NOTE_RE = /\s*(\((?:video|old image|pick[^)]*|fb|ig)\)|\[[^\]]*\]|(?:^|\s)(?:[-\u2013\u2014]\s*)?[a-z][\w /]{0,24}\bBG(?:\s*\d+)?)\s*$/i;
 
 // Split trailing production notes off an excerpt: { text, note }.
 export function splitProductionNote(value) {
@@ -67,6 +68,17 @@ export function splitProductionNote(value) {
     text = text.slice(0, match.index).trim();
   }
   return { text, note: notes.join(" ") };
+}
+
+// The line-broken text without a trailing note, and without quote marks wrapping the whole excerpt.
+function stripNoteAndQuotes(value) {
+  const text = splitProductionNote(value).text;
+  const wrapped = text.match(/^["\u201c]([\s\S]*)["\u201d]$/);
+  if (wrapped && !/["\u201c\u201d]/.test(wrapped[1])) return wrapped[1].trim();
+  // The book text often drops the opening quote but keeps the closing one before the note.
+  const quotes = (text.match(/["\u201c\u201d]/g) || []).length;
+  if (quotes === 1) return text.replace(/^["\u201c]|["\u201d]$/g, "").trim();
+  return text;
 }
 
 function lookupTokens(value) {
@@ -161,8 +173,10 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   if (rejection && !bookRejection) {
     // Same words, different punctuation or capitals: defer to the book's text.
     source = "book_punctuation";
-  } else if (rejection && note && normalizeLookupText(withoutNote) === normalizeLookupText(excerpt) && !linebreakRejection(excerpt, excerpt)) {
+  } else if (rejection && note && normalizeLookupText(withoutNote) === normalizeLookupText(stripNoteAndQuotes(excerpt)) &&
+      !linebreakRejection(stripNoteAndQuotes(excerpt), stripNoteAndQuotes(excerpt))) {
     // Same words once a production note is set aside: take the book's text and keep the note in its own field.
+    excerpt = stripNoteAndQuotes(excerpt);
     source = "book_note_removed";
     noteField = { excerptNote: note };
   } else if (rejection) {
