@@ -176,3 +176,21 @@ test("flags run-on lines in weaker matches", () => {
   assert.equal(runOnLine("When the world crumbles\naround you, you have to look at the wreckage and a build a new one\nout of all the pieces that are still here.", book), true);
   assert.equal(runOnLine("When the world crumbles,\nyou have to build a new one\nout of all the pieces that are still here.", book), false);
 });
+
+test("keeps a poem's own slashes and drops quote leftovers the book doesn't have", () => {
+  assert.equal(linebreakRejection("there / are / many", "there / are\n/ many", "there / are\n/ many"), "");
+  assert.equal(linebreakRejection("one / two three", "one / two\nthree", "one two\nthree"), "stray_separator");
+  const merged = "\u201cone two three.\u201d four five six.\u201d";
+  const map = new Map([[excerptHash(merged), { ...overlay.get(excerptHash(ORIGINAL)), text_original: merged, text_linebroken: "one two three.\u201d\nfour five six.", text_book: "one two three\nfour five six." }]]);
+  assert.equal(planLinebreakUpdate({ excerpt: merged }, map).fields.excerpt, "one two three.\nfour five six.");
+  assert.deepEqual(splitProductionNote("\"one two\" - Watercolor 2"), { text: "\"one two\"", note: "Watercolor 2" });
+  assert.deepEqual(splitProductionNote("\u201cone two\u201d (3 of 3)"), { text: "\u201cone two\u201d", note: "(3 of 3)" });
+});
+
+test("takes a leftover note off any result", () => {
+  const noted = "\"one two three four...\" wood BG";
+  const map = new Map([[excerptHash(noted), { ...overlay.get(excerptHash(ORIGINAL)), text_original: noted, text_linebroken: "one two\nthree four...\" wood BG", text_book: "one two\nthree four" }]]);
+  const plan = planLinebreakUpdate({ excerpt: noted }, map);
+  assert.equal(plan.fields.excerpt, "one two\nthree four...");
+  assert.equal(plan.fields.excerptNote, "wood BG");
+});

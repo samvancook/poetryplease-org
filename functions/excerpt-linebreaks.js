@@ -36,9 +36,10 @@ function flatWords(value) {
 }
 
 // Why a line-broken text should not replace the current one, or "" when it is a pure layout change.
-export function linebreakRejection(current, linebroken) {
+export function linebreakRejection(current, linebroken, bookText = "") {
   if (flatWords(linebroken) !== flatWords(current)) return "words_changed";
-  if (/\s\/\s/.test(linebroken)) return "stray_separator";
+  // " / " is a separator to drop unless the poem itself uses it.
+  if (/\s\/\s/.test(linebroken) && !/\s\/(\s|$)/m.test(bookText)) return "stray_separator";
   const straight = (linebroken.match(/"/g) || []).length;
   const opens = (linebroken.match(/\u201c/g) || []).length;
   const closes = (linebroken.match(/\u201d/g) || []).length;
@@ -57,7 +58,7 @@ export function reattachOpeningMarks(value) {
 
 // Production notes appended to excerpt text: "[FB]", "(video)", "- Wood BG" and similar.
 // A wrong strip is caught later: the remaining words must still match the book.
-const NOTE_RE = /\s*(\((?:video|old image|pick[^)]*|fb|ig)\)|\[[^\]]*\]|(?:^|\s)(?:[-\u2013\u2014]\s*)?[a-z][\w /]{0,24}\bBG(?:\s*\d+)?)\s*$/i;
+const NOTE_RE = /\s*(\((?:video|old image|pick[^)]*|fb|ig)\)|\(\d+\s*of\s*\d+\)|\s[-\u2013\u2014]\s*(?:wood|watercolor)(?:\s*\d+)?|\[[^\]]*\]|(?:^|\s)(?:[-\u2013\u2014]\s*)?[a-z][\w /]{0,24}\bBG(?:\s*\d+)?)\s*$/i;
 
 // Split trailing production notes off an excerpt: { text, note }.
 export function splitProductionNote(value) {
@@ -170,11 +171,18 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   if (lineCount(entry.text_linebroken) <= lineCount(current)) return { action: "skip", reason: "no_gain" };
   if (Number(entry.ratio || 0) < minRatio) return { action: "skip", reason: "below_min_ratio" };
   // Only add line breaks and drop wrapping quotes; anything that would change the words waits for review.
+  const book = String(entry.text_book || "");
+  const rejectionFor = (a, b) => linebreakRejection(a, b, book);
   let excerpt = reattachOpeningMarks(entry.text_linebroken);
+  // Where the book passage has no double quotes, quote marks left inside the excerpt are transcription
+  // leftovers (two quotes run together, say); follow the book and drop them.
+  if (book && !/["\u201c\u201d]/.test(book) && rejectionFor(current, excerpt) === "unbalanced_quotes") {
+    excerpt = excerpt.replace(/["\u201c\u201d]/g, "").replace(/[ \t]+\n/g, "\n").replace(/[ \t]{2,}/g, " ").trim();
+  }
   let source = entry.status.startsWith("exact") ? "book_exact" : "book_projected";
-  const rejection = linebreakRejection(current, excerpt);
+  const rejection = rejectionFor(current, excerpt);
   const bookRejection = rejection === "words_changed" && normalizeLookupText(current) === normalizeLookupText(excerpt)
-    ? linebreakRejection(excerpt, excerpt)
+    ? rejectionFor(excerpt, excerpt)
     : "skip";
   const { text: withoutNote, note } = splitProductionNote(current);
   let noteField = {};
@@ -182,7 +190,7 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
     // Same words, different punctuation or capitals: defer to the book's text.
     source = "book_punctuation";
   } else if (rejection && note && normalizeLookupText(withoutNote) === normalizeLookupText(stripNoteAndQuotes(excerpt)) &&
-      !linebreakRejection(stripNoteAndQuotes(excerpt), stripNoteAndQuotes(excerpt))) {
+      !rejectionFor(stripNoteAndQuotes(excerpt), stripNoteAndQuotes(excerpt))) {
     // Same words once a production note is set aside: take the book's text and keep the note in its own field.
     excerpt = stripNoteAndQuotes(excerpt);
     source = "book_note_removed";
@@ -190,11 +198,18 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   } else if (rejection) {
     // Optionally lay the excerpt's own words out on the book's lines.
     const projected = ownWords ? projectBreaksOntoText(current, excerpt) : "";
-    if (!projected || linebreakRejection(current, projected) || lineCount(projected) <= lineCount(current)) {
+    if (!projected || rejectionFor(current, projected) || lineCount(projected) <= lineCount(current)) {
       return { action: "skip", reason: rejection };
     }
     excerpt = projected;
     source = "book_lines_own_words";
+  }
+
+  // A production note still riding at the end of the text comes off too, kept in its own field.
+  const trailing = splitProductionNote(excerpt);
+  if (trailing.note && source !== "book_lines_own_words") {
+    excerpt = stripNoteAndQuotes(excerpt);
+    noteField = { excerptNote: trailing.note };
   }
 
   // Weaker matches can push the excerpt's extra words onto one run-on line; skip those.
