@@ -363,7 +363,7 @@
                   <button type="button" class="secondary detail-button" data-row="${rowIndex}">Details</button>
                   ${reviewAuthor ? `<a class="button secondary" href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ""}
                   ${profile.slug ? `<a class="button secondary" href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ""}
-                  ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Copy invite link</button><button type="button" class="email-button" data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || "")}" data-author="${escapeHtml(invite.authorName || reviewAuthor)}">Send via Mandrill</button>` : ""}
+                  ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Copy invite link</button><button type="button" class="email-button" hidden data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || "")}" data-author="${escapeHtml(invite.authorName || reviewAuthor)}">Send via Mandrill</button>` : ""}
                 </td>
               </tr>
             `;
@@ -518,7 +518,7 @@
           <code id="latest-invite-link">${escapeHtml(payload.inviteUrl || "")}</code>
           <div style="margin-top:10px;" class="controls">
             <button id="copy-invite-link" type="button" class="secondary">Copy link</button>
-            <button id="email-latest-invite" type="button">Send via Mandrill</button>
+            <button id="email-latest-invite" type="button" hidden>Send via Mandrill</button>
           </div>
         `;
         document.getElementById("copy-invite-link").addEventListener("click", async () => {
