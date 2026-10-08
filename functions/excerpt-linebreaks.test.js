@@ -130,7 +130,7 @@ test("defers to the book's punctuation when the words are the same", () => {
 });
 
 test("rejects quotes and brackets stranded at a line end", () => {
-  assert.equal(linebreakRejection("sob ‘I want to be dead’ now", "sob ‘\nI want to be dead’ now"), "stranded_quote");
-  assert.equal(linebreakRejection("the sad aisle, (which would", "the sad aisle, (\nwhich would"), "stranded_quote");
+  assert.equal(linebreakRejection("sob ‘\nI want to be dead’ now", "sob ‘\nI want to be dead’ now"), "stranded_quote");
+  assert.equal(linebreakRejection("the sad aisle, (\nwhich would", "the sad aisle, (\nwhich would"), "stranded_quote");
   assert.equal(linebreakRejection("sob ‘I want’ now", "sob ‘I want’\nnow"), "");
 });
