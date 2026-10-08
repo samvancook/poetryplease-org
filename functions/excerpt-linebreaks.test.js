@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, reattachOpeningMarks, splitProductionNote, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
+import { excerptHash, linebreakRejection, normalizeLookupText, projectBreaksOntoText, reattachOpeningMarks, runOnLine, splitProductionNote, planLinebreakUndo, planLinebreakUpdate } from "./excerpt-linebreaks.js";
 
 // Expected values produced by Weaver's excerpt_library.normalize_lookup_text / fingerprint_excerpt.
 const WEAVER_FIXTURES = [
@@ -169,4 +169,10 @@ test("strips a note the line-broken text kept as well", () => {
   const plan = planLinebreakUpdate({ excerpt: noted }, map);
   assert.equal(plan.fields.excerpt, "The river doesn't ask\npermission to bend...");
   assert.equal(plan.fields.excerptNote, "wood BG");
+});
+
+test("flags run-on lines in weaker matches", () => {
+  const book = "When the whole world crumbles,\nyou have to build a new one\nout of all the pieces that are still here.";
+  assert.equal(runOnLine("When the world crumbles\naround you, you have to look at the wreckage and a build a new one\nout of all the pieces that are still here.", book), true);
+  assert.equal(runOnLine("When the world crumbles,\nyou have to build a new one\nout of all the pieces that are still here.", book), false);
 });

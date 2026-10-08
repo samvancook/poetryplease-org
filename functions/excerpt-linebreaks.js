@@ -81,6 +81,13 @@ function stripNoteAndQuotes(value) {
   return text;
 }
 
+// True when a line is much longer than the longest line of the book passage it was laid out from.
+export function runOnLine(text, bookText) {
+  const longest = (value) => Math.max(0, ...String(value || "").split("\n").map((line) => line.trim().length));
+  const book = longest(bookText);
+  return book > 0 && longest(text) > book * 1.3 + 8;
+}
+
 function lookupTokens(value) {
   const normalized = normalizeLookupText(value);
   return normalized ? normalized.split(" ") : [];
@@ -148,7 +155,7 @@ export function projectBreaksOntoText(current, linebroken) {
 }
 
 // Decide what to do with one EXC document given an overlay index keyed by excerpt hash.
-export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], ownWords = false } = {}) {
+export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], ownWords = false, minRatio = 0 } = {}) {
   const current = String(data.excerpt || "");
   if (!current.trim()) return { action: "skip", reason: "no_excerpt" };
   if (data.linebreakSource && data.excerptOriginal) return { action: "skip", reason: "already_applied" };
@@ -161,6 +168,7 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
   // Guard: only replace text that still says what the overlay was built from.
   if (excerptHash(entry.text_original) !== currentHash) return { action: "skip", reason: "text_changed_since_overlay" };
   if (lineCount(entry.text_linebroken) <= lineCount(current)) return { action: "skip", reason: "no_gain" };
+  if (Number(entry.ratio || 0) < minRatio) return { action: "skip", reason: "below_min_ratio" };
   // Only add line breaks and drop wrapping quotes; anything that would change the words waits for review.
   let excerpt = reattachOpeningMarks(entry.text_linebroken);
   let source = entry.status.startsWith("exact") ? "book_exact" : "book_projected";
@@ -188,6 +196,9 @@ export function planLinebreakUpdate(data, overlayByHash, { tiers = ["auto"], own
     excerpt = projected;
     source = "book_lines_own_words";
   }
+
+  // Weaker matches can push the excerpt's extra words onto one run-on line; skip those.
+  if (entry.tier !== "auto" && runOnLine(excerpt, entry.text_book)) return { action: "skip", reason: "run_on_line" };
 
   return {
     action: "update",
