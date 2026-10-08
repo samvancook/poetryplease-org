@@ -3783,14 +3783,23 @@ function renderItemMedia(item) {
   if (userCanDownloadAuthorAsset(item)) {
     const row = document.createElement('div');
     row.className = 'asset-download-row button-row';
-    row.style.margin = '8px auto';
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'Download image';
     button.setAttribute('aria-label', 'Download this author image');
+    button.title = 'Download image';
+    const mobileUi = window.__PP_FORCE_MOBILE || document.body?.dataset.ui === 'mobile';
+    if (mobileUi) {
+      box.style.position = 'relative';
+      row.style.cssText = 'position:absolute;top:12px;right:12px;z-index:2;margin:0;';
+      button.style.cssText = 'display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #ddd;border-radius:50%;background:rgba(255,255,255,.94);color:#111;box-shadow:0 2px 8px rgba(0,0,0,.2);touch-action:manipulation;cursor:pointer;';
+      button.innerHTML = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg>';
+    } else {
+      row.style.margin = '8px auto';
+      button.textContent = 'Download image';
+    }
     button.addEventListener('click', () => downloadAuthorAsset(item));
     row.appendChild(button);
-    mediaWrap.appendChild(row);
+    (mobileUi ? box : mediaWrap).appendChild(row);
   }
 
   placeRowsAroundMedia(mediaWrap, box);
