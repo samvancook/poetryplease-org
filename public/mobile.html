@@ -100,7 +100,7 @@
   order: -1;
   width: 100%;
   box-sizing: border-box;
-  padding: 4px 0 10px;
+  padding: 8px 0 10px;
   display: grid;
   grid-template-columns: repeat(4, var(--mobile-vote-size, 58px));
   justify-content: center;
@@ -205,6 +205,10 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
   min-height: 0;    /* critical so children can shrink inside a flex column */
   display: flex;
   flex-direction: column;
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
 /* Center the media and let it expand to the full available height */
@@ -215,10 +219,9 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius);
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: var(--shadow);
-  background: #000;  /* optional: gives photos a clean frame */
+  background: #000;
 }
 #media-wrap .text-media-box { height: 100%; max-height: 100%; overflow: hidden; }
 #media-wrap .excerpt-card { max-height: 100%; overflow-y: auto; }
