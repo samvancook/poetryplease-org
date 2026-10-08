@@ -29,6 +29,7 @@ const POETRY_PLEASE_API_KEY_SECRET = defineSecret("POETRY_PLEASE_API_KEY");
 const PIG_POETRY_PLEASE_API_KEY_SECRET = defineSecret("PIG_POETRY_PLEASE_API_KEY");
 const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATION_API_KEY");
 const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
+const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
 const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -9418,6 +9419,7 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
 app.post(getBoth("/admin/authorInvites/:inviteId/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
+  if (!BROADER_EMAIL_SENDS_ENABLED) return res.status(409).json({ error: "broader_email_sends_awaiting_approval" });
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
   const inviteRef = db.collection(COLLECTIONS.authorInvites).doc(normalizeText(req.params.inviteId));
@@ -10216,6 +10218,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
 app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
+  if (!BROADER_EMAIL_SENDS_ENABLED) return res.status(409).json({ error: "broader_email_sends_awaiting_approval" });
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
   const programId = normalizeText(req.body?.programId || "");
