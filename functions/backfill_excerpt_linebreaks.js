@@ -3,6 +3,7 @@
 //   node backfill_excerpt_linebreaks.js --overlay <file.jsonl>                    coverage report + dry run (no writes)
 //   node backfill_excerpt_linebreaks.js --overlay <file.jsonl> --apply --limit 50 write the first 50 planned updates
 //   node backfill_excerpt_linebreaks.js --undo --apply                            restore excerptOriginal everywhere
+//   node backfill_excerpt_linebreaks.js --refresh-feed                            only mark the app's content feed stale
 //
 // Every apply writes a JSON backup of the touched documents before committing.
 import { initializeApp } from "firebase-admin/app";
@@ -35,7 +36,21 @@ function loadOverlay(path) {
   return { byHash, version };
 }
 
+// The app serves content from a cached feed snapshot; mark it stale the same way the API does after edits.
+async function invalidateContentFeed(db) {
+  await db.collection("systemState").doc("content-feed").set({
+    invalidatedAt: FieldValue.serverTimestamp(),
+    builtAt: null,
+  }, { merge: true });
+}
+
 async function main() {
+  if (process.argv.includes("--refresh-feed")) {
+    initializeApp();
+    await invalidateContentFeed(getFirestore(undefined, "poetrypleasedatabase"));
+    console.log(JSON.stringify({ contentFeedInvalidated: true }));
+    return;
+  }
   if (!undo && !overlayPath) throw new Error("--overlay is required unless --undo");
   initializeApp();
   const db = getFirestore(undefined, "poetrypleasedatabase");
@@ -95,6 +110,8 @@ async function main() {
     }
     if (count) await batch.commit();
     report.written = planned.length;
+    await invalidateContentFeed(db);
+    report.contentFeedInvalidated = true;
   }
 
   console.log(JSON.stringify(report, null, 2));
