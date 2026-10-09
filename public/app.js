@@ -963,7 +963,7 @@ function renderAuthorReviewGuide() {
     guide = document.createElement('section');
     guide.id = 'author-review-guide';
     guide.setAttribute('aria-label', 'Author review shortcuts');
-    guide.style.cssText = `${IS_MOBILE_UI ? 'grid-column:1/-1;width:100%;margin:2px 0 4px;padding:10px 12px;' : 'max-width:760px;margin:12px auto 18px;padding:16px 20px;'}border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;`;
+    guide.style.cssText = `${IS_MOBILE_UI ? 'grid-column:1/-1;width:100%;margin:2px 0 4px;padding:10px 12px;max-height:min(52vh,420px);overflow-y:auto;overscroll-behavior:contain;' : 'max-width:760px;margin:12px auto 18px;padding:16px 20px;'}border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;`;
     if (status) status.insertAdjacentElement('afterend', guide);
     else mobileHeader.appendChild(guide);
   }
