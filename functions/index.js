@@ -47,6 +47,7 @@ const COLLECTIONS = {
   contentFlags: "contentFlags",
   contentRepairRequests: "contentRepairRequests",
   contentDuplicates: "contentDuplicates",
+  excerptVideoOccurrences: "excerptVideoOccurrences",
   weaverImportLedger: "weaverImportLedger",
   contentSubmissions: "contentSubmissions",
   submissionEntrants: "submissionEntrants",
@@ -7692,6 +7693,81 @@ async function assignPersistentWeaverExcerptIds(items = []) {
   return items;
 }
 
+async function linkWeaverVideoExcerptOccurrence(item, canonicalExcerpt) {
+  const sourceRecordId = normalizeText(item.sourceRecordId);
+  const canonicalVideoId = normalizeText(item.sourceContentId);
+  const occurrenceId = sha256(sourceRecordId);
+  const occurrenceRef = db.collection(COLLECTIONS.excerptVideoOccurrences).doc(occurrenceId);
+  const excerptRef = db.collection(COLLECTIONS.excerpts).doc(canonicalExcerpt.id);
+  const videoRef = db.collection(COLLECTIONS.videos).doc(canonicalVideoId);
+
+  await db.runTransaction(async (transaction) => {
+    const [occurrenceSnap, excerptSnap, videoSnap] = await Promise.all([
+      transaction.get(occurrenceRef),
+      transaction.get(excerptRef),
+      transaction.get(videoRef),
+    ]);
+    if (!excerptSnap.exists || !videoSnap.exists ||
+        buildExcerptFingerprint(excerptSnap.data()?.excerpt) !== buildExcerptFingerprint(item.excerpt)) {
+      throw new Error("video_excerpt_link_target_changed");
+    }
+    if (occurrenceSnap.exists) {
+      const prior = occurrenceSnap.data() || {};
+      if (prior.sourceRecordId !== sourceRecordId ||
+          prior.canonicalExcerptId !== canonicalExcerpt.id ||
+          prior.canonicalVideoId !== canonicalVideoId) {
+        throw new Error("video_excerpt_occurrence_conflict");
+      }
+    }
+    transaction.set(occurrenceRef, {
+      sourceSystem: "weaver",
+      sourceRecordId,
+      canonicalExcerptId: canonicalExcerpt.id,
+      canonicalVideoId,
+      sourceVideoRecordId: normalizeText(item.sourceVideoRecordId),
+      sourceVideoFileId: normalizeText(item.sourceVideoFileId),
+      sourceVideoUrl: normalizeText(item.sourceVideoUrl),
+      sourceEvent: normalizeText(item.sourceEvent),
+      sourceEventLabel: normalizeText(item.sourceEventLabel),
+      excerptFingerprint: buildExcerptFingerprint(item.excerpt),
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(!occurrenceSnap.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
+    }, { merge: true });
+    transaction.set(excerptRef, {
+      weaverVideoOccurrenceIds: FieldValue.arrayUnion(occurrenceId),
+    }, { merge: true });
+    transaction.set(videoRef, {
+      weaverLinkedExcerptIds: FieldValue.arrayUnion(canonicalExcerpt.id),
+    }, { merge: true });
+  });
+
+  return {
+    ok: true,
+    id: canonicalExcerpt.id,
+    canonicalExcerptId: canonicalExcerpt.id,
+    canonicalVideoId,
+    videoOccurrenceId: occurrenceId,
+    sourceRecordId,
+    linkedExisting: true,
+    created: false,
+  };
+}
+
+async function findCanonicalExcerptForVideoOccurrence(item) {
+  const fingerprint = buildExcerptFingerprint(item.excerpt);
+  const indexedSnap = await db.collection(COLLECTIONS.excerpts)
+    .where("excerptFingerprint", "==", fingerprint).limit(2).get();
+  if (indexedSnap.docs.length > 1) throw new Error("ambiguous_video_excerpt_match");
+  if (indexedSnap.docs.length === 1) return indexedSnap.docs[0];
+
+  // Older EXC rows may not have excerptFingerprint yet.
+  const excerptSnap = await db.collection(COLLECTIONS.excerpts).get();
+  const legacyMatches = excerptSnap.docs.filter((doc) =>
+    buildExcerptFingerprint(doc.data()?.excerpt) === fingerprint);
+  if (legacyMatches.length > 1) throw new Error("ambiguous_video_excerpt_match");
+  return legacyMatches[0] || null;
+}
+
 async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const sourceRecords = flattenWeaverExcerptRecords(rawPayload);
   const mappedItems = await assignPersistentWeaverExcerptIds(
@@ -7708,6 +7784,13 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const results = [];
   for (const item of importableItems.slice(0, 500)) {
     try {
+      if (!item.book && item.sourceRecordId && item.sourceContentId && item.sourceVideoFileId) {
+        const canonicalExcerpt = await findCanonicalExcerptForVideoOccurrence(item);
+        if (canonicalExcerpt) {
+          results.push(await linkWeaverVideoExcerptOccurrence(item, canonicalExcerpt));
+          continue;
+        }
+      }
       const result = await upsertContentLibraryItem("excerpts", item, actor);
       results.push({ ok: true, id: result.item?.id || item.docId, created: !!result.created });
     } catch (err) {
@@ -7946,6 +8029,10 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
         contentId: normalizeText(row.id),
         outcome: row.ok ? (row.created ? "created" : "updated") : "failed",
         error: normalizeText(row.error),
+        canonicalExcerptId: normalizeText(row.canonicalExcerptId),
+        canonicalVideoId: normalizeText(row.canonicalVideoId),
+        videoOccurrenceId: normalizeText(row.videoOccurrenceId),
+        sourceRecordId: normalizeText(row.sourceRecordId),
       })),
       ...(result.duplicateItems || []).map((row) => ({
         contentId: normalizeText(row.primaryImageId || row.duplicateOfImageId || row.imageId),
