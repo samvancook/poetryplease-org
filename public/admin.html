@@ -517,6 +517,7 @@
           <section id="contest-judging-overview" hidden aria-label="Selected contest judging status">
             <h4>Judging status</h4>
             <button id="contest-progress-refresh" type="button" class="secondary">Refresh progress</button>
+            <div id="contest-outcome-status" class="status" aria-live="polite">Decisions here are internal drafts. No contestant email is sent.</div>
             <div id="contest-judging-overview-body" class="status"></div>
           </section>
         </div>
@@ -2320,19 +2321,25 @@
           const reads = row.finalistReads || [];
           return {
             id: row.id, title: row.title || 'Untitled',
+            outcomeStatus: row.outcomeStatus || 'undecided',
             champion: reads.filter((read) => read.decision === 'champion').length,
             possible: reads.filter((read) => read.decision === 'possible').length,
             initialYes: Number(row.initialYesCount || 0),
           };
-        }).filter((row) => row.champion > 0).sort((left, right) =>
+        }).filter((row) => row.champion > 0 || ['circle', 'winner'].includes(row.outcomeStatus)).sort((left, right) =>
           right.champion - left.champion || right.possible - left.possible ||
           right.initialYes - left.initialYes || left.title.localeCompare(right.title));
+        const circleCount = (report.submissions || []).filter((row) => ['circle', 'winner'].includes(row.outcomeStatus)).length;
+        const rejectedCount = (report.submissions || []).filter((row) => row.outcomeStatus === 'rejected').length;
         body.innerHTML =
           '<p><span class="pill">' + total + ' submissions</span>' +
           '<span class="pill">' + complete + ' entries fully reviewed</span>' +
           '<span class="pill">' + Math.max(0, total - Number(report.archivedCount || 0) - complete) + ' active entries need more initial reviews</span>' +
           '<span class="pill">' + finalistDone + ' / ' + finalistReads.length + ' finalist reads complete</span>' +
-          '<span class="pill">' + candidates.length + ' entries with Champion votes</span>' +
+          '<span class="pill">' + candidates.filter((row) => row.champion > 0).length + ' entries with Champion votes</span>' +
+          '<span class="pill">' + circleCount + ' in winners circle</span>' +
+          '<span class="pill">' + (report.winnerSubmissionId ? 'Winner selected' : 'No winner selected') + '</span>' +
+          '<span class="pill">' + rejectedCount + ' internally rejected</span>' +
           '<span class="pill">' + Number(report.archivedCount || 0) + ' archived</span></p>' +
           ((report.reviewers || []).length
             ? '<table><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
@@ -2341,14 +2348,25 @@
                 Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedTotal || 0) + '</td></tr>').join('') +
               '</tbody></table>'
             : '<p>No reviewers assigned yet.</p>') +
-          '<h4>Winners-circle candidates</h4><p>Champion votes are a finalist-pass signal, not an acceptance decision. Open an entry for blinded review.</p>' +
+          '<h4>Winners-circle candidates</h4><p>Champion votes are a finalist-pass signal, not an acceptance. Build a circle of roughly 5–8, then optionally designate one of them as the winner. Decisions are reversible and send no email.</p>' +
           (candidates.length
-            ? '<table><thead><tr><th>Entry</th><th>Champion</th><th>Possible</th><th>Initial Yes</th></tr></thead><tbody>' +
-              candidates.map((row) => '<tr><td><a href="/contest-review.html?program=' +
-                encodeURIComponent(program.id) + '&view=all&submission=' + encodeURIComponent(row.id) +
-                '">' + escapeHtml(row.title) + '</a></td><td>' + row.champion + '</td><td>' +
-                row.possible + '</td><td>' + row.initialYes + '</td></tr>').join('') +
-              '</tbody></table>'
+            ? '<table><thead><tr><th>Entry</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Internal decision</th><th>Actions</th></tr></thead><tbody>' +
+              candidates.map((row) => {
+                const action = (outcome, label) => '<button type="button" class="secondary" data-contest-outcome="' + outcome +
+                  '" data-contest-submission="' + escapeHtml(row.id) + '">' + label + '</button> ';
+                const actions = row.outcomeStatus === 'winner'
+                  ? action('circle', 'Clear winner')
+                  : row.outcomeStatus === 'circle'
+                    ? action('winner', 'Make winner') + action('undecided', 'Remove from circle')
+                    : row.outcomeStatus === 'rejected'
+                      ? action('circle', 'Add to circle') + action('undecided', 'Undo rejection')
+                      : action('circle', 'Add to circle') + action('rejected', 'Reject');
+                return '<tr><td><a href="/contest-review.html?program=' +
+                  encodeURIComponent(program.id) + '&view=all&submission=' + encodeURIComponent(row.id) +
+                  '">' + escapeHtml(row.title) + '</a></td><td>' + row.champion + '</td><td>' +
+                  row.possible + '</td><td>' + row.initialYes + '</td><td>' +
+                  escapeHtml(row.outcomeStatus.replace(/_/g, ' ')) + '</td><td>' + actions + '</td></tr>';
+              }).join('') + '</tbody></table>'
             : '<p>No Champion votes recorded yet.</p>');
       } catch (error) {
         if (requestId !== state.contestProgressRequestId) return;
@@ -5153,6 +5171,32 @@
         loadContestJudgingOverview();
       });
       document.getElementById('contest-progress-refresh').addEventListener('click', loadContestJudgingOverview);
+      document.getElementById('contest-judging-overview-body').addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-contest-outcome]');
+        if (!button) return;
+        const outcome = button.dataset.contestOutcome;
+        const submissionId = button.dataset.contestSubmission;
+        const message = {
+          circle: 'Add this entry to the winners circle?',
+          winner: 'Designate this winners-circle entry as the single winner?',
+          rejected: 'Mark this entry internally rejected?',
+          undecided: 'Clear this internal decision?',
+        }[outcome];
+        if (!message || !window.confirm(message + ' No contestant email will be sent.')) return;
+        const status = document.getElementById('contest-outcome-status');
+        button.disabled = true;
+        status.textContent = 'Saving internal decision…';
+        try {
+          await api('admin/contentSubmissions/' + encodeURIComponent(submissionId) + '/outcome', {
+            method: 'POST', body: { outcome },
+          });
+          await loadContestJudgingOverview();
+          status.textContent = 'Internal decision saved. No contestant email was sent.';
+        } catch (error) {
+          button.disabled = false;
+          status.textContent = 'Could not save decision: ' + error.message;
+        }
+      });
       document.getElementById("submission-program-editor-select").addEventListener("change", (event) => {
         const program = state.submissionPrograms.find((row) => row.id === event.target.value) || null;
         populateSubmissionProgramEditor(program);
