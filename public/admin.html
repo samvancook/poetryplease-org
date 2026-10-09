@@ -2316,11 +2316,23 @@
         const complete = Number(report.fullyReviewed || 0);
         const finalistReads = (report.submissions || []).flatMap((row) => row.finalistReads || []);
         const finalistDone = finalistReads.filter((read) => !!read.decision).length;
+        const candidates = (report.submissions || []).filter((row) => !row.archived).map((row) => {
+          const reads = row.finalistReads || [];
+          return {
+            id: row.id, title: row.title || 'Untitled',
+            champion: reads.filter((read) => read.decision === 'champion').length,
+            possible: reads.filter((read) => read.decision === 'possible').length,
+            initialYes: Number(row.initialYesCount || 0),
+          };
+        }).filter((row) => row.champion > 0).sort((left, right) =>
+          right.champion - left.champion || right.possible - left.possible ||
+          right.initialYes - left.initialYes || left.title.localeCompare(right.title));
         body.innerHTML =
           '<p><span class="pill">' + total + ' submissions</span>' +
           '<span class="pill">' + complete + ' entries fully reviewed</span>' +
-          '<span class="pill">' + Math.max(0, total - complete) + ' entries need more initial reviews</span>' +
+          '<span class="pill">' + Math.max(0, total - Number(report.archivedCount || 0) - complete) + ' active entries need more initial reviews</span>' +
           '<span class="pill">' + finalistDone + ' / ' + finalistReads.length + ' finalist reads complete</span>' +
+          '<span class="pill">' + candidates.length + ' entries with Champion votes</span>' +
           '<span class="pill">' + Number(report.archivedCount || 0) + ' archived</span></p>' +
           ((report.reviewers || []).length
             ? '<table><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
@@ -2328,7 +2340,16 @@
                 Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedAssigned || 0) + ' / ' +
                 Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedTotal || 0) + '</td></tr>').join('') +
               '</tbody></table>'
-            : '<p>No reviewers assigned yet.</p>');
+            : '<p>No reviewers assigned yet.</p>') +
+          '<h4>Winners-circle candidates</h4><p>Champion votes are a finalist-pass signal, not an acceptance decision. Open an entry for blinded review.</p>' +
+          (candidates.length
+            ? '<table><thead><tr><th>Entry</th><th>Champion</th><th>Possible</th><th>Initial Yes</th></tr></thead><tbody>' +
+              candidates.map((row) => '<tr><td><a href="/contest-review.html?program=' +
+                encodeURIComponent(program.id) + '&view=all&submission=' + encodeURIComponent(row.id) +
+                '">' + escapeHtml(row.title) + '</a></td><td>' + row.champion + '</td><td>' +
+                row.possible + '</td><td>' + row.initialYes + '</td></tr>').join('') +
+              '</tbody></table>'
+            : '<p>No Champion votes recorded yet.</p>');
       } catch (error) {
         if (requestId !== state.contestProgressRequestId) return;
         body.textContent = 'Could not load judging progress: ' + error.message;
