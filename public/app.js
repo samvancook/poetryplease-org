@@ -1080,7 +1080,7 @@ function updateFilterControlsVisibility() {
   }
   if (lengthContainer) {
     const showLengthFilters = canSeeDropdownFilters && normalizeFilterValue(selectedType) === 'fp' && !IS_EMBED_UI;
-    lengthContainer.style.display = showLengthFilters ? 'flex' : 'none';
+    lengthContainer.style.display = showLengthFilters ? (IS_MOBILE_UI ? 'grid' : 'flex') : 'none';
   }
   updateAuthorPromoControls();
 }
