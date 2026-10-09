@@ -4180,7 +4180,7 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Three ways to guide your book',
-      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts or poems you want to feature.',
+      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts you want us to use in its promotion.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
