@@ -31,6 +31,7 @@ const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATI
 const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
 const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
 const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
+const CONTEST_OUTCOME_EMAILS_ENABLED = false; // Requires winner and message approval before release.
 const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -58,6 +59,7 @@ const COLLECTIONS = {
   contestReviewBulkActions: "contestReviewBulkActions",
   contestFinalistReads: "contestFinalistReads",
   contestAssignmentNotices: "contestAssignmentNotices",
+  contestOutcomeNotices: "contestOutcomeNotices",
   importJobs: "importJobs",
   importJobItems: "importJobItems",
   systemState: "systemState",
@@ -10327,13 +10329,9 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   });
 });
 
-app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
-  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
-  if (!ctx) return;
-  const programId = normalizeText(req.query.programId || "");
-  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+async function buildContestOutcomeEmailPreview(programId) {
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
-  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  if (!programSnap.exists) return null;
   const [submissionSnap, entrantSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
@@ -10349,7 +10347,7 @@ app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
   for (const row of submissions) {
     const entrant = entrants.get(row.id) || {};
     const email = normalizeText(entrant.email || row.submitterEmail || "").toLowerCase();
-    const validEmail = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email);
+    const validEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
     if (!validEmail) missingContactCount += 1;
     if (row.contestArchived) archivedCount += 1;
     const decision = row.contestOutcomeStatus === "winner" ? "winner"
@@ -10400,15 +10398,82 @@ app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
       email: group.email, outcome, submissionCount: group.submissions.length,
       submissions: group.submissions, mixedOutcomes: decisions.size > 1,
       subject, body,
+      previewToken: createHash("sha256").update(JSON.stringify({ programId, email: group.email,
+        outcome, subject, body, submissions: group.submissions })).digest("hex"),
     };
   }).sort((a, b) => a.outcome.localeCompare(b.outcome) || a.email.localeCompare(b.email));
-  res.json({
-    ok: true, previewOnly: true, emailSent: false, programId, programName,
+  return {
+    ok: true, previewOnly: true, emailSent: false,
+    sendEnabled: CONTEST_OUTCOME_EMAILS_ENABLED,
+    programId, programName,
     submissionCount: submissions.length, recipientCount: recipients.length,
     missingContactCount, archivedCount, decisionCounts,
     mixedOutcomeRecipientCount: recipients.filter((row) => row.mixedOutcomes).length,
     recipients,
+  };
+}
+
+app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const preview = await buildContestOutcomeEmailPreview(programId);
+  if (!preview) return res.status(404).json({ error: "submission_program_not_found" });
+  res.json(preview);
+});
+
+app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  if (!CONTEST_OUTCOME_EMAILS_ENABLED) {
+    return res.status(409).json({ error: "contest_outcome_emails_awaiting_approval" });
+  }
+  const programId = normalizeText(req.body?.programId || "");
+  const email = normalizeText(req.body?.email || "").toLowerCase();
+  const previewToken = normalizeText(req.body?.previewToken || "");
+  if (!programId || !email || !previewToken) {
+    return res.status(400).json({ error: "missing_outcome_send_parameters" });
+  }
+  const preview = await buildContestOutcomeEmailPreview(programId);
+  if (!preview) return res.status(404).json({ error: "submission_program_not_found" });
+  if (preview.decisionCounts.winner !== 1 || preview.decisionCounts.circle < 1) {
+    return res.status(409).json({ error: "contest_outcomes_not_approved" });
+  }
+  const recipient = preview.recipients.find((row) => row.email === email);
+  if (!recipient || recipient.mixedOutcomes || recipient.previewToken !== previewToken) {
+    return res.status(409).json({ error: "recipient_preview_changed_or_invalid" });
+  }
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
+  const noticeId = createHash("sha256").update(programId + "|" + email).digest("hex").slice(0, 40);
+  const noticeRef = db.collection(COLLECTIONS.contestOutcomeNotices).doc(noticeId);
+  const reserved = await db.runTransaction(async (transaction) => {
+    const prior = await transaction.get(noticeRef);
+    if (prior.exists) return false;
+    transaction.set(noticeRef, {
+      programId, email, outcome: recipient.outcome,
+      submissionIds: recipient.submissions.map((row) => row.id),
+      previewToken, subject: recipient.subject,
+      deliveryStatus: "sending", sentBy: ctx.decoded.uid,
+      deliveryUpdatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
   });
+  if (!reserved) return res.status(409).json({ error: "contest_outcome_email_already_attempted" });
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({
+      apiKey, email, message: { subject: recipient.subject, text: recipient.body },
+      tag: "poetry-please-contest-outcome",
+    });
+    await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.json({ ok: true, email, outcome: recipient.outcome, delivery });
+  } catch (error) {
+    await noticeRef.set({ deliveryStatus: "uncertain",
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.status(502).json({ error: "contest_outcome_send_unconfirmed" });
+  }
 });
 
 app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
