@@ -7755,11 +7755,17 @@ async function linkWeaverVideoExcerptOccurrence(item, canonicalExcerpt) {
 
 async function findCanonicalExcerptForVideoOccurrence(item) {
   const fingerprint = buildExcerptFingerprint(item.excerpt);
+  const indexedSnap = await db.collection(COLLECTIONS.excerpts)
+    .where("excerptFingerprint", "==", fingerprint).limit(2).get();
+  if (indexedSnap.docs.length > 1) throw new Error("ambiguous_video_excerpt_match");
+  if (indexedSnap.docs.length === 1) return indexedSnap.docs[0];
+
+  // Older EXC rows may not have excerptFingerprint yet.
   const excerptSnap = await db.collection(COLLECTIONS.excerpts).get();
-  const textMatches = excerptSnap.docs.filter((doc) =>
+  const legacyMatches = excerptSnap.docs.filter((doc) =>
     buildExcerptFingerprint(doc.data()?.excerpt) === fingerprint);
-  if (textMatches.length > 1) throw new Error("ambiguous_video_excerpt_match");
-  return textMatches[0] || null;
+  if (legacyMatches.length > 1) throw new Error("ambiguous_video_excerpt_match");
+  return legacyMatches[0] || null;
 }
 
 async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
