@@ -10240,6 +10240,90 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   });
 });
 
+app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const [submissionSnap, entrantSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
+  ]);
+  const programName = normalizeText(programSnap.data()?.name || programId);
+  const entrants = new Map(entrantSnap.docs.map((doc) => [doc.id, doc.data() || {}]));
+  const submissions = submissionSnap.docs.map(mapSubmissionDoc)
+    .filter((row) => row.submissionProgramId === programId);
+  const groups = new Map();
+  let missingContactCount = 0;
+  let archivedCount = 0;
+  const decisionCounts = { winner: 0, circle: 0, notSelected: 0, undecided: 0 };
+  for (const row of submissions) {
+    const entrant = entrants.get(row.id) || {};
+    const email = normalizeText(entrant.email || row.submitterEmail || "").toLowerCase();
+    const validEmail = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email);
+    if (!validEmail) missingContactCount += 1;
+    if (row.contestArchived) archivedCount += 1;
+    const decision = row.contestOutcomeStatus === "winner" ? "winner"
+      : row.contestOutcomeStatus === "circle" ? "circle" : "notSelected";
+    decisionCounts[decision] += 1;
+    if (row.contestOutcomeStatus === "undecided") decisionCounts.undecided += 1;
+    const key = validEmail ? email : "missing:" + row.id;
+    const group = groups.get(key) || {
+      email: validEmail ? email : "",
+      firstName: normalizeText(entrant.firstName || "").slice(0, 80) || "there",
+      submissions: [],
+    };
+    group.submissions.push({
+      id: row.id, title: row.title || "Untitled", decision,
+      internalStatus: row.contestOutcomeStatus || "undecided",
+      archived: row.contestArchived,
+    });
+    groups.set(key, group);
+  }
+  const recipients = Array.from(groups.values()).map((group) => {
+    const decisions = new Set(group.submissions.map((row) => row.decision));
+    const outcome = decisions.has("winner") ? "winner"
+      : decisions.has("circle") ? "circle" : "notSelected";
+    const selected = group.submissions.filter((row) => row.decision === outcome);
+    const titleList = selected.map((row) => '"' + row.title + '"').join(", ");
+    const greeting = "Hi " + group.firstName + ",";
+    let subject;
+    let body;
+    if (outcome === "winner") {
+      subject = "Your " + programName + " entry — winner";
+      body = greeting + "\n\nWe're delighted to let you know that " + titleList +
+        " has been selected as the winner of " + programName +
+        ". Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\n" +
+        "Thank you for sharing your work with us.\n\nThe Poetry, Please team";
+    } else if (outcome === "circle") {
+      subject = "Your " + programName + " entry — winners circle";
+      body = greeting + "\n\nWe're delighted to let you know that " + titleList +
+        " has been selected for the winners circle of " + programName +
+        ". Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\n" +
+        "Thank you for sharing your work with us.\n\nThe Poetry, Please team";
+    } else {
+      subject = "Thank you for entering " + programName;
+      body = greeting + "\n\nThank you for sharing " + titleList + " with " + programName +
+        ". It wasn't selected for this year's winners circle, but we're grateful you trusted us with your work.\n\n" +
+        "We'll share the celebrated pieces in Poetry, Please once they're published.\n\nThe Poetry, Please team";
+    }
+    return {
+      email: group.email, outcome, submissionCount: group.submissions.length,
+      submissions: group.submissions, mixedOutcomes: decisions.size > 1,
+      subject, body,
+    };
+  }).sort((a, b) => a.outcome.localeCompare(b.outcome) || a.email.localeCompare(b.email));
+  res.json({
+    ok: true, previewOnly: true, emailSent: false, programId, programName,
+    submissionCount: submissions.length, recipientCount: recipients.length,
+    missingContactCount, archivedCount, decisionCounts,
+    mixedOutcomeRecipientCount: recipients.filter((row) => row.mixedOutcomes).length,
+    recipients,
+  });
+});
+
 app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;

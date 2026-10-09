@@ -519,6 +519,12 @@
             <button id="contest-progress-refresh" type="button" class="secondary">Refresh progress</button>
             <div id="contest-outcome-status" class="status" aria-live="polite">Decisions here are internal drafts. No contestant email is sent.</div>
             <div id="contest-judging-overview-body" class="status"></div>
+            <details id="contest-email-preview-panel" style="margin-top:18px;">
+              <summary style="font-weight:700;cursor:pointer;">Entrant email preview (draft only)</summary>
+              <p>Check recipients and wording before approving any send. This preview never sends email.</p>
+              <button id="contest-email-preview-refresh" type="button" class="secondary">Build recipient and email preview</button>
+              <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
+            </details>
           </section>
         </div>
         <details style="margin-bottom:18px;">
@@ -2302,12 +2308,60 @@
       if (program) entrantLink.href = `/contest-submit.html?program=${encodeURIComponent(program.id)}`;
     }
 
+    let contestEmailPreviewRecipients = [];
+
+    function showContestEmailDraft(index) {
+      const recipient = contestEmailPreviewRecipients[index];
+      const message = document.getElementById('contest-email-preview-message');
+      if (!message || !recipient) return;
+      message.textContent = 'To: ' + (recipient.email || '[missing address]') + '\nSubject: ' +
+        recipient.subject + '\n\n' + recipient.body;
+    }
+
+    async function loadContestEmailPreview() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const body = document.getElementById('contest-email-preview-body');
+      if (!program) { body.textContent = 'Select a contest first.'; return; }
+      body.textContent = 'Building read-only preview…';
+      try {
+        const preview = await api('admin/contestOutcomeEmailPreview?programId=' + encodeURIComponent(program.id));
+        if (state.submissionProgramFilter !== program.id) return;
+        contestEmailPreviewRecipients = preview.recipients || [];
+        const counts = preview.decisionCounts || {};
+        body.innerHTML = '<p><strong>Draft only — no email has been sent.</strong> ' +
+          Number(preview.submissionCount || 0) + ' submissions; ' + Number(preview.recipientCount || 0) +
+          ' recipient records.</p>' +
+          '<p>Winner entries: ' + Number(counts.winner || 0) +
+          ' · Circle entries: ' + Number(counts.circle || 0) +
+          ' · Provisional non-selected entries: ' + Number(counts.notSelected || 0) +
+          ' (' + Number(counts.undecided || 0) + ' still undecided).</p>' +
+          '<p><strong>Check before sending:</strong> ' + Number(preview.missingContactCount || 0) +
+          ' missing/invalid addresses; ' + Number(preview.mixedOutcomeRecipientCount || 0) +
+          ' people with mixed outcomes; ' + Number(preview.archivedCount || 0) +
+          ' archived entries included. Winner/circle decisions and copy still need approval; publication links are not included yet.</p>' +
+          (contestEmailPreviewRecipients.length
+            ? '<label for="contest-email-recipient-select">Preview a recipient</label> ' +
+              '<select id="contest-email-recipient-select" style="max-width:100%;">' +
+              contestEmailPreviewRecipients.map((row, index) => '<option value="' + index + '">' +
+                escapeHtml((row.email || '[missing address]') + ' — ' + row.outcome +
+                  (row.mixedOutcomes ? ' — mixed outcomes' : '')) + '</option>').join('') +
+              '</select><pre id="contest-email-preview-message" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>'
+            : '<p>No submissions found for this contest.</p>');
+        showContestEmailDraft(0);
+      } catch (error) {
+        body.textContent = 'Could not build email preview: ' + error.message;
+      }
+    }
+
     async function loadContestJudgingOverview() {
       const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
       const panel = document.getElementById('contest-judging-overview');
       const body = document.getElementById('contest-judging-overview-body');
       const requestId = ++state.contestProgressRequestId;
       panel.hidden = !program;
+      const emailBody = document.getElementById('contest-email-preview-body');
+      emailBody.textContent = 'No preview loaded.';
+      contestEmailPreviewRecipients = [];
       if (!program) { body.textContent = ''; return; }
       body.textContent = 'Loading judging progress…';
       try {
@@ -5178,6 +5232,10 @@
         loadContestJudgingOverview();
       });
       document.getElementById('contest-progress-refresh').addEventListener('click', loadContestJudgingOverview);
+      document.getElementById('contest-email-preview-refresh').addEventListener('click', loadContestEmailPreview);
+      document.getElementById('contest-email-preview-body').addEventListener('change', (event) => {
+        if (event.target.id === 'contest-email-recipient-select') showContestEmailDraft(Number(event.target.value));
+      });
       document.getElementById('contest-judging-overview-body').addEventListener('click', async (event) => {
         const button = event.target.closest('button[data-contest-outcome]');
         if (!button) return;
