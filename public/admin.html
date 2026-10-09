@@ -250,6 +250,17 @@
       gap: 10px;
       flex-wrap: wrap;
     }
+    #results table { table-layout: fixed; }
+    #results th:nth-child(1) { width: 24%; }
+    #results th:nth-child(2) { width: 14%; }
+    #results th:nth-child(3) { width: 12%; }
+    #results th:nth-child(4) { width: 16%; }
+    #results th:nth-child(5) { width: 8%; }
+    #results th:nth-child(6) { width: 7%; }
+    #results th:nth-child(7) { width: 19%; }
+    #results td { overflow-wrap: anywhere; }
+    #results td:last-child .role-set { display: grid; grid-template-columns: 1fr; }
+    #results td:last-child button { width: 100%; max-width: 100%; box-sizing: border-box; white-space: normal; }
     .role-set label {
       display: inline-flex;
       gap: 6px;
@@ -420,12 +431,12 @@
     <section class="card">
       <div class="section-head">
         <h2>Users</h2>
-        <button id="users-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="users-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="users-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="users-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="users-section-body">
+      <div id="users-section-body" hidden>
         <div class="controls">
           <input id="search" type="search" placeholder="Search by email, name, or role" />
           <select id="role-filter">
@@ -461,12 +472,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Content Claims</h2>
-        <button id="content-claims-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="content-claims-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="content-claims-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="content-claims-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="content-claims-section-body">
+      <div id="content-claims-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review author requests to claim existing content in the system.</p>
         <div id="claim-review-status" class="status">Loading claims…</div>
         <div id="claim-review-list"></div>
@@ -476,12 +487,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Duplicate Review</h2>
-        <button id="duplicate-review-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="duplicate-review-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="duplicate-review-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="duplicate-review-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="duplicate-review-section-body">
+      <div id="duplicate-review-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review suspected duplicate pairs from imports and exact-text EXC scans. Confirm and Not a duplicate only update this review ledger; neither action deletes content, moves votes, or changes which item is kept.</p>
         <div class="actions" style="margin:0 0 12px;">
           <button id="scan-excerpt-duplicates" class="secondary" type="button">Scan existing EXC</button>
@@ -494,12 +505,12 @@
     <section id="contest-submissions-card" class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">User Submissions</h2>
-        <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="user-submissions-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="user-submissions-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="user-submissions-section-body">
+      <div id="user-submissions-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Contest identity and contact details remain separate from judging.</p>
         <div class="contest-judging-shortcuts" aria-label="Contest judging workspace">
           <h3>Contest judging workspace</h3>
@@ -580,12 +591,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2>Content Library</h2>
-        <button id="content-library-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="content-library-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="content-library-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="content-library-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="content-library-section-body">
+      <div id="content-library-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Create and update graphics, excerpts, and videos directly in the app instead of routing changes through Sheets and Apps Script.</p>
         <div class="controls">
           <select id="content-type">
@@ -736,12 +747,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Import Assistant</h2>
-        <button id="import-assistant-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="import-assistant-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="import-assistant-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="import-assistant-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="import-assistant-section-body">
+      <div id="import-assistant-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Paste filenames or tab-separated rows to get a first-pass catalog match before import.</p>
         <div class="form-grid" style="margin-bottom:14px;">
           <label>
@@ -813,12 +824,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Legacy Import Tool</h2>
-        <button id="legacy-import-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="legacy-import-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="legacy-import-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="legacy-import-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="legacy-import-section-body">
+      <div id="legacy-import-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Paste rows copied from your existing sheets to bulk import them here. This is the migration bridge away from Apps Script.</p>
         <div class="controls">
           <select id="legacy-import-type">
@@ -853,12 +864,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Content Health</h2>
-        <button id="id-hygiene-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="id-hygiene-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="id-hygiene-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="id-hygiene-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="id-hygiene-section-body">
+      <div id="id-hygiene-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review source-specific import health, catalog consistency, temporary IDs, duplicate risks, and safe cleanup actions in one place.</p>
 
         <div class="section-head" style="margin-top:8px;">
@@ -887,12 +898,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Flagged Content</h2>
-        <button id="flagged-content-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="flagged-content-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="flagged-content-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="flagged-content-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="flagged-content-section-body">
+      <div id="flagged-content-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
         <div style="margin-bottom:18px;padding:16px;border:1px solid #e3d8c7;border-radius:18px;background:#fffaf2;">
           <h3 style="margin:0 0 10px;font-size:18px;">Batch flag content</h3>
@@ -1003,14 +1014,6 @@
       return res.json();
     }
 
-    function collapsedByDefault(storageKey) {
-      return localStorage.getItem(storageKey) !== 'open';
-    }
-
-    function saveCollapseState(storageKey, collapsed) {
-      localStorage.setItem(storageKey, collapsed ? 'closed' : 'open');
-    }
-
     const state = {
       me: null,
       users: [],
@@ -1060,16 +1063,45 @@
       flagQualityLaneFilter: "all",
       flagSort: "newest",
       batchFlagIdentifiers: [],
-      usersCollapsed: collapsedByDefault('pp_admin_users_collapsed'),
-      contentLibraryCollapsed: collapsedByDefault('pp_admin_content_library_collapsed'),
-      contentClaimsCollapsed: collapsedByDefault('pp_admin_content_claims_collapsed'),
-      duplicateReviewCollapsed: collapsedByDefault('pp_admin_duplicate_review_collapsed'),
-      userSubmissionsCollapsed: collapsedByDefault('pp_admin_user_submissions_collapsed'),
-      importAssistantCollapsed: collapsedByDefault('pp_admin_import_assistant_collapsed'),
-      legacyImportCollapsed: collapsedByDefault('pp_admin_legacy_import_collapsed'),
-      idHygieneCollapsed: collapsedByDefault('pp_admin_id_hygiene_collapsed'),
-      flaggedContentCollapsed: collapsedByDefault('pp_admin_flagged_content_collapsed'),
+      usersCollapsed: true,
+      contentLibraryCollapsed: true,
+      contentClaimsCollapsed: true,
+      duplicateReviewCollapsed: true,
+      userSubmissionsCollapsed: true,
+      importAssistantCollapsed: true,
+      legacyImportCollapsed: true,
+      idHygieneCollapsed: true,
+      flaggedContentCollapsed: true,
     };
+
+    const loadedAdminSections = new Set();
+
+    function loadSectionOnce(key, loader) {
+      if (loadedAdminSections.has(key)) return;
+      loadedAdminSections.add(key);
+      Promise.resolve().then(loader).catch((error) => {
+        loadedAdminSections.delete(key);
+        console.error(error);
+      });
+    }
+
+    function loadExpandedSections() {
+      const roles = state.me?.roles || [];
+      const admin = roles.includes('admin');
+      if (admin) {
+        if (!state.usersCollapsed) loadSectionOnce('users', loadUsers);
+        if (!state.contentClaimsCollapsed) loadSectionOnce('claims', loadClaims);
+        if (!state.duplicateReviewCollapsed) loadSectionOnce('duplicates', loadDuplicates);
+        if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
+        if (!state.contentLibraryCollapsed) loadSectionOnce('library', loadContentLibrary);
+        if (!state.idHygieneCollapsed) loadSectionOnce('health', () => Promise.all([loadWeaverExcHealth(), loadWeaverImportHealth()]));
+        if (!state.flaggedContentCollapsed) loadSectionOnce('flags', loadFlags);
+      } else if (roles.includes('contest_admin')) {
+        if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
+      } else if (roles.includes('team')) {
+        if (!state.flaggedContentCollapsed) loadSectionOnce('flags', loadFlags);
+      }
+    }
 
     function setStatus(message, isError = false) {
       const el = document.getElementById("status");
@@ -1093,6 +1125,9 @@
       body.hidden = !!collapsed;
       const label = button.querySelector('span:last-child');
       if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+      const chevron = button.querySelector('.chevron');
+      if (chevron) chevron.textContent = collapsed ? '▸' : '▾';
+      loadExpandedSections();
     }
 
     function applyContentClaimsCollapseState() {
@@ -5131,8 +5166,10 @@
       applyFlaggedContentCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
+        loadedAdminSections.clear();
         updateAuthUI(user);
         if (!user) {
+          state.me = null;
           setStatus("Please sign in with your admin account first.", true);
           document.getElementById("results").innerHTML = '<div class="empty">You need to sign in before accessing admin tools.</div>';
           return;
@@ -5159,15 +5196,15 @@
         if (!isAdmin && isContestAdmin) {
           document.querySelector("h1").textContent = "Contest Admin";
           document.querySelector("main.shell > p.lede").textContent = "Manage contest submissions and reviews without access to general site administration.";
-          await loadUserSubmissions();
+          loadExpandedSections();
           return;
         }
         if (!isAdmin && isTeam) {
           setStatus("Team access loaded. Flagged author feedback is available for review.", false);
-          await loadFlags();
+          loadExpandedSections();
           return;
         }
-        await Promise.all([loadUsers(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadWeaverImportHealth(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
+        loadExpandedSections();
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
@@ -5216,28 +5253,23 @@
       document.getElementById("import-assistant-load-first").addEventListener("click", () => loadFirstImportAssistantRowIntoForm());
       document.getElementById("users-toggle").addEventListener("click", () => {
         state.usersCollapsed = !state.usersCollapsed;
-        saveCollapseState('pp_admin_users_collapsed', state.usersCollapsed);
         applyUsersCollapseState();
       });
       document.getElementById("content-library-toggle").addEventListener("click", () => {
         state.contentLibraryCollapsed = !state.contentLibraryCollapsed;
-        saveCollapseState('pp_admin_content_library_collapsed', state.contentLibraryCollapsed);
         applyContentLibraryCollapseState();
       });
       document.getElementById("content-claims-toggle").addEventListener("click", () => {
         state.contentClaimsCollapsed = !state.contentClaimsCollapsed;
-        saveCollapseState('pp_admin_content_claims_collapsed', state.contentClaimsCollapsed);
         applyContentClaimsCollapseState();
       });
       document.getElementById("duplicate-review-toggle").addEventListener("click", () => {
         state.duplicateReviewCollapsed = !state.duplicateReviewCollapsed;
-        saveCollapseState('pp_admin_duplicate_review_collapsed', state.duplicateReviewCollapsed);
         applyDuplicateReviewCollapseState();
       });
       document.getElementById("scan-excerpt-duplicates").addEventListener("click", () => scanExcerptDuplicates());
       document.getElementById("user-submissions-toggle").addEventListener("click", () => {
         state.userSubmissionsCollapsed = !state.userSubmissionsCollapsed;
-        saveCollapseState('pp_admin_user_submissions_collapsed', state.userSubmissionsCollapsed);
         applyUserSubmissionsCollapseState();
       });
       document.getElementById("user-submissions-query").addEventListener("input", (event) => {
@@ -5302,24 +5334,20 @@
       document.getElementById("save-submission-program").addEventListener("click", () => saveSubmissionProgram());
       document.getElementById("import-assistant-toggle").addEventListener("click", () => {
         state.importAssistantCollapsed = !state.importAssistantCollapsed;
-        saveCollapseState('pp_admin_import_assistant_collapsed', state.importAssistantCollapsed);
         applyImportAssistantCollapseState();
       });
       document.getElementById("legacy-import-toggle").addEventListener("click", () => {
         state.legacyImportCollapsed = !state.legacyImportCollapsed;
-        saveCollapseState('pp_admin_legacy_import_collapsed', state.legacyImportCollapsed);
         applyLegacyImportCollapseState();
       });
       document.getElementById("id-hygiene-toggle").addEventListener("click", () => {
         state.idHygieneCollapsed = !state.idHygieneCollapsed;
-        saveCollapseState('pp_admin_id_hygiene_collapsed', state.idHygieneCollapsed);
         applyIdHygieneCollapseState();
       });
       document.getElementById("preview-pig-id-hygiene").addEventListener("click", () => previewPigIdHygiene());
       document.getElementById("apply-pig-id-hygiene").addEventListener("click", () => applyPigIdHygiene());
       document.getElementById("flagged-content-toggle").addEventListener("click", () => {
         state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
-        saveCollapseState('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed);
         applyFlaggedContentCollapseState();
       });
       document.getElementById("login-google").addEventListener("click", async () => {
