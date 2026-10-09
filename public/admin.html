@@ -506,6 +506,11 @@
           <p>Select a contest in the submissions filter below to open its judging tools directly. Progress, assignments, spot checks, finalist reads, and outcome actions live in Review Entries; this panel holds the submission records.</p>
           <nav class="contest-judging-links" aria-label="Contest judging tools">
             <a id="contest-judging-link" href="/contest-review.html?view=all">Open judging tools</a>
+            <a data-review-section="assignment-form" hidden>Assignments</a>
+            <a data-review-section="spot-check-form" hidden>Spot checks</a>
+            <a data-review-section="reviewer-progress" hidden>Reviewer progress</a>
+            <a data-review-section="finalist-admin" hidden>Finalist pass</a>
+            <a data-review-section="review-outcomes" hidden>Outcomes</a>
             <a href="/contest-builder.html">Build contests</a>
             <a id="contest-entrant-link" href="/contest-submit.html" target="_blank" rel="noopener" hidden>See entrant page</a>
           </nav>
@@ -2282,6 +2287,10 @@
       reviewLink.href = program
         ? `/contest-review.html?program=${encodeURIComponent(program.id)}&view=all`
         : '/contest-review.html?view=all';
+      document.querySelectorAll('[data-review-section]').forEach((link) => {
+        link.hidden = !program;
+        if (program) link.href = `/contest-review.html?program=${encodeURIComponent(program.id)}&view=all#${link.dataset.reviewSection}`;
+      });
       entrantLink.hidden = !program;
       if (program) entrantLink.href = `/contest-submit.html?program=${encodeURIComponent(program.id)}`;
     }
