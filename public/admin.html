@@ -1125,6 +1125,8 @@
       body.hidden = !!collapsed;
       const label = button.querySelector('span:last-child');
       if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+      const chevron = button.querySelector('.chevron');
+      if (chevron) chevron.textContent = collapsed ? '▸' : '▾';
       loadExpandedSections();
     }
 
@@ -5164,6 +5166,7 @@
       applyFlaggedContentCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
+        loadedAdminSections.clear();
         updateAuthUI(user);
         if (!user) {
           state.me = null;
