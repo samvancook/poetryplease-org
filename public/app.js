@@ -991,7 +991,7 @@ function renderAuthorReviewGuide() {
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
     <p style="margin:0 0 8px;"><strong>2. Ask for an adjustment:</strong> If the formatting is off or we used an earlier version, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.</p>
-    <p style="margin:0;"><strong>3. Choose what to feature next:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you want us to use in marketing and new graphics. You can browse Full Poems and select work for your public author page in <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">the editor</a>.</p>
+    <p style="margin:0;"><strong>3. Choose what to make more of:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
@@ -4194,8 +4194,8 @@ const AuthorQueueTour = (() => {
       target: () => document.getElementById('media-wrap'),
     },
     {
-      title: 'Choose excerpts and featured poems',
-      copy: 'After the tour, vote on Excerpts you want us to use in marketing and new graphics. Full Poems are in the editor, where you can select work for your public author page.',
+      title: 'Choose excerpts for marketing',
+      copy: 'After the tour, vote on Excerpts you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
   ];
