@@ -240,6 +240,10 @@
       min-width: 1em;
       text-align: right;
     }
+    .contest-judging-shortcuts { border:1px solid var(--line); border-radius:16px; background:var(--accent-soft); padding:16px; margin-bottom:18px; }
+    .contest-judging-shortcuts h3 { margin:0 0 8px; }
+    .contest-judging-links { display:flex; gap:10px; flex-wrap:wrap; }
+    .contest-judging-links a { display:inline-block; border:1px solid var(--line); border-radius:12px; background:#fff; padding:10px 14px; font-weight:700; }
     .role-set {
       display: flex;
       gap: 10px;
@@ -495,7 +499,16 @@
         </button>
       </div>
       <div id="user-submissions-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Use <a href="/contest-review.html?view=all">Review Entries</a> for the full blinded contest queue. Contest identity and contact details remain separate from judging.</p>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Contest identity and contact details remain separate from judging.</p>
+        <div class="contest-judging-shortcuts" aria-label="Contest judging workspace">
+          <h3>Contest judging workspace</h3>
+          <p>Select a contest in the submissions filter below to open its judging tools directly. Progress, assignments, spot checks, finalist reads, and outcome actions live in Review Entries; this panel holds the submission records.</p>
+          <nav class="contest-judging-links" aria-label="Contest judging tools">
+            <a id="contest-judging-link" href="/contest-review.html?view=all">Open judging tools</a>
+            <a href="/contest-builder.html">Build contests</a>
+            <a id="contest-entrant-link" href="/contest-submit.html" target="_blank" rel="noopener" hidden>See entrant page</a>
+          </nav>
+        </div>
         <details style="margin-bottom:18px;">
           <summary style="font-weight:700;cursor:pointer;">Contest program setup</summary>
           <div class="controls" style="margin:14px 0;">
@@ -2261,7 +2274,19 @@
       await loadUserSubmissions();
     }
 
+    function updateContestJudgingLinks() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const reviewLink = document.getElementById('contest-judging-link');
+      const entrantLink = document.getElementById('contest-entrant-link');
+      reviewLink.href = program
+        ? `/contest-review.html?program=${encodeURIComponent(program.id)}&view=all`
+        : '/contest-review.html?view=all';
+      entrantLink.hidden = !program;
+      if (program) entrantLink.href = `/contest-submit.html?program=${encodeURIComponent(program.id)}`;
+    }
+
     function renderUserSubmissions() {
+      updateContestJudgingLinks();
       const container = document.getElementById("user-submissions-list");
       const statusEl = document.getElementById("user-submissions-status");
       if (!state.submissions.length) {
