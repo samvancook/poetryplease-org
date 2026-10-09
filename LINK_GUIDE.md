@@ -150,3 +150,17 @@ Use `item` plus any other filters:
 - `AEO - INT - hi-10.jpg`
 - `Andrea Gibson - After the Breakup.mp4`
 
+
+## Campaign Tracking (UTM)
+
+Add UTM parameters to every link you post or email so Google Analytics can tell which post, email, or campaign sent the traffic. Without them, spikes from a social post or newsletter show up as Direct or Unassigned.
+
+- `utm_source`: where the link lives, e.g. `instagram`, `tiktok`, `newsletter`, `youtube`
+- `utm_medium`: the kind of channel, e.g. `social`, `email`, `video`
+- `utm_campaign`: a short name for the push, e.g. `2026-10-poem-drop`
+
+Example:
+
+- `https://poetryplease.org/?type=EXC&utm_source=instagram&utm_medium=social&utm_campaign=2026-10-poem-drop`
+
+The auto-detect entry keeps these parameters when it redirects to `/app` or `/m`.

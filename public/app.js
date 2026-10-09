@@ -3985,6 +3985,13 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
 
   try {
     await submitVote(currentItem, value);
+    window.ppTrack?.('vote', {
+      vote_value: String(value).replace(' ', '_'),
+      content_type: String(votedItem.imageType || '').toUpperCase(),
+      item_id: String(votedItem.id),
+      author: String(votedItem.author || ''),
+      book: String(votedItem.book || votedItem.bookTitle || ''),
+    });
     const promoType = String(votedItem.imageType || '').toUpperCase();
     if (wasUnreviewed && PROMO_TYPES.includes(promoType) && lastData?.promoLaneCounts) {
       for (const type of [promoType, 'PROMO']) {
