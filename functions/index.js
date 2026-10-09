@@ -10273,7 +10273,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   const readsPerEntry = Number(req.body?.readsPerEntry || 1);
   const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
     .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
-  if (!programId || !["strong", "rescue"].includes(tier) || ![1, 2].includes(readsPerEntry)) {
+  if (!programId || !["strong", "rescue"].includes(tier) || ![1, 2, 3].includes(readsPerEntry)) {
     return res.status(400).json({ error: "invalid_finalist_batch" });
   }
   if (!reviewerEmails.length || reviewerEmails.length > 20 ||
