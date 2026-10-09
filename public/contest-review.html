@@ -94,10 +94,10 @@
       <div id="assignment-status" class="status"></div>
       <div class="card" style="margin:12px 0;">
         <strong>Email a committed assignment via Mandrill</strong>
-        <p>Finalist assignment notices send when you commit a batch. Use this form for an existing assignment that still needs a notice.</p>
+        <p>Finalist notices send when you commit a batch. For an existing assignment that still needs a notice, choose the reviewer and queue below.</p>
         <form id="assignment-notice-form" class="assignment-form">
           <label>Reviewer’s Button Poetry email<input id="notice-email" type="email" required placeholder="name@buttonpoetry.com"></label>
-          <label>Queue<select id="notice-view"><option value="finalist">Finalist pass</option></select></label>
+          <label>Queue<select id="notice-view"><option value="assigned">Assigned batch or fourth reads</option><option value="spotcheck">Spot check</option><option value="finalist">Finalist pass</option></select></label>
           <button type="submit">Send assignment notice</button>
         </form>
         <div id="notice-status" class="status"></div>
