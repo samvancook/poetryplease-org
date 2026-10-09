@@ -2322,6 +2322,8 @@
           return {
             id: row.id, title: row.title || 'Untitled',
             outcomeStatus: row.outcomeStatus || 'undecided',
+            finalistReadsDone: reads.filter((read) => !!read.decision).length,
+            finalistReadsAssigned: reads.length,
             champion: reads.filter((read) => read.decision === 'champion').length,
             possible: reads.filter((read) => read.decision === 'possible').length,
             initialYes: Number(row.initialYesCount || 0),
@@ -2348,9 +2350,14 @@
                 Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedTotal || 0) + '</td></tr>').join('') +
               '</tbody></table>'
             : '<p>No reviewers assigned yet.</p>') +
-          '<h4>Winners-circle candidates</h4><p>Champion votes are a finalist-pass signal, not an acceptance. Build a circle of roughly 5–8, then optionally designate one of them as the winner. Decisions are reversible and send no email.</p>' +
+          '<h4>Winners-circle candidates</h4>' +
+          '<p><strong>Decision readiness:</strong> ' + (finalistDone < finalistReads.length
+            ? (finalistReads.length - finalistDone) + ' assigned finalist reads remain. Candidate totals may still change.'
+            : 'All assigned finalist reads are complete. Candidate totals are ready for your circle decision.') +
+          ' No entrant email is sent by these controls.</p>' +
+          '<p>Champion votes are a finalist-pass signal, not an acceptance. Build a circle of roughly 5–8, then optionally designate one of them as the winner. Decisions are reversible.</p>' +
           (candidates.length
-            ? '<table><thead><tr><th>Entry</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Internal decision</th><th>Actions</th></tr></thead><tbody>' +
+            ? '<table><thead><tr><th>Entry</th><th>Finalist reads</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Internal decision</th><th>Actions</th></tr></thead><tbody>' +
               candidates.map((row) => {
                 const action = (outcome, label) => '<button type="button" class="secondary" data-contest-outcome="' + outcome +
                   '" data-contest-submission="' + escapeHtml(row.id) + '">' + label + '</button> ';
@@ -2363,8 +2370,8 @@
                       : action('circle', 'Add to circle') + action('rejected', 'Reject');
                 return '<tr><td><a href="/contest-review.html?program=' +
                   encodeURIComponent(program.id) + '&view=all&submission=' + encodeURIComponent(row.id) +
-                  '">' + escapeHtml(row.title) + '</a></td><td>' + row.champion + '</td><td>' +
-                  row.possible + '</td><td>' + row.initialYes + '</td><td>' +
+                  '">' + escapeHtml(row.title) + '</a></td><td>' + row.finalistReadsDone + ' / ' + row.finalistReadsAssigned + '</td><td>' +
+                  row.champion + '</td><td>' + row.possible + '</td><td>' + row.initialYes + '</td><td>' +
                   escapeHtml(row.outcomeStatus.replace(/_/g, ' ')) + '</td><td>' + actions + '</td></tr>';
               }).join('') + '</tbody></table>'
             : '<p>No Champion votes recorded yet.</p>');
