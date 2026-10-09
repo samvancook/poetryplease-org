@@ -483,6 +483,10 @@
         state.filtersInitialized = true;
         setStatus("Ready.");
         applyFilters();
+        if (firstLoad && params.get("submission")) {
+          const linkedIndex = state.filtered.findIndex((row) => row.id === params.get("submission"));
+          if (linkedIndex >= 0) { state.index = linkedIndex; render(); }
+        }
         await loadProgress();
       } catch (error) {
         state.submissions = [];
