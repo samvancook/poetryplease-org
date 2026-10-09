@@ -94,8 +94,8 @@
       <div id="assignment-status" class="status"></div>
       <div class="card" style="margin:12px 0;">
         <strong>Email a committed assignment via Mandrill</strong>
-        <p>Assignment notices are prepared but paused until the message and recipients are approved.</p>
-        <form id="assignment-notice-form" class="assignment-form" hidden>
+        <p>Finalist notices send when you commit a batch. For an existing assignment that still needs a notice, choose the reviewer and queue below.</p>
+        <form id="assignment-notice-form" class="assignment-form">
           <label>Reviewer’s Button Poetry email<input id="notice-email" type="email" required placeholder="name@buttonpoetry.com"></label>
           <label>Queue<select id="notice-view"><option value="assigned">Assigned batch or fourth reads</option><option value="spotcheck">Spot check</option><option value="finalist">Finalist pass</option></select></label>
           <button type="submit">Send assignment notice</button>
@@ -115,10 +115,10 @@
       <div id="reviewer-progress" class="table-wrap"></div>
       <details id="finalist-admin" style="margin:22px 0;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalist pass</summary>
-        <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two independent readers for a second opinion. Original voters are skipped for that poem. No email is sent.</p>
+        <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two or three independent readers for more opinions. Original voters are skipped for that poem. Committing new assignments emails the assigned readers.</p>
         <div class="assignment-form">
           <label>Set<select id="finalist-tier"><option value="strong">2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
-          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option></select></label>
+          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option><option value="3">3 independent reads</option></select></label>
         </div>
         <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
         <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
@@ -126,7 +126,7 @@
         <div id="finalist-progress" class="table-wrap"></div>
         <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
       </details>
-      <h3>Review outcomes</h3>
+      <h3 id="review-outcomes">Review outcomes</h3>
       <label>Show submissions
         <select id="outcome-view">
           <option value="complete">3+ reviews</option>
@@ -418,6 +418,12 @@
         panel.hidden = false;
         document.getElementById("contest-submissions-link").hidden = false;
         renderProgress();
+        const targetId = location.hash.slice(1);
+        if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
+          panel.open = true;
+          if (targetId === "finalist-admin") document.getElementById("finalist-admin").open = true;
+          requestAnimationFrame(() => document.getElementById(targetId).scrollIntoView({ block: "start" }));
+        }
       } catch (error) {
         state.adminProgress = null;
         panel.hidden = true;
@@ -477,6 +483,10 @@
         state.filtersInitialized = true;
         setStatus("Ready.");
         applyFilters();
+        if (firstLoad && params.get("submission")) {
+          const linkedIndex = state.filtered.findIndex((row) => row.id === params.get("submission"));
+          if (linkedIndex >= 0) { state.index = linkedIndex; render(); }
+        }
         await loadProgress();
       } catch (error) {
         state.submissions = [];
@@ -717,30 +727,49 @@
           " new reads can be assigned. Already covered: " + result.alreadyCovered +
           ". Poems with too few independent readers: " + result.reviewerConflicts +
           ". Reader split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") +
-          ". No assignments made yet.";
-        state.finalistPreview = { ...body, previewToken: result.previewToken, newReadCount: result.newReadCount };
+          ". No assignments made yet. Click the button below to assign these reads and email " +
+          Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers.";
+        state.finalistPreview = { ...body, previewToken: result.previewToken, newReadCount: result.newReadCount, byReviewer: result.byReviewer || {} };
         document.getElementById("confirm-finalist").hidden = !result.newReadCount;
-        document.getElementById("confirm-finalist").textContent = "Assign " + result.newReadCount + " finalist reads";
+        document.getElementById("confirm-finalist").disabled = false;
+        document.getElementById("confirm-finalist").textContent = "Confirm: assign " + result.newReadCount + " reads and email " +
+          Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers";
       } catch (error) {
         status.textContent = "Could not preview: " + error.message;
       }
     });
     document.getElementById("confirm-finalist").addEventListener("click", async () => {
       const preview = state.finalistPreview;
-      if (!preview || !window.confirm("Assign " + preview.newReadCount + " finalist reads? No email will be sent.")) return;
+      if (!preview) return;
+      const button = document.getElementById("confirm-finalist");
+      if (button.disabled) return;
+      button.disabled = true;
       const status = document.getElementById("finalist-status");
       status.textContent = "Assigning finalist reads...";
       try {
         const result = await api("admin/contestFinalistBatch", { method: "POST", body: { ...preview, commit: true } });
-        status.textContent = "Assigned " + result.assignedCount + " finalist reads. Send a separate Mandrill notice for each reviewer listed above.";
-        const finalistRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
-        if (finalistRecipients.length) {
-          document.getElementById("notice-email").value = finalistRecipients[0];
-          document.getElementById("notice-view").value = "finalist";
-        }
+        const assignedRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
         state.finalistPreview = null;
         document.getElementById("confirm-finalist").hidden = true;
-        await loadQueue();
+        const sent = [];
+        const unconfirmed = [];
+        for (const email of assignedRecipients) {
+          status.textContent = "Assigned " + result.assignedCount + " reads. Sending " + (sent.length + unconfirmed.length + 1) +
+            " of " + assignedRecipients.length + " assignment emails; keep this page open.";
+          try {
+            await api("admin/contestAssignmentNotices/send", {
+              method: "POST", body: { programId: preview.programId, reviewerEmail: email, view: "finalist" },
+            });
+            sent.push(email);
+          } catch (error) {
+            unconfirmed.push(email + " (" + error.message + ")");
+          }
+        }
+        status.textContent = "Assigned " + result.assignedCount + " finalist reads. Mandrill accepted " + sent.length +
+          " assignment email(s): " + (sent.join(", ") || "none") +
+          (unconfirmed.length ? ". Delivery unconfirmed for: " + unconfirmed.join(", ") +
+            ". Check Mandrill before attempting another send." : ".");
+        await loadQueue().catch(() => {});
       } catch (error) {
         status.textContent = "Could not finish assignment: " + error.message + ". Check progress and preview again before retrying.";
         state.finalistPreview = null;

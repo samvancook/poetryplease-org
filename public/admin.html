@@ -240,6 +240,11 @@
       min-width: 1em;
       text-align: right;
     }
+    .contest-judging-shortcuts { border:1px solid var(--line); border-radius:16px; background:var(--accent-soft); padding:16px; margin-bottom:18px; }
+    .contest-judging-shortcuts h3 { margin:0 0 8px; }
+    .contest-judging-links { display:flex; gap:10px; flex-wrap:wrap; }
+    .contest-judging-links a { display:inline-block; border:1px solid var(--line); border-radius:12px; background:#fff; padding:10px 14px; font-weight:700; }
+    .contest-judging-links a[hidden] { display:none; }
     .role-set {
       display: flex;
       gap: 10px;
@@ -495,7 +500,27 @@
         </button>
       </div>
       <div id="user-submissions-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Use <a href="/contest-review.html?view=all">Review Entries</a> for the full blinded contest queue. Contest identity and contact details remain separate from judging.</p>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Contest identity and contact details remain separate from judging.</p>
+        <div class="contest-judging-shortcuts" aria-label="Contest judging workspace">
+          <h3>Contest judging workspace</h3>
+          <p>Select a contest in the submissions filter below to open its judging tools directly. Progress, assignments, spot checks, finalist reads, and outcome actions live in Review Entries; this panel holds the submission records.</p>
+          <nav class="contest-judging-links" aria-label="Contest judging tools">
+            <a id="contest-judging-link" href="/contest-review.html?view=all">Open judging tools</a>
+            <a data-review-section="assignment-form" hidden>Assignments</a>
+            <a data-review-section="spot-check-form" hidden>Spot checks</a>
+            <a data-review-section="reviewer-progress" hidden>Reviewer progress</a>
+            <a data-review-section="finalist-admin" hidden>Finalist pass</a>
+            <a data-review-section="review-outcomes" hidden>Outcomes</a>
+            <a href="/contest-builder.html">Build contests</a>
+            <a id="contest-entrant-link" href="/contest-submit.html" target="_blank" rel="noopener" hidden>See entrant page</a>
+          </nav>
+          <section id="contest-judging-overview" hidden aria-label="Selected contest judging status">
+            <h4>Judging status</h4>
+            <button id="contest-progress-refresh" type="button" class="secondary">Refresh progress</button>
+            <div id="contest-outcome-status" class="status" aria-live="polite">Decisions here are internal drafts. No contestant email is sent.</div>
+            <div id="contest-judging-overview-body" class="status"></div>
+          </section>
+        </div>
         <details style="margin-bottom:18px;">
           <summary style="font-weight:700;cursor:pointer;">Contest program setup</summary>
           <div class="controls" style="margin:14px 0;">
@@ -1005,6 +1030,7 @@
       submissionStatusFilter: "all",
       submissionTypeFilter: "all",
       submissionProgramFilter: "all",
+      contestProgressRequestId: 0,
       submissionPage: 0,
       importAssistantResults: [],
       importAssistantPreviewRows: [],
@@ -2261,7 +2287,95 @@
       await loadUserSubmissions();
     }
 
+    function updateContestJudgingLinks() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const reviewLink = document.getElementById('contest-judging-link');
+      const entrantLink = document.getElementById('contest-entrant-link');
+      reviewLink.href = program
+        ? `/contest-review.html?program=${encodeURIComponent(program.id)}&view=all`
+        : '/contest-review.html?view=all';
+      document.querySelectorAll('[data-review-section]').forEach((link) => {
+        link.hidden = !program;
+        if (program) link.href = `/contest-review.html?program=${encodeURIComponent(program.id)}&view=all#${link.dataset.reviewSection}`;
+      });
+      entrantLink.hidden = !program;
+      if (program) entrantLink.href = `/contest-submit.html?program=${encodeURIComponent(program.id)}`;
+    }
+
+    async function loadContestJudgingOverview() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const panel = document.getElementById('contest-judging-overview');
+      const body = document.getElementById('contest-judging-overview-body');
+      const requestId = ++state.contestProgressRequestId;
+      panel.hidden = !program;
+      if (!program) { body.textContent = ''; return; }
+      body.textContent = 'Loading judging progress…';
+      try {
+        const report = await api('admin/contestReviewProgress?programId=' + encodeURIComponent(program.id));
+        if (requestId !== state.contestProgressRequestId) return;
+        const total = Number(report.totalSubmissions || 0);
+        const complete = Number(report.fullyReviewed || 0);
+        const finalistReads = (report.submissions || []).flatMap((row) => row.finalistReads || []);
+        const finalistDone = finalistReads.filter((read) => !!read.decision).length;
+        const candidates = (report.submissions || []).filter((row) => !row.archived).map((row) => {
+          const reads = row.finalistReads || [];
+          return {
+            id: row.id, title: row.title || 'Untitled',
+            outcomeStatus: row.outcomeStatus || 'undecided',
+            champion: reads.filter((read) => read.decision === 'champion').length,
+            possible: reads.filter((read) => read.decision === 'possible').length,
+            initialYes: Number(row.initialYesCount || 0),
+          };
+        }).filter((row) => row.champion > 0 || ['circle', 'winner'].includes(row.outcomeStatus)).sort((left, right) =>
+          right.champion - left.champion || right.possible - left.possible ||
+          right.initialYes - left.initialYes || left.title.localeCompare(right.title));
+        const circleCount = (report.submissions || []).filter((row) => ['circle', 'winner'].includes(row.outcomeStatus)).length;
+        const rejectedCount = (report.submissions || []).filter((row) => row.outcomeStatus === 'rejected').length;
+        body.innerHTML =
+          '<p><span class="pill">' + total + ' submissions</span>' +
+          '<span class="pill">' + complete + ' entries fully reviewed</span>' +
+          '<span class="pill">' + Math.max(0, total - Number(report.archivedCount || 0) - complete) + ' active entries need more initial reviews</span>' +
+          '<span class="pill">' + finalistDone + ' / ' + finalistReads.length + ' finalist reads complete</span>' +
+          '<span class="pill">' + candidates.filter((row) => row.champion > 0).length + ' entries with Champion votes</span>' +
+          '<span class="pill">' + circleCount + ' in winners circle</span>' +
+          '<span class="pill">' + (report.winnerSubmissionId ? 'Winner selected' : 'No winner selected') + '</span>' +
+          '<span class="pill">' + rejectedCount + ' internally rejected</span>' +
+          '<span class="pill">' + Number(report.archivedCount || 0) + ' archived</span></p>' +
+          ((report.reviewers || []).length
+            ? '<table><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
+              report.reviewers.map((row) => '<tr><td>' + escapeHtml(row.email) + '</td><td>' +
+                Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedAssigned || 0) + ' / ' +
+                Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedTotal || 0) + '</td></tr>').join('') +
+              '</tbody></table>'
+            : '<p>No reviewers assigned yet.</p>') +
+          '<h4>Winners-circle candidates</h4><p>Champion votes are a finalist-pass signal, not an acceptance. Build a circle of roughly 5–8, then optionally designate one of them as the winner. Decisions are reversible and send no email.</p>' +
+          (candidates.length
+            ? '<table><thead><tr><th>Entry</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Internal decision</th><th>Actions</th></tr></thead><tbody>' +
+              candidates.map((row) => {
+                const action = (outcome, label) => '<button type="button" class="secondary" data-contest-outcome="' + outcome +
+                  '" data-contest-submission="' + escapeHtml(row.id) + '">' + label + '</button> ';
+                const actions = row.outcomeStatus === 'winner'
+                  ? action('circle', 'Clear winner')
+                  : row.outcomeStatus === 'circle'
+                    ? action('winner', 'Make winner') + action('undecided', 'Remove from circle')
+                    : row.outcomeStatus === 'rejected'
+                      ? action('circle', 'Add to circle') + action('undecided', 'Undo rejection')
+                      : action('circle', 'Add to circle') + action('rejected', 'Reject');
+                return '<tr><td><a href="/contest-review.html?program=' +
+                  encodeURIComponent(program.id) + '&view=all&submission=' + encodeURIComponent(row.id) +
+                  '">' + escapeHtml(row.title) + '</a></td><td>' + row.champion + '</td><td>' +
+                  row.possible + '</td><td>' + row.initialYes + '</td><td>' +
+                  escapeHtml(row.outcomeStatus.replace(/_/g, ' ')) + '</td><td>' + actions + '</td></tr>';
+              }).join('') + '</tbody></table>'
+            : '<p>No Champion votes recorded yet.</p>');
+      } catch (error) {
+        if (requestId !== state.contestProgressRequestId) return;
+        body.textContent = 'Could not load judging progress: ' + error.message;
+      }
+    }
+
     function renderUserSubmissions() {
+      updateContestJudgingLinks();
       const container = document.getElementById("user-submissions-list");
       const statusEl = document.getElementById("user-submissions-status");
       if (!state.submissions.length) {
@@ -3138,6 +3252,7 @@
         state.submissionPrograms = payload.programs || [];
         renderSubmissionPrograms();
         renderUserSubmissions();
+        loadContestJudgingOverview();
       } catch (err) {
         console.error(err);
         document.getElementById('user-submissions-list').innerHTML = '<div class="empty">Could not load submissions. <button id="retry-user-submissions" type="button">Retry</button></div>';
@@ -5053,6 +5168,34 @@
         state.submissionProgramFilter = event.target.value || "all";
         state.submissionPage = 0;
         renderUserSubmissions();
+        loadContestJudgingOverview();
+      });
+      document.getElementById('contest-progress-refresh').addEventListener('click', loadContestJudgingOverview);
+      document.getElementById('contest-judging-overview-body').addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-contest-outcome]');
+        if (!button) return;
+        const outcome = button.dataset.contestOutcome;
+        const submissionId = button.dataset.contestSubmission;
+        const message = {
+          circle: 'Add this entry to the winners circle?',
+          winner: 'Designate this winners-circle entry as the single winner?',
+          rejected: 'Mark this entry internally rejected?',
+          undecided: 'Clear this internal decision?',
+        }[outcome];
+        if (!message || !window.confirm(message + ' No contestant email will be sent.')) return;
+        const status = document.getElementById('contest-outcome-status');
+        button.disabled = true;
+        status.textContent = 'Saving internal decision…';
+        try {
+          await api('admin/contentSubmissions/' + encodeURIComponent(submissionId) + '/outcome', {
+            method: 'POST', body: { outcome },
+          });
+          await loadContestJudgingOverview();
+          status.textContent = 'Internal decision saved. No contestant email was sent.';
+        } catch (error) {
+          button.disabled = false;
+          status.textContent = 'Could not save decision: ' + error.message;
+        }
       });
       document.getElementById("submission-program-editor-select").addEventListener("change", (event) => {
         const program = state.submissionPrograms.find((row) => row.id === event.target.value) || null;

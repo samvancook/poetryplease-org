@@ -963,7 +963,7 @@ function renderAuthorReviewGuide() {
     guide = document.createElement('section');
     guide.id = 'author-review-guide';
     guide.setAttribute('aria-label', 'Author review shortcuts');
-    guide.style.cssText = `${IS_MOBILE_UI ? 'grid-column:1/-1;width:100%;margin:2px 0 4px;padding:10px 12px;' : 'max-width:760px;margin:12px auto 18px;padding:16px 20px;'}border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;`;
+    guide.style.cssText = `${IS_MOBILE_UI ? 'grid-column:1/-1;width:100%;margin:2px 0 4px;padding:10px 12px;max-height:min(52vh,420px);overflow-y:auto;overscroll-behavior:contain;' : 'max-width:760px;margin:12px auto 18px;padding:16px 20px;'}border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;`;
     if (status) status.insertAdjacentElement('afterend', guide);
     else mobileHeader.appendChild(guide);
   }
@@ -991,7 +991,7 @@ function renderAuthorReviewGuide() {
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
     <p style="margin:0 0 8px;"><strong>2. Ask for an adjustment:</strong> If the formatting is off or we used an earlier version, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.</p>
-    <p style="margin:0;"><strong>3. Choose what to feature next:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you want us to use in marketing and new graphics. You can browse Full Poems and select work for your public author page in <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">the editor</a>.</p>
+    <p style="margin:0;"><strong>3. Choose what to make more of:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
@@ -1080,7 +1080,7 @@ function updateFilterControlsVisibility() {
   }
   if (lengthContainer) {
     const showLengthFilters = canSeeDropdownFilters && normalizeFilterValue(selectedType) === 'fp' && !IS_EMBED_UI;
-    lengthContainer.style.display = showLengthFilters ? 'flex' : 'none';
+    lengthContainer.style.display = showLengthFilters ? (IS_MOBILE_UI ? 'grid' : 'flex') : 'none';
   }
   updateAuthorPromoControls();
 }
@@ -4187,7 +4187,7 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Three ways to guide your book',
-      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts or poems you want to feature.',
+      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts you want us to use in its promotion.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
@@ -4201,8 +4201,8 @@ const AuthorQueueTour = (() => {
       target: () => document.getElementById('media-wrap'),
     },
     {
-      title: 'Choose excerpts and featured poems',
-      copy: 'After the tour, vote on Excerpts you want us to use in marketing and new graphics. Full Poems are in the editor, where you can select work for your public author page.',
+      title: 'Choose excerpts for marketing',
+      copy: 'After the tour, vote on Excerpts you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
   ];

@@ -30,6 +30,7 @@ const PIG_POETRY_PLEASE_API_KEY_SECRET = defineSecret("PIG_POETRY_PLEASE_API_KEY
 const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATION_API_KEY");
 const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
 const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
+const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
 const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -1104,6 +1105,7 @@ function mapSubmissionDoc(doc) {
     contestReviewCount: Number(data.contestReviewCount || 0) || 0,
     contestReviewTarget: Number(data.contestReviewTarget || 0) || 0,
     contestArchived: data.contestArchived === true,
+    contestOutcomeStatus: data.contestOutcomeStatus || "undecided",
     contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
     contestSpotCheckBatchId: data.contestSpotCheckBatchId || "",
     contestSpotCheckReviewerEmail: data.contestSpotCheckReviewerEmail || "",
@@ -10178,6 +10180,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       title: row.title || "Untitled",
       instagramHandle: instagramBySubmission.get(row.id) || "",
       archived: row.contestArchived === true,
+      outcomeStatus: row.contestOutcomeStatus || "undecided",
       reviewCount: decisions.length,
       requiredReviewCount: Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0),
       reviewers: decisions.map(({ reviewerEmail, decision }) => ({ reviewerEmail, decision })),
@@ -10204,6 +10207,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   res.json({
     ok: true,
     programId,
+    winnerSubmissionId: normalizeText(programSnap.data()?.contestWinnerSubmissionId || ""),
     spotChecks,
     totalSubmissions: rows.length,
     reviewedAtLeastOnce: rows.filter((row) => row.reviewCount > 0).length,
@@ -10218,7 +10222,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
 app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
-  if (!BROADER_EMAIL_SENDS_ENABLED) return res.status(409).json({ error: "broader_email_sends_awaiting_approval" });
+  if (!CONTEST_ASSIGNMENT_EMAILS_ENABLED) return res.status(409).json({ error: "contest_assignment_emails_paused" });
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
   const programId = normalizeText(req.body?.programId || "");
@@ -10269,7 +10273,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   const readsPerEntry = Number(req.body?.readsPerEntry || 1);
   const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
     .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
-  if (!programId || !["strong", "rescue"].includes(tier) || ![1, 2].includes(readsPerEntry)) {
+  if (!programId || !["strong", "rescue"].includes(tier) || ![1, 2, 3].includes(readsPerEntry)) {
     return res.status(400).json({ error: "invalid_finalist_batch" });
   }
   if (!reviewerEmails.length || reviewerEmails.length > 20 ||
@@ -10750,6 +10754,69 @@ app.post(getBoth("/admin/contestSpotChecks"), async (req, res) => {
     ok: true, spotCheckId: spotCheckRef.id, programId, reviewerEmail,
     eligibleCount: eligible.length, sampleCount,
   });
+});
+
+app.post(getBoth("/admin/contentSubmissions/:submissionId/outcome"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const submissionId = normalizeText(req.params.submissionId);
+  const outcome = normalizeKey(req.body?.outcome || "");
+  if (!["undecided", "circle", "winner", "rejected"].includes(outcome)) {
+    return res.status(400).json({ error: "invalid_contest_outcome" });
+  }
+  const submissionRef = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+  const initialSnap = await submissionRef.get();
+  if (!initialSnap.exists) return res.status(404).json({ error: "submission_not_found" });
+  const initial = initialSnap.data() || {};
+  if (initial.contestSubmission !== true) return res.status(409).json({ error: "not_a_contest_submission" });
+  const programId = normalizeText(initial.submissionProgramId || "");
+  if (!programId) return res.status(409).json({ error: "missing_submission_program" });
+  const programRef = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
+  try {
+    await db.runTransaction(async (transaction) => {
+      const [submissionSnap, programSnap] = await Promise.all([
+        transaction.get(submissionRef), transaction.get(programRef),
+      ]);
+      if (!submissionSnap.exists || !programSnap.exists) throw new Error("contest_record_missing");
+      const submission = submissionSnap.data() || {};
+      if (submission.contestSubmission !== true || normalizeText(submission.submissionProgramId || "") !== programId) {
+        throw new Error("contest_program_changed");
+      }
+      if (submission.contestArchived === true && ["circle", "winner"].includes(outcome)) {
+        throw new Error("contest_submission_archived");
+      }
+      const prior = normalizeKey(submission.contestOutcomeStatus || "undecided");
+      const currentWinnerId = normalizeText(programSnap.data()?.contestWinnerSubmissionId || "");
+      if (outcome === "winner" && !["circle", "winner"].includes(prior)) {
+        throw new Error("winner_requires_circle");
+      }
+      if (outcome === "winner" && currentWinnerId && currentWinnerId !== submissionId) {
+        throw new Error("winner_already_selected");
+      }
+      if (prior === outcome) return;
+      if (outcome === "winner") {
+        transaction.set(programRef, { contestWinnerSubmissionId: submissionId }, { merge: true });
+      } else if (prior === "winner" && currentWinnerId === submissionId) {
+        transaction.set(programRef, { contestWinnerSubmissionId: null }, { merge: true });
+      }
+      transaction.set(submissionRef, {
+        contestOutcomeStatus: outcome,
+        contestOutcomeUpdatedAt: FieldValue.serverTimestamp(),
+        contestOutcomeUpdatedBy: ctx.decoded.uid,
+        contestOutcomeHistory: FieldValue.arrayUnion({
+          from: prior, to: outcome, by: ctx.decoded.uid, at: new Date().toISOString(),
+        }),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+  } catch (error) {
+    if (["contest_record_missing", "contest_program_changed", "contest_submission_archived",
+      "winner_requires_circle", "winner_already_selected"].includes(error.message)) {
+      return res.status(409).json({ error: error.message });
+    }
+    throw error;
+  }
+  res.json({ ok: true, submissionId, programId, outcome, emailSent: false });
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/archive"), async (req, res) => {
