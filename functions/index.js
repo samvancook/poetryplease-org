@@ -10444,6 +10444,9 @@ app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
   if (!recipient || recipient.mixedOutcomes || recipient.previewToken !== previewToken) {
     return res.status(409).json({ error: "recipient_preview_changed_or_invalid" });
   }
+  if (recipient.submissions.some((submission) => submission.internalStatus === "undecided")) {
+    return res.status(409).json({ error: "recipient_outcome_not_final" });
+  }
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
   const noticeId = createHash("sha256").update(programId + "|" + email).digest("hex").slice(0, 40);
