@@ -7517,7 +7517,7 @@ function assignCanonicalExcerptIds(items = []) {
   const grouped = new Map();
   items.forEach((item, index) => {
     const bookShortener = resolveExcerptBookShortener(item);
-    if (!bookShortener || !item.poem) return;
+    if (!item.book || !bookShortener || !item.poem) return;
     const key = `${bookShortener}|${slugify(item.poem)}`;
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push({ item, index, bookShortener });
@@ -7635,6 +7635,26 @@ async function assignPersistentWeaverFullPoemIds(items = []) {
 async function assignPersistentWeaverExcerptIds(items = []) {
   const usedIds = new Set();
   for (const item of items) {
+    const booklessVideo = !item.book && !!item.sourceRecordId && !!item.sourceContentId && !!item.sourceVideoFileId;
+    if (booklessVideo) {
+      const videoId = normalizeText(item.sourceContentId);
+      if (sanitizeDocIdSegment(videoId) !== videoId) continue;
+      const videoSnap = await db.collection(COLLECTIONS.videos).doc(videoId).get();
+      if (!videoSnap.exists) continue;
+
+      const existingBySource = await db.collection(COLLECTIONS.excerpts)
+        .where("sourceRecordId", "==", normalizeText(item.sourceRecordId))
+        .limit(1)
+        .get();
+      const docId = existingBySource.empty
+        ? `WEAVER-VEX-${sha256(item.sourceRecordId).slice(0, 24)}`.toUpperCase()
+        : existingBySource.docs[0].id;
+      item.docId = docId;
+      item.imageId = docId;
+      item.imageID = docId;
+      usedIds.add(docId);
+      continue;
+    }
     if (!item.docId || !item.bookShortener || !item.poem) continue;
 
     const sourceRecordId = normalizeText(item.sourceRecordId);
@@ -7677,7 +7697,8 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const mappedItems = await assignPersistentWeaverExcerptIds(
     assignCanonicalExcerptIds(sourceRecords.map(buildWeaverExcerptImportItem))
   );
-  const importableItems = mappedItems.filter((item) => item.docId && item.author && item.book && item.poem && item.excerpt);
+  const importableItems = mappedItems.filter((item) => item.docId && item.author && item.poem && item.excerpt &&
+    (item.book || (item.sourceRecordId && item.sourceContentId && item.sourceVideoFileId)));
   if (!importableItems.length) {
     const err = new Error("no_importable_weaver_excerpt_records");
     err.status = 400;
