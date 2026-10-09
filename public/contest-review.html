@@ -115,10 +115,10 @@
       <div id="reviewer-progress" class="table-wrap"></div>
       <details id="finalist-admin" style="margin:22px 0;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalist pass</summary>
-        <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two independent readers for a second opinion. Original voters are skipped for that poem. No email is sent.</p>
+        <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two or three independent readers for more opinions. Original voters are skipped for that poem. Committing new assignments emails the assigned readers.</p>
         <div class="assignment-form">
           <label>Set<select id="finalist-tier"><option value="strong">2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
-          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option></select></label>
+          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option><option value="3">3 independent reads</option></select></label>
         </div>
         <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
         <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
