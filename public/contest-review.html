@@ -727,10 +727,13 @@
           " new reads can be assigned. Already covered: " + result.alreadyCovered +
           ". Poems with too few independent readers: " + result.reviewerConflicts +
           ". Reader split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") +
-          ". No assignments made yet.";
+          ". No assignments made yet. Click the button below to assign these reads and email " +
+          Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers.";
         state.finalistPreview = { ...body, previewToken: result.previewToken, newReadCount: result.newReadCount, byReviewer: result.byReviewer || {} };
         document.getElementById("confirm-finalist").hidden = !result.newReadCount;
-        document.getElementById("confirm-finalist").textContent = "Assign " + result.newReadCount + " reads and email readers";
+        document.getElementById("confirm-finalist").disabled = false;
+        document.getElementById("confirm-finalist").textContent = "Confirm: assign " + result.newReadCount + " reads and email " +
+          Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers";
       } catch (error) {
         status.textContent = "Could not preview: " + error.message;
       }
@@ -738,9 +741,9 @@
     document.getElementById("confirm-finalist").addEventListener("click", async () => {
       const preview = state.finalistPreview;
       if (!preview) return;
-      const recipients = Object.entries(preview.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
-      if (!window.confirm("Assign " + preview.newReadCount + " finalist reads and email " + recipients.length +
-        " readers via Mandrill?\n\n" + recipients.join("\n"))) return;
+      const button = document.getElementById("confirm-finalist");
+      if (button.disabled) return;
+      button.disabled = true;
       const status = document.getElementById("finalist-status");
       status.textContent = "Assigning finalist reads...";
       try {
