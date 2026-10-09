@@ -2318,8 +2318,8 @@
         const finalistDone = finalistReads.filter((read) => !!read.decision).length;
         body.innerHTML =
           '<p><span class="pill">' + total + ' submissions</span>' +
-          '<span class="pill">' + complete + ' initial reviews complete</span>' +
-          '<span class="pill">' + Math.max(0, total - complete) + ' still need initial reviews</span>' +
+          '<span class="pill">' + complete + ' entries fully reviewed</span>' +
+          '<span class="pill">' + Math.max(0, total - complete) + ' entries need more initial reviews</span>' +
           '<span class="pill">' + finalistDone + ' / ' + finalistReads.length + ' finalist reads complete</span>' +
           '<span class="pill">' + Number(report.archivedCount || 0) + ' archived</span></p>' +
           ((report.reviewers || []).length
