@@ -514,6 +514,11 @@
             <a href="/contest-builder.html">Build contests</a>
             <a id="contest-entrant-link" href="/contest-submit.html" target="_blank" rel="noopener" hidden>See entrant page</a>
           </nav>
+          <section id="contest-judging-overview" hidden aria-label="Selected contest judging status">
+            <h4>Judging status</h4>
+            <button id="contest-progress-refresh" type="button" class="secondary">Refresh progress</button>
+            <div id="contest-judging-overview-body" class="status"></div>
+          </section>
         </div>
         <details style="margin-bottom:18px;">
           <summary style="font-weight:700;cursor:pointer;">Contest program setup</summary>
@@ -1024,6 +1029,7 @@
       submissionStatusFilter: "all",
       submissionTypeFilter: "all",
       submissionProgramFilter: "all",
+      contestProgressRequestId: 0,
       submissionPage: 0,
       importAssistantResults: [],
       importAssistantPreviewRows: [],
@@ -2295,6 +2301,40 @@
       if (program) entrantLink.href = `/contest-submit.html?program=${encodeURIComponent(program.id)}`;
     }
 
+    async function loadContestJudgingOverview() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const panel = document.getElementById('contest-judging-overview');
+      const body = document.getElementById('contest-judging-overview-body');
+      const requestId = ++state.contestProgressRequestId;
+      panel.hidden = !program;
+      if (!program) { body.textContent = ''; return; }
+      body.textContent = 'Loading judging progress…';
+      try {
+        const report = await api('admin/contestReviewProgress?programId=' + encodeURIComponent(program.id));
+        if (requestId !== state.contestProgressRequestId) return;
+        const total = Number(report.totalSubmissions || 0);
+        const complete = Number(report.fullyReviewed || 0);
+        const finalistReads = (report.submissions || []).flatMap((row) => row.finalistReads || []);
+        const finalistDone = finalistReads.filter((read) => !!read.decision).length;
+        body.innerHTML =
+          '<p><span class="pill">' + total + ' submissions</span>' +
+          '<span class="pill">' + complete + ' initial reviews complete</span>' +
+          '<span class="pill">' + Math.max(0, total - complete) + ' still need initial reviews</span>' +
+          '<span class="pill">' + finalistDone + ' / ' + finalistReads.length + ' finalist reads complete</span>' +
+          '<span class="pill">' + Number(report.archivedCount || 0) + ' archived</span></p>' +
+          ((report.reviewers || []).length
+            ? '<table><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
+              report.reviewers.map((row) => '<tr><td>' + escapeHtml(row.email) + '</td><td>' +
+                Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedAssigned || 0) + ' / ' +
+                Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedTotal || 0) + '</td></tr>').join('') +
+              '</tbody></table>'
+            : '<p>No reviewers assigned yet.</p>');
+      } catch (error) {
+        if (requestId !== state.contestProgressRequestId) return;
+        body.textContent = 'Could not load judging progress: ' + error.message;
+      }
+    }
+
     function renderUserSubmissions() {
       updateContestJudgingLinks();
       const container = document.getElementById("user-submissions-list");
@@ -3173,6 +3213,7 @@
         state.submissionPrograms = payload.programs || [];
         renderSubmissionPrograms();
         renderUserSubmissions();
+        loadContestJudgingOverview();
       } catch (err) {
         console.error(err);
         document.getElementById('user-submissions-list').innerHTML = '<div class="empty">Could not load submissions. <button id="retry-user-submissions" type="button">Retry</button></div>';
@@ -5088,7 +5129,9 @@
         state.submissionProgramFilter = event.target.value || "all";
         state.submissionPage = 0;
         renderUserSubmissions();
+        loadContestJudgingOverview();
       });
+      document.getElementById('contest-progress-refresh').addEventListener('click', loadContestJudgingOverview);
       document.getElementById("submission-program-editor-select").addEventListener("change", (event) => {
         const program = state.submissionPrograms.find((row) => row.id === event.target.value) || null;
         populateSubmissionProgramEditor(program);
