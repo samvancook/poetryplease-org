@@ -126,7 +126,7 @@
         <div id="finalist-progress" class="table-wrap"></div>
         <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
       </details>
-      <h3>Review outcomes</h3>
+      <h3 id="review-outcomes">Review outcomes</h3>
       <label>Show submissions
         <select id="outcome-view">
           <option value="complete">3+ reviews</option>
@@ -418,6 +418,12 @@
         panel.hidden = false;
         document.getElementById("contest-submissions-link").hidden = false;
         renderProgress();
+        const targetId = location.hash.slice(1);
+        if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
+          panel.open = true;
+          if (targetId === "finalist-admin") document.getElementById("finalist-admin").open = true;
+          requestAnimationFrame(() => document.getElementById(targetId).scrollIntoView({ block: "start" }));
+        }
       } catch (error) {
         state.adminProgress = null;
         panel.hidden = true;
