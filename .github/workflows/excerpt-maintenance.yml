@@ -1,0 +1,64 @@
+name: Excerpt maintenance
+
+# Manual-only Firestore maintenance for excerpts, run from main with the same keyless
+# identity as the Firebase deploy. Jobs print ids and counts only: this repository's logs are public.
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Maintenance job
+        type: choice
+        options:
+          - resolve-filled-excerpt-flags
+          - undo-resolve-filled-excerpt-flags
+      apply:
+        description: Write changes (leave unticked for a dry run)
+        type: boolean
+        default: false
+
+concurrency:
+  group: excerpt-maintenance
+  cancel-in-progress: false
+
+jobs:
+  run:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install function dependencies
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/609992589187/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+          create_credentials_file: true
+
+      - name: Run job
+        working-directory: functions
+        env:
+          GOOGLE_CLOUD_PROJECT: poetry-please
+          JOB: ${{ inputs.job }}
+          APPLY: ${{ inputs.apply }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$APPLY" = "true" ]; then args+=(--apply); fi
+          case "$JOB" in
+            resolve-filled-excerpt-flags) node resolve_filled_excerpt_flags.js "${args[@]}" ;;
+            undo-resolve-filled-excerpt-flags) node resolve_filled_excerpt_flags.js --undo "${args[@]}" ;;
+            *) echo "Unknown job: $JOB"; exit 2 ;;
+          esac
