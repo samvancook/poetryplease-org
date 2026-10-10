@@ -116,6 +116,7 @@
   <script src="/__/firebase/8.10.1/firebase-app.js"></script>
   <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
   <script src="/__/firebase/init.js"></script>
+  <script src="/pp-analytics.js?v=20261009-ga" defer></script>
   <script>
     const params = new URLSearchParams(location.search);
     const programId = params.get("program") || "";
@@ -315,6 +316,7 @@
           };
           throw new Error(messages[payload.error] || "The submission could not be saved.");
         }
+        window.ppTrack?.("contest_submit", { program_id: programId, already_submitted: Boolean(payload.alreadySubmitted) });
         formSection.hidden = true;
         document.getElementById("complete-heading").textContent = payload.alreadySubmitted ? "Submission already received" : "Submission received";
         document.getElementById("complete-message").textContent = payload.alreadySubmitted ? "We already have this poem. It has not been entered twice." : "Thank you. Your poem is now in the review queue.";

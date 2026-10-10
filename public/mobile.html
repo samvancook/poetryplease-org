@@ -464,28 +464,8 @@ body { min-height: 100svh; } /* accounts for mobile browser chrome correctly */
       measurementId: "G-FBLJHKQ70B"
     };
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
-    window.addEventListener('load', () => {
-      const loadAnalytics = () => {
-        const script = document.createElement('script');
-        script.src = 'https://www.gstatic.com/firebasejs/10.14.0/firebase-analytics-compat.js';
-        script.async = true;
-        script.onload = () => {
-          try {
-            firebase.analytics().logEvent('page_view');
-          } catch (err) {
-            console.warn('Analytics init skipped', err);
-          }
-        };
-        document.head.appendChild(script);
-      };
-
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(loadAnalytics, { timeout: 2000 });
-      } else {
-        setTimeout(loadAnalytics, 800);
-      }
-    }, { once: true });
   </script>
+  <script src="/pp-analytics.js?v=20261009-ga" defer></script>
 
   
 </head>

@@ -304,6 +304,7 @@
           Object.assign(body, await readFileAsPayload(file));
         }
         await api("submissions", { method: "POST", body });
+        window.ppTrack?.("submit_content", { submission_type: submissionType });
         setStatus("Submission received.");
         document.getElementById("submission-title").value = "";
         document.getElementById("submission-text").value = "";
@@ -341,5 +342,6 @@
     updateTypeUI();
     loadApprovedSubmissions();
   </script>
+  <script src="/pp-analytics.js?v=20261009-ga" defer></script>
 </body>
 </html>
