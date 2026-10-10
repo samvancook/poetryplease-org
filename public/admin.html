@@ -240,11 +240,27 @@
       min-width: 1em;
       text-align: right;
     }
+    .contest-judging-shortcuts { border:1px solid var(--line); border-radius:16px; background:var(--accent-soft); padding:16px; margin-bottom:18px; }
+    .contest-judging-shortcuts h3 { margin:0 0 8px; }
+    .contest-judging-links { display:flex; gap:10px; flex-wrap:wrap; }
+    .contest-judging-links a { display:inline-block; border:1px solid var(--line); border-radius:12px; background:#fff; padding:10px 14px; font-weight:700; }
+    .contest-judging-links a[hidden] { display:none; }
     .role-set {
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
     }
+    #results table { table-layout: fixed; }
+    #results th:nth-child(1) { width: 24%; }
+    #results th:nth-child(2) { width: 14%; }
+    #results th:nth-child(3) { width: 12%; }
+    #results th:nth-child(4) { width: 16%; }
+    #results th:nth-child(5) { width: 8%; }
+    #results th:nth-child(6) { width: 7%; }
+    #results th:nth-child(7) { width: 19%; }
+    #results td { overflow-wrap: anywhere; }
+    #results td:last-child .role-set { display: grid; grid-template-columns: 1fr; }
+    #results td:last-child button { width: 100%; max-width: 100%; box-sizing: border-box; white-space: normal; }
     .role-set label {
       display: inline-flex;
       gap: 6px;
@@ -415,12 +431,12 @@
     <section class="card">
       <div class="section-head">
         <h2>Users</h2>
-        <button id="users-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="users-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="users-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="users-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="users-section-body">
+      <div id="users-section-body" hidden>
         <div class="controls">
           <input id="search" type="search" placeholder="Search by email, name, or role" />
           <select id="role-filter">
@@ -456,12 +472,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Content Claims</h2>
-        <button id="content-claims-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="content-claims-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="content-claims-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="content-claims-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="content-claims-section-body">
+      <div id="content-claims-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review author requests to claim existing content in the system.</p>
         <div id="claim-review-status" class="status">Loading claims…</div>
         <div id="claim-review-list"></div>
@@ -471,12 +487,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Duplicate Review</h2>
-        <button id="duplicate-review-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="duplicate-review-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="duplicate-review-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="duplicate-review-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="duplicate-review-section-body">
+      <div id="duplicate-review-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review suspected duplicate pairs from imports and exact-text EXC scans. Confirm and Not a duplicate only update this review ledger; neither action deletes content, moves votes, or changes which item is kept.</p>
         <div class="actions" style="margin:0 0 12px;">
           <button id="scan-excerpt-duplicates" class="secondary" type="button">Scan existing EXC</button>
@@ -489,13 +505,39 @@
     <section id="contest-submissions-card" class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">User Submissions</h2>
-        <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="user-submissions-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="user-submissions-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="user-submissions-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="user-submissions-section-body">
-        <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Use <a href="/contest-review.html?view=all">Review Entries</a> for the full blinded contest queue. Contest identity and contact details remain separate from judging.</p>
+      <div id="user-submissions-section-body" hidden>
+        <p class="lede" style="margin-bottom:16px;max-width:none;">Admin records for ordinary submissions and contest entries. “Pending” is the submission status, not the judging result. Contest identity and contact details remain separate from judging.</p>
+        <div class="contest-judging-shortcuts" aria-label="Contest judging workspace">
+          <h3>Contest judging workspace</h3>
+          <p>Select a contest in the submissions filter below to open its judging tools directly. Progress, assignments, spot checks, finalist reads, and outcome actions live in Review Entries; this panel holds the submission records.</p>
+          <nav class="contest-judging-links" aria-label="Contest judging tools">
+            <a id="contest-judging-link" href="/contest-review.html?view=all">Open judging tools</a>
+            <a data-review-section="assignment-form" hidden>Assignments</a>
+            <a data-review-section="spot-check-form" hidden>Spot checks</a>
+            <a data-review-section="reviewer-progress" hidden>Reviewer progress</a>
+            <a data-review-section="finalist-admin" hidden>Finalist pass</a>
+            <a data-review-section="review-outcomes" hidden>Outcomes</a>
+            <a href="/contest-builder.html">Build contests</a>
+            <a id="contest-entrant-link" href="/contest-submit.html" target="_blank" rel="noopener" hidden>See entrant page</a>
+          </nav>
+          <section id="contest-judging-overview" hidden aria-label="Selected contest judging status">
+            <h4>Judging status</h4>
+            <button id="contest-progress-refresh" type="button" class="secondary">Refresh progress</button>
+            <div id="contest-outcome-status" class="status" aria-live="polite">Decisions here are internal drafts. No contestant email is sent.</div>
+            <div id="contest-judging-overview-body" class="status"></div>
+            <details id="contest-email-preview-panel" style="margin-top:18px;">
+              <summary style="font-weight:700;cursor:pointer;">Entrant email preview (draft only)</summary>
+              <p>Check recipients and wording before approving any send. Building the preview never sends email.</p>
+              <button id="contest-email-preview-refresh" type="button" class="secondary">Build recipient and email preview</button>
+              <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
+            </details>
+          </section>
+        </div>
         <details style="margin-bottom:18px;">
           <summary style="font-weight:700;cursor:pointer;">Contest program setup</summary>
           <div class="controls" style="margin:14px 0;">
@@ -549,12 +591,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2>Content Library</h2>
-        <button id="content-library-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="content-library-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="content-library-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="content-library-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="content-library-section-body">
+      <div id="content-library-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Create and update graphics, excerpts, and videos directly in the app instead of routing changes through Sheets and Apps Script.</p>
         <div class="controls">
           <select id="content-type">
@@ -705,12 +747,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Import Assistant</h2>
-        <button id="import-assistant-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="import-assistant-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="import-assistant-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="import-assistant-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="import-assistant-section-body">
+      <div id="import-assistant-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Paste filenames or tab-separated rows to get a first-pass catalog match before import.</p>
         <div class="form-grid" style="margin-bottom:14px;">
           <label>
@@ -782,12 +824,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Legacy Import Tool</h2>
-        <button id="legacy-import-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="legacy-import-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="legacy-import-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="legacy-import-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="legacy-import-section-body">
+      <div id="legacy-import-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Paste rows copied from your existing sheets to bulk import them here. This is the migration bridge away from Apps Script.</p>
         <div class="controls">
           <select id="legacy-import-type">
@@ -822,12 +864,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Content Health</h2>
-        <button id="id-hygiene-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="id-hygiene-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="id-hygiene-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="id-hygiene-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="id-hygiene-section-body">
+      <div id="id-hygiene-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review source-specific import health, catalog consistency, temporary IDs, duplicate risks, and safe cleanup actions in one place.</p>
 
         <div class="section-head" style="margin-top:8px;">
@@ -856,12 +898,12 @@
     <section class="card" style="margin-top:20px;">
       <div class="section-head">
         <h2 style="margin-top:0;">Flagged Content</h2>
-        <button id="flagged-content-toggle" class="toggle-button secondary" type="button" aria-expanded="true" aria-controls="flagged-content-section-body">
-          <span class="chevron">▾</span>
-          <span>Collapse</span>
+        <button id="flagged-content-toggle" class="toggle-button secondary" type="button" aria-expanded="false" aria-controls="flagged-content-section-body">
+          <span class="chevron">▸</span>
+          <span>Expand</span>
         </button>
       </div>
-      <div id="flagged-content-section-body">
+      <div id="flagged-content-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
         <div style="margin-bottom:18px;padding:16px;border:1px solid #e3d8c7;border-radius:18px;background:#fffaf2;">
           <h3 style="margin:0 0 10px;font-size:18px;">Batch flag content</h3>
@@ -972,17 +1014,12 @@
       return res.json();
     }
 
-    function collapsedByDefault(storageKey) {
-      return localStorage.getItem(storageKey) !== 'open';
-    }
-
-    function saveCollapseState(storageKey, collapsed) {
-      localStorage.setItem(storageKey, collapsed ? 'closed' : 'open');
-    }
-
     const state = {
       me: null,
       users: [],
+      exactUserResults: null,
+      userSearchRequestId: 0,
+      userSearchTimer: null,
       query: "",
       roleFilter: "all",
       statusFilter: "all",
@@ -1002,6 +1039,7 @@
       submissionStatusFilter: "all",
       submissionTypeFilter: "all",
       submissionProgramFilter: "all",
+      contestProgressRequestId: 0,
       submissionPage: 0,
       importAssistantResults: [],
       importAssistantPreviewRows: [],
@@ -1025,16 +1063,45 @@
       flagQualityLaneFilter: "all",
       flagSort: "newest",
       batchFlagIdentifiers: [],
-      usersCollapsed: collapsedByDefault('pp_admin_users_collapsed'),
-      contentLibraryCollapsed: collapsedByDefault('pp_admin_content_library_collapsed'),
-      contentClaimsCollapsed: collapsedByDefault('pp_admin_content_claims_collapsed'),
-      duplicateReviewCollapsed: collapsedByDefault('pp_admin_duplicate_review_collapsed'),
-      userSubmissionsCollapsed: collapsedByDefault('pp_admin_user_submissions_collapsed'),
-      importAssistantCollapsed: collapsedByDefault('pp_admin_import_assistant_collapsed'),
-      legacyImportCollapsed: collapsedByDefault('pp_admin_legacy_import_collapsed'),
-      idHygieneCollapsed: collapsedByDefault('pp_admin_id_hygiene_collapsed'),
-      flaggedContentCollapsed: collapsedByDefault('pp_admin_flagged_content_collapsed'),
+      usersCollapsed: true,
+      contentLibraryCollapsed: true,
+      contentClaimsCollapsed: true,
+      duplicateReviewCollapsed: true,
+      userSubmissionsCollapsed: true,
+      importAssistantCollapsed: true,
+      legacyImportCollapsed: true,
+      idHygieneCollapsed: true,
+      flaggedContentCollapsed: true,
     };
+
+    const loadedAdminSections = new Set();
+
+    function loadSectionOnce(key, loader) {
+      if (loadedAdminSections.has(key)) return;
+      loadedAdminSections.add(key);
+      Promise.resolve().then(loader).catch((error) => {
+        loadedAdminSections.delete(key);
+        console.error(error);
+      });
+    }
+
+    function loadExpandedSections() {
+      const roles = state.me?.roles || [];
+      const admin = roles.includes('admin');
+      if (admin) {
+        if (!state.usersCollapsed) loadSectionOnce('users', loadUsers);
+        if (!state.contentClaimsCollapsed) loadSectionOnce('claims', loadClaims);
+        if (!state.duplicateReviewCollapsed) loadSectionOnce('duplicates', loadDuplicates);
+        if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
+        if (!state.contentLibraryCollapsed) loadSectionOnce('library', loadContentLibrary);
+        if (!state.idHygieneCollapsed) loadSectionOnce('health', () => Promise.all([loadWeaverExcHealth(), loadWeaverImportHealth()]));
+        if (!state.flaggedContentCollapsed) loadSectionOnce('flags', loadFlags);
+      } else if (roles.includes('contest_admin')) {
+        if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
+      } else if (roles.includes('team')) {
+        if (!state.flaggedContentCollapsed) loadSectionOnce('flags', loadFlags);
+      }
+    }
 
     function setStatus(message, isError = false) {
       const el = document.getElementById("status");
@@ -1058,6 +1125,9 @@
       body.hidden = !!collapsed;
       const label = button.querySelector('span:last-child');
       if (label) label.textContent = collapsed ? 'Expand' : 'Collapse';
+      const chevron = button.querySelector('.chevron');
+      if (chevron) chevron.textContent = collapsed ? '▸' : '▾';
+      loadExpandedSections();
     }
 
     function applyContentClaimsCollapseState() {
@@ -1249,7 +1319,7 @@
 
     function filteredUsers() {
       const q = state.query.trim().toLowerCase();
-      const filtered = state.users.filter((user) => {
+      const filtered = (state.exactUserResults || state.users).filter((user) => {
         const haystack = [
           user.email,
           user.displayName,
@@ -1526,6 +1596,19 @@
       }
     }
 
+    async function lookupUserEmail(email, requestId) {
+      try {
+        const payload = await api("admin/users?q=" + encodeURIComponent(email), { method: "GET" });
+        if (requestId !== state.userSearchRequestId || state.query.trim().toLowerCase() !== email) return;
+        state.exactUserResults = payload.users || [];
+        renderUsers();
+        setStatus(state.exactUserResults.length ? "Found account for " + email + "." : "No account found for " + email + ".");
+      } catch (err) {
+        if (requestId !== state.userSearchRequestId) return;
+        setStatus("Could not search accounts: " + err.message, true);
+      }
+    }
+
     async function loadUsers() {
       setStatus("Loading users…");
       try {
@@ -1539,43 +1622,6 @@
         document.getElementById("results").innerHTML = '<div class="empty">Could not load users.</div>';
         setStatus(err.message || "Could not load users.", true);
       }
-    }
-
-    function authorInviteGmailUrl({ email = '', authorName = '', inviteUrl = '', expiresInDays = 14 } = {}) {
-      const cleanName = String(authorName || '').trim();
-      const greeting = cleanName && !cleanName.includes('@') ? `Hi ${cleanName},` : 'Hello,';
-      const subject = 'Your Poetry Please author invitation';
-      const body = [
-        greeting,
-        '',
-        "You're invited to claim your Poetry Please author account. This will let you review your work and help us keep your Poetry Please profile accurate.",
-        '',
-        'Open your secure invitation:',
-        inviteUrl,
-        '',
-        `This invitation link expires in ${expiresInDays} days.`,
-        '',
-        '— Poetry Please',
-      ].join('\n');
-      const params = new URLSearchParams({
-        view: 'cm',
-        fs: '1',
-        tf: '1',
-        to: String(email || '').trim(),
-        su: subject,
-        body,
-      });
-      return `https://mail.google.com/mail/?${params.toString()}`;
-    }
-
-    function openAuthorInviteInGmail(options = {}, preparedWindow = null) {
-      const url = authorInviteGmailUrl(options);
-      if (preparedWindow && !preparedWindow.closed) {
-        preparedWindow.opener = null;
-        preparedWindow.location.replace(url);
-        return true;
-      }
-      return !!window.open(url, '_blank', 'noopener,noreferrer');
     }
 
     async function createInvite() {
@@ -1603,16 +1649,9 @@
           <div class="copy-row">
             <code id="latest-invite-link">${payload.inviteUrl}</code>
             <button id="copy-invite-link" type="button" class="secondary">Copy link</button>
-            <button id="open-invite-gmail" type="button">Open Gmail invite</button>
+            <a href="/author-command-center.html">Send via Mandrill in Author Command Center</a>
           </div>
         `;
-        document.getElementById("open-invite-gmail")?.addEventListener("click", () => {
-          const opened = openAuthorInviteInGmail({ email: payload.email, inviteUrl: payload.inviteUrl, expiresInDays });
-          statusEl.textContent = opened
-            ? `Invite created for ${payload.email}. Gmail compose opened.`
-            : `Invite created for ${payload.email}. Allow pop-ups, then try Open Gmail invite again.`;
-          statusEl.className = opened ? 'status' : 'status error';
-        });
         document.getElementById("copy-invite-link")?.addEventListener("click", async () => {
           try {
             await navigator.clipboard.writeText(payload.inviteUrl);
@@ -1874,7 +1913,7 @@
                       ${reviewAuthor ? `<a href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ''}
                       ${profile.slug ? ` · <a href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ''}
                       ${invite.email ? ` · <button type="button" class="secondary copy-author-invite-email" data-email="${escapeHtml(invite.email)}">Copy email</button>` : ''}
-                      ${canGenerateInvite ? ` · <button type="button" class="secondary regenerate-author-invite" data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || '')}" data-author-name="${escapeHtml(profile.displayName || '')}" title="Generate a fresh secure link, copy it, and open a prefilled Gmail message.">Open Gmail invite</button>` : ''}
+                      ${canGenerateInvite ? ' · <a href="/author-command-center.html">Send via Mandrill</a>' : ''}
                     </td>
                   </tr>
                 `;
@@ -1891,37 +1930,6 @@
       });
       container.querySelectorAll('.author-detail-button').forEach((button) => {
         button.addEventListener('click', () => openAuthorDetail(Number(button.dataset.authorRowIndex || -1)));
-      });
-      container.querySelectorAll('.regenerate-author-invite').forEach((button) => {
-        button.addEventListener('click', async () => {
-          const gmailWindow = window.open('', '_blank');
-          button.disabled = true;
-          button.textContent = 'Preparing Gmail…';
-          try {
-            const payload = await api(`admin/authorInvites/${encodeURIComponent(button.dataset.inviteId || '')}/regenerate`, { method: 'POST', body: { expiresInDays: 14 } });
-            await navigator.clipboard.writeText(payload.inviteUrl || '').catch(() => {});
-            const opened = openAuthorInviteInGmail({
-              email: payload.email || button.dataset.email || '',
-              authorName: button.dataset.authorName || '',
-              inviteUrl: payload.inviteUrl || '',
-              expiresInDays: 14,
-            }, gmailWindow);
-            button.textContent = opened ? 'Gmail opened' : 'Copy link';
-            const statusEl = document.getElementById('author-command-center-status');
-            statusEl.textContent = opened
-              ? 'Gmail compose opened with a fresh invitation link. The link was also copied.'
-              : 'The invitation link was copied, but Gmail was blocked. Allow pop-ups and try again.';
-            statusEl.className = opened ? 'status' : 'status error';
-            await Promise.all([loadAuthorCommandCenter(), loadInvites()]);
-          } catch (err) {
-            if (gmailWindow && !gmailWindow.closed) gmailWindow.close();
-            console.error(err);
-            button.disabled = false;
-            button.textContent = 'Try again';
-            document.getElementById('author-command-center-status').textContent = err.message || 'Could not prepare the Gmail invitation.';
-            document.getElementById('author-command-center-status').className = 'status error';
-          }
-        });
       });
     }
 
@@ -2320,7 +2328,261 @@
       await loadUserSubmissions();
     }
 
+    function updateContestJudgingLinks() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const reviewLink = document.getElementById('contest-judging-link');
+      const entrantLink = document.getElementById('contest-entrant-link');
+      reviewLink.href = program
+        ? `/contest-review.html?program=${encodeURIComponent(program.id)}&view=all`
+        : '/contest-review.html?view=all';
+      document.querySelectorAll('[data-review-section]').forEach((link) => {
+        link.hidden = !program;
+        if (program) link.href = `/contest-review.html?program=${encodeURIComponent(program.id)}&view=all#${link.dataset.reviewSection}`;
+      });
+      entrantLink.hidden = !program;
+      if (program) entrantLink.href = `/contest-submit.html?program=${encodeURIComponent(program.id)}`;
+    }
+
+    let contestEmailPreviewRecipients = [];
+    let contestEmailPreviewSendEnabled = false;
+    let contestEmailPreviewSent = new Set();
+    let contestEmailBulkSending = false;
+
+    function contestEmailRecipientEligible(recipient) {
+      return recipient.email && !recipient.mixedOutcomes && recipient.previewToken &&
+        !recipient.submissions.some((submission) => submission.internalStatus === 'undecided') &&
+        !contestEmailPreviewSent.has(recipient.email);
+    }
+
+    function filteredContestEmailRecipients() {
+      const outcome = document.getElementById('contest-email-outcome-filter')?.value || '';
+      const search = (document.getElementById('contest-email-search-filter')?.value || '').trim().toLowerCase();
+      return contestEmailPreviewRecipients.map((recipient, index) => ({ recipient, index }))
+        .filter(({ recipient }) => (!outcome || recipient.outcome === outcome) &&
+          (!search || recipient.email.toLowerCase().includes(search) ||
+            recipient.submissions.some((submission) => (submission.title || '').toLowerCase().includes(search))));
+    }
+
+    function renderContestEmailRecipientFilter() {
+      const select = document.getElementById('contest-email-recipient-select');
+      const count = document.getElementById('contest-email-filter-count');
+      const bulkButton = document.getElementById('contest-email-send-filtered');
+      if (!select || !count || !bulkButton) return;
+      const previous = select.value;
+      const matches = filteredContestEmailRecipients();
+      select.innerHTML = matches.map(({ recipient, index }) => '<option value="' + index + '">' +
+        escapeHtml((recipient.email || '[missing address]') + ' — ' + recipient.outcome +
+          (recipient.mixedOutcomes ? ' — mixed outcomes' : '')) + '</option>').join('');
+      if (matches.some(({ index }) => String(index) === previous)) select.value = previous;
+      const eligible = matches.filter(({ recipient }) => contestEmailRecipientEligible(recipient));
+      count.textContent = matches.length + ' of ' + contestEmailPreviewRecipients.length +
+        ' recipients match; ' + eligible.length + ' eligible, unsent in this preview.';
+      bulkButton.textContent = 'Send next ' + Math.min(25, eligible.length) + ' filtered drafts';
+      bulkButton.disabled = !contestEmailPreviewSendEnabled || contestEmailBulkSending || !eligible.length;
+      showContestEmailDraft(select.value === '' ? -1 : Number(select.value));
+    }
+
+    function showContestEmailDraft(index) {
+      const recipient = contestEmailPreviewRecipients[index];
+      const message = document.getElementById('contest-email-preview-message');
+      if (!message) return;
+      message.textContent = recipient
+        ? 'To: ' + (recipient.email || '[missing address]') + '\nSubject: ' +
+          recipient.subject + '\n\n' + recipient.body
+        : 'No matching recipient.';
+      const sendButton = document.getElementById('contest-email-send-selected');
+      if (sendButton) sendButton.disabled = !contestEmailPreviewSendEnabled || contestEmailBulkSending ||
+        !recipient || !contestEmailRecipientEligible(recipient);
+    }
+
+    async function sendSelectedContestEmail() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const select = document.getElementById('contest-email-recipient-select');
+      const recipient = select?.value === '' ? null : contestEmailPreviewRecipients[Number(select?.value)];
+      const button = document.getElementById('contest-email-send-selected');
+      const status = document.getElementById('contest-email-send-status');
+      if (!program || !recipient || !button || !status || button.disabled) return;
+      button.disabled = true;
+      status.textContent = 'Sending this approved draft…';
+      try {
+        await api('admin/contestOutcomeEmails/send', {
+          method: 'POST',
+          body: { programId: program.id, email: recipient.email, previewToken: recipient.previewToken },
+        });
+        contestEmailPreviewSent.add(recipient.email);
+        status.textContent = 'Mandrill accepted this message. Rebuild the preview to check the latest decisions.';
+        renderContestEmailRecipientFilter();
+      } catch (error) {
+        status.textContent = 'Email not confirmed: ' + error.message + '. Do not retry until delivery is checked.';
+      }
+    }
+
+    async function sendFilteredContestEmails() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const button = document.getElementById('contest-email-send-filtered');
+      const status = document.getElementById('contest-email-send-status');
+      if (!program || !button || !status || button.disabled || !contestEmailPreviewSendEnabled) return;
+      const batch = filteredContestEmailRecipients().map(({ recipient }) => recipient)
+        .filter(contestEmailRecipientEligible).slice(0, 25);
+      if (!batch.length || !window.confirm('Send ' + batch.length +
+        ' outcome emails to the currently filtered recipients? This cannot be undone.')) return;
+      contestEmailBulkSending = true;
+      renderContestEmailRecipientFilter();
+      let sent = 0;
+      for (const recipient of batch) {
+        status.textContent = 'Sending filtered batch: ' + sent + ' of ' + batch.length + ' accepted…';
+        try {
+          await api('admin/contestOutcomeEmails/send', {
+            method: 'POST',
+            body: { programId: program.id, email: recipient.email, previewToken: recipient.previewToken },
+          });
+          contestEmailPreviewSent.add(recipient.email);
+          sent += 1;
+        } catch (error) {
+          status.textContent = sent + ' accepted; stopped at ' + recipient.email + ': ' + error.message +
+            '. Check delivery before retrying.';
+          contestEmailBulkSending = false;
+          renderContestEmailRecipientFilter();
+          return;
+        }
+      }
+      contestEmailBulkSending = false;
+      renderContestEmailRecipientFilter();
+      status.textContent = sent + ' messages accepted. Rebuild the preview to check the latest decisions.';
+    }
+
+    async function loadContestEmailPreview() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const body = document.getElementById('contest-email-preview-body');
+      if (!program) { body.textContent = 'Select a contest first.'; return; }
+      body.textContent = 'Building read-only preview…';
+      try {
+        const preview = await api('admin/contestOutcomeEmailPreview?programId=' + encodeURIComponent(program.id));
+        if (state.submissionProgramFilter !== program.id) return;
+        contestEmailPreviewRecipients = preview.recipients || [];
+        contestEmailPreviewSent = new Set();
+        const counts = preview.decisionCounts || {};
+        contestEmailPreviewSendEnabled = preview.sendEnabled === true &&
+          Number(counts.winner || 0) === 1 && Number(counts.circle || 0) > 0;
+        body.innerHTML = '<p><strong>Preview only — building this view sends no email.</strong> ' +
+          Number(preview.submissionCount || 0) + ' submissions; ' + Number(preview.recipientCount || 0) +
+          ' recipient records.</p>' +
+          '<p>Winner entries: ' + Number(counts.winner || 0) +
+          ' · Circle entries: ' + Number(counts.circle || 0) +
+          ' · Provisional non-selected entries: ' + Number(counts.notSelected || 0) +
+          ' (' + Number(counts.undecided || 0) + ' still undecided).</p>' +
+          '<p><strong>Check before sending:</strong> ' + Number(preview.missingContactCount || 0) +
+          ' missing/invalid addresses; ' + Number(preview.mixedOutcomeRecipientCount || 0) +
+          ' people with mixed outcomes; ' + Number(preview.archivedCount || 0) +
+          ' archived entries included. Winner/circle decisions and copy still need approval; publication links are not included yet.</p>' +
+          (contestEmailPreviewRecipients.length
+            ? '<div class="controls" style="margin:12px 0;">' +
+              '<label for="contest-email-outcome-filter">Outcome</label> ' +
+              '<select id="contest-email-outcome-filter"><option value="">All outcomes</option>' +
+              '<option value="winner">Winner</option><option value="circle">Winners circle</option>' +
+              '<option value="notSelected">Not selected</option></select> ' +
+              '<label for="contest-email-search-filter">Email or title</label> ' +
+              '<input id="contest-email-search-filter" type="search" placeholder="Search submitters or titles" />' +
+              '</div><p id="contest-email-filter-count"></p>' +
+              '<label for="contest-email-recipient-select">Preview a recipient</label> ' +
+              '<select id="contest-email-recipient-select" style="max-width:100%;"></select>' +
+              '<pre id="contest-email-preview-message" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>' +
+              '<button id="contest-email-send-selected" type="button" disabled>Send selected draft</button> ' +
+              '<button id="contest-email-send-filtered" type="button" disabled>Send filtered drafts</button>' +
+              '<p>Bulk send processes up to 25 matching, eligible recipients per click. Review the count and confirm before sending.</p>' +
+              '<div id="contest-email-send-status" class="status" aria-live="polite">Sending is locked until winner and email-copy approval.</div>'
+            : '<p>No submissions found for this contest.</p>');
+        renderContestEmailRecipientFilter();
+      } catch (error) {
+        body.textContent = 'Could not build email preview: ' + error.message;
+      }
+    }
+
+    async function loadContestJudgingOverview() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const panel = document.getElementById('contest-judging-overview');
+      const body = document.getElementById('contest-judging-overview-body');
+      const requestId = ++state.contestProgressRequestId;
+      panel.hidden = !program;
+      const emailBody = document.getElementById('contest-email-preview-body');
+      emailBody.textContent = 'No preview loaded.';
+      contestEmailPreviewRecipients = [];
+      contestEmailPreviewSendEnabled = false;
+      if (!program) { body.textContent = ''; return; }
+      body.textContent = 'Loading judging progress…';
+      try {
+        const report = await api('admin/contestReviewProgress?programId=' + encodeURIComponent(program.id));
+        if (requestId !== state.contestProgressRequestId) return;
+        const total = Number(report.totalSubmissions || 0);
+        const complete = Number(report.fullyReviewed || 0);
+        const finalistReads = (report.submissions || []).flatMap((row) => row.finalistReads || []);
+        const finalistDone = finalistReads.filter((read) => !!read.decision).length;
+        const candidates = (report.submissions || []).filter((row) => !row.archived).map((row) => {
+          const reads = row.finalistReads || [];
+          return {
+            id: row.id, title: row.title || 'Untitled',
+            outcomeStatus: row.outcomeStatus || 'undecided',
+            finalistReadsDone: reads.filter((read) => !!read.decision).length,
+            finalistReadsAssigned: reads.length,
+            champion: reads.filter((read) => read.decision === 'champion').length,
+            possible: reads.filter((read) => read.decision === 'possible').length,
+            initialYes: Number(row.initialYesCount || 0),
+          };
+        }).filter((row) => row.champion > 0 || ['circle', 'winner'].includes(row.outcomeStatus)).sort((left, right) =>
+          right.champion - left.champion || right.possible - left.possible ||
+          right.initialYes - left.initialYes || left.title.localeCompare(right.title));
+        const circleCount = (report.submissions || []).filter((row) => ['circle', 'winner'].includes(row.outcomeStatus)).length;
+        const rejectedCount = (report.submissions || []).filter((row) => row.outcomeStatus === 'rejected').length;
+        body.innerHTML =
+          '<p><span class="pill">' + total + ' submissions</span>' +
+          '<span class="pill">' + complete + ' entries fully reviewed</span>' +
+          '<span class="pill">' + Math.max(0, total - Number(report.archivedCount || 0) - complete) + ' active entries need more initial reviews</span>' +
+          '<span class="pill">' + finalistDone + ' / ' + finalistReads.length + ' finalist reads complete</span>' +
+          '<span class="pill">' + candidates.filter((row) => row.champion > 0).length + ' entries with Champion votes</span>' +
+          '<span class="pill">' + circleCount + ' in winners circle</span>' +
+          '<span class="pill">' + (report.winnerSubmissionId ? 'Winner selected' : 'No winner selected') + '</span>' +
+          '<span class="pill">' + rejectedCount + ' internally rejected</span>' +
+          '<span class="pill">' + Number(report.archivedCount || 0) + ' archived</span></p>' +
+          ((report.reviewers || []).length
+            ? '<table><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
+              report.reviewers.map((row) => '<tr><td>' + escapeHtml(row.email) + '</td><td>' +
+                Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedAssigned || 0) + ' / ' +
+                Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedTotal || 0) + '</td></tr>').join('') +
+              '</tbody></table>'
+            : '<p>No reviewers assigned yet.</p>') +
+          '<h4>Winners-circle candidates</h4>' +
+          '<p><strong>Decision readiness:</strong> ' + (finalistDone < finalistReads.length
+            ? (finalistReads.length - finalistDone) + ' assigned finalist reads remain. Candidate totals may still change.'
+            : 'All assigned finalist reads are complete. Candidate totals are ready for your circle decision.') +
+          ' No entrant email is sent by these controls.</p>' +
+          '<p>Champion votes are a finalist-pass signal, not an acceptance. Build a circle of roughly 5–8, then optionally designate one of them as the winner. Decisions are reversible.</p>' +
+          (candidates.length
+            ? '<table><thead><tr><th>Entry</th><th>Finalist reads</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Internal decision</th><th>Actions</th></tr></thead><tbody>' +
+              candidates.map((row) => {
+                const action = (outcome, label) => '<button type="button" class="secondary" data-contest-outcome="' + outcome +
+                  '" data-contest-submission="' + escapeHtml(row.id) + '">' + label + '</button> ';
+                const actions = row.outcomeStatus === 'winner'
+                  ? action('circle', 'Clear winner')
+                  : row.outcomeStatus === 'circle'
+                    ? action('winner', 'Make winner') + action('undecided', 'Remove from circle')
+                    : row.outcomeStatus === 'rejected'
+                      ? action('circle', 'Add to circle') + action('undecided', 'Undo rejection')
+                      : action('circle', 'Add to circle') + action('rejected', 'Reject');
+                return '<tr><td><a href="/contest-review.html?program=' +
+                  encodeURIComponent(program.id) + '&view=all&submission=' + encodeURIComponent(row.id) +
+                  '">' + escapeHtml(row.title) + '</a></td><td>' + row.finalistReadsDone + ' / ' + row.finalistReadsAssigned + '</td><td>' +
+                  row.champion + '</td><td>' + row.possible + '</td><td>' + row.initialYes + '</td><td>' +
+                  escapeHtml(row.outcomeStatus.replace(/_/g, ' ')) + '</td><td>' + actions + '</td></tr>';
+              }).join('') + '</tbody></table>'
+            : '<p>No Champion votes recorded yet.</p>');
+      } catch (error) {
+        if (requestId !== state.contestProgressRequestId) return;
+        body.textContent = 'Could not load judging progress: ' + error.message;
+      }
+    }
+
     function renderUserSubmissions() {
+      updateContestJudgingLinks();
       const container = document.getElementById("user-submissions-list");
       const statusEl = document.getElementById("user-submissions-status");
       if (!state.submissions.length) {
@@ -3197,6 +3459,7 @@
         state.submissionPrograms = payload.programs || [];
         renderSubmissionPrograms();
         renderUserSubmissions();
+        loadContestJudgingOverview();
       } catch (err) {
         console.error(err);
         document.getElementById('user-submissions-list').innerHTML = '<div class="empty">Could not load submissions. <button id="retry-user-submissions" type="button">Retry</button></div>';
@@ -4984,8 +5247,10 @@
       applyFlaggedContentCollapseState();
 
       firebase.auth().onAuthStateChanged(async (user) => {
+        loadedAdminSections.clear();
         updateAuthUI(user);
         if (!user) {
+          state.me = null;
           setStatus("Please sign in with your admin account first.", true);
           document.getElementById("results").innerHTML = '<div class="empty">You need to sign in before accessing admin tools.</div>';
           return;
@@ -5012,20 +5277,29 @@
         if (!isAdmin && isContestAdmin) {
           document.querySelector("h1").textContent = "Contest Admin";
           document.querySelector("main.shell > p.lede").textContent = "Manage contest submissions and reviews without access to general site administration.";
-          await loadUserSubmissions();
+          loadExpandedSections();
           return;
         }
         if (!isAdmin && isTeam) {
           setStatus("Team access loaded. Flagged author feedback is available for review.", false);
-          await loadFlags();
+          loadExpandedSections();
           return;
         }
-        await Promise.all([loadUsers(), loadClaims(), loadDuplicates(), loadWeaverExcHealth(), loadWeaverImportHealth(), loadUserSubmissions(), loadContentLibrary(), loadFlags()]);
+        loadExpandedSections();
       });
 
       document.getElementById("search").addEventListener("input", (event) => {
         state.query = event.target.value || "";
+        state.exactUserResults = null;
+        state.userSearchRequestId += 1;
+        clearTimeout(state.userSearchTimer);
         renderUsers();
+        const email = state.query.trim().toLowerCase();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          const requestId = state.userSearchRequestId;
+          setStatus("Searching all accounts for " + email + "…");
+          state.userSearchTimer = setTimeout(() => lookupUserEmail(email, requestId), 250);
+        }
       });
       document.getElementById("role-filter").addEventListener("change", (event) => {
         state.roleFilter = event.target.value || "all";
@@ -5060,28 +5334,23 @@
       document.getElementById("import-assistant-load-first").addEventListener("click", () => loadFirstImportAssistantRowIntoForm());
       document.getElementById("users-toggle").addEventListener("click", () => {
         state.usersCollapsed = !state.usersCollapsed;
-        saveCollapseState('pp_admin_users_collapsed', state.usersCollapsed);
         applyUsersCollapseState();
       });
       document.getElementById("content-library-toggle").addEventListener("click", () => {
         state.contentLibraryCollapsed = !state.contentLibraryCollapsed;
-        saveCollapseState('pp_admin_content_library_collapsed', state.contentLibraryCollapsed);
         applyContentLibraryCollapseState();
       });
       document.getElementById("content-claims-toggle").addEventListener("click", () => {
         state.contentClaimsCollapsed = !state.contentClaimsCollapsed;
-        saveCollapseState('pp_admin_content_claims_collapsed', state.contentClaimsCollapsed);
         applyContentClaimsCollapseState();
       });
       document.getElementById("duplicate-review-toggle").addEventListener("click", () => {
         state.duplicateReviewCollapsed = !state.duplicateReviewCollapsed;
-        saveCollapseState('pp_admin_duplicate_review_collapsed', state.duplicateReviewCollapsed);
         applyDuplicateReviewCollapseState();
       });
       document.getElementById("scan-excerpt-duplicates").addEventListener("click", () => scanExcerptDuplicates());
       document.getElementById("user-submissions-toggle").addEventListener("click", () => {
         state.userSubmissionsCollapsed = !state.userSubmissionsCollapsed;
-        saveCollapseState('pp_admin_user_submissions_collapsed', state.userSubmissionsCollapsed);
         applyUserSubmissionsCollapseState();
       });
       document.getElementById("user-submissions-query").addEventListener("input", (event) => {
@@ -5103,6 +5372,46 @@
         state.submissionProgramFilter = event.target.value || "all";
         state.submissionPage = 0;
         renderUserSubmissions();
+        loadContestJudgingOverview();
+      });
+      document.getElementById('contest-progress-refresh').addEventListener('click', loadContestJudgingOverview);
+      document.getElementById('contest-email-preview-refresh').addEventListener('click', loadContestEmailPreview);
+      document.getElementById('contest-email-preview-body').addEventListener('change', (event) => {
+        if (event.target.id === 'contest-email-recipient-select') showContestEmailDraft(event.target.value === '' ? -1 : Number(event.target.value));
+        if (event.target.id === 'contest-email-outcome-filter') renderContestEmailRecipientFilter();
+      });
+      document.getElementById('contest-email-preview-body').addEventListener('input', (event) => {
+        if (event.target.id === 'contest-email-search-filter') renderContestEmailRecipientFilter();
+      });
+      document.getElementById('contest-email-preview-body').addEventListener('click', (event) => {
+        if (event.target.id === 'contest-email-send-selected') sendSelectedContestEmail();
+        if (event.target.id === 'contest-email-send-filtered') sendFilteredContestEmails();
+      });
+      document.getElementById('contest-judging-overview-body').addEventListener('click', async (event) => {
+        const button = event.target.closest('button[data-contest-outcome]');
+        if (!button) return;
+        const outcome = button.dataset.contestOutcome;
+        const submissionId = button.dataset.contestSubmission;
+        const message = {
+          circle: 'Add this entry to the winners circle?',
+          winner: 'Designate this winners-circle entry as the single winner?',
+          rejected: 'Mark this entry internally rejected?',
+          undecided: 'Clear this internal decision?',
+        }[outcome];
+        if (!message || !window.confirm(message + ' No contestant email will be sent.')) return;
+        const status = document.getElementById('contest-outcome-status');
+        button.disabled = true;
+        status.textContent = 'Saving internal decision…';
+        try {
+          await api('admin/contentSubmissions/' + encodeURIComponent(submissionId) + '/outcome', {
+            method: 'POST', body: { outcome },
+          });
+          await loadContestJudgingOverview();
+          status.textContent = 'Internal decision saved. No contestant email was sent.';
+        } catch (error) {
+          button.disabled = false;
+          status.textContent = 'Could not save decision: ' + error.message;
+        }
       });
       document.getElementById("submission-program-editor-select").addEventListener("change", (event) => {
         const program = state.submissionPrograms.find((row) => row.id === event.target.value) || null;
@@ -5111,24 +5420,20 @@
       document.getElementById("save-submission-program").addEventListener("click", () => saveSubmissionProgram());
       document.getElementById("import-assistant-toggle").addEventListener("click", () => {
         state.importAssistantCollapsed = !state.importAssistantCollapsed;
-        saveCollapseState('pp_admin_import_assistant_collapsed', state.importAssistantCollapsed);
         applyImportAssistantCollapseState();
       });
       document.getElementById("legacy-import-toggle").addEventListener("click", () => {
         state.legacyImportCollapsed = !state.legacyImportCollapsed;
-        saveCollapseState('pp_admin_legacy_import_collapsed', state.legacyImportCollapsed);
         applyLegacyImportCollapseState();
       });
       document.getElementById("id-hygiene-toggle").addEventListener("click", () => {
         state.idHygieneCollapsed = !state.idHygieneCollapsed;
-        saveCollapseState('pp_admin_id_hygiene_collapsed', state.idHygieneCollapsed);
         applyIdHygieneCollapseState();
       });
       document.getElementById("preview-pig-id-hygiene").addEventListener("click", () => previewPigIdHygiene());
       document.getElementById("apply-pig-id-hygiene").addEventListener("click", () => applyPigIdHygiene());
       document.getElementById("flagged-content-toggle").addEventListener("click", () => {
         state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
-        saveCollapseState('pp_admin_flagged_content_collapsed', state.flaggedContentCollapsed);
         applyFlaggedContentCollapseState();
       });
       document.getElementById("login-google").addEventListener("click", async () => {

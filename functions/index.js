@@ -15,6 +15,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
+import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -27,6 +28,11 @@ import { getStorage, getDownloadURL } from "firebase-admin/storage";
 const POETRY_PLEASE_API_KEY_SECRET = defineSecret("POETRY_PLEASE_API_KEY");
 const PIG_POETRY_PLEASE_API_KEY_SECRET = defineSecret("PIG_POETRY_PLEASE_API_KEY");
 const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATION_API_KEY");
+const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
+const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
+const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
+const CONTEST_OUTCOME_EMAILS_ENABLED = false; // Requires winner and message approval before release.
+const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
   excerpts: "excerpts",
@@ -42,6 +48,7 @@ const COLLECTIONS = {
   contentFlags: "contentFlags",
   contentRepairRequests: "contentRepairRequests",
   contentDuplicates: "contentDuplicates",
+  excerptVideoOccurrences: "excerptVideoOccurrences",
   weaverImportLedger: "weaverImportLedger",
   contentSubmissions: "contentSubmissions",
   submissionEntrants: "submissionEntrants",
@@ -50,6 +57,9 @@ const COLLECTIONS = {
   contestReviewAssignments: "contestReviewAssignments",
   contestSpotChecks: "contestSpotChecks",
   contestReviewBulkActions: "contestReviewBulkActions",
+  contestFinalistReads: "contestFinalistReads",
+  contestAssignmentNotices: "contestAssignmentNotices",
+  contestOutcomeNotices: "contestOutcomeNotices",
   importJobs: "importJobs",
   importJobItems: "importJobItems",
   systemState: "systemState",
@@ -1098,6 +1108,7 @@ function mapSubmissionDoc(doc) {
     contestReviewCount: Number(data.contestReviewCount || 0) || 0,
     contestReviewTarget: Number(data.contestReviewTarget || 0) || 0,
     contestArchived: data.contestArchived === true,
+    contestOutcomeStatus: data.contestOutcomeStatus || "undecided",
     contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
     contestSpotCheckBatchId: data.contestSpotCheckBatchId || "",
     contestSpotCheckReviewerEmail: data.contestSpotCheckReviewerEmail || "",
@@ -7509,7 +7520,7 @@ function assignCanonicalExcerptIds(items = []) {
   const grouped = new Map();
   items.forEach((item, index) => {
     const bookShortener = resolveExcerptBookShortener(item);
-    if (!bookShortener || !item.poem) return;
+    if (!item.book || !bookShortener || !item.poem) return;
     const key = `${bookShortener}|${slugify(item.poem)}`;
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key).push({ item, index, bookShortener });
@@ -7627,6 +7638,26 @@ async function assignPersistentWeaverFullPoemIds(items = []) {
 async function assignPersistentWeaverExcerptIds(items = []) {
   const usedIds = new Set();
   for (const item of items) {
+    const booklessVideo = !item.book && !!item.sourceRecordId && !!item.sourceContentId && !!item.sourceVideoFileId;
+    if (booklessVideo) {
+      const videoId = normalizeText(item.sourceContentId);
+      if (sanitizeDocIdSegment(videoId) !== videoId) continue;
+      const videoSnap = await db.collection(COLLECTIONS.videos).doc(videoId).get();
+      if (!videoSnap.exists) continue;
+
+      const existingBySource = await db.collection(COLLECTIONS.excerpts)
+        .where("sourceRecordId", "==", normalizeText(item.sourceRecordId))
+        .limit(1)
+        .get();
+      const docId = existingBySource.empty
+        ? `WEAVER-VEX-${sha256(item.sourceRecordId).slice(0, 24)}`.toUpperCase()
+        : existingBySource.docs[0].id;
+      item.docId = docId;
+      item.imageId = docId;
+      item.imageID = docId;
+      usedIds.add(docId);
+      continue;
+    }
     if (!item.docId || !item.bookShortener || !item.poem) continue;
 
     const sourceRecordId = normalizeText(item.sourceRecordId);
@@ -7664,12 +7695,88 @@ async function assignPersistentWeaverExcerptIds(items = []) {
   return items;
 }
 
+async function linkWeaverVideoExcerptOccurrence(item, canonicalExcerpt) {
+  const sourceRecordId = normalizeText(item.sourceRecordId);
+  const canonicalVideoId = normalizeText(item.sourceContentId);
+  const occurrenceId = sha256(sourceRecordId);
+  const occurrenceRef = db.collection(COLLECTIONS.excerptVideoOccurrences).doc(occurrenceId);
+  const excerptRef = db.collection(COLLECTIONS.excerpts).doc(canonicalExcerpt.id);
+  const videoRef = db.collection(COLLECTIONS.videos).doc(canonicalVideoId);
+
+  await db.runTransaction(async (transaction) => {
+    const [occurrenceSnap, excerptSnap, videoSnap] = await Promise.all([
+      transaction.get(occurrenceRef),
+      transaction.get(excerptRef),
+      transaction.get(videoRef),
+    ]);
+    if (!excerptSnap.exists || !videoSnap.exists ||
+        buildExcerptFingerprint(excerptSnap.data()?.excerpt) !== buildExcerptFingerprint(item.excerpt)) {
+      throw new Error("video_excerpt_link_target_changed");
+    }
+    if (occurrenceSnap.exists) {
+      const prior = occurrenceSnap.data() || {};
+      if (prior.sourceRecordId !== sourceRecordId ||
+          prior.canonicalExcerptId !== canonicalExcerpt.id ||
+          prior.canonicalVideoId !== canonicalVideoId) {
+        throw new Error("video_excerpt_occurrence_conflict");
+      }
+    }
+    transaction.set(occurrenceRef, {
+      sourceSystem: "weaver",
+      sourceRecordId,
+      canonicalExcerptId: canonicalExcerpt.id,
+      canonicalVideoId,
+      sourceVideoRecordId: normalizeText(item.sourceVideoRecordId),
+      sourceVideoFileId: normalizeText(item.sourceVideoFileId),
+      sourceVideoUrl: normalizeText(item.sourceVideoUrl),
+      sourceEvent: normalizeText(item.sourceEvent),
+      sourceEventLabel: normalizeText(item.sourceEventLabel),
+      excerptFingerprint: buildExcerptFingerprint(item.excerpt),
+      updatedAt: FieldValue.serverTimestamp(),
+      ...(!occurrenceSnap.exists ? { createdAt: FieldValue.serverTimestamp() } : {}),
+    }, { merge: true });
+    transaction.set(excerptRef, {
+      weaverVideoOccurrenceIds: FieldValue.arrayUnion(occurrenceId),
+    }, { merge: true });
+    transaction.set(videoRef, {
+      weaverLinkedExcerptIds: FieldValue.arrayUnion(canonicalExcerpt.id),
+    }, { merge: true });
+  });
+
+  return {
+    ok: true,
+    id: canonicalExcerpt.id,
+    canonicalExcerptId: canonicalExcerpt.id,
+    canonicalVideoId,
+    videoOccurrenceId: occurrenceId,
+    sourceRecordId,
+    linkedExisting: true,
+    created: false,
+  };
+}
+
+async function findCanonicalExcerptForVideoOccurrence(item) {
+  const fingerprint = buildExcerptFingerprint(item.excerpt);
+  const indexedSnap = await db.collection(COLLECTIONS.excerpts)
+    .where("excerptFingerprint", "==", fingerprint).limit(2).get();
+  if (indexedSnap.docs.length > 1) throw new Error("ambiguous_video_excerpt_match");
+  if (indexedSnap.docs.length === 1) return indexedSnap.docs[0];
+
+  // Older EXC rows may not have excerptFingerprint yet.
+  const excerptSnap = await db.collection(COLLECTIONS.excerpts).get();
+  const legacyMatches = excerptSnap.docs.filter((doc) =>
+    buildExcerptFingerprint(doc.data()?.excerpt) === fingerprint);
+  if (legacyMatches.length > 1) throw new Error("ambiguous_video_excerpt_match");
+  return legacyMatches[0] || null;
+}
+
 async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const sourceRecords = flattenWeaverExcerptRecords(rawPayload);
   const mappedItems = await assignPersistentWeaverExcerptIds(
     assignCanonicalExcerptIds(sourceRecords.map(buildWeaverExcerptImportItem))
   );
-  const importableItems = mappedItems.filter((item) => item.docId && item.author && item.book && item.poem && item.excerpt);
+  const importableItems = mappedItems.filter((item) => item.docId && item.author && item.poem && item.excerpt &&
+    (item.book || (item.sourceRecordId && item.sourceContentId && item.sourceVideoFileId)));
   if (!importableItems.length) {
     const err = new Error("no_importable_weaver_excerpt_records");
     err.status = 400;
@@ -7679,6 +7786,13 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const results = [];
   for (const item of importableItems.slice(0, 500)) {
     try {
+      if (!item.book && item.sourceRecordId && item.sourceContentId && item.sourceVideoFileId) {
+        const canonicalExcerpt = await findCanonicalExcerptForVideoOccurrence(item);
+        if (canonicalExcerpt) {
+          results.push(await linkWeaverVideoExcerptOccurrence(item, canonicalExcerpt));
+          continue;
+        }
+      }
       const result = await upsertContentLibraryItem("excerpts", item, actor);
       results.push({ ok: true, id: result.item?.id || item.docId, created: !!result.created });
     } catch (err) {
@@ -7917,6 +8031,10 @@ app.post(getBoth("/internal/weaverImport"), async (req, res) => {
         contentId: normalizeText(row.id),
         outcome: row.ok ? (row.created ? "created" : "updated") : "failed",
         error: normalizeText(row.error),
+        canonicalExcerptId: normalizeText(row.canonicalExcerptId),
+        canonicalVideoId: normalizeText(row.canonicalVideoId),
+        videoOccurrenceId: normalizeText(row.videoOccurrenceId),
+        sourceRecordId: normalizeText(row.sourceRecordId),
       })),
       ...(result.duplicateItems || []).map((row) => ({
         contentId: normalizeText(row.primaryImageId || row.duplicateOfImageId || row.imageId),
@@ -9319,6 +9437,11 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
       && normalizeKey(record.author) === normalizeKey(requestedAuthorName))?.author || ""
     : "";
   if (requestedAuthorName && !authorName) return res.status(400).json({ error: "unknown_author" });
+  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
+    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
+  const requestedBookTitle = normalizeText(req.body?.bookTitle || "");
+  const bookTitle = authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requestedBookTitle))?.title || "";
+  if (requestedBookTitle && !bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
   const token = randomBytes(24).toString("hex");
   const inviteRef = db.collection(COLLECTIONS.authorInvites).doc();
   const expiresInDays = Math.max(1, Number(req.body?.expiresInDays || 14));
@@ -9327,6 +9450,7 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
   await inviteRef.set({
     email,
     authorName,
+    bookTitle,
     createdBy: ctx.decoded.uid,
     createdAt: FieldValue.serverTimestamp(),
     expiresAt,
@@ -9342,8 +9466,121 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
     inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
     email,
     authorName,
+    bookTitle,
     expiresAt: expiresAt.toISOString(),
   });
+});
+
+app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
+
+  // A stable record prevents retries from creating a second invite identity.
+  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc("mandrill-test-sam-v2");
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const inviteUrl = `https://poetryplease.org/app?authorInvite=${token}`;
+  const reserved = await db.runTransaction(async (transaction) => {
+    const prior = (await transaction.get(inviteRef)).data() || {};
+    if (["sending", "sent", "uncertain"].includes(prior.deliveryStatus)) return false;
+    transaction.set(inviteRef, {
+      email: AUTHOR_INVITE_TEST_EMAIL,
+      authorName: "",
+      testOnly: true,
+      status: "active",
+      tokenHash: sha256(token),
+      expiresAt,
+      claimedAt: null,
+      claimedByUserId: "",
+      createdBy: ctx.decoded.uid,
+      createdAt: FieldValue.serverTimestamp(),
+      deliveryStatus: "sending",
+      deliveryUpdatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return true;
+  });
+  if (!reserved) return res.status(409).json({ error: "author_invite_test_already_attempted" });
+
+  const message = buildAuthorInviteMessage({
+    name: "Sam",
+    email: AUTHOR_INVITE_TEST_EMAIL,
+    bookTitle: "Roads",
+    helpUrl: "https://buttonpoetry.com/poetryplease/author-help/?book=Roads",
+    inviteUrl,
+    expiresAt: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(expiresAt),
+    testOnly: true,
+  });
+  let delivery;
+  try {
+    delivery = await sendAuthorInviteWithMandrill({ apiKey, email: AUTHOR_INVITE_TEST_EMAIL, message, tag: "poetry-please-author-invite-test" });
+  } catch (error) {
+    await inviteRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.status(502).json({ error: "author_invite_test_send_unconfirmed" });
+  }
+  await inviteRef.set({
+    deliveryStatus: "sent",
+    deliveryMessageId: delivery.messageId,
+    deliveryUpdatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  res.json({ ok: true, inviteId: inviteRef.id, email: AUTHOR_INVITE_TEST_EMAIL, delivery });
+});
+
+app.post(getBoth("/admin/authorInvites/:inviteId/send"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  if (!BROADER_EMAIL_SENDS_ENABLED) return res.status(409).json({ error: "broader_email_sends_awaiting_approval" });
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
+  const inviteRef = db.collection(COLLECTIONS.authorInvites).doc(normalizeText(req.params.inviteId));
+  const snap = await inviteRef.get();
+  if (!snap.exists) return res.status(404).json({ error: "invite_not_found" });
+  const invite = snap.data() || {};
+  if (invite.testOnly || invite.status === "claimed" || normalizeText(invite.claimedByUserId)) {
+    return res.status(409).json({ error: "invite_not_sendable" });
+  }
+  const email = normalizeText(invite.email || "").toLowerCase();
+  const authorName = normalizeText(invite.authorName || "");
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !authorName) {
+    return res.status(400).json({ error: "invite_needs_author_and_email" });
+  }
+  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
+    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
+  const requestedBookTitle = normalizeText(req.body?.bookTitle || invite.bookTitle || "");
+  const bookTitle = authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requestedBookTitle))?.title
+    || (!requestedBookTitle && authorBooks.length === 1 ? authorBooks[0].title : "");
+  if (!bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+  const reserved = await db.runTransaction(async (transaction) => {
+    const current = (await transaction.get(inviteRef)).data() || {};
+    if (current.testOnly || current.status === "claimed" || normalizeText(current.claimedByUserId) ||
+        ["sending", "sent", "uncertain"].includes(current.deliveryStatus)) return false;
+    transaction.set(inviteRef, {
+      bookTitle, tokenHash: sha256(token), expiresAt, status: "active",
+      deliveryStatus: "sending", deliveryUpdatedAt: FieldValue.serverTimestamp(),
+      sentBy: ctx.decoded.uid,
+    }, { merge: true });
+    return true;
+  });
+  if (!reserved) return res.status(409).json({ error: "invite_already_sent_or_in_progress" });
+  const message = buildAuthorInviteMessage({
+    name: authorName.split(/\s+/)[0], email, bookTitle,
+    helpUrl: `https://buttonpoetry.com/poetryplease/author-help/?book=${encodeURIComponent(bookTitle)}`,
+    inviteUrl: `https://poetryplease.org/app?authorInvite=${token}`,
+    expiresAt: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(expiresAt),
+  });
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email, message });
+    await inviteRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.json({ ok: true, inviteId: inviteRef.id, email, bookTitle, delivery });
+  } catch (error) {
+    await inviteRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.status(502).json({ error: "author_invite_send_unconfirmed" });
+  }
 });
 
 app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) => {
@@ -9356,8 +9593,12 @@ app.post(getBoth("/admin/authorInvites/:inviteId/regenerate"), async (req, res) 
   const inviteSnap = await inviteRef.get();
   if (!inviteSnap.exists) return res.status(404).json({ error: "invite_not_found" });
   const invite = inviteSnap.data() || {};
+  if (invite.testOnly) return res.status(409).json({ error: "test_invite_not_regeneratable" });
   if (invite.status === "claimed" || normalizeText(invite.claimedByUserId)) {
     return res.status(409).json({ error: "invite_already_claimed" });
+  }
+  if (["sending", "sent", "uncertain"].includes(invite.deliveryStatus)) {
+    return res.status(409).json({ error: "sent_invite_cannot_be_regenerated" });
   }
 
   const token = randomBytes(24).toString("hex");
@@ -9398,6 +9639,7 @@ app.post(getBoth("/authorInvites/redeem"), async (req, res) => {
 
   const inviteDoc = snap.docs[0];
   const invite = inviteDoc.data() || {};
+  if (invite.testOnly) return res.status(403).json({ error: "test_invite_not_claimable" });
   const inviteEmail = normalizeKey(invite.email);
   if (inviteEmail !== normalizeKey(ctx.decoded.email)) {
     return res.status(403).json({ error: "email_mismatch", inviteEmail });
@@ -9500,7 +9742,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
   ]);
 
   const profiles = profileSnap.docs.map((doc) => mapProfileDoc(doc.id, doc.data()));
-  const invites = inviteSnap.docs.map((doc) => {
+  const invites = inviteSnap.docs.filter((doc) => doc.data()?.testOnly !== true).map((doc) => {
     const data = doc.data() || {};
     const expiresAt = data.expiresAt?.toDate ? data.expiresAt.toDate() : (data.expiresAt || null);
     const claimedAt = data.claimedAt?.toDate ? data.claimedAt.toDate() : (data.claimedAt || null);
@@ -9712,8 +9954,16 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     return aName.localeCompare(bName, undefined, { sensitivity: "base" });
   });
 
+  const authorBooks = {};
+  for (const record of BOOK_CATALOG_LOOKUP_ROWS) {
+    if (normalizeKey(record.entityType || "book") !== "book" || !record.author || !record.title) continue;
+    authorBooks[record.author] ||= [];
+    if (!authorBooks[record.author].includes(record.title)) authorBooks[record.author].push(record.title);
+  }
+
   res.json({
     ok: true,
+    authorBooks,
     summary: {
       total: rows.length,
       previewReady: rows.filter((row) => row.status === "preview ready").length,
@@ -9880,20 +10130,27 @@ app.post(getBoth("/admin/submissionPrograms/:programId"), async (req, res) => {
   res.json({ ok: true, program: { id: saved.id, ...(saved.data() || {}) } });
 });
 
+function initialContestDecisions(decisions, count = 3) {
+  return [...decisions].sort((a, b) =>
+    (a.reviewedAt?.toMillis?.() || 0) - (b.reviewedAt?.toMillis?.() || 0)).slice(0, count);
+}
+
 app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin", "contest_admin"]);
   if (!ctx) return;
 
   const requestedProgramId = normalizeText(req.query.programId || "");
   const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
-  const [submissionSnap, programSnap, decisionSnap, assignmentSnap] = await Promise.all([
+  const [submissionSnap, programSnap, decisionSnap, assignmentSnap, finalistSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionPrograms).limit(100).get(),
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("reviewerEmail", "==", reviewerEmail).get(),
+    db.collection(COLLECTIONS.contestFinalistReads).where("reviewerEmail", "==", reviewerEmail).get(),
   ]);
   const programsById = new Map(programSnap.docs.map((doc) => [doc.id, { id: doc.id, ...(doc.data() || {}) }]));
   const assignedIds = new Set(assignmentSnap.docs.flatMap((doc) => doc.data()?.submissionIds || []));
+  const finalistBySubmission = new Map(finalistSnap.docs.map((doc) => [doc.data()?.submissionId, doc.data() || {}]));
   const decisionsBySubmissionId = new Map();
   decisionSnap.docs.forEach((doc) => {
     const row = { id: doc.id, ...(doc.data() || {}) };
@@ -9914,6 +10171,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
       const reviewTarget = Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0);
       const reviewCount = decisions.length;
       const extraAssigned = row.contestExtraReviewerEmails.some((email) => normalizeText(email).toLowerCase() === reviewerEmail);
+      const finalistRead = finalistBySubmission.get(row.id) || null;
       const canReview = !!currentDecision || (reviewCount < requiredReviewCount && !extraAssigned) || (reviewCount >= requiredReviewCount && reviewCount < reviewTarget && extraAssigned);
       return {
         id: row.id,
@@ -9931,6 +10189,10 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
         currentReviewerNote: normalizeText(currentDecision?.note || ""),
         assignedToMe: assignedIds.has(row.id),
         spotCheckAssignedToMe: row.contestSpotCheckReviewerEmail.toLowerCase() === reviewerEmail,
+        finalistAssignedToMe: !!finalistRead,
+        finalistTier: finalistRead?.tier || "",
+        finalistDecision: normalizeKey(finalistRead?.decision || ""),
+        finalistNote: normalizeText(finalistRead?.note || ""),
         createdAt: row.createdAt || null,
       };
     })
@@ -9961,12 +10223,13 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
-  const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap, spotCheckSnap] = await Promise.all([
+  const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap, spotCheckSnap, finalistSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
     db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
     db.collection(COLLECTIONS.contestSpotChecks).where("programId", "==", programId).get(),
+    db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get(),
   ]);
   const instagramBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, normalizeText(doc.data()?.instagramHandle || "")]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
@@ -9980,8 +10243,20 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     list.push({
       reviewerEmail: normalizeText(decision.reviewerEmail || "").toLowerCase(),
       decision: normalizeKey(decision.decision || ""),
+      reviewedAt: decision.reviewedAt || null,
     });
     decisionsBySubmission.set(decision.submissionId, list);
+  }
+  const finalistBySubmission = new Map();
+  for (const doc of finalistSnap.docs) {
+    const read = doc.data() || {};
+    const list = finalistBySubmission.get(read.submissionId) || [];
+    list.push({
+      reviewerEmail: normalizeText(read.reviewerEmail || "").toLowerCase(),
+      tier: normalizeKey(read.tier || ""),
+      decision: normalizeKey(read.decision || ""),
+    });
+    finalistBySubmission.set(read.submissionId, list);
   }
   const assignedBySubmission = new Map();
   const reviewerProgress = new Map();
@@ -10015,9 +10290,12 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       title: row.title || "Untitled",
       instagramHandle: instagramBySubmission.get(row.id) || "",
       archived: row.contestArchived === true,
+      outcomeStatus: row.contestOutcomeStatus || "undecided",
       reviewCount: decisions.length,
       requiredReviewCount: Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0),
-      reviewers: decisions,
+      reviewers: decisions.map(({ reviewerEmail, decision }) => ({ reviewerEmail, decision })),
+      initialYesCount: initialContestDecisions(decisions, requiredReviewCount).filter((vote) => vote.decision === "yes").length,
+      finalistReads: finalistBySubmission.get(row.id) || [],
       assignedTo,
     };
   }).sort((a, b) => a.title.localeCompare(b.title));
@@ -10039,6 +10317,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   res.json({
     ok: true,
     programId,
+    winnerSubmissionId: normalizeText(programSnap.data()?.contestWinnerSubmissionId || ""),
     spotChecks,
     totalSubmissions: rows.length,
     reviewedAtLeastOnce: rows.filter((row) => row.reviewCount > 0).length,
@@ -10048,6 +10327,386 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     reviewers: Array.from(reviewerProgress.values()).sort((a, b) => a.email.localeCompare(b.email)),
     submissions: rows,
   });
+});
+
+async function buildContestOutcomeEmailPreview(programId) {
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return null;
+  const [submissionSnap, entrantSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
+  ]);
+  const programName = normalizeText(programSnap.data()?.name || programId);
+  const entrants = new Map(entrantSnap.docs.map((doc) => [doc.id, doc.data() || {}]));
+  const submissions = submissionSnap.docs.map(mapSubmissionDoc)
+    .filter((row) => row.submissionProgramId === programId);
+  const groups = new Map();
+  let missingContactCount = 0;
+  let archivedCount = 0;
+  const decisionCounts = { winner: 0, circle: 0, notSelected: 0, undecided: 0 };
+  for (const row of submissions) {
+    const entrant = entrants.get(row.id) || {};
+    const email = normalizeText(entrant.email || row.submitterEmail || "").toLowerCase();
+    const validEmail = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+    if (!validEmail) missingContactCount += 1;
+    if (row.contestArchived) archivedCount += 1;
+    const decision = row.contestOutcomeStatus === "winner" ? "winner"
+      : row.contestOutcomeStatus === "circle" ? "circle" : "notSelected";
+    decisionCounts[decision] += 1;
+    if (row.contestOutcomeStatus === "undecided") decisionCounts.undecided += 1;
+    const key = validEmail ? email : "missing:" + row.id;
+    const group = groups.get(key) || {
+      email: validEmail ? email : "",
+      firstName: normalizeText(entrant.firstName || "").slice(0, 80) || "there",
+      submissions: [],
+    };
+    group.submissions.push({
+      id: row.id, title: row.title || "Untitled", decision,
+      internalStatus: row.contestOutcomeStatus || "undecided",
+      archived: row.contestArchived,
+    });
+    groups.set(key, group);
+  }
+  const recipients = Array.from(groups.values()).map((group) => {
+    const decisions = new Set(group.submissions.map((row) => row.decision));
+    const outcome = decisions.has("winner") ? "winner"
+      : decisions.has("circle") ? "circle" : "notSelected";
+    const selected = group.submissions.filter((row) => row.decision === outcome);
+    const titleList = selected.map((row) => '"' + row.title + '"').join(", ");
+    const greeting = "Hi " + group.firstName + ",";
+    let subject;
+    let body;
+    if (outcome === "winner") {
+      subject = "Your " + programName + " entry — winner";
+      body = greeting + "\n\nWe're delighted to let you know that " + titleList +
+        " has been selected as the winner of " + programName +
+        ". Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\n" +
+        "Thank you for sharing your work with us.\n\nThe Poetry, Please team";
+    } else if (outcome === "circle") {
+      subject = "Your " + programName + " entry — winners circle";
+      body = greeting + "\n\nWe're delighted to let you know that " + titleList +
+        " has been selected for the winners circle of " + programName +
+        ". Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\n" +
+        "Thank you for sharing your work with us.\n\nThe Poetry, Please team";
+    } else {
+      subject = "Thank you for entering " + programName;
+      body = greeting + "\n\nThank you for sharing " + titleList + " with " + programName +
+        ". It wasn't selected for this year's winners circle, but we're grateful you trusted us with your work.\n\n" +
+        "We'll share the celebrated pieces in Poetry, Please once they're published.\n\nThe Poetry, Please team";
+    }
+    return {
+      email: group.email, outcome, submissionCount: group.submissions.length,
+      submissions: group.submissions, mixedOutcomes: decisions.size > 1,
+      subject, body,
+      previewToken: createHash("sha256").update(JSON.stringify({ programId, email: group.email,
+        outcome, subject, body, submissions: group.submissions })).digest("hex"),
+    };
+  }).sort((a, b) => a.outcome.localeCompare(b.outcome) || a.email.localeCompare(b.email));
+  return {
+    ok: true, previewOnly: true, emailSent: false,
+    sendEnabled: CONTEST_OUTCOME_EMAILS_ENABLED,
+    programId, programName,
+    submissionCount: submissions.length, recipientCount: recipients.length,
+    missingContactCount, archivedCount, decisionCounts,
+    mixedOutcomeRecipientCount: recipients.filter((row) => row.mixedOutcomes).length,
+    recipients,
+  };
+}
+
+app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const preview = await buildContestOutcomeEmailPreview(programId);
+  if (!preview) return res.status(404).json({ error: "submission_program_not_found" });
+  res.json(preview);
+});
+
+app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  if (!CONTEST_OUTCOME_EMAILS_ENABLED) {
+    return res.status(409).json({ error: "contest_outcome_emails_awaiting_approval" });
+  }
+  const programId = normalizeText(req.body?.programId || "");
+  const email = normalizeText(req.body?.email || "").toLowerCase();
+  const previewToken = normalizeText(req.body?.previewToken || "");
+  if (!programId || !email || !previewToken) {
+    return res.status(400).json({ error: "missing_outcome_send_parameters" });
+  }
+  const preview = await buildContestOutcomeEmailPreview(programId);
+  if (!preview) return res.status(404).json({ error: "submission_program_not_found" });
+  if (preview.decisionCounts.winner !== 1 || preview.decisionCounts.circle < 1) {
+    return res.status(409).json({ error: "contest_outcomes_not_approved" });
+  }
+  const recipient = preview.recipients.find((row) => row.email === email);
+  if (!recipient || recipient.mixedOutcomes || recipient.previewToken !== previewToken) {
+    return res.status(409).json({ error: "recipient_preview_changed_or_invalid" });
+  }
+  if (recipient.submissions.some((submission) => submission.internalStatus === "undecided")) {
+    return res.status(409).json({ error: "recipient_outcome_not_final" });
+  }
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
+  const noticeId = createHash("sha256").update(programId + "|" + email).digest("hex").slice(0, 40);
+  const noticeRef = db.collection(COLLECTIONS.contestOutcomeNotices).doc(noticeId);
+  const reserved = await db.runTransaction(async (transaction) => {
+    const prior = await transaction.get(noticeRef);
+    if (prior.exists) return false;
+    transaction.set(noticeRef, {
+      programId, email, outcome: recipient.outcome,
+      submissionIds: recipient.submissions.map((row) => row.id),
+      previewToken, subject: recipient.subject,
+      deliveryStatus: "sending", sentBy: ctx.decoded.uid,
+      deliveryUpdatedAt: FieldValue.serverTimestamp(),
+    });
+    return true;
+  });
+  if (!reserved) return res.status(409).json({ error: "contest_outcome_email_already_attempted" });
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({
+      apiKey, email, message: { subject: recipient.subject, text: recipient.body },
+      tag: "poetry-please-contest-outcome",
+    });
+    await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.json({ ok: true, email, outcome: recipient.outcome, delivery });
+  } catch (error) {
+    await noticeRef.set({ deliveryStatus: "uncertain",
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.status(502).json({ error: "contest_outcome_send_unconfirmed" });
+  }
+});
+
+app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  if (!CONTEST_ASSIGNMENT_EMAILS_ENABLED) return res.status(409).json({ error: "contest_assignment_emails_paused" });
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  const view = normalizeKey(req.body?.view || "");
+  if (!programId || !/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail) || !["assigned", "spotcheck", "finalist"].includes(view)) {
+    return res.status(400).json({ error: "invalid_contest_notice_request" });
+  }
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const collection = view === "spotcheck" ? COLLECTIONS.contestSpotChecks
+    : view === "finalist" ? COLLECTIONS.contestFinalistReads : COLLECTIONS.contestReviewAssignments;
+  const snap = await db.collection(collection).where("programId", "==", programId).get();
+  const ids = [...new Set(snap.docs.filter((doc) => normalizeText(doc.data()?.reviewerEmail || "").toLowerCase() === reviewerEmail)
+    .flatMap((doc) => view === "spotcheck" ? doc.data()?.sampleIds || []
+      : view === "finalist" ? [doc.id] : doc.data()?.submissionIds || []))].sort();
+  if (!ids.length) return res.status(409).json({ error: "no_committed_assignment_for_reviewer" });
+  const fingerprint = createHash("sha256").update(JSON.stringify([programId, reviewerEmail, view, ids])).digest("hex");
+  const noticeRef = db.collection(COLLECTIONS.contestAssignmentNotices).doc(fingerprint);
+  const reserved = await db.runTransaction(async (transaction) => {
+    const prior = (await transaction.get(noticeRef)).data() || {};
+    if (["sending", "sent", "uncertain"].includes(prior.deliveryStatus)) return false;
+    transaction.set(noticeRef, { programId, reviewerEmail, view, assignmentIds: ids,
+      deliveryStatus: "sending", deliveryUpdatedAt: FieldValue.serverTimestamp(), sentBy: ctx.decoded.uid });
+    return true;
+  });
+  if (!reserved) return res.status(409).json({ error: "contest_notice_already_attempted" });
+  const reviewUrl = `https://poetryplease.org/contest-review.html?program=${encodeURIComponent(programId)}&view=${view}`;
+  const message = buildContestAssignmentMessage({
+    programName: normalizeText(programSnap.data()?.name || programSnap.data()?.title || programId), view, reviewUrl,
+  });
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment" });
+    await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.json({ ok: true, reviewerEmail, view, reviewUrl, assignmentCount: ids.length, delivery });
+  } catch (error) {
+    await noticeRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.status(502).json({ error: "contest_notice_send_unconfirmed" });
+  }
+});
+
+app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const tier = normalizeKey(req.body?.tier || "");
+  const readsPerEntry = Number(req.body?.readsPerEntry || 1);
+  const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
+    .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
+  if (!programId || !["strong", "rescue"].includes(tier) || ![1, 2, 3].includes(readsPerEntry)) {
+    return res.status(400).json({ error: "invalid_finalist_batch" });
+  }
+  if (!reviewerEmails.length || reviewerEmails.length > 20 ||
+      reviewerEmails.some((email) => !/^[^@\s]+@buttonpoetry\.com$/.test(email))) {
+    return res.status(400).json({ error: "provide_1_to_20_button_poetry_reviewers" });
+  }
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+  if (requiredReviewCount !== 3) return res.status(409).json({ error: "finalist_pass_requires_three_initial_reviews" });
+
+  const [submissionSnap, voteSnap, readSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get(),
+  ]);
+  const votesById = new Map();
+  for (const doc of voteSnap.docs) {
+    const vote = doc.data() || {};
+    const list = votesById.get(vote.submissionId) || [];
+    list.push(vote);
+    votesById.set(vote.submissionId, list);
+  }
+  const readsById = new Map();
+  for (const doc of readSnap.docs) {
+    const read = doc.data() || {};
+    const list = readsById.get(read.submissionId) || [];
+    list.push(read);
+    readsById.set(read.submissionId, list);
+  }
+  const matching = submissionSnap.docs
+    .filter((doc) => doc.data()?.submissionProgramId === programId && doc.data()?.contestArchived !== true)
+    .map((doc) => ({ doc, votes: votesById.get(doc.id) || [], reads: readsById.get(doc.id) || [] }))
+    .filter((item) => item.votes.length >= requiredReviewCount)
+    .filter((item) => {
+      const yesCount = initialContestDecisions(item.votes, requiredReviewCount)
+        .filter((vote) => normalizeKey(vote.decision || "") === "yes").length;
+      return tier === "strong" ? yesCount >= 2 : yesCount === 1;
+    })
+    .sort((a, b) => a.doc.id.localeCompare(b.doc.id));
+  const snapshot = matching.map(({ doc, votes, reads }) => [
+    doc.id,
+    votes.map((vote) => [normalizeText(vote.reviewerEmail || "").toLowerCase(),
+      normalizeKey(vote.decision || ""), vote.reviewedAt?.toMillis?.() || 0]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    reads.map((read) => [normalizeText(read.reviewerEmail || "").toLowerCase(), normalizeKey(read.decision || "")])
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+  ]);
+  const previewToken = createHash("sha256").update(JSON.stringify({
+    programId, tier, readsPerEntry, reviewerEmails, snapshot,
+  })).digest("hex");
+  const plan = [];
+  let nextReviewer = 0;
+  let alreadyCovered = 0;
+  let reviewerConflicts = 0;
+  for (const { doc, votes, reads } of matching) {
+    const needed = Math.max(0, readsPerEntry - reads.length);
+    if (!needed) { alreadyCovered += 1; continue; }
+    const occupied = new Set([
+      ...votes.map((vote) => normalizeText(vote.reviewerEmail || "").toLowerCase()),
+      ...reads.map((read) => normalizeText(read.reviewerEmail || "").toLowerCase()),
+    ]);
+    let assigned = 0;
+    for (let slot = 0; slot < needed; slot += 1) {
+      let selected = "";
+      for (let offset = 0; offset < reviewerEmails.length; offset += 1) {
+        const index = (nextReviewer + offset) % reviewerEmails.length;
+        if (!occupied.has(reviewerEmails[index])) {
+          selected = reviewerEmails[index];
+          nextReviewer = (index + 1) % reviewerEmails.length;
+          break;
+        }
+      }
+      if (!selected) break;
+      occupied.add(selected);
+      plan.push({ submissionId: doc.id, reviewerEmail: selected });
+      assigned += 1;
+    }
+    if (assigned < needed) reviewerConflicts += 1;
+  }
+  const byReviewer = Object.fromEntries(reviewerEmails.map((email) =>
+    [email, plan.filter((item) => item.reviewerEmail === email).length]));
+  const result = {
+    ok: true, programId, tier, matchingCount: matching.length,
+    newReadCount: plan.length, alreadyCovered, reviewerConflicts, byReviewer, previewToken,
+  };
+  if (req.body?.commit !== true) return res.json(result);
+  if (normalizeText(req.body?.previewToken || "") !== previewToken) {
+    return res.status(409).json({ error: "selection_changed_preview_again" });
+  }
+  if (!plan.length) return res.status(409).json({ error: "no_eligible_finalist_reads" });
+  let assignedCount = 0;
+  try {
+    for (let start = 0; start < plan.length; start += 350) {
+      const batch = db.batch();
+      const chunk = plan.slice(start, start + 350);
+      for (const item of chunk) {
+        const id = createHash("sha256").update(item.submissionId + "|" + item.reviewerEmail).digest("hex").slice(0, 40);
+        batch.create(db.collection(COLLECTIONS.contestFinalistReads).doc(id), {
+          programId, submissionId: item.submissionId, reviewerEmail: item.reviewerEmail,
+          tier, decision: "", note: "", assignedBy: ctx.decoded.uid,
+          assignedAt: FieldValue.serverTimestamp(),
+        });
+      }
+      await batch.commit();
+      assignedCount += chunk.length;
+    }
+  } catch (error) {
+    return res.status(500).json({ error: "finalist_batch_partial_failure", assignedCount });
+  }
+  res.json({ ...result, assignedCount });
+});
+
+app.post(getBoth("/admin/contestFinalistAssignments"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  if (!programId || !/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail)) {
+    return res.status(400).json({ error: "invalid_finalist_assignment_request" });
+  }
+  const readSnap = await db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get();
+  const pendingRefs = readSnap.docs.filter((doc) =>
+    normalizeText(doc.data()?.reviewerEmail || "").toLowerCase() === reviewerEmail &&
+    !normalizeKey(doc.data()?.decision || "")).map((doc) => doc.ref);
+  if (pendingRefs.length > 200) return res.status(409).json({ error: "too_many_pending_reads_to_remove_at_once" });
+  if (!pendingRefs.length) return res.json({ ok: true, removedCount: 0 });
+  const removedCount = await db.runTransaction(async (transaction) => {
+    const current = await Promise.all(pendingRefs.map((ref) => transaction.get(ref)));
+    const stillPending = current.filter((snap) => snap.exists && !normalizeKey(snap.data()?.decision || ""));
+    stillPending.forEach((snap) => transaction.delete(snap.ref));
+    return stillPending.length;
+  });
+  res.json({ ok: true, removedCount });
+});
+
+app.post(getBoth("/team/contestFinalistRead"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin", "contest_admin"]);
+  if (!ctx) return;
+  const submissionId = normalizeText(req.body?.submissionId || "");
+  const decision = normalizeKey(req.body?.decision || "");
+  const note = normalizeText(req.body?.note || "").slice(0, 1000);
+  if (!submissionId || !["champion", "possible", "pass"].includes(decision)) {
+    return res.status(400).json({ error: "invalid_finalist_decision" });
+  }
+  const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
+  const id = createHash("sha256").update(submissionId + "|" + reviewerEmail).digest("hex").slice(0, 40);
+  const readRef = db.collection(COLLECTIONS.contestFinalistReads).doc(id);
+  const [readSnap, submissionSnap, voteSnap] = await Promise.all([
+    readRef.get(),
+    db.collection(COLLECTIONS.contentSubmissions).doc(submissionId).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("submissionId", "==", submissionId).limit(50).get(),
+  ]);
+  if (!readSnap.exists || readSnap.data()?.reviewerEmail !== reviewerEmail) {
+    return res.status(403).json({ error: "finalist_read_not_assigned" });
+  }
+  const submission = submissionSnap.data() || {};
+  if (!submissionSnap.exists || submission.contestArchived === true ||
+      submission.submissionProgramId !== readSnap.data()?.programId) {
+    return res.status(409).json({ error: "finalist_submission_unavailable" });
+  }
+  const voteCount = voteSnap.docs.filter((doc) => normalizeKey(doc.data()?.responseType || "") === "contest_review").length;
+  if (voteCount < 3) return res.status(409).json({ error: "initial_reviews_not_complete" });
+  await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(readRef);
+    if (!current.exists || current.data()?.reviewerEmail !== reviewerEmail) {
+      throw new Error("finalist_read_not_assigned");
+    }
+    transaction.set(readRef, {
+      decision, note, reviewerUid: ctx.decoded.uid,
+      reviewedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  });
+  res.json({ ok: true, submissionId, decision });
 });
 
 app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
@@ -10355,6 +11014,69 @@ app.post(getBoth("/admin/contestSpotChecks"), async (req, res) => {
     ok: true, spotCheckId: spotCheckRef.id, programId, reviewerEmail,
     eligibleCount: eligible.length, sampleCount,
   });
+});
+
+app.post(getBoth("/admin/contentSubmissions/:submissionId/outcome"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const submissionId = normalizeText(req.params.submissionId);
+  const outcome = normalizeKey(req.body?.outcome || "");
+  if (!["undecided", "circle", "winner", "rejected"].includes(outcome)) {
+    return res.status(400).json({ error: "invalid_contest_outcome" });
+  }
+  const submissionRef = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+  const initialSnap = await submissionRef.get();
+  if (!initialSnap.exists) return res.status(404).json({ error: "submission_not_found" });
+  const initial = initialSnap.data() || {};
+  if (initial.contestSubmission !== true) return res.status(409).json({ error: "not_a_contest_submission" });
+  const programId = normalizeText(initial.submissionProgramId || "");
+  if (!programId) return res.status(409).json({ error: "missing_submission_program" });
+  const programRef = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
+  try {
+    await db.runTransaction(async (transaction) => {
+      const [submissionSnap, programSnap] = await Promise.all([
+        transaction.get(submissionRef), transaction.get(programRef),
+      ]);
+      if (!submissionSnap.exists || !programSnap.exists) throw new Error("contest_record_missing");
+      const submission = submissionSnap.data() || {};
+      if (submission.contestSubmission !== true || normalizeText(submission.submissionProgramId || "") !== programId) {
+        throw new Error("contest_program_changed");
+      }
+      if (submission.contestArchived === true && ["circle", "winner"].includes(outcome)) {
+        throw new Error("contest_submission_archived");
+      }
+      const prior = normalizeKey(submission.contestOutcomeStatus || "undecided");
+      const currentWinnerId = normalizeText(programSnap.data()?.contestWinnerSubmissionId || "");
+      if (outcome === "winner" && !["circle", "winner"].includes(prior)) {
+        throw new Error("winner_requires_circle");
+      }
+      if (outcome === "winner" && currentWinnerId && currentWinnerId !== submissionId) {
+        throw new Error("winner_already_selected");
+      }
+      if (prior === outcome) return;
+      if (outcome === "winner") {
+        transaction.set(programRef, { contestWinnerSubmissionId: submissionId }, { merge: true });
+      } else if (prior === "winner" && currentWinnerId === submissionId) {
+        transaction.set(programRef, { contestWinnerSubmissionId: null }, { merge: true });
+      }
+      transaction.set(submissionRef, {
+        contestOutcomeStatus: outcome,
+        contestOutcomeUpdatedAt: FieldValue.serverTimestamp(),
+        contestOutcomeUpdatedBy: ctx.decoded.uid,
+        contestOutcomeHistory: FieldValue.arrayUnion({
+          from: prior, to: outcome, by: ctx.decoded.uid, at: new Date().toISOString(),
+        }),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+  } catch (error) {
+    if (["contest_record_missing", "contest_program_changed", "contest_submission_archived",
+      "winner_requires_circle", "winner_already_selected"].includes(error.message)) {
+      return res.status(409).json({ error: error.message });
+    }
+    throw error;
+  }
+  res.json({ ok: true, submissionId, programId, outcome, emailSent: false });
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/archive"), async (req, res) => {
@@ -10725,6 +11447,8 @@ app.get(getBoth("/admin/authorInvites"), async (req, res) => {
         id: invite.id,
         email: invite.email || '',
         authorName: invite.authorName || '',
+        testOnly: invite.testOnly === true,
+        deliveryStatus: invite.deliveryStatus || '',
         status,
         createdBy: invite.createdBy || '',
         createdAt: invite.createdAt || null,
@@ -10773,8 +11497,14 @@ app.get(getBoth("/admin/users"), async (req, res) => {
   if (!ctx) return;
 
   const queryText = normalizeKey(req.query?.q || "");
+  const exactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(queryText) ? queryText : "";
   const [authUsers, voteStats] = await Promise.all([
-    listAllAuthUsers(1000),
+    exactEmail
+      ? auth.getUserByEmail(exactEmail).then((user) => [user]).catch((error) => {
+        if (error.code === "auth/user-not-found") return [];
+        throw error;
+      })
+      : listAllAuthUsers(1000),
     getVoteStatsByUserId(),
   ]);
   const synced = await Promise.all(authUsers.map((authUser) => syncUserRecordFromAuthUser(authUser)));
@@ -10962,5 +11692,5 @@ export const api = onRequest({
   memory: "1GiB",
   minInstances: 1,
   timeoutSeconds: 540,
-  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET, CATALOG_RECONCILIATION_API_KEY_SECRET],
+  secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET, CATALOG_RECONCILIATION_API_KEY_SECRET, MANDRILL_AUTHOR_INVITE_API_KEY_SECRET],
 }, app);

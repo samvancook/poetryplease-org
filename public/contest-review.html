@@ -72,12 +72,14 @@
           <option value="unreviewed">Needs my review</option>
           <option value="assigned">My assigned batch</option>
           <option value="spotcheck">My spot check</option>
+          <option value="finalist">My finalist pass</option>
           <option value="reviewed">Reviewed by me</option>
           <option value="all">All available</option>
         </select>
       </label>
       <span id="progress" class="pill">0 submissions</span>
       <span id="my-batch" class="pill" hidden></span>
+      <span id="my-finalist" class="pill" hidden></span>
     </div>
     <div id="status" class="status">Sign in with an authorized contest account.</div>
     <details id="admin-progress" class="card" hidden>
@@ -90,6 +92,16 @@
         <button type="submit" class="primary">Assign next batch</button>
       </form>
       <div id="assignment-status" class="status"></div>
+      <div class="card" style="margin:12px 0;">
+        <strong>Email a committed assignment via Mandrill</strong>
+        <p>Finalist notices send when you commit a batch. For an existing assignment that still needs a notice, choose the reviewer and queue below.</p>
+        <form id="assignment-notice-form" class="assignment-form">
+          <label>Reviewer’s Button Poetry email<input id="notice-email" type="email" required placeholder="name@buttonpoetry.com"></label>
+          <label>Queue<select id="notice-view"><option value="assigned">Assigned batch or fourth reads</option><option value="spotcheck">Spot check</option><option value="finalist">Finalist pass</option></select></label>
+          <button type="submit">Send assignment notice</button>
+        </form>
+        <div id="notice-status" class="status"></div>
+      </div>
       <h3>Spot check: three No votes</h3>
       <p>Randomly assign 10% of eligible three-No entries (at least 30, or all if fewer). The spot checker must not be one of the original reviewers. This adds a fourth blinded vote to each sampled entry; it does not archive anything automatically.</p>
       <form id="spot-check-form" class="assignment-form">
@@ -101,12 +113,30 @@
       <div id="spot-check-results" class="table-wrap"></div>
       <h3>Reviewer progress</h3>
       <div id="reviewer-progress" class="table-wrap"></div>
-      <h3>Review outcomes</h3>
+      <details id="finalist-admin" style="margin:22px 0;">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalist pass</summary>
+        <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two or three independent readers for more opinions. Original voters are skipped for that poem. Committing new assignments emails the assigned readers.</p>
+        <div class="assignment-form">
+          <label>Set<select id="finalist-tier"><option value="strong">2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
+          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option><option value="3">3 independent reads</option></select></label>
+        </div>
+        <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
+        <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
+        <div id="finalist-status" class="status"></div>
+        <div id="finalist-progress" class="table-wrap"></div>
+        <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
+      </details>
+      <h3 id="review-outcomes">Review outcomes</h3>
       <label>Show submissions
         <select id="outcome-view">
           <option value="complete">3+ reviews</option>
           <option value="positive">3+ Yes reviews</option>
           <option value="negative">3+ No reviews</option>
+          <option value="strong">2+ initial Yes votes</option>
+          <option value="rescue">Exactly 1 initial Yes vote</option>
+          <option value="champion">Finalist: 1+ Champion vote</option>
+          <option value="champion-double">Finalist: 2+ Champion votes</option>
+          <option value="possible">Finalist: Possible</option>
           <option value="instagram">By Instagram handle</option>
           <option value="active">All active submissions</option>
           <option value="all">All submissions</option>
@@ -134,13 +164,26 @@
         <span id="position"></span>
       </div>
       <div id="poem" class="poem"></div>
-      <label>Private reviewer note
-        <textarea id="note" placeholder="Optional context for your decision"></textarea>
-      </label>
-      <div class="actions" style="margin-top:14px;">
-        <button data-decision="yes" type="button">Yes</button>
-        <button data-decision="maybe" type="button">Maybe</button>
-        <button data-decision="no" type="button">No</button>
+      <div id="regular-review-controls">
+        <label>Private reviewer note
+          <textarea id="note" placeholder="Optional context for your decision"></textarea>
+        </label>
+        <p class="muted">Your draft stays while you browse this page. Your vote saves the note with your decision.</p>
+        <div class="actions" style="margin-top:14px;">
+          <button data-decision="yes" type="button">Yes</button>
+          <button data-decision="maybe" type="button">Maybe</button>
+          <button data-decision="no" type="button">No</button>
+        </div>
+      </div>
+      <div id="finalist-controls" hidden>
+        <p id="finalist-prompt">Finalist pass: would you champion this poem for the winners’ circle?</p>
+        <label>Private finalist note<textarea id="finalist-note" placeholder="What makes this a champion, possible, or pass?"></textarea></label>
+        <p class="muted">Your draft stays here while you browse. Your finalist choice saves the note.</p>
+        <div class="actions" style="margin-top:14px;">
+          <button data-finalist-decision="champion" type="button">Champion</button>
+          <button data-finalist-decision="possible" type="button">Possible</button>
+          <button data-finalist-decision="pass" type="button">Pass</button>
+        </div>
       </div>
       <div class="actions" style="margin-top:18px;">
         <button id="previous" type="button">Previous</button>
@@ -163,7 +206,7 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
-    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null, fourthPreview: null };
+    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null, fourthPreview: null, finalistPreview: null, noteDrafts: new Map(), noteOwnerUid: "" };
 
     async function token() {
       return firebase.auth().currentUser ? firebase.auth().currentUser.getIdToken(false) : "";
@@ -204,6 +247,7 @@
         if (view === "unreviewed") return row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
         if (view === "assigned") return row.assignedToMe && row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
         if (view === "spotcheck") return row.spotCheckAssignedToMe && row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
+        if (view === "finalist") return row.finalistAssignedToMe;
         if (view === "reviewed") return !!row.currentReviewerDecision;
         return true;
       });
@@ -212,6 +256,10 @@
       const batch = document.getElementById("my-batch");
       batch.hidden = !assigned.length;
       if (assigned.length) batch.textContent = "My batch: " + assigned.filter((row) => row.currentReviewerDecision).length + " of " + assigned.length + " reviewed";
+      const finalist = state.submissions.filter((row) => row.finalistAssignedToMe && (!programId || row.submissionProgramId === programId));
+      const finalistPill = document.getElementById("my-finalist");
+      finalistPill.hidden = !finalist.length;
+      if (finalist.length) finalistPill.textContent = "Finalist pass: " + finalist.filter((row) => row.finalistDecision).length + " of " + finalist.length + " done";
       render();
     }
 
@@ -222,7 +270,7 @@
       if (!state.filtered.length) {
         card.hidden = true;
         empty.hidden = false;
-        empty.querySelector("p").textContent = ["assigned", "spotcheck"].includes(document.getElementById("view").value)
+        empty.querySelector("p").textContent = ["assigned", "spotcheck", "finalist"].includes(document.getElementById("view").value)
           ? "Your assigned batch is complete, or no entries have been assigned to you yet."
           : "There are no submissions matching this program and view.";
         return;
@@ -234,7 +282,15 @@
       document.getElementById("title").textContent = row.title;
       document.getElementById("poem").textContent = row.text;
       document.getElementById("position").textContent = (state.index + 1) + " of " + state.filtered.length;
-      document.getElementById("note").value = row.currentReviewerNote || "";
+      const finalistMode = document.getElementById("view").value === "finalist";
+      document.getElementById("regular-review-controls").hidden = finalistMode;
+      document.getElementById("finalist-controls").hidden = !finalistMode;
+      document.getElementById("note").value = state.noteDrafts.has("regular:" + row.id) ? state.noteDrafts.get("regular:" + row.id) : (row.currentReviewerNote || "");
+      document.getElementById("finalist-note").value = state.noteDrafts.has("finalist:" + row.id) ? state.noteDrafts.get("finalist:" + row.id) : (row.finalistNote || "");
+      document.getElementById("finalist-prompt").textContent = (row.finalistTier === "rescue" ? "Rescue pass" : "Finalist pass") + ": would you champion this poem for the winners’ circle?";
+      document.querySelectorAll("[data-finalist-decision]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.finalistDecision === row.finalistDecision);
+      });
       document.querySelectorAll("[data-decision]").forEach((button) => {
         button.classList.toggle("active", button.dataset.decision === row.currentReviewerDecision);
         button.disabled = !row.canReview || (row.reviewComplete && !row.currentReviewerDecision);
@@ -259,6 +315,7 @@
           '</tbody></table>'
         : '<p>No reviews or assignments yet.</p>';
       renderOutcomeViews();
+      renderFinalistProgress();
       const spotChecks = report.spotChecks || [];
       document.getElementById("spot-check-results").innerHTML = spotChecks.length
         ? '<table class="progress-table"><thead><tr><th>Spot checker</th><th>Sample</th><th>Votes</th><th>Result</th></tr></thead><tbody>' +
@@ -273,6 +330,31 @@
           escapeHtml(row.assignedTo.join(", ") || "—") + '</td></tr>').join("") + '</tbody></table>';
     }
 
+    function renderFinalistProgress() {
+      const rows = state.adminProgress?.submissions || [];
+      const reads = rows.flatMap((row) => row.finalistReads || []);
+      const byReader = new Map();
+      reads.forEach((read) => {
+        const summary = byReader.get(read.reviewerEmail) || { email: read.reviewerEmail, assigned: 0, completed: 0, champion: 0, possible: 0, pass: 0 };
+        summary.assigned += 1;
+        if (read.decision) {
+          summary.completed += 1;
+          summary[read.decision] = (summary[read.decision] || 0) + 1;
+        }
+        byReader.set(read.reviewerEmail, summary);
+      });
+      document.getElementById("finalist-progress").innerHTML = reads.length
+        ? '<p>' + reads.filter((read) => read.decision).length + ' of ' + reads.length + ' finalist reads complete.</p>' +
+          '<table class="progress-table"><thead><tr><th>Reader</th><th>Done</th><th>Champion</th><th>Possible</th><th>Pass</th><th>Actions</th></tr></thead><tbody>' +
+          [...byReader.values()].sort((a, b) => a.email.localeCompare(b.email)).map((row) =>
+            '<tr><td>' + escapeHtml(row.email) + '</td><td>' + row.completed + ' / ' + row.assigned +
+            '</td><td>' + row.champion + '</td><td>' + row.possible + '</td><td>' + row.pass + '</td><td>' +
+            (row.assigned > row.completed ? '<button type="button" data-remove-finalist="' + escapeHtml(row.email) + '">Remove ' + (row.assigned - row.completed) + ' pending</button>' : '—') +
+            '</td></tr>').join("") +
+          '</tbody></table>'
+        : '<p>No finalist reads assigned yet.</p>';
+    }
+
     function filteredOutcomeRows() {
       const report = state.adminProgress;
       if (!report) return [];
@@ -282,12 +364,18 @@
         if (view === "archived") return row.archived;
         if (row.archived) return false;
         if (view === "instagram" || view === "active") return true;
+        if (view === "strong") return row.reviewCount >= 3 && row.initialYesCount >= 2;
+        if (view === "rescue") return row.reviewCount >= 3 && row.initialYesCount === 1;
+        if (view === "champion-double") return row.finalistReads?.filter((read) => read.decision === "champion").length >= 2;
+        if (view === "champion" || view === "possible") return row.finalistReads?.some((read) => read.decision === view);
         if (row.reviewCount < 3) return false;
         if (view === "positive") return row.reviewers.filter((review) => review.decision === "yes").length >= 3;
         if (view === "negative") return row.reviewers.filter((review) => review.decision === "no").length >= 3;
         return true;
       });
       if (view === "instagram") matching.sort((a, b) => (a.instagramHandle || "\uffff").localeCompare(b.instagramHandle || "\uffff") || a.title.localeCompare(b.title));
+      if (view === "champion" || view === "champion-double") matching.sort((a, b) =>
+        b.finalistReads.filter((read) => read.decision === "champion").length - a.finalistReads.filter((read) => read.decision === "champion").length || a.title.localeCompare(b.title));
       return matching;
     }
 
@@ -296,11 +384,17 @@
       if (!report) return;
       const view = document.getElementById("outcome-view").value;
       const matching = filteredOutcomeRows();
-      document.getElementById("outcome-count").textContent = matching.length + " matching submissions";
+      const championCounts = matching.map((row) => row.finalistReads?.filter((read) => read.decision === "champion").length || 0);
+      document.getElementById("outcome-count").textContent = view === "champion"
+        ? matching.length + " poems with Champion votes (" + championCounts.reduce((sum, count) => sum + count, 0) + " votes total); " + championCounts.filter((count) => count >= 2).length + " poems have 2+ Champion votes."
+        : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching submissions";
       document.getElementById("outcome-results").innerHTML = matching.length
         ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th>Actions</th></tr></thead><tbody>' +
-          matching.map((row) => '<tr><td>' + escapeHtml(row.title) + '</td><td>' +
+          matching.map((row) => '<tr><td>' + escapeHtml(row.title) +
+            ((view === "champion" || view === "champion-double") ? '<br><strong>' + row.finalistReads.filter((read) => read.decision === "champion").length + ' Champion vote' + (row.finalistReads.filter((read) => read.decision === "champion").length === 1 ? '' : 's') + '</strong>' : '') +
+            '</td><td>' +
             escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ") || "—") +
+            (row.finalistReads?.length ? '<br><small>Finalist: ' + escapeHtml(row.finalistReads.map((read) => read.decision || "waiting").join(", ")) + '</small>' : '') +
             ' <small>(' + row.reviewCount + ' / ' + row.requiredReviewCount + ')</small></td><td>' +
             (row.archived ? '' : '<button type="button" data-open-submission="' + escapeHtml(row.id) + '">Open</button> ' +
               '<button type="button" data-extra-submission="' + escapeHtml(row.id) + '" ' + (row.reviewCount < report.requiredReviewCount ? 'disabled title="Initial reviews are not complete"' : '') + '>Queue extra reviewer</button> ') +
@@ -324,6 +418,12 @@
         panel.hidden = false;
         document.getElementById("contest-submissions-link").hidden = false;
         renderProgress();
+        const targetId = location.hash.slice(1);
+        if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
+          panel.open = true;
+          if (targetId === "finalist-admin") document.getElementById("finalist-admin").open = true;
+          requestAnimationFrame(() => document.getElementById(targetId).scrollIntoView({ block: "start" }));
+        }
       } catch (error) {
         state.adminProgress = null;
         panel.hidden = true;
@@ -369,8 +469,10 @@
           '<option value="' + program.id + '">' + program.name + '</option>'
         ).join("");
         select.value = state.programs.some((program) => program.id === selected) ? selected : "";
-        if (firstLoad && ["unreviewed", "assigned", "spotcheck", "reviewed"].includes(params.get("view"))) {
+        if (firstLoad && ["unreviewed", "assigned", "spotcheck", "finalist", "reviewed"].includes(params.get("view"))) {
           document.getElementById("view").value = params.get("view");
+        } else if (firstLoad && state.submissions.some((row) => row.finalistAssignedToMe && !row.finalistDecision)) {
+          document.getElementById("view").value = "finalist";
         } else if (firstLoad && state.submissions.some((row) => row.spotCheckAssignedToMe && !row.currentReviewerDecision)) {
           document.getElementById("view").value = "spotcheck";
         } else if (firstLoad && state.submissions.some((row) => row.assignedToMe)) {
@@ -381,6 +483,10 @@
         state.filtersInitialized = true;
         setStatus("Ready.");
         applyFilters();
+        if (firstLoad && params.get("submission")) {
+          const linkedIndex = state.filtered.findIndex((row) => row.id === params.get("submission"));
+          if (linkedIndex >= 0) { state.index = linkedIndex; render(); }
+        }
         await loadProgress();
       } catch (error) {
         state.submissions = [];
@@ -400,6 +506,8 @@
           body: { decision, note: document.getElementById("note").value.trim() },
         });
         await loadQueue();
+        state.noteDrafts.delete("regular:" + row.id);
+        setStatus("Vote and private note saved.");
         if (nextId) {
           const nextIndex = state.filtered.findIndex((candidate) => candidate.id === nextId);
           if (nextIndex >= 0) {
@@ -410,6 +518,43 @@
       } catch (error) {
         setStatus(error.message, true);
       }
+    }
+
+    async function recordFinalistDecision(decision) {
+      const row = state.filtered[state.index];
+      if (!row?.finalistAssignedToMe) return;
+      const nextId = state.filtered[state.index + 1]?.id || "";
+      setStatus("Saving finalist read...");
+      try {
+        await api("team/contestFinalistRead", {
+          method: "POST",
+          body: { submissionId: row.id, decision, note: document.getElementById("finalist-note").value.trim() },
+        });
+        await loadQueue();
+        state.noteDrafts.delete("finalist:" + row.id);
+        setStatus("Finalist choice and private note saved.");
+        if (nextId) {
+          const nextIndex = state.filtered.findIndex((candidate) => candidate.id === nextId);
+          if (nextIndex >= 0) { state.index = nextIndex; render(); }
+        }
+      } catch (error) {
+        setStatus("Could not save finalist read: " + error.message, true);
+      }
+    }
+
+    function invalidateFinalistPreview() {
+      state.finalistPreview = null;
+      document.getElementById("confirm-finalist").hidden = true;
+      document.getElementById("finalist-status").textContent = "";
+    }
+
+    function finalistRequest() {
+      return {
+        programId: document.getElementById("program").value,
+        tier: document.getElementById("finalist-tier").value,
+        readsPerEntry: Number(document.getElementById("finalist-reads-per-entry").value),
+        reviewerEmails: document.getElementById("finalist-emails").value.split(",").map((email) => email.trim()).filter(Boolean),
+      };
     }
 
     function invalidateFourthPreview() {
@@ -428,7 +573,7 @@
       };
     }
 
-    document.getElementById("program").addEventListener("change", () => { invalidateFourthPreview(); applyFilters(); loadProgress(); });
+    document.getElementById("program").addEventListener("change", () => { invalidateFourthPreview(); invalidateFinalistPreview(); applyFilters(); loadProgress(); });
     document.getElementById("assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const programId = document.getElementById("program").value;
@@ -450,6 +595,10 @@
         status.textContent = result.assigned
           ? "Assigned " + result.assigned + " entries to " + result.reviewerEmail + "."
           : "No unreserved entries remain for this reviewer.";
+        if (result.assigned) {
+          document.getElementById("notice-email").value = result.reviewerEmail;
+          document.getElementById("notice-view").value = "assigned";
+        }
         await loadQueue();
       } catch (error) {
         status.textContent = "Could not assign entries: " + error.message;
@@ -467,12 +616,32 @@
           body: { programId, reviewerEmail: document.getElementById("spot-check-email").value.trim() },
         });
         status.textContent = "Assigned " + result.sampleCount + " of " + result.eligibleCount + " eligible three-No entries to " + result.reviewerEmail + ". Send them the reviewer link below.";
+        document.getElementById("notice-email").value = result.reviewerEmail;
+        document.getElementById("notice-view").value = "spotcheck";
         const link = document.getElementById("spot-check-link");
         link.href = "/contest-review.html?program=" + encodeURIComponent(programId) + "&view=spotcheck";
         link.hidden = false;
         await loadQueue();
       } catch (error) {
         status.textContent = "Could not assign spot check: " + error.message;
+      }
+    });
+    document.getElementById("assignment-notice-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const programId = document.getElementById("program").value;
+      const reviewerEmail = document.getElementById("notice-email").value.trim().toLowerCase();
+      const view = document.getElementById("notice-view").value;
+      const status = document.getElementById("notice-status");
+      if (!programId) return void (status.textContent = "Choose a contest first.");
+      if (!window.confirm("Send one " + view + " assignment notice via Mandrill to " + reviewerEmail + "?")) return;
+      status.textContent = "Sending via Mandrill...";
+      try {
+        const result = await api("admin/contestAssignmentNotices/send", {
+          method: "POST", body: { programId, reviewerEmail, view },
+        });
+        status.textContent = "Mandrill accepted the notice for " + result.reviewerEmail + " (" + result.delivery.status + ").";
+      } catch (error) {
+        status.textContent = "Send unconfirmed: " + error.message + ". Check notice status before trying again.";
       }
     });
     document.getElementById("preview-fourth").addEventListener("click", async () => {
@@ -506,7 +675,12 @@
         const result = await api("admin/contestFourthReviewBatch", {
           method: "POST", body: { ...preview, commit: true },
         });
-        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Reviewers can use My assigned batch as poems become ready.";
+        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Send a separate Mandrill notice for each reviewer listed above.";
+        const fourthRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
+        if (fourthRecipients.length) {
+          document.getElementById("notice-email").value = fourthRecipients[0];
+          document.getElementById("notice-view").value = "assigned";
+        }
         state.fourthPreview = null;
         document.getElementById("confirm-fourth").hidden = true;
         await loadQueue();
@@ -516,7 +690,92 @@
         document.getElementById("confirm-fourth").hidden = true;
       }
     });
+    document.getElementById("finalist-progress").addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-remove-finalist]");
+      if (!button) return;
+      const reviewerEmail = button.dataset.removeFinalist;
+      const programId = document.getElementById("program").value;
+      if (!programId || !window.confirm("Remove all pending finalist reads for " + reviewerEmail + " in this contest? Completed finalist decisions will remain.")) return;
+      const status = document.getElementById("finalist-status");
+      button.disabled = true;
+      status.textContent = "Removing pending finalist reads...";
+      try {
+        const result = await api("admin/contestFinalistAssignments", {
+          method: "POST", body: { programId, reviewerEmail },
+        });
+        status.textContent = "Removed " + result.removedCount + " pending reads for " + reviewerEmail + ". Enter the correct reader emails above, then preview and assign again.";
+        invalidateFinalistPreview();
+        await loadQueue();
+        status.textContent = "Removed " + result.removedCount + " pending reads for " + reviewerEmail + ". Enter the correct reader emails above, then preview and assign again.";
+      } catch (error) {
+        status.textContent = "Could not remove pending reads: " + error.message;
+        button.disabled = false;
+      }
+    });
     document.getElementById("fourth-reviewer-emails").addEventListener("input", invalidateFourthPreview);
+    ["finalist-tier", "finalist-reads-per-entry", "finalist-emails"].forEach((id) =>
+      document.getElementById(id).addEventListener(id === "finalist-emails" ? "input" : "change", invalidateFinalistPreview));
+    document.getElementById("preview-finalist").addEventListener("click", async () => {
+      invalidateFinalistPreview();
+      const body = finalistRequest();
+      const status = document.getElementById("finalist-status");
+      if (!body.programId) return void (status.textContent = "Choose a contest first.");
+      status.textContent = "Checking the finalist set...";
+      try {
+        const result = await api("admin/contestFinalistBatch", { method: "POST", body });
+        status.textContent = result.matchingCount + " poems match; " + result.newReadCount +
+          " new reads can be assigned. Already covered: " + result.alreadyCovered +
+          ". Poems with too few independent readers: " + result.reviewerConflicts +
+          ". Reader split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") +
+          ". No assignments made yet. Click the button below to assign these reads and email " +
+          Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers.";
+        state.finalistPreview = { ...body, previewToken: result.previewToken, newReadCount: result.newReadCount, byReviewer: result.byReviewer || {} };
+        document.getElementById("confirm-finalist").hidden = !result.newReadCount;
+        document.getElementById("confirm-finalist").disabled = false;
+        document.getElementById("confirm-finalist").textContent = "Confirm: assign " + result.newReadCount + " reads and email " +
+          Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers";
+      } catch (error) {
+        status.textContent = "Could not preview: " + error.message;
+      }
+    });
+    document.getElementById("confirm-finalist").addEventListener("click", async () => {
+      const preview = state.finalistPreview;
+      if (!preview) return;
+      const button = document.getElementById("confirm-finalist");
+      if (button.disabled) return;
+      button.disabled = true;
+      const status = document.getElementById("finalist-status");
+      status.textContent = "Assigning finalist reads...";
+      try {
+        const result = await api("admin/contestFinalistBatch", { method: "POST", body: { ...preview, commit: true } });
+        const assignedRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
+        state.finalistPreview = null;
+        document.getElementById("confirm-finalist").hidden = true;
+        const sent = [];
+        const unconfirmed = [];
+        for (const email of assignedRecipients) {
+          status.textContent = "Assigned " + result.assignedCount + " reads. Sending " + (sent.length + unconfirmed.length + 1) +
+            " of " + assignedRecipients.length + " assignment emails; keep this page open.";
+          try {
+            await api("admin/contestAssignmentNotices/send", {
+              method: "POST", body: { programId: preview.programId, reviewerEmail: email, view: "finalist" },
+            });
+            sent.push(email);
+          } catch (error) {
+            unconfirmed.push(email + " (" + error.message + ")");
+          }
+        }
+        status.textContent = "Assigned " + result.assignedCount + " finalist reads. Mandrill accepted " + sent.length +
+          " assignment email(s): " + (sent.join(", ") || "none") +
+          (unconfirmed.length ? ". Delivery unconfirmed for: " + unconfirmed.join(", ") +
+            ". Check Mandrill before attempting another send." : ".");
+        await loadQueue().catch(() => {});
+      } catch (error) {
+        status.textContent = "Could not finish assignment: " + error.message + ". Check progress and preview again before retrying.";
+        state.finalistPreview = null;
+        document.getElementById("confirm-finalist").hidden = true;
+      }
+    });
     document.getElementById("download-progress").addEventListener("click", downloadProgress);
 
     document.getElementById("outcome-view").addEventListener("change", () => { invalidateFourthPreview(); renderOutcomeViews(); });
@@ -564,16 +823,27 @@
       document.getElementById("review-card").scrollIntoView({ behavior: "smooth", block: "start" });
     });
     document.getElementById("view").addEventListener("change", applyFilters);
+    ["note", "finalist-note"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", (event) => {
+        const row = state.filtered[state.index];
+        if (row) state.noteDrafts.set((id === "note" ? "regular:" : "finalist:") + row.id, event.target.value);
+      });
+    });
     document.getElementById("previous").addEventListener("click", () => { state.index -= 1; render(); });
     document.getElementById("next").addEventListener("click", () => { state.index += 1; render(); });
     document.querySelectorAll("[data-decision]").forEach((button) => {
       button.addEventListener("click", () => recordDecision(button.dataset.decision));
+    });
+    document.querySelectorAll("[data-finalist-decision]").forEach((button) => {
+      button.addEventListener("click", () => recordFinalistDecision(button.dataset.finalistDecision));
     });
     document.getElementById("login").addEventListener("click", () => {
       firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
     });
     document.getElementById("logout").addEventListener("click", () => firebase.auth().signOut());
     firebase.auth().onAuthStateChanged((user) => {
+      const uid = user?.uid || "";
+      if (state.noteOwnerUid !== uid) { state.noteDrafts.clear(); state.noteOwnerUid = uid; }
       document.getElementById("account").textContent = user?.email || "Signed out";
       document.getElementById("login").hidden = !!user;
       document.getElementById("logout").hidden = !user;

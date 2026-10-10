@@ -963,7 +963,7 @@ function renderAuthorReviewGuide() {
     guide = document.createElement('section');
     guide.id = 'author-review-guide';
     guide.setAttribute('aria-label', 'Author review shortcuts');
-    guide.style.cssText = `${IS_MOBILE_UI ? 'grid-column:1/-1;width:100%;margin:2px 0 4px;padding:10px 12px;' : 'max-width:760px;margin:12px auto 18px;padding:16px 20px;'}border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;`;
+    guide.style.cssText = `${IS_MOBILE_UI ? 'grid-column:1/-1;width:100%;margin:2px 0 4px;padding:10px 12px;max-height:min(52vh,420px);overflow-y:auto;overscroll-behavior:contain;' : 'max-width:760px;margin:12px auto 18px;padding:16px 20px;'}border:1px solid #d8c8aa;border-radius:12px;background:#fff9ed;color:#302b23;line-height:1.45;`;
     if (status) status.insertAdjacentElement('afterend', guide);
     else mobileHeader.appendChild(guide);
   }
@@ -991,7 +991,7 @@ function renderAuthorReviewGuide() {
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
     <p style="margin:0 0 8px;"><strong>2. Ask for an adjustment:</strong> If the formatting is off or we used an earlier version, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.</p>
-    <p style="margin:0;"><strong>3. Choose what to feature next:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you want us to use in marketing and new graphics. You can browse Full Poems and select work for your public author page in <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">the editor</a>.</p>
+    <p style="margin:0;"><strong>3. Choose what to make more of:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
@@ -1080,7 +1080,7 @@ function updateFilterControlsVisibility() {
   }
   if (lengthContainer) {
     const showLengthFilters = canSeeDropdownFilters && normalizeFilterValue(selectedType) === 'fp' && !IS_EMBED_UI;
-    lengthContainer.style.display = showLengthFilters ? 'flex' : 'none';
+    lengthContainer.style.display = showLengthFilters ? (IS_MOBILE_UI ? 'grid' : 'flex') : 'none';
   }
   updateAuthorPromoControls();
 }
@@ -1546,6 +1546,7 @@ async function getOrCreateAnonId() {
     overflow-wrap: anywhere;
   }
   .int-source-caption span { display: block; }
+  .int-source-caption-title { font-weight: 600; margin-bottom: 2px; }
   .int-source-caption .int-source-book { font-style: italic; opacity: .8; }
 
   /* Mobile: transform only the IMAGE pixels, not the UI/layout */
@@ -3759,9 +3760,15 @@ function renderItemMedia(item) {
   img.style.height = 'auto';
 
   box.appendChild(img);
-  if (item.imageType === 'INT' && (item.author || item.book)) {
+  if (item.imageType === 'INT' && (item.title || item.author || item.book)) {
     const caption = document.createElement('div');
     caption.className = 'int-source-caption';
+    if (item.title) {
+      const title = document.createElement('span');
+      title.className = 'int-source-caption-title';
+      title.textContent = item.title;
+      caption.appendChild(title);
+    }
     if (item.author) {
       const author = document.createElement('span');
       author.textContent = item.author;
@@ -3783,14 +3790,23 @@ function renderItemMedia(item) {
   if (userCanDownloadAuthorAsset(item)) {
     const row = document.createElement('div');
     row.className = 'asset-download-row button-row';
-    row.style.margin = '8px auto';
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = 'Download image';
     button.setAttribute('aria-label', 'Download this author image');
+    button.title = 'Download image';
+    const mobileUi = window.__PP_FORCE_MOBILE || document.body?.dataset.ui === 'mobile';
+    if (mobileUi) {
+      box.style.position = 'relative';
+      row.style.cssText = 'position:absolute;top:12px;right:12px;z-index:2;width:44px;height:44px;margin:0;';
+      button.style.cssText = 'display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid #ddd;border-radius:50%;background:rgba(255,255,255,.94);color:#111;box-shadow:0 2px 8px rgba(0,0,0,.2);touch-action:manipulation;cursor:pointer;';
+      button.innerHTML = '<svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-4-4 4 4 4-4M4 17v3h16v-3"/></svg>';
+    } else {
+      row.style.margin = '8px auto';
+      button.textContent = 'Download image';
+    }
     button.addEventListener('click', () => downloadAuthorAsset(item));
     row.appendChild(button);
-    mediaWrap.appendChild(row);
+    (mobileUi ? box : mediaWrap).appendChild(row);
   }
 
   placeRowsAroundMedia(mediaWrap, box);
@@ -4164,7 +4180,7 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Three ways to guide your book',
-      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts or poems you want to feature.',
+      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts you want us to use in its promotion.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
@@ -4178,8 +4194,8 @@ const AuthorQueueTour = (() => {
       target: () => document.getElementById('media-wrap'),
     },
     {
-      title: 'Choose excerpts and featured poems',
-      copy: 'After the tour, vote on Excerpts you want us to use in marketing and new graphics. Full Poems are in the editor, where you can select work for your public author page.',
+      title: 'Choose excerpts for marketing',
+      copy: 'After the tour, vote on Excerpts you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
   ];

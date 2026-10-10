@@ -170,10 +170,14 @@
         </div>
         <form id="invite-form" class="invite-form">
           <select id="invite-author" aria-label="Author" required><option value="">Select author</option></select>
+          <select id="invite-book" aria-label="Book" required><option value="">Select book</option></select>
           <input id="invite-email" type="email" placeholder="author@example.com" required />
           <input id="invite-days" type="number" min="1" max="90" value="14" aria-label="Invite expiration in days" />
           <button type="submit">Create invite</button>
         </form>
+        <div class="controls" style="margin-top:10px;">
+          <button id="send-invite-test" class="secondary" type="button">Send one controlled email test to Sam</button>
+        </div>
         <div id="invite-status" class="status">No invite created yet.</div>
         <div id="invite-result" class="empty">New invite links will appear here.</div>
         <div id="invite-list-status" class="status" style="margin-top:14px;">Loading invites...</div>
@@ -234,33 +238,28 @@
     }
 
     function inviteStatusLabel(invite = {}) {
+      if (invite.testOnly) return `Controlled email test${invite.deliveryStatus ? ` — ${invite.deliveryStatus}` : ""}`;
       const status = normalize(invite.status || "active");
       if (status === "claimed") return invite.claimedAt ? `Claimed ${formatDate(invite.claimedAt)}` : "Claimed";
+      if (invite.deliveryStatus === "sent") return "Invite sent via Mandrill";
+      if (invite.deliveryStatus === "sending") return "Invite send in progress";
+      if (invite.deliveryStatus === "uncertain") return "Invite delivery unconfirmed — check Mandrill";
       if (status === "expired") return "Invite expired";
       return invite.expiresAt ? `Invite open - expires ${formatDate(invite.expiresAt)}` : "Invite open";
     }
 
-    function inviteEmailUrl(email, inviteUrl, expiresAt = "") {
-      const subject = "Your Poetry, Please author invite";
-      const expiration = expiresAt ? ` This invitation expires ${formatDate(expiresAt)}.` : "";
-      const body = [
-        "Hello,",
-        "",
-        "Button Poetry is inviting you to review the work connected to your author profile in Poetry, Please.",
-        "",
-        "Use this private link to sign in, review associated work, flag corrections, and update your profile:",
-        inviteUrl,
-        "",
-        `Please sign in with ${email}.${expiration}`,
-        "",
-        "Thank you,",
-        "Button Poetry",
-      ].join("\n");
-      return `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    function bookChoices(authorName) {
+      const booksByAuthor = state.command?.authorBooks || {};
+      const key = Object.keys(booksByAuthor).find((name) => normalize(name) === normalize(authorName));
+      return key ? booksByAuthor[key] : [];
     }
 
-    function openInviteEmail(email, inviteUrl, expiresAt = "") {
-      window.location.href = inviteEmailUrl(email, inviteUrl, expiresAt);
+    function updateInviteBooks() {
+      const select = document.getElementById("invite-book");
+      const previous = select.value;
+      const books = bookChoices(document.getElementById("invite-author").value);
+      select.innerHTML = `<option value="">Select book</option>${books.map((book) => `<option value="${escapeHtml(book)}">${escapeHtml(book)}</option>`).join("")}`;
+      select.value = books.includes(previous) ? previous : (books.length === 1 ? books[0] : "");
     }
 
     function readinessChips(readiness = {}) {
@@ -304,6 +303,7 @@
       document.getElementById("auth-note").textContent = user ? `Signed in as ${user.email}` : "Not signed in";
       document.getElementById("login-google").hidden = !!user;
       document.getElementById("logout").hidden = !user;
+      document.getElementById("send-invite-test").hidden = normalize(user?.email) !== "sam@buttonpoetry.com";
     }
 
     function renderCommandCenter() {
@@ -350,7 +350,8 @@
             const reviewAuthor = profile.displayName || row.previewAuthor || profile.slug || name;
             const rowIndex = (payload.rows || []).indexOf(row);
             const feedbackCount = row.readiness?.unresolvedFeedbackCount || 0;
-            const canGenerateInvite = invite.id && invite.status !== "claimed" && !invite.claimedByUserId;
+            const canGenerateInvite = invite.id && invite.status !== "claimed" && !invite.claimedByUserId &&
+              !["sending", "sent", "uncertain"].includes(invite.deliveryStatus);
             return `
               <tr>
                 <td><strong>${escapeHtml(name)}</strong><div class="meta">${escapeHtml(profile.email || invite.email || "")}</div></td>
@@ -362,7 +363,7 @@
                   <button type="button" class="secondary detail-button" data-row="${rowIndex}">Details</button>
                   ${reviewAuthor ? `<a class="button secondary" href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ""}
                   ${profile.slug ? `<a class="button secondary" href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ""}
-                  ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Copy invite link</button><button type="button" class="email-button" data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || "")}">Email invite</button>` : ""}
+                  ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Copy invite link</button><button type="button" class="email-button" hidden data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || "")}" data-author="${escapeHtml(invite.authorName || reviewAuthor)}">Send via Mandrill</button>` : ""}
                 </td>
               </tr>
             `;
@@ -377,7 +378,7 @@
         button.addEventListener("click", () => regenerateInvite(button.dataset.inviteId));
       });
       container.querySelectorAll(".email-button").forEach((button) => {
-        button.addEventListener("click", () => emailInvite(button.dataset.inviteId, button.dataset.email));
+        button.addEventListener("click", () => emailInvite(button.dataset.inviteId, button.dataset.email, button.dataset.author, button));
       });
     }
 
@@ -452,7 +453,7 @@
     function renderInvites() {
       const container = document.getElementById("invite-list");
       const statusEl = document.getElementById("invite-list-status");
-      const openInvites = state.invites.filter((invite) => normalize(invite.status || "active") === "active");
+      const openInvites = state.invites.filter((invite) => !invite.testOnly && normalize(invite.status || "active") === "active");
       const claimedInvites = state.invites.filter((invite) => normalize(invite.status) === "claimed");
       const expiredInvites = state.invites.filter((invite) => normalize(invite.status) === "expired");
       statusEl.textContent = `${openInvites.length} invite open, ${claimedInvites.length} claimed, ${expiredInvites.length} expired.`;
@@ -489,6 +490,7 @@
         .sort((a, b) => a.localeCompare(b));
       authorSelect.innerHTML = `<option value="">Select author</option>${authors.map((author) => `<option value="${escapeHtml(author)}">${escapeHtml(author)}</option>`).join("")}`;
       authorSelect.value = authors.includes(selectedAuthor) ? selectedAuthor : "";
+      updateInviteBooks();
       renderCommandCenter();
     }
 
@@ -503,19 +505,20 @@
       event.preventDefault();
       const email = document.getElementById("invite-email").value.trim();
       const authorName = document.getElementById("invite-author").value;
+      const bookTitle = document.getElementById("invite-book").value;
       const expiresInDays = Number(document.getElementById("invite-days").value || 14);
       const statusEl = document.getElementById("invite-status");
       const resultEl = document.getElementById("invite-result");
       statusEl.textContent = "Creating invite...";
       try {
-        const payload = await api("authorInvites/create", { method: "POST", body: { email, authorName, expiresInDays } });
+        const payload = await api("authorInvites/create", { method: "POST", body: { email, authorName, bookTitle, expiresInDays } });
         resultEl.innerHTML = `
           <div><strong>Invite for ${escapeHtml(payload.authorName || authorName)}</strong></div>
           <div><strong>Invite link</strong></div>
           <code id="latest-invite-link">${escapeHtml(payload.inviteUrl || "")}</code>
           <div style="margin-top:10px;" class="controls">
             <button id="copy-invite-link" type="button" class="secondary">Copy link</button>
-            <button id="email-latest-invite" type="button">Email invite</button>
+            <button id="email-latest-invite" type="button" hidden>Send via Mandrill</button>
           </div>
         `;
         document.getElementById("copy-invite-link").addEventListener("click", async () => {
@@ -523,8 +526,7 @@
           statusEl.textContent = "Invite link copied.";
         });
         document.getElementById("email-latest-invite").addEventListener("click", () => {
-          statusEl.textContent = "Opening invite email...";
-          openInviteEmail(payload.email || email, payload.inviteUrl || "", payload.expiresAt || "");
+          emailInvite(payload.inviteId, payload.email || email, authorName, document.getElementById("email-latest-invite"), bookTitle);
         });
         statusEl.textContent = "Invite created.";
         await Promise.all([loadInvites(), loadCommandCenter()]);
@@ -534,18 +536,42 @@
       }
     }
 
-    async function emailInvite(inviteId, email) {
+    async function sendTestInvite() {
+      const button = document.getElementById("send-invite-test");
+      const statusEl = document.getElementById("invite-status");
+      button.disabled = true;
+      statusEl.className = "status";
+      statusEl.textContent = "Sending the controlled test to sam@buttonpoetry.com...";
+      try {
+        const result = await api("admin/authorInvites/sendTest", { method: "POST" });
+        statusEl.textContent = `Mailchimp accepted the test for ${result.email} (${result.delivery.status}). Check that inbox for the message.`;
+        await loadInvites();
+      } catch (err) {
+        statusEl.textContent = err.message || "The test send could not be confirmed.";
+        statusEl.className = "status error";
+      }
+    }
+
+    async function emailInvite(inviteId, email, authorName, button, selectedBookTitle = "") {
       if (!inviteId || !email) return;
       const statusEl = document.getElementById("command-status-line");
-      statusEl.textContent = "Preparing invite email...";
+      const books = bookChoices(authorName);
+      const bookTitle = selectedBookTitle || (books.length === 1 ? books[0] : window.prompt(`Book title for ${authorName} (${books.join(", ")}):`, books[0] || ""));
+      if (!bookTitle || !books.includes(bookTitle)) {
+        statusEl.textContent = "Select a catalog book before sending.";
+        return;
+      }
+      if (!window.confirm(`Send one author invitation via Mandrill to ${email} for ${bookTitle}?`)) return;
+      button.disabled = true;
+      statusEl.textContent = "Sending invite via Mandrill...";
       try {
-        const payload = await api(`admin/authorInvites/${encodeURIComponent(inviteId)}/regenerate`, { method: "POST", body: { expiresInDays: 14 } });
-        statusEl.textContent = "Invite email opened.";
-        openInviteEmail(email, payload.inviteUrl || "", payload.expiresAt || "");
+        const payload = await api(`admin/authorInvites/${encodeURIComponent(inviteId)}/send`, { method: "POST", body: { bookTitle } });
+        statusEl.textContent = `Mandrill accepted the invite for ${payload.email} (${payload.delivery.status}). The emailed link is the current claim link.`;
         await Promise.all([loadInvites(), loadCommandCenter()]);
       } catch (err) {
-        statusEl.textContent = err.message || "Could not prepare invite email.";
+        statusEl.textContent = err.message || "Could not confirm the Mandrill send. Check delivery status before trying again.";
         statusEl.className = "status error";
+        button.disabled = false;
       }
     }
 
@@ -594,6 +620,8 @@
     document.getElementById("refresh-command").addEventListener("click", loadCommandCenter);
     document.getElementById("refresh-invites").addEventListener("click", loadInvites);
     document.getElementById("invite-form").addEventListener("submit", createInvite);
+    document.getElementById("invite-author").addEventListener("change", updateInviteBooks);
+    document.getElementById("send-invite-test").addEventListener("click", sendTestInvite);
     document.getElementById("command-search").addEventListener("input", (event) => {
       state.query = normalize(event.target.value);
       renderCommandCenter();
