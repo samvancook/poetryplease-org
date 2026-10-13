@@ -191,7 +191,7 @@
           <label title="When checked, author and title are prepended as separate lines before both counts are calculated."><input id="lengthIncludeMetadata" type="checkbox" /> Include author + title in counts</label>
           <span class="meta">Internal blank lines count as lines.</span>
         </div>
-        <label id="bookStatusFilterControl">Book status
+        <label id="bookStatusFilterControl" style="display:none;">Book status
           <select id="bookStatusDropdown">
             <option value="">All books</option>
             <option value="completed">Completed books</option>
@@ -202,9 +202,9 @@
         <button id="exportBtn" type="button" title="Export the content rows matching the current filters for calendar planning.">Export content to Google Sheet</button>
         <button id="refreshSnapshotBtn" type="button" style="display:none;">Refresh snapshot</button>
         <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
-          <button id="bookRankingsBtn" type="button" class="active">Books</button>
+          <button id="bookRankingsBtn" type="button">Books</button>
           <button id="fullPoemsBtn" type="button">Poems</button>
-          <button id="scoreboardBtn" type="button">Content</button>
+          <button id="scoreboardBtn" type="button" class="active">Content</button>
           <button id="progressBarsBtn" type="button">Coverage</button>
           <button id="teamProgressBtn" type="button" style="display:none;">Button Team Progress</button>
         </div>
@@ -356,6 +356,7 @@
     let fullScoreboardLoaded = false;
     let currentAccount = null;
     let scoreboardLoaded = false;
+    let scoreboardPageRequestId = 0;
     let scoreboardSnapshotMeta = null;
     let fullPoemRankingRows = [];
     let fullPoemBookSummaries = [];
@@ -758,9 +759,10 @@
       return rawTitle;
     }
 
-    function switchView(view) {
+    function switchView(view, reload = true) {
       if (!scoreboardLoaded) return;
       const isScoreboard = view === 'scoreboard';
+      if (!isScoreboard) scoreboardPageRequestId += 1;
       const isBookRankings = view === 'bookRankings';
       const isProgressBars = view === 'progressBars';
       const isFullPoems = view === 'fullPoems';
@@ -787,7 +789,7 @@
       document.getElementById('bookStatusFilterControl').style.display = (isBookRankings || isProgressBars) ? '' : 'none';
       document.getElementById('exportBtn').style.display = isScoreboard ? '' : 'none';
       updateCharacterCountControlsVisibility();
-      if (isScoreboard) loadScoreboardPage();
+      if (isScoreboard && reload) loadScoreboardPage();
       else if (isFullPoems || isBookRankings) loadFullPoemRanking();
       else ensureFullScoreboard()
         .then(() => isTeamProgress ? renderTeamProgressBars() : renderProgressBars())
@@ -1482,10 +1484,13 @@
     }
 
     async function loadScoreboardPage() {
+      const requestId = ++scoreboardPageRequestId;
+      const path = scoreboardPagePath();
       setControlsDisabled(true);
       setStatus('Loading scoreboard…');
       try {
-        const payload = await api(scoreboardPagePath(), { method: 'GET' });
+        const payload = await api(path, { method: 'GET' });
+        if (requestId !== scoreboardPageRequestId) return;
         filteredData = (payload.aggregated || []).map(enrichScoreMetrics);
         totalFilteredRows = Number(payload.totalRows || filteredData.length);
         scoreboardSnapshotMeta = payload.snapshotMeta || null;
@@ -1509,6 +1514,7 @@
         const authorResponses = document.getElementById('authorResponsesDropdown').value;
         setStatus(`${authorResponses ? `Ranked ${totalFilteredRows} response${totalFilteredRows === 1 ? '' : 's'} from ${authorResponses}` : `Loaded ${totalFilteredRows} matching scored item${totalFilteredRows === 1 ? '' : 's'}`}.${metaText ? ` ${metaText}` : ''}`);
       } catch (err) {
+        if (requestId !== scoreboardPageRequestId) return;
         console.error(err);
         setControlsDisabled(false);
         setStatus(err.message || 'Could not load scoreboard.', true);
@@ -1916,7 +1922,7 @@
           return;
         }
         await loadScoreboard();
-        switchView('bookRankings');
+        switchView('scoreboard', false);
       });
     }
 
