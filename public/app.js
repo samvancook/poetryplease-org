@@ -552,6 +552,10 @@ function currentUserIsTeamOrAdmin() {
 }
 
 const PROMO_TYPES = ['QI', 'INT', 'EXC'];
+function isAuthorOnlyAccount() {
+  const roles = currentAccount?.roles || [];
+  return roles.includes('author') && !roles.includes('team') && !roles.includes('admin');
+}
 function isAuthorPromoLane() {
   if (!getVisibleUser() || !filterByAuthor || !selectedAuthor) return false;
   if (authorPreviewMode) return currentUserIsAdmin() || !!currentAccount?.roles?.includes('team');
@@ -863,10 +867,10 @@ function updateUserStatusUI() {
     if (div) {
       const label = user.email || user.uid;
       const isTeam = !authorPreviewMode && !!currentAccount?.roles?.includes('team');
-      const canEditAuthorProfile = authorPreviewMode || !!currentAccount?.roles?.some((role) => role === 'author' || role === 'admin') || isAdmin;
+      const canEditAuthorProfile = authorPreviewMode || isAdmin;
       const canAccessScoreboard = isAdmin || isTeam;
       const canBuildContests = !authorPreviewMode && (isAdmin || !!currentAccount?.roles?.includes('contest_builder'));
-      const canReviewContests = !authorPreviewMode && (canAccessScoreboard || canBuildContests || (user.emailVerified && String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com')));
+      const canReviewContests = !authorPreviewMode && !isAuthorOnlyAccount() && (canAccessScoreboard || canBuildContests || (user.emailVerified && String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com')));
       const roleBadge = isAdmin
         ? ' <a id="admin-badge" href="/admin.html" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#d7e7e9;color:#2f5d62;font-size:12px;font-weight:600;text-decoration:none;">Admin</a>'
         : '';
@@ -877,7 +881,7 @@ function updateUserStatusUI() {
       const profileBadge = canEditAuthorProfile
         ? ` <a id="author-profile-badge" href="${profileHref}" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#f0e3d2;color:#7a4d20;font-size:12px;font-weight:600;text-decoration:none;">Edit profile</a>`
         : '';
-      const ownContentBadge = ownAuthorName && !authorPreviewMode
+      const ownContentBadge = ownAuthorName && !authorPreviewMode && !isAuthorOnlyAccount()
         ? ` <a id="author-content-badge" href="/app?author=${encodeURIComponent(ownAuthorName)}&locked=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:600;text-decoration:none;">My content</a>`
         : '';
       const reviewAuthorName = authorPreviewMode && selectedAuthor ? selectedAuthor : ownAuthorName;
@@ -980,18 +984,18 @@ function renderAuthorReviewGuide() {
     return;
   }
   const laneHref = (type) => `${IS_MOBILE_UI ? '/m' : '/app'}?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
-  const editorHref = isStaffPreview ? `/author/edit?reviewAuthor=${encodeURIComponent(selectedAuthor)}` : '/author/edit';
+  const feedbackHref = 'mailto:support@buttonpoetry.com?subject=Poetry%20Please%20author%20feedback';
   const savedCollapse = safeLocalStorageGet('pp_author_review_guide_collapsed');
   const collapsed = savedCollapse === 'true' || (IS_MOBILE_UI && savedCollapse !== 'false');
   topBar?.classList.toggle('author-guide-collapsed', collapsed);
   guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-    <h2 style="margin:0;font-size:${IS_MOBILE_UI ? '1rem' : '1.2rem'};">Start with your graphics</h2>
+    <h2 style="margin:0;font-size:${IS_MOBILE_UI ? '1rem' : '1.2rem'};">Review your graphics and excerpts</h2>
     <button type="button" id="author-review-guide-toggle" style="min-height:44px;" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
   </div>
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
     <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
-    <p style="margin:0 0 8px;"><strong>2. Ask for an adjustment:</strong> If the formatting is off or we used an earlier version, <a href="${escapeHtml(editorHref)}" target="_blank" rel="noopener">open the editor</a> and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.</p>
-    <p style="margin:0;"><strong>3. Choose what to make more of:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.</p>
+    <p style="margin:0 0 8px;"><strong>2. Review excerpts:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.</p>
+    <p style="margin:0;">Would you be interested in helping us review poems or in having an author landing page here? <a href="${feedbackHref}">Tell us what you think</a>. We are asking before adding either task to author accounts.</p>
   </div>`;
   guide.querySelector('#author-review-guide-toggle').addEventListener('click', () => {
     const body = guide.querySelector('#author-review-guide-body');
@@ -4186,8 +4190,8 @@ async function ppAutoloadFirstItem() {
 const AuthorQueueTour = (() => {
   const steps = [
     {
-      title: 'Three ways to guide your book',
-      copy: 'Review the graphics for your book, tell us when a piece needs adjustment, and choose excerpts you want us to use in its promotion.',
+      title: 'Review your graphics and excerpts',
+      copy: 'Start with QI quote images and INT interior photos, then review excerpts for your book.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
@@ -4196,13 +4200,8 @@ const AuthorQueueTour = (() => {
       target: () => document.getElementById('author-qi-preset') || document.getElementById('media-wrap'),
     },
     {
-      title: 'Tell us what you would adjust',
-      copy: 'If the formatting is off or we used an earlier version, open the editor from the guide and describe what you would like adjusted or recreated. Sending a note pauses that piece while our team reviews it.',
-      target: () => document.getElementById('media-wrap'),
-    },
-    {
       title: 'Choose excerpts for marketing',
-      copy: 'After the tour, vote on Excerpts you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.',
+      copy: 'Vote on Excerpts you would most like us to use when promoting your book. The guide also lets you tell us if you would be interested in reviewing poems or having an author landing page later.',
       target: () => document.getElementById('mobile-side-votes') || document.getElementById('vote-row') || document.getElementById('media-wrap'),
     },
   ];
@@ -4218,12 +4217,12 @@ const AuthorQueueTour = (() => {
     if (!user || IS_EMBED_UI || !lockedLane || readAuthorInviteToken()) return null;
     if (authorPreviewMode) {
       if (!selectedAuthor || !(currentUserIsAdmin() || currentAccount?.roles?.includes('team'))) return null;
-      return 'pp_author_tour_v4_' + user.uid + '_preview_' + encodeURIComponent(String(selectedAuthor).toLowerCase());
+      return 'pp_author_tour_v5_' + user.uid + '_preview_' + encodeURIComponent(String(selectedAuthor).toLowerCase());
     }
     const roles = currentAccount?.roles || [];
     if (!roles.includes('author') || roles.includes('team') || roles.includes('admin') ||
         !ownAuthorName || !valuesMatch(selectedAuthor, ownAuthorName)) return null;
-    return 'pp_author_tour_v4_' + user.uid + '_own';
+    return 'pp_author_tour_v5_' + user.uid + '_own';
   }
 
   function ensureStyle() {
