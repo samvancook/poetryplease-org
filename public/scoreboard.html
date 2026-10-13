@@ -161,6 +161,9 @@
         <label id="userFilterControl">Show preferences for
           <select id="userDropdown"></select>
         </label>
+        <label id="authorResponsesControl">One author's responses, ranked
+          <select id="authorResponsesDropdown"></select>
+        </label>
         <label id="typeFilterControl">Filter by type
           <select id="typeDropdown"></select>
         </label>
@@ -228,6 +231,7 @@
         <table id="scoreboard">
           <thead>
             <tr>
+              <th data-column="responseRank" style="display:none;">Rank</th>
               <th data-column="imageId">Image ID</th>
               <th data-column="author">Author</th>
               <th data-column="poemTitle">Poem Title</th>
@@ -779,6 +783,7 @@
       document.getElementById('typeFilterControl').style.display = isScoreboard ? '' : 'none';
       document.getElementById('zeroVotesFilterControl').style.display = (isScoreboard || isProgressBars || isTeamProgress) ? '' : 'none';
       document.getElementById('userFilterControl').style.display = (isScoreboard || isProgressBars || isTeamProgress) ? '' : 'none';
+      document.getElementById('authorResponsesControl').style.display = isScoreboard ? '' : 'none';
       document.getElementById('bookStatusFilterControl').style.display = (isBookRankings || isProgressBars) ? '' : 'none';
       document.getElementById('exportBtn').style.display = isScoreboard ? '' : 'none';
       updateCharacterCountControlsVisibility();
@@ -832,6 +837,14 @@
         + (hasAnonymousLocalUsers ? `<option value="${ANON_GROUP_VALUE}">Anonymous browser users</option>` : '')
         + userList.map((user) => `<option>${escapeHtml(user)}</option>`).join('')
       );
+      if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
+    }
+
+    function buildAuthorResponsesDropdown(authors = []) {
+      const sel = document.getElementById('authorResponsesDropdown');
+      const selected = sel.value;
+      sel.innerHTML = '<option value="">Choose an author</option>'
+        + authors.map((author) => `<option value="${escapeHtml(author)}">${escapeHtml(author)}</option>`).join('');
       if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
     }
 
@@ -996,12 +1009,13 @@
     }
 
     function updateTable(data, totalRows = totalFilteredRows || data.length) {
-      const isUserView = !!document.getElementById('userDropdown').value;
+      const isAuthorView = !!document.getElementById('authorResponsesDropdown').value;
+      const isUserView = isAuthorView || !!document.getElementById('userDropdown').value;
       document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
         const col = th.dataset.column;
         th.style.display = isUserView
-          ? (['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'lineCount', 'fileLink', 'vote'].includes(col) ? '' : 'none')
-          : (col === 'vote' ? 'none' : '');
+          ? (['imageId', 'author', 'poemTitle', 'bookTitle', 'type', 'charCount', 'lineCount', 'fileLink', 'vote'].includes(col) || (isAuthorView && col === 'responseRank') ? '' : 'none')
+          : (['vote', 'responseRank'].includes(col) ? 'none' : '');
       });
 
       const tbody = document.querySelector('#scoreboard tbody');
@@ -1014,7 +1028,7 @@
 
       updatePaginationControls(totalRows);
       const pageRows = data;
-      pageRows.forEach((row) => {
+      pageRows.forEach((row, index) => {
         const isTextPreviewType = ['fp', 'exc'].includes(normalizeTypeForFilter(row.type)) && String(row.excerpt || '').trim();
         const textPreviewUrl = `/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}`;
         const link = isTextPreviewType
@@ -1025,7 +1039,7 @@
         const lineCount = Number(row.lineCount || 0) || 0;
         const displayBookTitle = canonicalBookTitle(row.bookTitle, row.releaseCatalog);
         const html = isUserView
-          ? `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
+          ? `<tr>${isAuthorView ? `<td>${(currentPage - 1) * pageSize + index + 1}</td>` : ''}<td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
           : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
         tbody.insertAdjacentHTML('beforeend', html);
       });
@@ -1319,7 +1333,7 @@
 
     async function exportVisibleSheet() {
       if (!scoreboardLoaded) return;
-      const isUserView = !!document.getElementById('userDropdown').value;
+      const isUserView = !!document.getElementById('userDropdown').value || !!document.getElementById('authorResponsesDropdown').value;
       const rows = filteredData || [];
       if (!rows.length) {
         alert('Nothing to export.');
@@ -1393,7 +1407,7 @@
       document.querySelectorAll('#scoreboard th[data-column]').forEach((th) => {
         th.addEventListener('click', () => {
           if (!scoreboardLoaded) return;
-          const col = th.dataset.column;
+          const col = th.dataset.column === 'responseRank' ? 'preferenceRank' : th.dataset.column;
           if (currentSortKey === col) currentSortDir *= -1;
           else {
             currentSortKey = col;
@@ -1445,6 +1459,7 @@
         hideZero: String(document.getElementById('filterZeroVotes').checked),
       });
       const user = document.getElementById('userDropdown').value.trim();
+      const authorResponses = document.getElementById('authorResponsesDropdown').value.trim();
       const type = document.getElementById('typeDropdown').value.trim();
       const book = document.getElementById('bookDropdown').value.trim();
       const catalog = document.getElementById('catalogDropdown').value.trim();
@@ -1454,6 +1469,7 @@
       const lineMax = document.getElementById('lineCountMax').value.trim();
       const includeMetadata = document.getElementById('lengthIncludeMetadata').checked;
       if (user) params.set('user', user);
+      if (authorResponses) params.set('authorResponses', authorResponses);
       if (type) params.set('type', type);
       if (book) params.set('book', book);
       if (catalog) params.set('catalog', catalog);
@@ -1476,6 +1492,7 @@
         const options = payload.filterOptions || {};
         scoreboardFilterOptions = options;
         buildUserDropdown(options.users || []);
+        buildAuthorResponsesDropdown(options.authors || []);
         buildTypeDropdown(options.types || []);
         buildCatalogDropdown(options.catalogs || []);
         buildBookDropdown(options.books || []);
@@ -1489,7 +1506,8 @@
         teamProgressContainer.style.display = 'none';
         updateTable(filteredData, totalFilteredRows);
         const metaText = formatSnapshotMeta(scoreboardSnapshotMeta);
-        setStatus(`Loaded ${totalFilteredRows} matching scored item${totalFilteredRows === 1 ? '' : 's'}.${metaText ? ` ${metaText}` : ''}`);
+        const authorResponses = document.getElementById('authorResponsesDropdown').value;
+        setStatus(`${authorResponses ? `Ranked ${totalFilteredRows} response${totalFilteredRows === 1 ? '' : 's'} from ${authorResponses}` : `Loaded ${totalFilteredRows} matching scored item${totalFilteredRows === 1 ? '' : 's'}`}.${metaText ? ` ${metaText}` : ''}`);
       } catch (err) {
         console.error(err);
         setControlsDisabled(false);
@@ -1733,7 +1751,22 @@
     async function init() {
       wireSortHeaders();
       updateCharacterCountControlsVisibility();
-      document.getElementById('userDropdown').addEventListener('change', filterData);
+      document.getElementById('userDropdown').addEventListener('change', () => {
+        if (document.getElementById('userDropdown').value) document.getElementById('authorResponsesDropdown').value = '';
+        filterData();
+      });
+      document.getElementById('authorResponsesDropdown').addEventListener('change', (event) => {
+        if (event.target.value) {
+          document.getElementById('userDropdown').value = '';
+          currentSortKey = 'preferenceRank';
+          currentSortDir = -1;
+        } else {
+          currentSortKey = 'bookTitle';
+          currentSortDir = 1;
+        }
+        currentPage = 1;
+        loadScoreboardPage();
+      });
       document.getElementById('typeDropdown').addEventListener('change', () => {
         updateCharacterCountControlsVisibility();
         filterData();

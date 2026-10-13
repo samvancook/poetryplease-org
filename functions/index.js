@@ -2630,6 +2630,8 @@ async function buildScoreboardPayload() {
   const enrichedVotes = rawVotes.map((vote) => {
     const normalizedImageId = normalizeKey(vote.imageId);
     const meta = metaMap.get(normalizedImageId) || {};
+    const authorNames = authorVoteIdentities.get(normalizeKey(vote.user || ""));
+    const isAuthorVote = !!authorNames?.has(normalizeKey(meta.author || ""));
     const inferredType = meta.type
       || (normalizedImageId.includes("-fp-") ? "FP" : "")
       || (normalizedImageId.includes("-exc-") ? "EXC" : "")
@@ -2640,6 +2642,7 @@ async function buildScoreboardPayload() {
       imageId: vote.imageId,
       vote: vote.vote,
       user: vote.user,
+      isAuthorVote,
       time: vote.time || 0,
       author: meta.author || "‹no author›",
       poemTitle: meta.poemTitle || "‹no title›",
@@ -3390,6 +3393,7 @@ function buildScoreboardFilterOptions(payload = {}) {
   });
   return {
     users: uniqueSorted(rawVotes.map((row) => row.user)),
+    authors: uniqueSorted(rawVotes.filter((row) => row.isAuthorVote).map((row) => row.author)),
     books: uniqueSorted(allGraphics.map((row) => row.bookTitle)),
     catalogs: uniqueSorted(allGraphics.map((row) => row.releaseCatalog)),
     booksByCatalog,
@@ -3404,6 +3408,7 @@ function isAnonymousScoreboardUser(user = "") {
 
 function applyScoreboardQuery(payload = {}, query = {}) {
   const user = normalizeText(query.user).toLowerCase();
+  const responseAuthor = normalizeText(query.authorResponses).toLowerCase();
   const type = normalizeScoreboardType(query.type);
   const book = normalizeText(query.book).toLowerCase();
   const catalog = normalizeText(query.catalog).toLowerCase();
@@ -3413,7 +3418,9 @@ function applyScoreboardQuery(payload = {}, query = {}) {
   const lineMin = parseOptionalCount(query.lineMin);
   const lineMax = parseOptionalCount(query.lineMax);
   const includeMetadata = parseBoolean(query.includeLengthMetadata);
-  const source = user
+  const source = responseAuthor
+    ? (payload.rawVotes || []).filter((row) => row.isAuthorVote && normalizeText(row.author).toLowerCase() === responseAuthor)
+    : user
     ? (payload.rawVotes || []).filter((row) => (
         user === "__anon_local__"
           ? isAnonymousScoreboardUser(row.user)
@@ -3427,7 +3434,7 @@ function applyScoreboardQuery(payload = {}, query = {}) {
         lineCount: Number(row.lineCountWithMetadata || 0) || 0,
       }))
     : source;
-  if (!user && hideZero) rows = rows.filter((row) => Number(row.totalVotes || 0) > 0);
+  if (!user && !responseAuthor && hideZero) rows = rows.filter((row) => Number(row.totalVotes || 0) > 0);
   if (type) rows = rows.filter((row) => normalizeScoreboardType(row.type) === type);
   if (book) rows = rows.filter((row) => normalizeText(row.bookTitle).toLowerCase() === book);
   if (catalog) rows = rows.filter((row) => normalizeText(row.releaseCatalog).toLowerCase() === catalog);
@@ -3452,9 +3459,10 @@ function applyScoreboardQuery(payload = {}, query = {}) {
 
 function sortScoreboardRows(rows = [], sortKey = "bookTitle", sortDir = 1) {
   const dir = Number(sortDir) < 0 ? -1 : 1;
-  const allowed = new Set(["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "lineCount", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score", "scorePerVote", "movedMeRate", "vote"]);
+  const allowed = new Set(["imageId", "author", "poemTitle", "bookTitle", "type", "charCount", "lineCount", "likes", "dislikes", "meh", "movedMe", "totalVotes", "score", "scorePerVote", "movedMeRate", "vote", "preferenceRank"]);
   const key = allowed.has(sortKey) ? sortKey : "bookTitle";
   const readValue = (row) => {
+    if (key === "preferenceRank") return ({ "moved me": 4, movedme: 4, like: 3, meh: 2, dislike: 1 })[normalizeText(row.vote).toLowerCase()] || 0;
     if (key === "scorePerVote") {
       const totalVotes = Number(row.totalVotes || 0);
       return totalVotes ? Number(row.score || 0) / totalVotes : 0;
