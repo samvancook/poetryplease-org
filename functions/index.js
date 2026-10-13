@@ -11016,6 +11016,94 @@ app.post(getBoth("/admin/contestSpotChecks"), async (req, res) => {
   });
 });
 
+app.post(getBoth("/admin/contestOutcomes/finalizeRemaining"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const programRef = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
+  const programSnap = await programRef.get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const [submissionSnap, finalistSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get(),
+  ]);
+  const entries = submissionSnap.docs.filter((doc) =>
+    normalizeText(doc.data()?.submissionProgramId || "") === programId)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const statusOf = (doc) => normalizeKey(doc.data()?.contestOutcomeStatus || "undecided");
+  const undecided = entries.filter((doc) => statusOf(doc) === "undecided");
+  const winnerIds = entries.filter((doc) => statusOf(doc) === "winner").map((doc) => doc.id);
+  const circleCount = entries.filter((doc) => statusOf(doc) === "circle").length;
+  const recordedWinnerId = normalizeText(programSnap.data()?.contestWinnerSubmissionId || "");
+  const unfinishedFinalistReads = finalistSnap.docs.filter((doc) =>
+    !normalizeKey(doc.data()?.decision || "")).length;
+  const championSubmissionIds = new Set(finalistSnap.docs
+    .filter((doc) => normalizeKey(doc.data()?.decision || "") === "champion")
+    .map((doc) => normalizeText(doc.data()?.submissionId || "")));
+  const undecidedWithChampionVotes = undecided.filter((doc) => championSubmissionIds.has(doc.id)).length;
+  const archivedUndecided = undecided.filter((doc) => doc.data()?.contestArchived === true).length;
+  const previewToken = createHash("sha256").update(JSON.stringify({
+    programId, recordedWinnerId,
+    outcomes: entries.map((doc) => [doc.id, statusOf(doc)]),
+    finalistReads: finalistSnap.docs.map((doc) =>
+      [doc.id, normalizeKey(doc.data()?.decision || "")]).sort((a, b) => a[0].localeCompare(b[0])),
+  })).digest("hex");
+  const result = {
+    ok: true, programId, totalSubmissions: entries.length,
+    toMarkNotSelected: undecided.length,
+    undecidedWithChampionVotes, archivedUndecided,
+    alreadyRejected: entries.filter((doc) => statusOf(doc) === "rejected").length,
+    winnerCount: winnerIds.length, circleCount, unfinishedFinalistReads,
+    readyToApply: winnerIds.length === 1 && recordedWinnerId === winnerIds[0] &&
+      circleCount >= 1 && unfinishedFinalistReads === 0,
+    previewToken, emailSent: false,
+  };
+  if (req.body?.commit !== true) return res.json(result);
+  if (normalizeText(req.body?.previewToken || "") !== previewToken) {
+    return res.status(409).json({ error: "outcome_selection_changed_preview_again", ...result });
+  }
+  if (!result.readyToApply) return res.status(409).json({ error: "contest_outcomes_not_ready", ...result });
+  if (!undecided.length) return res.json({ ...result, updatedCount: 0 });
+  let updatedCount = 0;
+  const changedAt = new Date().toISOString();
+  try {
+    for (let start = 0; start < undecided.length; start += 300) {
+      const chunk = undecided.slice(start, start + 300);
+      await db.runTransaction(async (transaction) => {
+        const [freshProgram, ...freshEntries] = await Promise.all([
+          transaction.get(programRef),
+          ...chunk.map((doc) => transaction.get(doc.ref)),
+        ]);
+        if (!freshProgram.exists ||
+            normalizeText(freshProgram.data()?.contestWinnerSubmissionId || "") !== recordedWinnerId ||
+            freshEntries.some((snap) => !snap.exists ||
+              normalizeKey(snap.data()?.contestOutcomeStatus || "undecided") !== "undecided" ||
+              normalizeText(snap.data()?.submissionProgramId || "") !== programId)) {
+          throw new Error("outcome_selection_changed_preview_again");
+        }
+        for (const snap of freshEntries) {
+          transaction.set(snap.ref, {
+            contestOutcomeStatus: "rejected",
+            contestOutcomeUpdatedAt: FieldValue.serverTimestamp(),
+            contestOutcomeUpdatedBy: ctx.decoded.uid,
+            contestOutcomeHistory: FieldValue.arrayUnion({
+              from: "undecided", to: "rejected", by: ctx.decoded.uid, at: changedAt,
+            }),
+            updatedAt: FieldValue.serverTimestamp(),
+          }, { merge: true });
+        }
+      });
+      updatedCount += chunk.length;
+    }
+  } catch (error) {
+    return res.status(409).json({
+      error: "bulk_outcome_not_confirmed", updatedCount, emailSent: false,
+    });
+  }
+  res.json({ ...result, updatedCount, emailSent: false });
+});
+
 app.post(getBoth("/admin/contentSubmissions/:submissionId/outcome"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;

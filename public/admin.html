@@ -530,6 +530,13 @@
             <button id="contest-progress-refresh" type="button" class="secondary">Refresh progress</button>
             <div id="contest-outcome-status" class="status" aria-live="polite">Decisions here are internal drafts. No contestant email is sent.</div>
             <div id="contest-judging-overview-body" class="status"></div>
+            <details id="contest-outcome-bulk-panel" style="margin-top:18px;">
+              <summary style="font-weight:700;cursor:pointer;">Finalize remaining outcomes</summary>
+              <p>After choosing the winners circle and winner, mark only undecided entries as not selected. Existing winner, circle, and rejected decisions stay unchanged. This sends no email.</p>
+              <button id="contest-outcome-bulk-preview" type="button" class="secondary">Preview remaining entries</button>
+              <div id="contest-outcome-bulk-status" class="status" aria-live="polite">No preview loaded.</div>
+              <button id="contest-outcome-bulk-apply" type="button" disabled>Mark remaining entries not selected</button>
+            </details>
             <details id="contest-email-preview-panel" style="margin-top:18px;">
               <summary style="font-weight:700;cursor:pointer;">Entrant email preview (draft only)</summary>
               <p>Check recipients and wording before approving any send. Building the preview never sends email.</p>
@@ -2498,6 +2505,61 @@
       }
     }
 
+    let contestOutcomeBulkPreview = null;
+
+    async function loadContestOutcomeBulkPreview() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const status = document.getElementById('contest-outcome-bulk-status');
+      const apply = document.getElementById('contest-outcome-bulk-apply');
+      contestOutcomeBulkPreview = null;
+      apply.disabled = true;
+      if (!program) { status.textContent = 'Select a contest first.'; return; }
+      status.textContent = 'Checking remaining outcomes…';
+      try {
+        const preview = await api('admin/contestOutcomes/finalizeRemaining', {
+          method: 'POST', body: { programId: program.id, commit: false },
+        });
+        if (state.submissionProgramFilter !== program.id) return;
+        contestOutcomeBulkPreview = preview;
+        status.textContent = preview.toMarkNotSelected + ' undecided entries would be marked not selected. ' +
+          preview.alreadyRejected + ' already rejected; ' + preview.circleCount +
+          ' in the winners circle; ' + preview.winnerCount + ' winner; ' +
+          preview.unfinishedFinalistReads + ' finalist reads unfinished. ' +
+          preview.undecidedWithChampionVotes + ' of the remaining entries have Champion votes; ' +
+          preview.archivedUndecided + ' are archived. No email will be sent.' +
+          (preview.readyToApply ? '' : ' Finish the finalist reads and select one winner plus a circle member before applying.');
+        apply.textContent = 'Mark ' + preview.toMarkNotSelected + ' remaining entries not selected';
+        apply.disabled = !preview.readyToApply || !preview.toMarkNotSelected;
+      } catch (error) {
+        status.textContent = 'Could not preview remaining outcomes: ' + error.message;
+      }
+    }
+
+    async function applyContestOutcomeBulk() {
+      const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
+      const preview = contestOutcomeBulkPreview;
+      const status = document.getElementById('contest-outcome-bulk-status');
+      const apply = document.getElementById('contest-outcome-bulk-apply');
+      if (!program || !preview || preview.programId !== program.id || apply.disabled) return;
+      if (!window.confirm('Mark ' + preview.toMarkNotSelected +
+        ' undecided entries in ' + program.name + ' as not selected? Winner and circle entries stay unchanged. No email will be sent.')) return;
+      apply.disabled = true;
+      status.textContent = 'Saving internal outcomes…';
+      try {
+        const result = await api('admin/contestOutcomes/finalizeRemaining', {
+          method: 'POST', body: { programId: program.id, commit: true, previewToken: preview.previewToken },
+        });
+        contestOutcomeBulkPreview = null;
+        status.textContent = result.updatedCount + ' entries marked not selected. No email was sent.';
+        await loadContestJudgingOverview();
+        status.textContent = result.updatedCount + ' entries marked not selected. No email was sent.';
+      } catch (error) {
+        contestOutcomeBulkPreview = null;
+        status.textContent = 'Bulk decision not confirmed: ' + error.message +
+          '. Refresh progress and preview again before retrying. No email was sent.';
+      }
+    }
+
     async function loadContestJudgingOverview() {
       const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
       const panel = document.getElementById('contest-judging-overview');
@@ -2506,6 +2568,9 @@
       panel.hidden = !program;
       const emailBody = document.getElementById('contest-email-preview-body');
       emailBody.textContent = 'No preview loaded.';
+      contestOutcomeBulkPreview = null;
+      document.getElementById('contest-outcome-bulk-apply').disabled = true;
+      document.getElementById('contest-outcome-bulk-status').textContent = 'No preview loaded.';
       contestEmailPreviewRecipients = [];
       contestEmailPreviewSendEnabled = false;
       if (!program) { body.textContent = ''; return; }
@@ -5375,6 +5440,8 @@
         loadContestJudgingOverview();
       });
       document.getElementById('contest-progress-refresh').addEventListener('click', loadContestJudgingOverview);
+      document.getElementById('contest-outcome-bulk-preview').addEventListener('click', loadContestOutcomeBulkPreview);
+      document.getElementById('contest-outcome-bulk-apply').addEventListener('click', applyContestOutcomeBulk);
       document.getElementById('contest-email-preview-refresh').addEventListener('click', loadContestEmailPreview);
       document.getElementById('contest-email-preview-body').addEventListener('change', (event) => {
         if (event.target.id === 'contest-email-recipient-select') showContestEmailDraft(event.target.value === '' ? -1 : Number(event.target.value));
