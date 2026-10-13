@@ -165,6 +165,7 @@
       </div>
       <div id="poem" class="poem"></div>
       <div id="regular-review-controls">
+        <p id="review-availability" class="muted" aria-live="polite" hidden></p>
         <label>Private reviewer note
           <textarea id="note" placeholder="Optional context for your decision"></textarea>
         </label>
@@ -252,7 +253,7 @@
         return true;
       });
       state.index = Math.min(state.index, Math.max(0, state.filtered.length - 1));
-      const assigned = state.submissions.filter((row) => row.assignedToMe);
+      const assigned = state.submissions.filter((row) => row.assignedToMe && (!programId || row.submissionProgramId === programId));
       const batch = document.getElementById("my-batch");
       batch.hidden = !assigned.length;
       if (assigned.length) batch.textContent = "My batch: " + assigned.filter((row) => row.currentReviewerDecision).length + " of " + assigned.length + " reviewed";
@@ -264,15 +265,49 @@
     }
 
     function render() {
-      document.getElementById("progress").textContent = state.filtered.length + " submission" + (state.filtered.length === 1 ? "" : "s");
+      const view = document.getElementById("view").value;
+      const programId = document.getElementById("program").value;
+      const scoped = state.submissions.filter((row) => !programId || row.submissionProgramId === programId);
+      const initialTarget = (row) => Math.max(1, Number(state.programs.find((program) =>
+        program.id === row.submissionProgramId)?.requiredReviewCount) || 3);
+      document.getElementById("progress").textContent = state.filtered.length +
+        (["unreviewed", "assigned", "spotcheck"].includes(view) ? " to review" :
+          " submission" + (state.filtered.length === 1 ? "" : "s"));
       const card = document.getElementById("review-card");
       const empty = document.getElementById("empty");
       if (!state.filtered.length) {
         card.hidden = true;
         empty.hidden = false;
-        empty.querySelector("p").textContent = ["assigned", "spotcheck", "finalist"].includes(document.getElementById("view").value)
-          ? "Your assigned batch is complete, or no entries have been assigned to you yet."
-          : "There are no submissions matching this program and view.";
+        const heading = empty.querySelector("h2");
+        const message = empty.querySelector("p");
+        if (view === "unreviewed" && scoped.length && scoped.every((row) => row.reviewCount >= initialTarget(row))) {
+          heading.textContent = "Preliminary reading is complete";
+          message.textContent = "Every entry has completed its required preliminary reviews. There are no more first-pass votes to cast. If you receive an additional assignment, it will appear in your assigned or finalist view.";
+        } else if (view === "unreviewed") {
+          heading.textContent = "You're caught up for now";
+          message.textContent = "No first-pass votes are available to you right now. Entries you already reviewed still count; new assignments will appear here when available.";
+        } else if (view === "assigned") {
+          const assigned = scoped.filter((row) => row.assignedToMe);
+          const completed = assigned.filter((row) => row.currentReviewerDecision).length;
+          const filled = assigned.filter((row) => !row.currentReviewerDecision && row.reviewCount >= row.requiredReviewCount).length;
+          const waiting = assigned.filter((row) => !row.currentReviewerDecision && !row.canReview &&
+            row.reviewCount < row.requiredReviewCount).length;
+          heading.textContent = !assigned.length ? "No batch assigned yet" :
+            completed === assigned.length ? "Your batch is complete" :
+            waiting ? "Waiting for preliminary reads" : "No votes left in your batch";
+          message.textContent = assigned.length
+            ? "You voted on " + completed + " of " + assigned.length + " assigned entries. " +
+              (filled ? filled + " reached their review limit before you voted. " : "") +
+              (waiting ? waiting + " additional reads will open after the preliminary reviews. " : "") +
+              "There are no votes available in this batch right now; a contest admin can assign more if needed."
+            : "You do not have a batch for this contest yet. Ask a contest admin for an assignment.";
+        } else if (view === "spotcheck" || view === "finalist") {
+          heading.textContent = "No assigned reads waiting";
+          message.textContent = "Your assigned reads are complete, or none have been assigned to you yet.";
+        } else {
+          heading.textContent = "Nothing waiting here";
+          message.textContent = "There are no submissions matching this program and view.";
+        }
         return;
       }
       empty.hidden = true;
@@ -284,6 +319,20 @@
       document.getElementById("position").textContent = (state.index + 1) + " of " + state.filtered.length;
       const finalistMode = document.getElementById("view").value === "finalist";
       document.getElementById("regular-review-controls").hidden = finalistMode;
+      const availability = document.getElementById("review-availability");
+      let availabilityMessage = "";
+      if (row.currentReviewerDecision) {
+        availabilityMessage = "You already voted on this poem. You can revise your vote or note.";
+      } else if (!row.canReview && row.reviewCount >= row.requiredReviewCount) {
+        availabilityMessage = "Voting is complete for this poem (" + row.reviewCount + " of " +
+          row.requiredReviewCount + " reads). More votes require an additional assignment.";
+      } else if (!row.canReview && row.reviewCount >= initialTarget(row)) {
+        availabilityMessage = "The preliminary reads are complete for this poem. Additional voting is by assignment.";
+      } else if (!row.canReview) {
+        availabilityMessage = "Your additional read opens after the first " + initialTarget(row) + " reviews are complete.";
+      }
+      availability.hidden = !availabilityMessage;
+      availability.textContent = availabilityMessage;
       document.getElementById("finalist-controls").hidden = !finalistMode;
       document.getElementById("note").value = state.noteDrafts.has("regular:" + row.id) ? state.noteDrafts.get("regular:" + row.id) : (row.currentReviewerNote || "");
       document.getElementById("finalist-note").value = state.noteDrafts.has("finalist:" + row.id) ? state.noteDrafts.get("finalist:" + row.id) : (row.finalistNote || "");
