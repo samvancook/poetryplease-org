@@ -1109,6 +1109,7 @@ function mapSubmissionDoc(doc) {
     contestReviewTarget: Number(data.contestReviewTarget || 0) || 0,
     contestArchived: data.contestArchived === true,
     contestOutcomeStatus: data.contestOutcomeStatus || "undecided",
+    contestShortlisted: data.contestShortlisted === true,
     contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
     contestSpotCheckBatchId: data.contestSpotCheckBatchId || "",
     contestSpotCheckReviewerEmail: data.contestSpotCheckReviewerEmail || "",
@@ -10263,6 +10264,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       reviewerEmail: normalizeText(read.reviewerEmail || "").toLowerCase(),
       tier: normalizeKey(read.tier || ""),
       decision: normalizeKey(read.decision || ""),
+      note: normalizeText(read.note || ""),
     });
     finalistBySubmission.set(read.submissionId, list);
   }
@@ -10299,6 +10301,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       instagramHandle: instagramBySubmission.get(row.id) || "",
       archived: row.contestArchived === true,
       outcomeStatus: row.contestOutcomeStatus || "undecided",
+      shortlisted: row.contestShortlisted === true,
       reviewCount: decisions.length,
       requiredReviewCount: Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0),
       reviewers: decisions.map(({ reviewerEmail, decision }) => ({ reviewerEmail, decision })),
@@ -11110,6 +11113,32 @@ app.post(getBoth("/admin/contestOutcomes/finalizeRemaining"), async (req, res) =
     });
   }
   res.json({ ...result, updatedCount, emailSent: false });
+});
+
+app.post(getBoth("/admin/contentSubmissions/:submissionId/shortlist"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const submissionId = normalizeText(req.params.submissionId);
+  const shortlisted = req.body?.shortlisted;
+  if (typeof shortlisted !== "boolean") return res.status(400).json({ error: "invalid_shortlist_state" });
+  const ref = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "submission_not_found" });
+  const row = snap.data() || {};
+  if (row.contestSubmission !== true) return res.status(409).json({ error: "not_a_contest_submission" });
+  if (row.contestArchived === true && shortlisted) return res.status(409).json({ error: "contest_submission_archived" });
+  if ((row.contestShortlisted === true) !== shortlisted) {
+    await ref.set({
+      contestShortlisted: shortlisted,
+      contestShortlistUpdatedAt: FieldValue.serverTimestamp(),
+      contestShortlistUpdatedBy: ctx.decoded.uid,
+      contestShortlistHistory: FieldValue.arrayUnion({
+        shortlisted, by: ctx.decoded.uid, at: new Date().toISOString(),
+      }),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
+  res.json({ ok: true, submissionId, shortlisted, emailSent: false });
 });
 
 app.post(getBoth("/admin/contentSubmissions/:submissionId/outcome"), async (req, res) => {
