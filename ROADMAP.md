@@ -37,6 +37,8 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - next: add book-level ranking and signal-distribution comparisons once the per-book summaries have been validated
   - next: build a general unmatched-content audit that identifies assets lacking a reliable poem/book connection, explains which matching fields are missing or ambiguous, and offers a review path; prioritize `VV` and `YT` videos first
 - Weaver/Firestore integration stability goal set:
+  - research and repair missing line breaks in Matt Mason's *Roads* excerpts: on October 13, 2026, nine of his 165 currently disliked EXC records still had no explicit line breaks in Poetry Please, across **North Of Omaha, 2am** (`ROAD-EXC-NORTH-OF-OMAHA-2AM-2`, `-3`), **Ode to the Sehnert's Bieroc Café Apple Planter Sandwich** (base ID, `-5`), and **Line Up For Lightning** (base ID, `-2` through `-5`)
+  - trace where the corrected lineation was entered, compare it with the canonical poem text and Weaver source rows, then update those same excerpt records in place; preserve IDs, votes, and review links, and verify each result in Firestore and the live viewer without guessing line-break positions
   - next: add a correct-and-retry workflow for failed ledger records instead of requiring payload reconstruction
   - next: expand reconciliation from resulting content IDs to source-record IDs and metadata/type mismatches
   - next: add a formal preflight/canary gate before bulk imports using a new content type or schema version
