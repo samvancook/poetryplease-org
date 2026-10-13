@@ -556,7 +556,8 @@
             <a data-review-section="assignment-form" hidden>Assignments</a>
             <a data-review-section="spot-check-form" hidden>Spot checks</a>
             <a data-review-section="reviewer-progress" hidden>Reviewer progress</a>
-            <a data-review-section="finalist-admin" hidden>Finalist pass</a>
+            <a data-review-section="final-selection" hidden>Final selection</a>
+            <a data-review-section="finalist-admin" hidden>Assign finalist reads</a>
             <a data-review-section="review-outcomes" hidden>Outcomes</a>
             <a href="/contest-builder.html">Build contests</a>
             <a id="contest-entrant-link" href="/contest-submit.html" target="_blank" rel="noopener" hidden>See entrant page</a>
@@ -564,13 +565,8 @@
           <section id="contest-judging-overview" hidden aria-label="Selected contest judging status">
             <h4>Judging status</h4>
             <button id="contest-progress-refresh" type="button" class="secondary">Refresh progress</button>
-            <div id="contest-outcome-status" class="status" aria-live="polite">Decisions here are internal drafts. No contestant email is sent.</div>
+            <div id="contest-outcome-status" class="status" aria-live="polite">Choose the circle and winner in Final selection. No contestant email is sent from these controls.</div>
             <div id="contest-judging-overview-body" class="status"></div>
-            <details id="contest-selection-board" hidden style="margin-top:18px;">
-              <summary style="font-weight:700;cursor:pointer;">Winner selection board</summary>
-              <p>Shortlist is a shared, reversible draft. It does not place a poem in the winners circle or send email. Compare up to four poems, then use the circle and winner controls when ready.</p>
-              <div id="contest-selection-content" class="status" aria-live="polite"></div>
-            </details>
             <details id="contest-outcome-bulk-panel" style="margin-top:18px;">
               <summary style="font-weight:700;cursor:pointer;">Finalize remaining outcomes</summary>
               <p>After choosing the winners circle and winner, mark only undecided entries as not selected. Existing winner, circle, and rejected decisions stay unchanged. This sends no email.</p>
@@ -2601,69 +2597,12 @@
       }
     }
 
-    let contestSelectionCandidates = [];
-    let contestSelectionProgramId = '';
-    let contestCompareIds = [];
-
-    function renderContestSelectionBoard() {
-      const container = document.getElementById('contest-selection-content');
-      const candidates = contestSelectionCandidates;
-      const compared = contestCompareIds.map((id) => candidates.find((row) => row.id === id)).filter(Boolean);
-      const shortlistCount = candidates.filter((row) => row.shortlisted).length;
-      const circleCount = candidates.filter((row) => ['circle', 'winner'].includes(row.outcomeStatus)).length;
-      const winner = candidates.find((row) => row.outcomeStatus === 'winner');
-      const submissionById = new Map(state.submissions.map((row) => [row.id, row]));
-      const details = (row) => {
-        const submission = submissionById.get(row.id) || {};
-        const officialAction = row.outcomeStatus === 'winner'
-          ? '<button type="button" class="secondary" data-contest-outcome="circle" data-contest-submission="' + escapeHtml(row.id) + '">Clear winner</button>'
-          : row.outcomeStatus === 'circle'
-            ? '<button type="button" class="secondary" data-contest-outcome="winner" data-contest-submission="' + escapeHtml(row.id) + '">Make winner</button>'
-            : '<button type="button" class="secondary" data-contest-outcome="circle" data-contest-submission="' + escapeHtml(row.id) + '">Add to circle</button>';
-        const reads = (row.finalistReads || []).filter((read) => read.decision).map((read) =>
-          '<li>' + escapeHtml(read.decision) + (read.note ? ': ' + escapeHtml(read.note) : '') + '</li>').join('');
-        return '<article style="border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--card);">' +
-          '<h5 style="margin:0 0 8px;font-size:1.05rem;">' + escapeHtml(row.title) + '</h5>' +
-          '<p class="muted">' + row.champion + ' Champion · ' + row.possible + ' Possible · ' +
-          row.initialYes + ' initial Yes · ' + escapeHtml(row.outcomeStatus) + '</p>' +
-          '<div style="white-space:pre-wrap;font-family:Georgia,serif;line-height:1.5;margin:14px 0;">' +
-          escapeHtml(submission.text || 'Text unavailable; open the entry to read it.') + '</div>' +
-          (reads ? '<p>Finalist notes</p><ul>' + reads + '</ul>' : '') +
-          '<div class="controls">' + officialAction + ' <a href="/contest-review.html?program=' +
-          encodeURIComponent(contestSelectionProgramId) + '&view=all&submission=' + encodeURIComponent(row.id) +
-          '">Open review page</a></div></article>';
-      };
-      container.innerHTML = '<p><strong>' + shortlistCount + ' shortlisted</strong> · ' + circleCount +
-        ' in the confirmed circle · ' + (winner ? 'Winner: ' + escapeHtml(winner.title) : 'No winner yet') +
-        '. Four poems can be compared at once.</p>' +
-        (candidates.length
-          ? '<div style="overflow:auto;max-height:430px;"><table><thead><tr><th>Poem</th><th>Champion</th><th>Possible</th><th>Draft shortlist</th><th>Compare</th></tr></thead><tbody>' +
-            candidates.map((row) => '<tr><td>' + escapeHtml(row.title) +
-              (row.outcomeStatus !== 'undecided' ? ' <span class="pill">' + escapeHtml(row.outcomeStatus) + '</span>' : '') +
-              '</td><td>' + row.champion + '</td><td>' + row.possible + '</td><td><button type="button" class="secondary" data-shortlist data-submission="' +
-              escapeHtml(row.id) + '">' + (row.shortlisted ? 'Remove from shortlist' : 'Shortlist') +
-              '</button></td><td><button type="button" class="secondary" data-compare data-submission="' +
-              escapeHtml(row.id) + '">' + (contestCompareIds.includes(row.id) ? 'Remove' : 'Compare') +
-              '</button></td></tr>').join('') + '</tbody></table></div>'
-          : '<p>No Champion candidates yet.</p>') +
-        '<h4>Compare selected poems (' + compared.length + '/4)</h4>' +
-        (compared.length
-          ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:14px;">' +
-            compared.map(details).join('') + '</div>'
-          : '<p>Choose Compare beside two to four poems above.</p>');
-    }
-
     async function loadContestJudgingOverview() {
       const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
       const panel = document.getElementById('contest-judging-overview');
       const body = document.getElementById('contest-judging-overview-body');
       const requestId = ++state.contestProgressRequestId;
       panel.hidden = !program;
-      document.getElementById('contest-selection-board').hidden = !program;
-      if (program?.id !== contestSelectionProgramId) {
-        contestSelectionProgramId = program?.id || '';
-        contestCompareIds = [];
-      }
       const emailBody = document.getElementById('contest-email-preview-body');
       emailBody.textContent = 'No preview loaded.';
       contestOutcomeBulkPreview = null;
@@ -2680,25 +2619,7 @@
         const complete = Number(report.fullyReviewed || 0);
         const finalistReads = (report.submissions || []).flatMap((row) => row.finalistReads || []);
         const finalistDone = finalistReads.filter((read) => !!read.decision).length;
-        const candidates = (report.submissions || []).filter((row) => !row.archived).map((row) => {
-          const reads = row.finalistReads || [];
-          return {
-            id: row.id, title: row.title || 'Untitled',
-            outcomeStatus: row.outcomeStatus || 'undecided',
-            shortlisted: row.shortlisted === true,
-            finalistReads: reads,
-            finalistReadsDone: reads.filter((read) => !!read.decision).length,
-            finalistReadsAssigned: reads.length,
-            champion: reads.filter((read) => read.decision === 'champion').length,
-            possible: reads.filter((read) => read.decision === 'possible').length,
-            initialYes: Number(row.initialYesCount || 0),
-          };
-        }).filter((row) => row.champion > 0 || row.shortlisted || ['circle', 'winner'].includes(row.outcomeStatus)).sort((left, right) =>
-          right.champion - left.champion || right.possible - left.possible ||
-          right.initialYes - left.initialYes || left.title.localeCompare(right.title));
-        contestSelectionCandidates = candidates;
-        contestCompareIds = contestCompareIds.filter((id) => candidates.some((row) => row.id === id));
-        renderContestSelectionBoard();
+        const championCount = (report.submissions || []).filter((row) => !row.archived && (row.finalistReads || []).some((read) => read.decision === 'champion')).length;
         const circleCount = (report.submissions || []).filter((row) => ['circle', 'winner'].includes(row.outcomeStatus)).length;
         const rejectedCount = (report.submissions || []).filter((row) => row.outcomeStatus === 'rejected').length;
         body.innerHTML =
@@ -2706,7 +2627,7 @@
           '<span class="pill">' + complete + ' entries fully reviewed</span>' +
           '<span class="pill">' + Math.max(0, total - Number(report.archivedCount || 0) - complete) + ' active entries need more initial reviews</span>' +
           '<span class="pill">' + finalistDone + ' / ' + finalistReads.length + ' finalist reads complete</span>' +
-          '<span class="pill">' + candidates.filter((row) => row.champion > 0).length + ' entries with Champion votes</span>' +
+          '<span class="pill">' + championCount + ' entries with Champion votes</span>' +
           '<span class="pill">' + circleCount + ' in winners circle</span>' +
           '<span class="pill">' + (report.winnerSubmissionId ? 'Winner selected' : 'No winner selected') + '</span>' +
           '<span class="pill">' + rejectedCount + ' internally rejected</span>' +
@@ -2718,31 +2639,7 @@
                 Number(row.assigned || 0) + '</td><td>' + Number(row.reviewedTotal || 0) + '</td></tr>').join('') +
               '</tbody></table>'
             : '<p>No reviewers assigned yet.</p>') +
-          '<h4>Winners-circle candidates</h4>' +
-          '<p><strong>Decision readiness:</strong> ' + (finalistDone < finalistReads.length
-            ? (finalistReads.length - finalistDone) + ' assigned finalist reads remain. Candidate totals may still change.'
-            : 'All assigned finalist reads are complete. Candidate totals are ready for your circle decision.') +
-          ' No entrant email is sent by these controls.</p>' +
-          '<p>Champion votes are a finalist-pass signal, not an acceptance. Build a circle of roughly 5–8, then optionally designate one of them as the winner. Decisions are reversible.</p>' +
-          (candidates.length
-            ? '<table><thead><tr><th>Entry</th><th>Finalist reads</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Internal decision</th><th>Actions</th></tr></thead><tbody>' +
-              candidates.map((row) => {
-                const action = (outcome, label) => '<button type="button" class="secondary" data-contest-outcome="' + outcome +
-                  '" data-contest-submission="' + escapeHtml(row.id) + '">' + label + '</button> ';
-                const actions = row.outcomeStatus === 'winner'
-                  ? action('circle', 'Clear winner')
-                  : row.outcomeStatus === 'circle'
-                    ? action('winner', 'Make winner') + action('undecided', 'Remove from circle')
-                    : row.outcomeStatus === 'rejected'
-                      ? action('circle', 'Add to circle') + action('undecided', 'Undo rejection')
-                      : action('circle', 'Add to circle') + action('rejected', 'Reject');
-                return '<tr><td><a href="/contest-review.html?program=' +
-                  encodeURIComponent(program.id) + '&view=all&submission=' + encodeURIComponent(row.id) +
-                  '">' + escapeHtml(row.title) + '</a></td><td>' + row.finalistReadsDone + ' / ' + row.finalistReadsAssigned + '</td><td>' +
-                  row.champion + '</td><td>' + row.possible + '</td><td>' + row.initialYes + '</td><td>' +
-                  escapeHtml(row.outcomeStatus.replace(/_/g, ' ')) + '</td><td>' + actions + '</td></tr>';
-              }).join('') + '</tbody></table>'
-            : '<p>No Champion votes recorded yet.</p>');
+          '<p><a href="/contest-review.html?program=' + encodeURIComponent(program.id) + '&view=all#final-selection">Open Final selection to compare poems and choose the circle or winner</a></p>';
       } catch (error) {
         if (requestId !== state.contestProgressRequestId) return;
         body.textContent = 'Could not load judging progress: ' + error.message;
@@ -5556,64 +5453,6 @@
       document.getElementById('contest-email-preview-body').addEventListener('click', (event) => {
         if (event.target.id === 'contest-email-send-selected') sendSelectedContestEmail();
         if (event.target.id === 'contest-email-send-filtered') sendFilteredContestEmails();
-      });
-      document.getElementById('contest-selection-content').addEventListener('click', async (event) => {
-        const button = event.target.closest('button[data-shortlist], button[data-compare]');
-        if (!button) return;
-        const submissionId = button.dataset.submission;
-        const row = contestSelectionCandidates.find((candidate) => candidate.id === submissionId);
-        if (!row) return;
-        if (button.hasAttribute('data-compare')) {
-          if (contestCompareIds.includes(submissionId)) {
-            contestCompareIds = contestCompareIds.filter((id) => id !== submissionId);
-          } else if (contestCompareIds.length < 4) {
-            contestCompareIds.push(submissionId);
-          } else {
-            document.getElementById('contest-outcome-status').textContent = 'Compare up to four poems; remove one first.';
-            return;
-          }
-          renderContestSelectionBoard();
-          return;
-        }
-        button.disabled = true;
-        const status = document.getElementById('contest-outcome-status');
-        status.textContent = 'Saving draft shortlist…';
-        try {
-          await api('admin/contentSubmissions/' + encodeURIComponent(submissionId) + '/shortlist', {
-            method: 'POST', body: { shortlisted: !row.shortlisted },
-          });
-          await loadContestJudgingOverview();
-          status.textContent = 'Shared draft shortlist saved. No circle decision or email was sent.';
-        } catch (error) {
-          button.disabled = false;
-          status.textContent = 'Could not save shortlist: ' + error.message;
-        }
-      });
-      document.getElementById('contest-judging-overview').addEventListener('click', async (event) => {
-        const button = event.target.closest('button[data-contest-outcome]');
-        if (!button) return;
-        const outcome = button.dataset.contestOutcome;
-        const submissionId = button.dataset.contestSubmission;
-        const message = {
-          circle: 'Add this entry to the winners circle?',
-          winner: 'Designate this winners-circle entry as the single winner?',
-          rejected: 'Mark this entry internally rejected?',
-          undecided: 'Clear this internal decision?',
-        }[outcome];
-        if (!message || !window.confirm(message + ' No contestant email will be sent.')) return;
-        const status = document.getElementById('contest-outcome-status');
-        button.disabled = true;
-        status.textContent = 'Saving internal decision…';
-        try {
-          await api('admin/contentSubmissions/' + encodeURIComponent(submissionId) + '/outcome', {
-            method: 'POST', body: { outcome },
-          });
-          await loadContestJudgingOverview();
-          status.textContent = 'Internal decision saved. No contestant email was sent.';
-        } catch (error) {
-          button.disabled = false;
-          status.textContent = 'Could not save decision: ' + error.message;
-        }
       });
       document.getElementById("submission-program-editor-select").addEventListener("change", (event) => {
         const program = state.submissionPrograms.find((row) => row.id === event.target.value) || null;

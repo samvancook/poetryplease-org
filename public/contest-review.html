@@ -60,6 +60,7 @@
     <nav class="staff-nav" aria-label="Contest staff pages">
       <a href="/contest-builder.html">Build contests</a>
       <a id="contest-submissions-link" href="/admin.html" hidden>Contest submissions</a>
+      <a id="final-selection-nav" href="#final-selection" hidden>Final selection</a>
       <a id="entrant-preview" target="_blank" rel="noopener" hidden>See entrant page</a>
       <span aria-current="page">Review submissions</span>
     </nav>
@@ -82,8 +83,14 @@
       <span id="my-finalist" class="pill" hidden></span>
     </div>
     <div id="status" class="status">Sign in with an authorized contest account.</div>
+    <section id="final-selection" class="card" hidden>
+      <h2>Final selection</h2>
+      <p>Compare Champion candidates, keep a shared draft shortlist, then confirm the winners circle and winner. These decisions send no contestant email.</p>
+      <div id="final-selection-status" class="status" aria-live="polite"></div>
+      <div id="final-selection-content"></div>
+    </section>
     <details id="admin-progress" class="card" hidden>
-      <summary class="admin-progress-summary">Contest review progress</summary>
+      <summary class="admin-progress-summary">Assignments and review progress</summary>
       <div id="progress-metrics" class="metric-row"></div>
       <p>Assign the next available entries in batches. After an entry has its first three reviews, use Queue extra reviewer beside that entry to request another named review.</p>
       <form id="assignment-form" class="assignment-form">
@@ -114,7 +121,7 @@
       <h3>Reviewer progress</h3>
       <div id="reviewer-progress" class="table-wrap"></div>
       <details id="finalist-admin" style="margin:22px 0;">
-        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalist pass</summary>
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Assign finalist reads</summary>
         <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two or three independent readers for more opinions. Original voters are skipped for that poem. Committing new assignments emails the assigned readers.</p>
         <div class="assignment-form">
           <label>Set<select id="finalist-tier"><option value="strong">2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
@@ -452,11 +459,91 @@
         : "<p>No submissions match this view.</p>";
     }
 
+    let finalSelectionCandidates = [];
+    let finalCompareIds = [];
+    let finalSelectionProgramId = "";
+
+    function renderFinalSelection() {
+      const report = state.adminProgress;
+      if (!report) return;
+      const programId = document.getElementById("program").value;
+      if (programId !== finalSelectionProgramId) {
+        finalSelectionProgramId = programId;
+        finalCompareIds = [];
+      }
+      finalSelectionCandidates = (report.submissions || []).filter((row) => !row.archived).map((row) => {
+        const reads = row.finalistReads || [];
+        return {
+          id: row.id, title: row.title || "Untitled",
+          outcomeStatus: row.outcomeStatus || "undecided",
+          shortlisted: row.shortlisted === true,
+          finalistReads: reads,
+          champion: reads.filter((read) => read.decision === "champion").length,
+          possible: reads.filter((read) => read.decision === "possible").length,
+          initialYes: Number(row.initialYesCount || 0),
+        };
+      }).filter((row) => row.champion > 0 || row.shortlisted || ["circle", "winner"].includes(row.outcomeStatus))
+        .sort((left, right) => right.champion - left.champion || right.possible - left.possible ||
+          right.initialYes - left.initialYes || left.title.localeCompare(right.title));
+      finalCompareIds = finalCompareIds.filter((id) => finalSelectionCandidates.some((row) => row.id === id));
+      const compared = finalCompareIds.map((id) => finalSelectionCandidates.find((row) => row.id === id)).filter(Boolean);
+      const submissionById = new Map(state.submissions.map((row) => [row.id, row]));
+      const reads = (report.submissions || []).flatMap((row) => row.finalistReads || []);
+      const circleCount = (report.submissions || []).filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
+      const winner = finalSelectionCandidates.find((row) => row.outcomeStatus === "winner");
+      const details = (row) => {
+        const submission = submissionById.get(row.id) || {};
+        const action = (outcome, label) => '<button type="button" data-final-outcome="' + outcome +
+          '" data-submission="' + escapeHtml(row.id) + '">' + label + '</button> ';
+        const actions = row.outcomeStatus === "winner"
+          ? action("circle", "Clear winner")
+          : row.outcomeStatus === "circle"
+            ? action("winner", "Make winner") + action("undecided", "Remove from circle")
+            : action("circle", "Add to circle");
+        const notes = row.finalistReads.filter((read) => read.decision).map((read) =>
+          "<li>" + escapeHtml(read.decision) + (read.note ? ": " + escapeHtml(read.note) : "") + "</li>").join("");
+        return '<article style="border:1px solid var(--line);border-radius:12px;padding:16px;">' +
+          '<h3 style="margin-top:0;">' + escapeHtml(row.title) + '</h3>' +
+          '<p>' + row.champion + ' Champion · ' + row.possible + ' Possible · ' + row.initialYes +
+          ' initial Yes · ' + escapeHtml(row.outcomeStatus) + '</p>' +
+          '<div style="white-space:pre-wrap;font-family:Georgia,serif;line-height:1.5;">' +
+          escapeHtml(submission.text || "Text unavailable in the current review queue.") + '</div>' +
+          (notes ? "<p>Finalist notes</p><ul>" + notes + "</ul>" : "") +
+          '<p>' + actions + '</p></article>';
+      };
+      document.getElementById("final-selection-content").innerHTML =
+        '<p><strong>' + reads.filter((read) => !!read.decision).length + ' / ' + reads.length +
+        ' finalist reads complete</strong> · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
+        ' on draft shortlist · ' + circleCount + ' in confirmed circle · ' +
+        (winner ? "Winner: " + escapeHtml(winner.title) : "No winner yet") + '.</p>' +
+        '<h3>Compare selected poems (' + compared.length + '/4)</h3>' +
+        (compared.length
+          ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:14px;">' +
+            compared.map(details).join("") + "</div>"
+          : "<p>Choose Compare beside candidates below to read them side by side.</p>") +
+        '<h3>Champion candidates</h3>' +
+        (finalSelectionCandidates.length
+          ? '<div style="overflow:auto;max-height:430px;"><table class="progress-table"><thead><tr><th>Poem</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Draft shortlist</th><th>Compare</th></tr></thead><tbody>' +
+            finalSelectionCandidates.map((row) => '<tr><td>' + escapeHtml(row.title) +
+              (row.outcomeStatus !== "undecided" ? ' <span class="pill">' + escapeHtml(row.outcomeStatus) + "</span>" : "") +
+              "</td><td>" + row.champion + "</td><td>" + row.possible + "</td><td>" + row.initialYes +
+              '</td><td><button type="button" data-shortlist data-submission="' + escapeHtml(row.id) + '">' +
+              (row.shortlisted ? "Remove from shortlist" : "Shortlist") +
+              '</button></td><td><button type="button" data-compare data-submission="' + escapeHtml(row.id) + '">' +
+              (finalCompareIds.includes(row.id) ? "Remove" : "Compare") +
+              "</button></td></tr>").join("") + "</tbody></table></div>"
+          : "<p>No Champion candidates yet.</p>");
+    }
+
     async function loadProgress() {
       const panel = document.getElementById("admin-progress");
+      const selection = document.getElementById("final-selection");
+      const selectionNav = document.getElementById("final-selection-nav");
       const programId = document.getElementById("program").value;
       if (!programId || !firebase.auth().currentUser) {
         panel.hidden = true;
+        selection.hidden = true;
+        selectionNav.hidden = true;
         document.getElementById("contest-submissions-link").hidden = true;
         state.adminProgress = null;
         return;
@@ -465,10 +552,15 @@
         const report = await api("admin/contestReviewProgress?programId=" + encodeURIComponent(programId));
         state.adminProgress = report;
         panel.hidden = false;
+        selection.hidden = false;
+        selectionNav.hidden = false;
         document.getElementById("contest-submissions-link").hidden = false;
         renderProgress();
+        renderFinalSelection();
         const targetId = location.hash.slice(1);
-        if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
+        if (targetId === "final-selection") {
+          requestAnimationFrame(() => selection.scrollIntoView({ block: "start" }));
+        } else if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
           panel.open = true;
           if (targetId === "finalist-admin") document.getElementById("finalist-admin").open = true;
           requestAnimationFrame(() => document.getElementById(targetId).scrollIntoView({ block: "start" }));
@@ -476,10 +568,62 @@
       } catch (error) {
         state.adminProgress = null;
         panel.hidden = true;
+        selection.hidden = true;
+        selectionNav.hidden = true;
         document.getElementById("contest-submissions-link").hidden = true;
         if (error.message !== "forbidden") setStatus("Progress report: " + error.message, true);
       }
     }
+
+    document.getElementById("final-selection-content").addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-submission]");
+      if (!button) return;
+      const submissionId = button.dataset.submission;
+      const row = finalSelectionCandidates.find((candidate) => candidate.id === submissionId);
+      if (!row) return;
+      const status = document.getElementById("final-selection-status");
+      if (button.hasAttribute("data-compare")) {
+        if (finalCompareIds.includes(submissionId)) {
+          finalCompareIds = finalCompareIds.filter((id) => id !== submissionId);
+        } else if (finalCompareIds.length < 4) {
+          finalCompareIds.push(submissionId);
+        } else {
+          status.textContent = "Compare up to four poems; remove one first.";
+          return;
+        }
+        renderFinalSelection();
+        return;
+      }
+      const outcome = button.dataset.finalOutcome;
+      if (outcome) {
+        const message = {
+          circle: "Add this entry to the winners circle?",
+          winner: "Designate this circle entry as the single winner?",
+          undecided: "Remove this entry from the winners circle?",
+        }[outcome];
+        if (!message || !window.confirm(message + " No contestant email will be sent.")) return;
+      }
+      button.disabled = true;
+      status.textContent = outcome ? "Saving internal decision…" : "Saving shared draft shortlist…";
+      try {
+        if (outcome) {
+          await api("admin/contentSubmissions/" + encodeURIComponent(submissionId) + "/outcome", {
+            method: "POST", body: { outcome },
+          });
+        } else if (button.hasAttribute("data-shortlist")) {
+          await api("admin/contentSubmissions/" + encodeURIComponent(submissionId) + "/shortlist", {
+            method: "POST", body: { shortlisted: !row.shortlisted },
+          });
+        }
+        await loadProgress();
+        status.textContent = outcome
+          ? "Internal decision saved. No contestant email was sent."
+          : "Shared draft shortlist saved. No circle decision or email was sent.";
+      } catch (error) {
+        button.disabled = false;
+        status.textContent = "Could not save: " + error.message;
+      }
+    });
 
     function downloadProgress() {
       const report = state.adminProgress;
