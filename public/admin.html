@@ -55,6 +55,37 @@
       text-decoration: none;
       font-weight: 600;
     }
+    .admin-nav { position: relative; z-index: 20; }
+    .admin-nav summary {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--card);
+      color: var(--accent);
+      cursor: pointer;
+      font-weight: 700;
+      list-style: none;
+    }
+    .admin-nav summary::-webkit-details-marker { display: none; }
+    .admin-nav summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .admin-nav nav {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      width: min(320px, calc(100vw - 40px));
+      max-height: 70vh;
+      overflow: auto;
+      padding: 8px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fffdf8;
+      box-shadow: 0 16px 36px rgba(24, 19, 12, 0.18);
+    }
+    .admin-nav nav a { display: block; padding: 10px 12px; border-radius: 8px; }
+    .admin-nav nav a:hover, .admin-nav nav a:focus-visible { background: var(--accent-soft); }
     .view-toggle {
       display: inline-flex;
       align-items: center;
@@ -402,22 +433,27 @@
       td { border-bottom: 0; }
     }
     body.contest-admin-only main.shell > section.card:not(#contest-submissions-card) { display:none; }
-    body.contest-admin-only .topbar-actions a:not([href*="contest-"]) { display:none; }
+    body.contest-admin-only .admin-nav a:not([href*="contest-"]):not([href="/"]) { display:none; }
   </style>
 </head>
 <body>
   <!-- Deployment retry: Storage asset maintenance -->
   <main class="shell">
     <div class="topbar">
-      <a href="/">Back to app</a>
+      <details class="admin-nav">
+        <summary aria-label="Open navigation menu"><span aria-hidden="true">☰</span> Menu</summary>
+        <nav aria-label="Admin navigation">
+          <a href="/">Back to app</a>
+          <a href="/scoreboard">Scoreboard</a>
+          <a href="/explorer/">Content Explorer</a>
+          <a href="/team-progress">Team Progress</a>
+          <a href="/contest-builder.html">Contest Builder</a>
+          <a href="/contest-review.html?view=all">Review Entries</a>
+          <a href="/author-command-center">Author Command Center</a>
+          <a href="/manuscript-reconciliation.html">Manuscript Reconciliation</a>
+        </nav>
+      </details>
       <div class="topbar-actions">
-        <a href="/scoreboard">Scoreboard</a>
-        <a href="/explorer/">Content Explorer</a>
-        <a href="/team-progress">Team Progress</a>
-        <a href="/contest-builder.html">Contest Builder</a>
-        <a href="/contest-review.html?view=all">Review Entries</a>
-        <a href="/author-command-center">Author Command Center</a>
-        <a href="/manuscript-reconciliation.html">Manuscript Reconciliation</a>
         <div id="admin-view-toggle-slot"></div>
         <div id="auth-note" class="auth-note">Checking sign-in…</div>
         <button id="login-google" class="secondary" type="button" hidden>Log in with Google</button>
