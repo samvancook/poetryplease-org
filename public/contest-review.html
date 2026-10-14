@@ -97,6 +97,13 @@
       <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
       <div id="final-selection-status" class="status" aria-live="polite"></div>
       <div id="final-selection-content"></div>
+      <details id="finalize-remaining" style="margin-top:24px;">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalize remaining outcomes</summary>
+        <p>After choosing the winner and winners circle, preview the undecided entries before marking them not selected. Winner and circle decisions stay unchanged. This sends no email.</p>
+        <button id="preview-remaining" type="button">Preview remaining entries</button>
+        <div id="remaining-status" class="status" aria-live="polite">No preview loaded.</div>
+        <button id="apply-remaining" type="button" class="primary" disabled>Mark remaining entries not selected</button>
+      </details>
     </section>
     <details id="admin-progress" class="card" hidden>
       <summary class="admin-progress-summary">Assignments and review progress</summary>
@@ -618,7 +625,67 @@
       }
     }
 
+    let remainingOutcomePreview = null;
+    function clearRemainingPreview() {
+      remainingOutcomePreview = null;
+      document.getElementById("apply-remaining").disabled = true;
+      document.getElementById("remaining-status").textContent = "No preview loaded.";
+    }
+
+    async function previewRemainingOutcomes() {
+      const programId = document.getElementById("program").value;
+      const status = document.getElementById("remaining-status");
+      const apply = document.getElementById("apply-remaining");
+      remainingOutcomePreview = null;
+      apply.disabled = true;
+      if (!programId) { status.textContent = "Choose a contest first."; return; }
+      status.textContent = "Checking remaining outcomes…";
+      try {
+        const preview = await api("admin/contestOutcomes/finalizeRemaining", {
+          method: "POST", body: { programId, commit: false },
+        });
+        if (document.getElementById("program").value !== programId) return;
+        remainingOutcomePreview = preview;
+        status.textContent = preview.toMarkNotSelected + " undecided entries would be marked not selected. " +
+          preview.alreadyRejected + " already rejected; " + preview.circleCount +
+          " in the winners circle; " + preview.winnerCount + " winner; " +
+          preview.unfinishedFinalistReads + " finalist reads unfinished. " +
+          preview.undecidedWithChampionVotes + " of the remaining entries have Champion votes; " +
+          preview.archivedUndecided + " are archived. No email will be sent." +
+          (preview.readyToApply ? "" : " Finish the finalist reads and select one winner plus a circle member before applying.");
+        apply.textContent = "Mark " + preview.toMarkNotSelected + " remaining entries not selected";
+        apply.disabled = !preview.readyToApply || !preview.toMarkNotSelected;
+      } catch (error) {
+        status.textContent = "Could not preview remaining outcomes: " + error.message;
+      }
+    }
+
+    async function applyRemainingOutcomes() {
+      const programId = document.getElementById("program").value;
+      const program = state.programs.find((row) => row.id === programId);
+      const preview = remainingOutcomePreview;
+      const status = document.getElementById("remaining-status");
+      const apply = document.getElementById("apply-remaining");
+      if (!program || !preview || preview.programId !== programId || apply.disabled) return;
+      if (!window.confirm("Mark " + preview.toMarkNotSelected +
+        " undecided entries in " + program.name + " as not selected? Winner and circle entries stay unchanged. No email will be sent.")) return;
+      apply.disabled = true;
+      status.textContent = "Saving internal outcomes…";
+      try {
+        const result = await api("admin/contestOutcomes/finalizeRemaining", {
+          method: "POST", body: { programId, commit: true, previewToken: preview.previewToken },
+        });
+        await loadProgress();
+        status.textContent = result.updatedCount + " entries marked not selected. No email was sent.";
+      } catch (error) {
+        remainingOutcomePreview = null;
+        status.textContent = "Bulk decision not confirmed: " + error.message +
+          ". Refresh progress and preview again before retrying.";
+      }
+    }
+
     async function loadProgress() {
+      clearRemainingPreview();
       const panel = document.getElementById("admin-progress");
       const selection = document.getElementById("final-selection");
       const selectionNav = document.getElementById("final-selection-nav");
@@ -657,6 +724,9 @@
         if (error.message !== "forbidden") setStatus("Progress report: " + error.message, true);
       }
     }
+
+    document.getElementById("preview-remaining").addEventListener("click", previewRemainingOutcomes);
+    document.getElementById("apply-remaining").addEventListener("click", applyRemainingOutcomes);
 
     document.getElementById("final-selection-content").addEventListener("click", async (event) => {
       const button = event.target.closest("button");
