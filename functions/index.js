@@ -5089,12 +5089,14 @@ app.get(getBoth("/authorAssetDownload/:imageId"), async (req, res) => {
     if (!item) return res.status(404).json({ error: "not_found" });
 
     const kind = normalizeText(item.imageType).toUpperCase();
-    if (["EXC", "FP", "YT", "VV", "VIDEO", "HV"].includes(kind)) {
+    const roles = Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [];
+    const isStaff = roles.includes("team") || roles.includes("admin");
+    if (["YT", "VV", "VIDEO", "HV"].includes(kind) ||
+        (["EXC", "FP"].includes(kind) && !isStaff)) {
       return res.status(404).json({ error: "not_downloadable" });
     }
 
-    const roles = Array.isArray(ctx.userRecord?.roles) ? ctx.userRecord.roles : [];
-    if (!roles.includes("team") && !roles.includes("admin")) {
+    if (!isStaff) {
       const profileId = ctx.userRecord?.authorProfileId;
       const profileSnap = profileId
         ? await db.collection(COLLECTIONS.authorProfiles).doc(profileId).get()
@@ -5106,6 +5108,7 @@ app.get(getBoth("/authorAssetDownload/:imageId"), async (req, res) => {
     }
 
     const source = normalizeText(item.imageUrl || item.url);
+    if (!source) return res.status(404).json({ error: "unsupported_asset" });
     const url = new URL(source);
     const prefix = "/v0/b/poetry-please.firebasestorage.app/o/";
     if (url.protocol !== "https:" || url.hostname !== "firebasestorage.googleapis.com" ||
