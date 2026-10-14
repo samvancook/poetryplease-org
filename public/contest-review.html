@@ -106,7 +106,25 @@
       </details>
       <details id="contest-email-panel" style="margin-top:18px;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Entrant emails</summary>
-        <p>Preview recipients and message copy for this contest before sending. Building a preview sends nothing. Sending stays locked until the approved copy is enabled.</p>
+        <p>Edit and save this contest’s winner, winners-circle, and rejection drafts here. Saving or previewing sends nothing; sending remains locked.</p>
+        <details id="contest-email-template-editor" style="margin:12px 0 18px;">
+          <summary style="cursor:pointer;font-weight:700;">Edit this contest’s email drafts</summary>
+          <p>Plain-text email. Use {{firstName}}, {{programName}}, and {{titles}} where you want recipient details inserted. Save before building a recipient preview.</p>
+          <button id="contest-template-reload" type="button">Load saved drafts</button>
+          <div id="contest-template-fields" hidden>
+            <h3>Winner</h3>
+            <label>Subject<input id="contest-template-winner-subject" type="text" maxlength="200" style="display:block;width:100%;"></label>
+            <label>Message<textarea id="contest-template-winner-body" rows="8" maxlength="12000"></textarea></label>
+            <h3>Winners circle</h3>
+            <label>Subject<input id="contest-template-circle-subject" type="text" maxlength="200" style="display:block;width:100%;"></label>
+            <label>Message<textarea id="contest-template-circle-body" rows="8" maxlength="12000"></textarea></label>
+            <h3>Rejection</h3>
+            <label>Subject<input id="contest-template-notSelected-subject" type="text" maxlength="200" style="display:block;width:100%;"></label>
+            <label>Message<textarea id="contest-template-notSelected-body" rows="8" maxlength="12000"></textarea></label>
+            <button id="contest-template-save" type="button" class="primary">Save this contest’s drafts</button>
+          </div>
+          <div id="contest-template-status" class="status" aria-live="polite">No drafts loaded.</div>
+        </details>
         <button id="contest-email-refresh" type="button">Build recipient and email preview</button>
         <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
       </details>
@@ -694,6 +712,62 @@
     }
 
 
+    let contestTemplateProgramId = "";
+
+    async function loadContestEmailTemplates() {
+      const programId = document.getElementById("program").value;
+      const status = document.getElementById("contest-template-status");
+      const fields = document.getElementById("contest-template-fields");
+      if (!programId) return void (status.textContent = "Choose a contest first.");
+      status.textContent = "Loading this contest’s drafts…";
+      try {
+        const result = await api("admin/contestOutcomeEmailTemplates?programId=" + encodeURIComponent(programId));
+        if (document.getElementById("program").value !== programId) return;
+        for (const outcome of ["winner", "circle", "notSelected"]) {
+          document.getElementById("contest-template-" + outcome + "-subject").value = result.templates[outcome].subject;
+          document.getElementById("contest-template-" + outcome + "-body").value = result.templates[outcome].body;
+        }
+        contestTemplateProgramId = programId;
+        fields.hidden = false;
+        status.textContent = result.customized
+          ? "Saved drafts loaded. Edit and save before building a recipient preview."
+          : "Default drafts loaded. Edit and save to customize this contest.";
+      } catch (error) {
+        fields.hidden = true;
+        status.textContent = "Could not load drafts: " + error.message;
+      }
+    }
+
+    async function saveContestEmailTemplates() {
+      const programId = document.getElementById("program").value;
+      const status = document.getElementById("contest-template-status");
+      if (!programId || programId !== contestTemplateProgramId) return void (status.textContent = "Load this contest’s drafts first.");
+      const templates = {};
+      for (const outcome of ["winner", "circle", "notSelected"]) {
+        templates[outcome] = {
+          subject: document.getElementById("contest-template-" + outcome + "-subject").value,
+          body: document.getElementById("contest-template-" + outcome + "-body").value,
+        };
+      }
+      status.textContent = "Saving drafts…";
+      try {
+        await api("admin/contestOutcomeEmailTemplates", { method: "POST", body: { programId, templates } });
+        if (document.getElementById("program").value !== programId) return;
+        clearContestEmailPreview();
+        status.textContent = "Drafts saved for this contest. Build a new recipient preview to inspect the exact emails. Nothing was sent.";
+      } catch (error) {
+        status.textContent = "Drafts not saved: " + error.message;
+      }
+    }
+
+    document.getElementById("contest-email-template-editor").addEventListener("toggle", (event) => {
+      if (event.target.open && contestTemplateProgramId !== document.getElementById("program").value) {
+        loadContestEmailTemplates();
+      }
+    });
+    document.getElementById("contest-template-reload").addEventListener("click", loadContestEmailTemplates);
+    document.getElementById("contest-template-save").addEventListener("click", saveContestEmailTemplates);
+
     let contestEmailRecipients = [];
     let contestEmailSendEnabled = false;
     let contestEmailSent = new Set();
@@ -855,6 +929,12 @@
       const selection = document.getElementById("final-selection");
       const selectionNav = document.getElementById("final-selection-nav");
       const programId = document.getElementById("program").value;
+      if (contestTemplateProgramId && contestTemplateProgramId !== programId) {
+        contestTemplateProgramId = "";
+        document.getElementById("contest-template-fields").hidden = true;
+        document.getElementById("contest-template-status").textContent = "No drafts loaded.";
+        document.getElementById("contest-email-template-editor").open = false;
+      }
       if (!programId || !firebase.auth().currentUser) {
         panel.hidden = true;
         selection.hidden = true;
