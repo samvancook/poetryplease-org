@@ -1184,7 +1184,7 @@
             (document.getElementById('repair-requests-panel')?.open || document.getElementById('flags-panel')?.open)) {
           loadSectionOnce('flags', loadFlags);
         }
-      } else if (roles.includes('contest_admin')) {
+      } else if (roles.includes('contest_admin') && !roles.includes('team')) {
         if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
       } else if (roles.includes('team')) {
         if (!state.flaggedContentCollapsed &&
