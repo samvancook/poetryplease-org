@@ -1284,6 +1284,7 @@ async function getVotesByUser(userId) {
   while (!page.empty) {
     page.forEach((d) => {
       const f = d.data() || {};
+      if (f.supersededAt) return;
       list.push({
         imageId: f.imageId || "",
         voteType: (f.voteType || "").toLowerCase(),
@@ -1304,10 +1305,11 @@ async function getVotesByUser(userId) {
 
 async function getUniqueVotedImageIdsByUser(userId) {
   const ids = new Set();
-  let page = await db.collection(COLLECTIONS.votes).where("userId", "==", userId).select("imageId").limit(1000).get();
+  let page = await db.collection(COLLECTIONS.votes).where("userId", "==", userId).select("imageId", "supersededAt").limit(1000).get();
   while (!page.empty) {
     page.forEach((d) => {
       const f = d.data() || {};
+      if (f.supersededAt) return;
       const imageId = normalizeText(f.imageId || "").toLowerCase();
       if (imageId) ids.add(imageId);
     });
@@ -1315,7 +1317,7 @@ async function getUniqueVotedImageIdsByUser(userId) {
     page = await db
       .collection(COLLECTIONS.votes)
       .where("userId", "==", userId)
-      .select("imageId")
+      .select("imageId", "supersededAt")
       .startAfter(last)
       .limit(1000)
       .get();
@@ -1356,6 +1358,7 @@ async function getAllVotes(reason = "unspecified") {
   while (!page.empty) {
     page.forEach((doc) => {
       const data = doc.data() || {};
+      if (data.supersededAt) return;
       list.push({
         id: doc.id,
         imageId: data.imageId || "",
@@ -1573,6 +1576,7 @@ async function readRatingsSnapshot() {
   const meta = metaSnap.data() || {};
   const builtAtMs = timestampToMs(meta.builtAt);
   if (!builtAtMs || Number(meta.version || 0) !== RATINGS_SNAPSHOT_VERSION) return null;
+  if (timestampToMs(meta.invalidatedAt) >= builtAtMs) return null;
   const storagePath = normalizeText(meta.storagePath);
   if (!storagePath) return null;
   if (ratingsCache.basePayload && ratingsCache.builtAt === builtAtMs && ratingsCache.storagePath === storagePath) {
@@ -1600,16 +1604,19 @@ async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
     metadata: { cacheControl: "no-store, max-age=0" },
   });
   const ref = db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID);
-  await db.runTransaction(async (tx) => {
+  const written = await db.runTransaction(async (tx) => {
     const current = await tx.get(ref);
-    if (timestampToMs(current.data()?.builtAt) > builtAtMs) return;
+    if (builtAtMs <= timestampToMs(current.data()?.invalidatedAt)) return false;
+    if (timestampToMs(current.data()?.builtAt) > builtAtMs) return false;
     tx.set(ref, {
       storagePath,
       version: RATINGS_SNAPSHOT_VERSION,
       builtAt: new Date(builtAtMs),
       updatedBy: "server",
     }, { merge: true });
+    return true;
   });
+  if (!written) return;
   ratingsCache.basePayload = payload;
   ratingsCache.builtAt = builtAtMs;
   ratingsCache.authorVoteUserIds = authorVoteUserIds;
@@ -1642,6 +1649,7 @@ async function getVotesAfter(builtAtMs) {
   while (!page.empty) {
     page.forEach((doc) => {
       const vote = doc.data() || {};
+      if (vote.supersededAt) return;
       votes.push({ imageId: vote.imageId || "", voteType: vote.voteType || "", userId: vote.userId || "" });
     });
     const last = page.docs[page.docs.length - 1];
@@ -4643,6 +4651,7 @@ async function buildFlaggedContentIds() {
     while (!votePage.empty) {
       votePage.forEach((doc) => {
         const data = doc.data() || {};
+        if (data.supersededAt) return;
         const userId = normalizeKey(data.userId || "");
         const imageId = normalizeKey(data.imageId || "");
         if (!authorVoteUserIds.has(userId) || !imageId) return;
@@ -8999,6 +9008,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/editText"), async (req, res) => {
   const titleField = record.collection === COLLECTIONS.excerpts ? "poem" : "title";
   const expectedTitle = String(req.body?.originalTitle ?? "");
   const expectedExcerpt = String(req.body?.originalExcerpt ?? "");
+  const authorVoteUserIds = await getAuthorVoteUserIds();
   const fingerprint = record.collection === COLLECTIONS.excerpts ? buildExcerptFingerprint(excerpt) : "";
   if (fingerprint && fingerprint !== buildExcerptFingerprint(record.data.excerpt)) {
     const duplicate = await db.collection(COLLECTIONS.excerpts)
@@ -9007,19 +9017,33 @@ app.post(getBoth("/admin/contentFlags/:flagId/editText"), async (req, res) => {
       return res.status(409).json({ error: "duplicate_excerpt_text" });
     }
   }
+  let supersededVoteCount = 0;
   try {
-    await db.runTransaction(async (tx) => {
-      const [currentFlagSnap, currentContentSnap] = await Promise.all([tx.get(flagRef), tx.get(contentRef)]);
+    supersededVoteCount = await db.runTransaction(async (tx) => {
+      const [currentFlagSnap, currentContentSnap, matchingFlags, matchingVotes] = await Promise.all([
+        tx.get(flagRef),
+        tx.get(contentRef),
+        tx.get(db.collection(COLLECTIONS.contentFlags).where("imageId", "==", flag.imageId || "")),
+        tx.get(db.collection(COLLECTIONS.votes).where("imageId", "==", flag.imageId || "")),
+      ]);
       const currentFlag = currentFlagSnap.data() || {};
       const current = currentContentSnap.data() || {};
+      const pendingFlags = matchingFlags.docs.filter((doc) => doc.data()?.status === "pending");
+      const priorAuthorVotes = matchingVotes.docs.filter((doc) => {
+        const vote = doc.data() || {};
+        return !vote.supersededAt && authorVoteUserIds.has(normalizeKey(vote.userId || ""));
+      });
       if (!currentFlagSnap.exists || !currentContentSnap.exists
         || currentFlag.status !== "pending"
         || ["requested", "in_progress"].includes(currentFlag.repairStatus)
+        || pendingFlags.some((doc) => ["requested", "in_progress"].includes(doc.data()?.repairStatus))
         || normalizeKey(currentFlag.imageId) !== normalizeKey(flag.imageId)
         || String(current[titleField] || "") !== expectedTitle
         || String(current.excerpt || "") !== expectedExcerpt) {
         throw new Error("content_changed_refresh_first");
       }
+      if (title === expectedTitle && excerpt === expectedExcerpt) throw new Error("no_text_change");
+      if (pendingFlags.length + priorAuthorVotes.length > 450) throw new Error("too_many_reviews_to_reopen");
       tx.update(contentRef, {
         [titleField]: title,
         excerpt,
@@ -9027,24 +9051,47 @@ app.post(getBoth("/admin/contentFlags/:flagId/editText"), async (req, res) => {
         updatedAt: FieldValue.serverTimestamp(),
         updatedBy: ctx.decoded.uid,
       });
-      tx.set(flagRef, {
-        title,
-        currentExcerpt: excerpt,
-        moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry(
-          "text_corrected", { uid: ctx.decoded.uid, email: ctx.decoded.email },
-          "Title or text corrected in Poetry Please; flag remains pending."
-        )),
-      }, { merge: true });
+      const historyEntry = buildFlagHistoryEntry(
+        "text_corrected", { uid: ctx.decoded.uid, email: ctx.decoded.email },
+        "Title or text corrected in Poetry Please."
+      );
+      for (const pendingFlag of pendingFlags) {
+        tx.set(pendingFlag.ref, {
+          title,
+          currentExcerpt: excerpt,
+          status: "resolved",
+          resolution: "updated",
+          reviewNote: "Title or text corrected in Poetry Please.",
+          reviewedBy: ctx.decoded.uid,
+          reviewedAt: FieldValue.serverTimestamp(),
+          moderationHistory: FieldValue.arrayUnion(historyEntry),
+        }, { merge: true });
+      }
+      for (const vote of priorAuthorVotes) {
+        tx.update(vote.ref, {
+          supersededAt: FieldValue.serverTimestamp(),
+          supersededReason: "content_corrected",
+          supersededByFlagId: flagId,
+        });
+      }
+      if (priorAuthorVotes.length) {
+        tx.set(db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID), {
+          invalidatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      return priorAuthorVotes.length;
     });
   } catch (err) {
-    if (err.message === "content_changed_refresh_first") {
+    if (["content_changed_refresh_first", "no_text_change", "too_many_reviews_to_reopen"].includes(err.message)) {
       return res.status(409).json({ error: err.message });
     }
     throw err;
   }
   invalidateContentCache();
+  invalidateFlaggedContentCache();
+  if (supersededVoteCount) invalidateRatingsSnapshot();
   await invalidateScoreboardSnapshot(`flag_text_edited:${flag.imageId || flagId}`);
-  res.json({ ok: true, flagId, imageId: flag.imageId, title, excerpt, status: "pending" });
+  res.json({ ok: true, flagId, imageId: flag.imageId, title, excerpt, status: "resolved" });
 });
 
 app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
@@ -9164,6 +9211,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     return res.status(400).json({ error: "replacement_supported_for_graphics_only" });
   }
 
+  const authorVoteUserIds = await getAuthorVoteUserIds();
   const storagePath = `content-replacements/${normalizeKey(flag.imageId || contentRecord.docId)}/${Date.now()}.${upload.extension}`;
   const { publicUrl } = await saveImageUpload({
     storagePath,
@@ -9171,36 +9219,6 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     buffer: upload.buffer,
   });
   const assetRef = db.collection(COLLECTIONS.contentAssets).doc();
-  await assetRef.set({
-    assetType: "replacement_graphic",
-    sourceFlagId: flagId,
-    imageId: flag.imageId || "",
-    contentCollection: contentRecord.collection,
-    contentDocId: contentRecord.docId,
-    storagePath,
-    publicUrl,
-    width: upload.width,
-    height: upload.height,
-    fileSize: upload.fileSize,
-    mimeType: upload.mimeType,
-    uploadedByUid: ctx.decoded.uid,
-    uploadedByEmail: ctx.decoded.email,
-    status: "active",
-    createdAt: FieldValue.serverTimestamp(),
-  });
-
-  await db.collection(contentRecord.collection).doc(contentRecord.docId).set({
-    imageUrl: publicUrl,
-    updatedAt: FieldValue.serverTimestamp(),
-    updatedBy: ctx.decoded.uid,
-    replacementAssetId: assetRef.id,
-  }, { merge: true });
-
-  const matchingFlags = await db.collection(COLLECTIONS.contentFlags)
-    .where("imageId", "==", flag.imageId || "")
-    .limit(25)
-    .get();
-  const targets = matchingFlags.empty ? [flagRef] : matchingFlags.docs.map((doc) => doc.ref);
   const historyEntry = buildFlagHistoryEntry(
     "asset_replaced",
     { uid: ctx.decoded.uid, email: ctx.decoded.email },
@@ -9210,16 +9228,84 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
       replacementUrl: publicUrl,
     }
   );
-  await Promise.all(targets.map((ref) => ref.set({
-    status: "resolved",
-    resolution: "updated",
-    reviewNote,
-    replacementAssetId: assetRef.id,
-    replacementUrl: publicUrl,
-    reviewedBy: ctx.decoded.uid,
-    reviewedAt: FieldValue.serverTimestamp(),
-    moderationHistory: FieldValue.arrayUnion(historyEntry),
-  }, { merge: true })));
+  const contentRef = db.collection(contentRecord.collection).doc(contentRecord.docId);
+  let supersededVoteCount = 0;
+  try {
+    supersededVoteCount = await db.runTransaction(async (tx) => {
+      const [freshFlag, freshContent, matchingFlags, matchingVotes] = await Promise.all([
+        tx.get(flagRef),
+        tx.get(contentRef),
+        tx.get(db.collection(COLLECTIONS.contentFlags).where("imageId", "==", flag.imageId || "")),
+        tx.get(db.collection(COLLECTIONS.votes).where("imageId", "==", flag.imageId || "")),
+      ]);
+      const pendingFlags = matchingFlags.docs.filter((doc) => doc.data()?.status === "pending");
+      const priorAuthorVotes = matchingVotes.docs.filter((doc) => {
+        const vote = doc.data() || {};
+        return !vote.supersededAt && authorVoteUserIds.has(normalizeKey(vote.userId || ""));
+      });
+      if (!freshFlag.exists || freshFlag.data()?.status !== "pending" || !freshContent.exists
+        || pendingFlags.some((doc) => ["requested", "in_progress"].includes(doc.data()?.repairStatus))) {
+        throw new Error("content_changed_refresh_first");
+      }
+      if (pendingFlags.length + priorAuthorVotes.length > 450) throw new Error("too_many_reviews_to_reopen");
+      tx.set(assetRef, {
+        assetType: "replacement_graphic",
+        sourceFlagId: flagId,
+        imageId: flag.imageId || "",
+        contentCollection: contentRecord.collection,
+        contentDocId: contentRecord.docId,
+        storagePath,
+        publicUrl,
+        width: upload.width,
+        height: upload.height,
+        fileSize: upload.fileSize,
+        mimeType: upload.mimeType,
+        uploadedByUid: ctx.decoded.uid,
+        uploadedByEmail: ctx.decoded.email,
+        status: "active",
+        createdAt: FieldValue.serverTimestamp(),
+      });
+      tx.set(contentRef, {
+        imageUrl: publicUrl,
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: ctx.decoded.uid,
+        replacementAssetId: assetRef.id,
+      }, { merge: true });
+      for (const pendingFlag of pendingFlags) {
+        tx.set(pendingFlag.ref, {
+          status: "resolved",
+          resolution: "updated",
+          reviewNote,
+          replacementAssetId: assetRef.id,
+          replacementUrl: publicUrl,
+          reviewedBy: ctx.decoded.uid,
+          reviewedAt: FieldValue.serverTimestamp(),
+          moderationHistory: FieldValue.arrayUnion(historyEntry),
+        }, { merge: true });
+      }
+      for (const vote of priorAuthorVotes) {
+        tx.update(vote.ref, {
+          supersededAt: FieldValue.serverTimestamp(),
+          supersededReason: "content_corrected",
+          supersededByFlagId: flagId,
+        });
+      }
+      if (priorAuthorVotes.length) {
+        tx.set(db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID), {
+          invalidatedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+      return priorAuthorVotes.length;
+    });
+  } catch (err) {
+    if (["content_changed_refresh_first", "too_many_reviews_to_reopen"].includes(err.message)) {
+      return res.status(409).json({ error: err.message });
+    }
+    throw err;
+  }
+  invalidateContentCache();
+  invalidateFlaggedContentCache();
+  if (supersededVoteCount) invalidateRatingsSnapshot();
   await invalidateScoreboardSnapshot(`flag_replaced:${flag.imageId || flagId}`);
 
   const saved = await flagRef.get();
