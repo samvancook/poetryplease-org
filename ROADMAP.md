@@ -413,3 +413,7 @@ The live page still has the older graphics-only introduction. Replace its introd
 **Tell us what you would adjust.** If you do not like the formatting or we used an early version, reply to your invitation or email support@buttonpoetry.com with the title and your notes. We can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info.
 
 **Shape what we make next.** After reviewing graphics, vote for the poems and excerpts you most want used to market your book. Your choices guide what we feature and which new graphics we make. You do not need to review everything at once.
+
+### Short form contest handoff follow-up (2026-10-14)
+
+After the short form contest is fully enacted, verify and complete the assignment route from Poetry Please to P.I.G., then Weaver, then back to Poetry Please. Confirm the return receipt and status are visible on the original contest assignment; preserve its identity across the handoff.

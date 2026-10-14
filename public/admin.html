@@ -4791,6 +4791,8 @@
               const imageType = String(flag.imageType || '').toUpperCase();
               const isVideo = ['VV', 'YT', 'VIDEO', 'HV'].includes(imageType);
               const canReplace = !['EXC', 'FP', 'VV', 'YT', 'VIDEO', 'HV'].includes(imageType);
+              const canEditText = ['EXC', 'FP'].includes(imageType) && flag.status === 'pending'
+                && !['requested', 'in_progress'].includes(flag.repairStatus);
               const imagePreview = flag.currentImageUrl && !isVideo
                 ? `<img src="${escapeHtml(flag.currentImageUrl)}" alt="Current asset for ${escapeHtml(flag.title || flag.imageId || 'content')}" loading="lazy" />`
                 : '';
@@ -4808,6 +4810,13 @@
                 ${expanded ? `<tr class="flag-detail-row"><td colspan="6"><div class="flag-detail-layout">
                   <div>
                     <div class="preview-card"><strong>Current content</strong>${imagePreview}${textPreview}${!imagePreview && !textPreview ? '<div class="empty-preview">No current image or text is available for this item.</div>' : ''}</div>
+                    ${canEditText ? `<div class="preview-card" style="margin-top:10px;max-height:none;">
+                      <strong>Correct title or line breaks</strong>
+                      <p class="meta">Save edits to this existing EXC or FP. The flag stays open until you review it.</p>
+                      <label>Title<input type="text" data-flag-edit-title="${escapeHtml(flag.id)}" value="${escapeHtml(flag.currentTitle || flag.title || '')}" /></label>
+                      <label>Text<textarea rows="10" data-flag-edit-excerpt="${escapeHtml(flag.id)}">${escapeHtml(flag.currentExcerpt || '')}</textarea></label>
+                      <div class="actions"><button type="button" data-save-flag-text="${escapeHtml(flag.id)}">Save text correction</button></div>
+                    </div>` : ''}
                     ${canReplace ? `<div class="preview-card" style="margin-top:10px;"><strong>Replacement preview</strong><div class="empty-preview" data-replacement-preview="${escapeHtml(flag.id)}">Choose a file to preview it here.</div></div>` : ''}
                   </div>
                   <div class="flag-detail-actions">
@@ -4845,6 +4854,9 @@
 
       container.querySelectorAll('[data-review-flag]').forEach((button) => {
         button.addEventListener('click', () => reviewFlag(button.getAttribute('data-review-flag'), button.getAttribute('data-decision')));
+      });
+      container.querySelectorAll('[data-save-flag-text]').forEach((button) => {
+        button.addEventListener('click', () => saveFlagText(button.getAttribute('data-save-flag-text')));
       });
       container.querySelectorAll('[data-review-quarantine]').forEach((button) => {
         button.addEventListener('click', () => reviewQuarantine(button.getAttribute('data-review-quarantine'), button.getAttribute('data-decision')));
@@ -5234,6 +5246,40 @@
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message || 'Could not review quarantined content.';
+        statusEl.className = 'status error';
+      }
+    }
+
+    async function saveFlagText(flagId) {
+      const flag = state.flags.find((item) => item.id === flagId);
+      const title = document.querySelector(`[data-flag-edit-title="${CSS.escape(flagId)}"]`)?.value || '';
+      const excerpt = document.querySelector(`[data-flag-edit-excerpt="${CSS.escape(flagId)}"]`)?.value || '';
+      const statusEl = document.getElementById('flag-review-status');
+      if (!flag) return;
+      if (!title.trim() || !excerpt.trim()) {
+        statusEl.textContent = 'Title and text are required.';
+        statusEl.className = 'status error';
+        return;
+      }
+      statusEl.textContent = 'Saving text correction…';
+      statusEl.className = 'status';
+      try {
+        await api(`admin/contentFlags/${encodeURIComponent(flagId)}/editText`, {
+          method: 'POST',
+          body: {
+            title,
+            excerpt,
+            originalTitle: flag.currentTitle || flag.title || '',
+            originalExcerpt: flag.currentExcerpt || '',
+          },
+        });
+        await loadFlags();
+        statusEl.textContent = 'Text correction saved. The flag remains open for review.';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = err.message?.includes('content_changed_refresh_first')
+          ? 'This content changed. Refresh flagged content before editing again.'
+          : (err.message || 'Could not save the text correction.');
         statusEl.className = 'status error';
       }
     }
