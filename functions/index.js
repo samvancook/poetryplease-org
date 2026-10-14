@@ -10215,6 +10215,42 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
   });
 });
 
+app.get(getBoth("/admin/contestEntrants"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+
+  const [submissionSnap, entrantSnap] = await Promise.all([
+    db.collection(COLLECTIONS.contentSubmissions)
+      .where("submissionProgramId", "==", programId).get(),
+    db.collection(COLLECTIONS.submissionEntrants)
+      .where("submissionProgramId", "==", programId).get(),
+  ]);
+  const entrants = new Map(entrantSnap.docs.map((doc) => [doc.id, doc.data() || {}]));
+  const rows = submissionSnap.docs
+    .map((doc) => {
+      const submission = doc.data() || {};
+      const entrant = entrants.get(doc.id) || {};
+      return {
+        submissionId: doc.id,
+        title: normalizeText(submission.title || ""),
+        firstName: normalizeText(entrant.firstName || ""),
+        lastName: normalizeText(entrant.lastName || ""),
+        pronouns: normalizeText(entrant.pronouns || ""),
+        email: normalizeText(entrant.email || ""),
+        phone: normalizeText(entrant.phone || ""),
+      };
+    })
+    .sort((a, b) => a.lastName.localeCompare(b.lastName) ||
+      a.firstName.localeCompare(b.firstName) || a.submissionId.localeCompare(b.submissionId));
+  res.set("Cache-Control", "no-store");
+  res.json({ programId, programName: normalizeText(programSnap.data()?.name || programId),
+    count: rows.length, missingEntrantCount: rows.filter((row) => !row.email).length, rows });
+});
+
 app.get(getBoth("/admin/contentSubmissions"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
