@@ -4984,7 +4984,7 @@
           <tbody>${visibleRows.map((row) => `
             <tr>
               <td>
-                <strong>${escapeHtml(row.title || row.imageId || 'Untitled content')}</strong>
+                <strong>${escapeHtml(row.acceptedCorrectedTitle || row.title || row.imageId || 'Untitled content')}</strong>
                 <div class="meta">${escapeHtml(row.author || '—')} · ${escapeHtml(row.book || '—')} · ${escapeHtml(row.contentType || '—')}</div>
                 ${row.replacementAssetLink ? `<div class="meta"><a href="${escapeHtml(row.replacementAssetLink)}" target="_blank" rel="noopener noreferrer">Open returned asset</a></div>` : ''}
                 ${row.replacementAssetSource === 'status_note' ? '<div class="status error" style="margin-top:8px;">Replacement metadata recovered from a legacy status note; Weaver should send structured asset fields.</div>' : ''}
@@ -5018,6 +5018,21 @@
     async function reviewRepairReturn(requestId, decision) {
       const statusEl = document.getElementById('repair-request-status');
       const required = decision === 'rejected';
+      const request = (state.repairRequests || []).find((row) => row.id === requestId);
+      const titleCorrection = decision === 'accepted' && /\btitle\b|name of (?:the )?poem/i.test(
+        `${request?.requestNote || ''} ${request?.issueReason || ''}`
+      );
+      let correctedTitle = '';
+      if (titleCorrection) {
+        correctedTitle = window.prompt('Enter the confirmed title shown on the returned graphic:', '');
+        if (correctedTitle === null) return;
+        correctedTitle = correctedTitle.trim();
+        if (!correctedTitle) {
+          statusEl.textContent = 'Confirm the corrected title before accepting this repair.';
+          statusEl.className = 'status error';
+          return;
+        }
+      }
       const note = window.prompt(
         required ? 'Describe what still needs to be repaired:' : 'Optional acceptance note:',
         ''
@@ -5033,7 +5048,7 @@
       try {
         await api(`admin/contentRepairRequests/${requestId}/review`, {
           method: 'POST',
-          body: { decision, note },
+          body: { decision, note, ...(correctedTitle ? { correctedTitle } : {}) },
         });
         await loadFlags();
       } catch (err) {
