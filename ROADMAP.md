@@ -130,6 +130,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 - Replace the separate `Title:` metadata row for text excerpts with a title displayed above or integrated into the poem text itself
 - Move Drive service-account-backed folder import automation earlier in the import-assistant roadmap because it should reduce repeated manual recovery/import work long-term
 - Move from preview/import to direct ingest once the handoff contract is stable
+- Show a clear loading indicator in data-backed admin panels, starting with Flagged Content and its Recreation requests and Flags subpanels. Replace the initial empty-state text only after the request finishes, and distinguish loading, genuinely empty, and failed states.
 - Build a durable Poetry Please -> Weaver -> P.I.G. repair loop for deleted or flawed graphics:
   - make Poetry Please Flagged Content the canonical moderation inbox: confirm the problem and choose `Re-approve`, `Correct source/text`, `Delete permanently`, or `Recreate`; show the consequence before confirmation
   - let Weaver own accepted cross-tool repair jobs and their lifecycle, while Poetry Please owns the flag, moderation decision, visibility, and final resolution
@@ -143,12 +144,13 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - return the replacement through Weaver into Poetry Please, preserving lineage between the original item, repair request, P.I.G. output, and replacement item
   - after a correction or accepted replacement is active, notify the author with a direct link to review that corrected item and cast a fresh vote; keep the earlier vote as superseded history rather than overwriting it, and use the fresh vote for the current version
   - show administrators a confirmation and status trail for both outcomes, including who acted, when, why, downstream status, and final replacement link
+  - after accepting a returned repair, show an immediate success state tied to that request, then refresh the row with its resolved status, corrected title, replacement asset, and reopened author-vote count; avoid a temporary empty or stale panel that makes the result look uncertain
   - prevent deleted items from silently reappearing through later imports unless they belong to an explicit approved recreation request
   - prep first: define canonical cross-tool ids, deletion tombstones, repair-request schema, history fields safe to share with P.I.G., retry/idempotency rules, and service authentication for Poetry Please -> Weaver
   - prep first: inventory which P.I.G. source files and editable generation settings actually survive today; fall back to original image plus notes when an editable source is unavailable
   - begin with one QI canary and an admin-only manual action before extending the workflow to `INT`, `EXC`, `FPI`, or bulk repairs
   - finish the returned-repair acceptance loop:
-    - review returned Killmonger request `EXIQB20UoNj1vAWDqrL7` against an authoritative current poem title before accepting it as the author-voting re-entry canary; the returned graphic displays `I GREW MY HAIR AS A PROMISE TO THE BOY` while the original Poetry Please record retains the old title
+    - Killmonger request `EXIQB20UoNj1vAWDqrL7` was accepted with the confirmed title `I grew my hair as a promise to the boy`; Poetry Please readback shows the same existing graphic ID, resolved request, and one reopened author vote. Confirm the corrected item is available for the author's fresh vote in the UI.
     - require Weaver to send structured `replacementAssetId` and `replacementAssetLink` fields instead of preserving them only in status notes/history
     - confirm Weaver mirrors Poetry Please `returnReviewStatus: accepted` or `status: resolved` into its repair ledger
     - test rejection end to end, including the required note and resuming the same job without creating another repair request
