@@ -140,16 +140,6 @@
         <button id="contest-email-refresh" type="button">Build recipient and email preview</button>
         <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
       </details>
-      <details id="contest-entrant-directory" style="margin-top:18px;">
-        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Entrant details &amp; CSV</summary>
-        <p>Private contact information for this contest. Available only to Admin and Contest Admin; it is never shown in blinded judging. CSV files contain personal information—store and share them carefully.</p>
-        <button id="contest-entrants-load" type="button">Load entrant details</button>
-        <button id="contest-entrants-export" type="button" disabled>Download all entrants CSV</button>
-        <div id="contest-entrants-status" class="status" aria-live="polite">Choose a contest, then load entrants.</div>
-        <label for="contest-entrants-search">Find entrant</label>
-        <input id="contest-entrants-search" type="search" placeholder="Name, email, title, or reference" style="width:100%;max-width:430px;">
-        <div id="contest-entrants-results"></div>
-      </details>
     </details>
     <details id="admin-progress" class="card" hidden>
       <summary class="admin-progress-summary">Assignments and review progress</summary>
@@ -733,82 +723,6 @@
       }
     }
 
-
-    let contestEntrants = [];
-    let contestEntrantsProgramId = "";
-
-    function clearContestEntrants() {
-      contestEntrants = [];
-      contestEntrantsProgramId = "";
-      document.getElementById("contest-entrants-export").disabled = true;
-      document.getElementById("contest-entrants-results").textContent = "";
-      document.getElementById("contest-entrants-status").textContent = "Choose a contest, then load entrants.";
-    }
-
-    function renderContestEntrants() {
-      const query = document.getElementById("contest-entrants-search").value.trim().toLowerCase();
-      const matching = contestEntrants.filter((row) => !query ||
-        [row.firstName, row.lastName, row.email, row.title, row.submissionId]
-          .some((value) => String(value || "").toLowerCase().includes(query)));
-      const shown = matching.slice(0, 50);
-      document.getElementById("contest-entrants-status").textContent =
-        contestEntrants.length + " entrant records; " + matching.length +
-        " match the search. Showing " + shown.length + ". The CSV includes all " +
-        contestEntrants.length + " records, regardless of search.";
-      document.getElementById("contest-entrants-results").innerHTML = shown.length
-        ? '<div style="overflow-x:auto;"><table class="progress-table"><thead><tr><th>Submission</th><th>First</th><th>Last</th><th>Pronouns</th><th>Email</th><th>Phone</th></tr></thead><tbody>' +
-          shown.map((row) => '<tr><td>' + escapeHtml(row.title || "Untitled") + '<br><small>' +
-            escapeHtml(row.submissionId) + '</small></td><td>' + escapeHtml(row.firstName) +
-            '</td><td>' + escapeHtml(row.lastName) + '</td><td>' + escapeHtml(row.pronouns) +
-            '</td><td>' + escapeHtml(row.email) + '</td><td>' + escapeHtml(row.phone) +
-            '</td></tr>').join("") + '</tbody></table></div>'
-        : '<p>No entrants match.</p>';
-    }
-
-    async function loadContestEntrants() {
-      const programId = document.getElementById("program").value;
-      const status = document.getElementById("contest-entrants-status");
-      clearContestEntrants();
-      if (!programId) return void (status.textContent = "Choose a contest first.");
-      status.textContent = "Loading private entrant records…";
-      try {
-        const result = await api("admin/contestEntrants?programId=" + encodeURIComponent(programId));
-        if (document.getElementById("program").value !== programId) return;
-        contestEntrants = result.rows || [];
-        contestEntrantsProgramId = programId;
-        document.getElementById("contest-entrants-export").disabled = !contestEntrants.length;
-        renderContestEntrants();
-        if (result.missingEntrantCount) status.textContent +=
-          " " + result.missingEntrantCount + " records lack an entrant email.";
-      } catch (error) {
-        status.textContent = "Could not load entrant details: " + error.message;
-      }
-    }
-
-    function downloadContestEntrants() {
-      const programId = document.getElementById("program").value;
-      if (!programId || programId !== contestEntrantsProgramId || !contestEntrants.length) return;
-      const columns = ["submissionId", "title", "firstName", "lastName", "pronouns", "email", "phone"];
-      const safeCell = (value) => {
-        let text = String(value ?? "");
-        if (/^[\s\u0000-\u001f]*[=+@-]/.test(text)) text = "'" + text;
-        return '"' + text.replace(/"/g, '""') + '"';
-      };
-      const csv = "\uFEFF" + [columns.join(","), ...contestEntrants.map((row) =>
-        columns.map((key) => safeCell(row[key])).join(","))].join("\r\n");
-      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "contest-entrants-" + programId + ".csv";
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-
-    document.getElementById("contest-entrants-load").addEventListener("click", loadContestEntrants);
-    document.getElementById("contest-entrants-export").addEventListener("click", downloadContestEntrants);
-    document.getElementById("contest-entrants-search").addEventListener("input", () => {
-      if (contestEntrantsProgramId) renderContestEntrants();
-    });
 
     let contestTestPreview = null;
 
@@ -1396,7 +1310,7 @@
       };
     }
 
-    document.getElementById("program").addEventListener("change", () => { clearContestEntrants(); invalidateFourthPreview(); invalidateFinalistPreview(); applyFilters(); loadProgress(); });
+    document.getElementById("program").addEventListener("change", () => { invalidateFourthPreview(); invalidateFinalistPreview(); applyFilters(); loadProgress(); });
     document.getElementById("assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const programId = document.getElementById("program").value;
@@ -1672,7 +1586,6 @@
       document.getElementById("logout").hidden = !user;
       if (user) loadQueue();
       else {
-        clearContestEntrants();
         state.submissions = [];
         applyFilters();
         setStatus("Sign in with an authorized contest account.");
