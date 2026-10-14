@@ -4812,7 +4812,7 @@
                     <div class="preview-card"><strong>Current content</strong>${imagePreview}${textPreview}${!imagePreview && !textPreview ? '<div class="empty-preview">No current image or text is available for this item.</div>' : ''}</div>
                     ${canEditText ? `<div class="preview-card" style="margin-top:10px;max-height:none;">
                       <strong>Correct title or line breaks</strong>
-                      <p class="meta">Save edits to this existing EXC or FP. The flag stays open until you review it.</p>
+                      <p class="meta">Save a correction to this existing EXC or FP. Pending flags will close, and prior author votes can be cast again on the corrected item.</p>
                       <label>Title<input type="text" data-flag-edit-title="${escapeHtml(flag.id)}" value="${escapeHtml(flag.currentTitle || flag.title || '')}" /></label>
                       <label>Text<textarea rows="10" data-flag-edit-excerpt="${escapeHtml(flag.id)}">${escapeHtml(flag.currentExcerpt || '')}</textarea></label>
                       <div class="actions"><button type="button" data-save-flag-text="${escapeHtml(flag.id)}">Save text correction</button></div>
@@ -5274,11 +5274,13 @@
           },
         });
         await loadFlags();
-        statusEl.textContent = 'Text correction saved. The flag remains open for review.';
+        statusEl.textContent = 'Text correction saved and pending flags resolved.';
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message?.includes('content_changed_refresh_first')
           ? 'This content changed. Refresh flagged content before editing again.'
+          : err.message?.includes('no_text_change')
+            ? 'Change the title or text before saving a correction.'
           : (err.message || 'Could not save the text correction.');
         statusEl.className = 'status error';
       }
