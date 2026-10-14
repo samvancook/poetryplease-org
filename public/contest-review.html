@@ -125,6 +125,18 @@
           </div>
           <div id="contest-template-status" class="status" aria-live="polite">No drafts loaded.</div>
         </details>
+        <details id="contest-email-test-panel" style="margin:12px 0 18px;">
+          <summary style="cursor:pointer;font-weight:700;">Send a test email</summary>
+          <p>Uses the saved draft with “Test Reader” and “Sample poem”—not a real entrant’s details. Enter your own or a trusted colleague’s address; the test will go to whichever address you enter. Preview first, then confirm the send.</p>
+          <div class="assignment-form">
+            <label>Test address<input id="contest-test-email" type="email" placeholder="you@buttonpoetry.com"></label>
+            <label>Draft<select id="contest-test-outcome"><option value="winner">Winner</option><option value="circle">Winners circle</option><option value="notSelected">Rejection</option></select></label>
+            <button id="contest-test-preview" type="button">Preview test email</button>
+          </div>
+          <pre id="contest-test-message" style="white-space:pre-wrap;overflow-wrap:anywhere;" hidden></pre>
+          <button id="contest-test-send" type="button" class="primary" disabled>Send test email</button>
+          <div id="contest-test-status" class="status" aria-live="polite">No test preview loaded.</div>
+        </details>
         <button id="contest-email-refresh" type="button">Build recipient and email preview</button>
         <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
       </details>
@@ -712,6 +724,71 @@
     }
 
 
+    let contestTestPreview = null;
+
+    function clearContestTestPreview() {
+      contestTestPreview = null;
+      document.getElementById("contest-test-send").disabled = true;
+      document.getElementById("contest-test-message").hidden = true;
+      document.getElementById("contest-test-status").textContent = "No test preview loaded.";
+    }
+
+    async function previewContestTestEmail() {
+      clearContestTestPreview();
+      const programId = document.getElementById("program").value;
+      const email = document.getElementById("contest-test-email").value.trim().toLowerCase();
+      const outcome = document.getElementById("contest-test-outcome").value;
+      const status = document.getElementById("contest-test-status");
+      if (!programId || !email) return void (status.textContent = "Choose a contest and enter a test address.");
+      status.textContent = "Building test preview…";
+      try {
+        const result = await api("admin/contestOutcomeEmails/test", {
+          method: "POST", body: { programId, email, outcome, commit: false },
+        });
+        if (document.getElementById("program").value !== programId ||
+          document.getElementById("contest-test-email").value.trim().toLowerCase() !== email ||
+          document.getElementById("contest-test-outcome").value !== outcome) return;
+        contestTestPreview = result;
+        const message = document.getElementById("contest-test-message");
+        message.textContent = "To: " + result.email + "\nSubject: " + result.subject + "\n\n" + result.body;
+        message.hidden = false;
+        document.getElementById("contest-test-send").disabled = false;
+        status.textContent = "Test preview ready. Nothing has been sent.";
+      } catch (error) {
+        status.textContent = "Could not preview test email: " + error.message;
+      }
+    }
+
+    async function sendContestTestEmail() {
+      const preview = contestTestPreview;
+      if (!preview || document.getElementById("contest-test-send").disabled ||
+        document.getElementById("program").value !== preview.programId) return;
+      if (!window.confirm("Send this clearly marked " + preview.outcome +
+        " TEST email to " + preview.email + "? It will use sample entrant details.")) return;
+      document.getElementById("contest-test-send").disabled = true;
+      const status = document.getElementById("contest-test-status");
+      status.textContent = "Sending test via Mandrill…";
+      try {
+        const result = await api("admin/contestOutcomeEmails/test", {
+          method: "POST",
+          body: { programId: preview.programId, email: preview.email,
+            outcome: preview.outcome, previewToken: preview.previewToken, commit: true },
+        });
+        contestTestPreview = null;
+        status.textContent = "Mandrill accepted the test email for " + result.email +
+          ". No contest outcomes or recipient-send records were changed.";
+      } catch (error) {
+        contestTestPreview = null;
+        status.textContent = "Test send unconfirmed: " + error.message +
+          ". Check delivery before trying again.";
+      }
+    }
+
+    document.getElementById("contest-test-email").addEventListener("input", clearContestTestPreview);
+    document.getElementById("contest-test-outcome").addEventListener("change", clearContestTestPreview);
+    document.getElementById("contest-test-preview").addEventListener("click", previewContestTestEmail);
+    document.getElementById("contest-test-send").addEventListener("click", sendContestTestEmail);
+
     let contestTemplateProgramId = "";
 
     async function loadContestEmailTemplates() {
@@ -754,6 +831,7 @@
         await api("admin/contestOutcomeEmailTemplates", { method: "POST", body: { programId, templates } });
         if (document.getElementById("program").value !== programId) return;
         clearContestEmailPreview();
+        clearContestTestPreview();
         status.textContent = "Drafts saved for this contest. Build a new recipient preview to inspect the exact emails. Nothing was sent.";
       } catch (error) {
         status.textContent = "Drafts not saved: " + error.message;
@@ -929,11 +1007,13 @@
       const selection = document.getElementById("final-selection");
       const selectionNav = document.getElementById("final-selection-nav");
       const programId = document.getElementById("program").value;
+      if (contestTestPreview && contestTestPreview.programId !== programId) clearContestTestPreview();
       if (contestTemplateProgramId && contestTemplateProgramId !== programId) {
         contestTemplateProgramId = "";
         document.getElementById("contest-template-fields").hidden = true;
         document.getElementById("contest-template-status").textContent = "No drafts loaded.";
         document.getElementById("contest-email-template-editor").open = false;
+        clearContestTestPreview();
       }
       if (!programId || !firebase.auth().currentUser) {
         panel.hidden = true;
