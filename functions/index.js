@@ -10666,6 +10666,66 @@ app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
   res.json(preview);
 });
 
+app.post(getBoth("/admin/contestOutcomeEmails/test"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const email = normalizeText(req.body?.email || "").toLowerCase();
+  const outcome = normalizeText(req.body?.outcome || "");
+  const commit = req.body?.commit === true;
+  const previewToken = normalizeText(req.body?.previewToken || "");
+  if (!programId || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ||
+    !CONTEST_OUTCOME_EMAIL_TYPES.includes(outcome)) {
+    return res.status(400).json({ error: "invalid_contest_test_email_request" });
+  }
+  const [programSnap, templateSnap] = await Promise.all([
+    db.collection(COLLECTIONS.submissionPrograms).doc(programId).get(),
+    db.collection("contestOutcomeEmailTemplates").doc(programId).get(),
+  ]);
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const templates = contestOutcomeTemplates(templateSnap.data()?.templates);
+  const variables = {
+    firstName: "Test Reader",
+    programName: normalizeText(programSnap.data()?.name || programId),
+    titles: '"Sample poem"',
+  };
+  const subject = "[TEST — not a contest result] " +
+    renderContestOutcomeTemplate(templates[outcome].subject, variables);
+  const body = "TEST MESSAGE — NOT A CONTEST RESULT. This uses sample entrant details only.\n\n" +
+    renderContestOutcomeTemplate(templates[outcome].body, variables);
+  const currentToken = createHash("sha256").update(JSON.stringify({
+    programId, email, outcome, subject, body,
+  })).digest("hex");
+  if (!commit) {
+    return res.json({ ok: true, previewOnly: true, emailSent: false,
+      programId, email, outcome, subject, body, previewToken: currentToken });
+  }
+  if (!previewToken || previewToken !== currentToken) {
+    return res.status(409).json({ error: "contest_test_email_preview_changed" });
+  }
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
+  const noticeRef = db.collection("contestOutcomeTestNotices").doc();
+  await noticeRef.set({
+    programId, email, outcome, subject, previewToken: currentToken,
+    deliveryStatus: "sending", sentBy: ctx.decoded.uid,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({
+      apiKey, email, message: { subject, text: body },
+      tag: "poetry-please-contest-outcome-test",
+    });
+    await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.json({ ok: true, emailSent: true, email, outcome, delivery });
+  } catch (error) {
+    await noticeRef.set({ deliveryStatus: "uncertain",
+      deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    res.status(502).json({ error: "contest_test_email_send_unconfirmed" });
+  }
+});
+
 app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
