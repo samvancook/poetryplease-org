@@ -6820,7 +6820,7 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
         ...(data || {}),
         currentImageUrl: current?.imageUrl || data.currentImageUrl || "",
         currentExcerpt: current?.excerpt || data.currentExcerpt || data.excerpt || "",
-        currentTitle: current?.title || data.title || "",
+        currentTitle: current?.poem || current?.title || data.title || "",
       };
     })
     .sort((a, b) => (b.createdAt?._seconds || 0) - (a.createdAt?._seconds || 0));
@@ -8971,6 +8971,80 @@ app.post(getBoth("/admin/contentLibrary/deleteByDate"), async (req, res) => {
     await invalidateScoreboardSnapshot(`content_delete_by_date:${type}:${targetDate}`);
   }
   res.json({ ok: true, deletedCount: matches.length, targetDate });
+});
+
+app.post(getBoth("/admin/contentFlags/:flagId/editText"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+
+  const flagId = normalizeText(req.params.flagId);
+  const title = normalizeText(req.body?.title);
+  const excerpt = normalizeText(req.body?.excerpt).replace(/\r\n?/g, "\n");
+  if (!flagId || !title || !excerpt || title.length > 500 || excerpt.length > 100000) {
+    return res.status(400).json({ error: "invalid_text_edit" });
+  }
+  const flagRef = db.collection(COLLECTIONS.contentFlags).doc(flagId);
+  const flagSnap = await flagRef.get();
+  if (!flagSnap.exists) return res.status(404).json({ error: "flag_not_found" });
+  const flag = flagSnap.data() || {};
+  if (flag.status !== "pending" || ["requested", "in_progress"].includes(flag.repairStatus)) {
+    return res.status(409).json({ error: "flag_not_editable" });
+  }
+  const record = await findContentRecordByImageId(flag.imageId || "");
+  if (!record) return res.status(404).json({ error: "content_not_found" });
+  if (![COLLECTIONS.excerpts, COLLECTIONS.fullPoems].includes(record.collection)) {
+    return res.status(400).json({ error: "text_edit_requires_exc_or_fp" });
+  }
+  const contentRef = db.collection(record.collection).doc(record.docId);
+  const titleField = record.collection === COLLECTIONS.excerpts ? "poem" : "title";
+  const expectedTitle = String(req.body?.originalTitle ?? "");
+  const expectedExcerpt = String(req.body?.originalExcerpt ?? "");
+  const fingerprint = record.collection === COLLECTIONS.excerpts ? buildExcerptFingerprint(excerpt) : "";
+  if (fingerprint && fingerprint !== buildExcerptFingerprint(record.data.excerpt)) {
+    const duplicate = await db.collection(COLLECTIONS.excerpts)
+      .where("excerptFingerprint", "==", fingerprint).limit(2).get();
+    if (duplicate.docs.some((doc) => doc.id !== record.docId)) {
+      return res.status(409).json({ error: "duplicate_excerpt_text" });
+    }
+  }
+  try {
+    await db.runTransaction(async (tx) => {
+      const [currentFlagSnap, currentContentSnap] = await Promise.all([tx.get(flagRef), tx.get(contentRef)]);
+      const currentFlag = currentFlagSnap.data() || {};
+      const current = currentContentSnap.data() || {};
+      if (!currentFlagSnap.exists || !currentContentSnap.exists
+        || currentFlag.status !== "pending"
+        || ["requested", "in_progress"].includes(currentFlag.repairStatus)
+        || normalizeKey(currentFlag.imageId) !== normalizeKey(flag.imageId)
+        || String(current[titleField] || "") !== expectedTitle
+        || String(current.excerpt || "") !== expectedExcerpt) {
+        throw new Error("content_changed_refresh_first");
+      }
+      tx.update(contentRef, {
+        [titleField]: title,
+        excerpt,
+        ...(fingerprint ? { excerptFingerprint: fingerprint } : {}),
+        updatedAt: FieldValue.serverTimestamp(),
+        updatedBy: ctx.decoded.uid,
+      });
+      tx.set(flagRef, {
+        title,
+        currentExcerpt: excerpt,
+        moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry(
+          "text_corrected", { uid: ctx.decoded.uid, email: ctx.decoded.email },
+          "Title or text corrected in Poetry Please; flag remains pending."
+        )),
+      }, { merge: true });
+    });
+  } catch (err) {
+    if (err.message === "content_changed_refresh_first") {
+      return res.status(409).json({ error: err.message });
+    }
+    throw err;
+  }
+  invalidateContentCache();
+  await invalidateScoreboardSnapshot(`flag_text_edited:${flag.imageId || flagId}`);
+  res.json({ ok: true, flagId, imageId: flag.imageId, title, excerpt, status: "pending" });
 });
 
 app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
