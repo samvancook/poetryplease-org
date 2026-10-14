@@ -31,7 +31,7 @@ const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATI
 const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
 const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
 const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
-const CONTEST_OUTCOME_EMAILS_ENABLED = false; // Requires winner and message approval before release.
+const CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID = "button-poetry-s-fall-2026-short-form-contest-da82891d"; // Explicitly approved Fall contest only.
 const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -10711,7 +10711,7 @@ async function buildContestOutcomeEmailPreview(programId) {
   }).sort((a, b) => a.outcome.localeCompare(b.outcome) || a.email.localeCompare(b.email));
   return {
     ok: true, previewOnly: true, emailSent: false,
-    sendEnabled: CONTEST_OUTCOME_EMAILS_ENABLED,
+    sendEnabled: programId === CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID,
     programId, programName, templatesCustomized: templateSnap.exists,
     submissionCount: submissions.length, recipientCount: recipients.length,
     missingContactCount, archivedCount, decisionCounts,
@@ -10823,10 +10823,10 @@ app.post(getBoth("/admin/contestOutcomeEmails/test"), async (req, res) => {
 app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
-  if (!CONTEST_OUTCOME_EMAILS_ENABLED) {
+  const programId = normalizeText(req.body?.programId || "");
+  if (programId !== CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID) {
     return res.status(409).json({ error: "contest_outcome_emails_awaiting_approval" });
   }
-  const programId = normalizeText(req.body?.programId || "");
   const email = normalizeText(req.body?.email || "").toLowerCase();
   const previewToken = normalizeText(req.body?.previewToken || "");
   if (!programId || !email || !previewToken) {
