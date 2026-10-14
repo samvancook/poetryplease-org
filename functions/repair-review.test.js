@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractReturnedRepairAssetFields, getRepairReviewDisposition } from "./index.js";
+import { extractReturnedRepairAssetFields, getRepairReviewDisposition, isActiveAuthorVote } from "./index.js";
 
 test("a repair displayed as returned can be accepted", () => {
   assert.equal(
@@ -59,4 +59,11 @@ test("explicit replacement fields take precedence over note inference", () => {
       replacementAssetLink: "https://example.com/canonical",
     }
   );
+});
+
+test("a returned repair reopens only active author votes while retaining superseded history", () => {
+  const authors = new Set(["author@example.com"]);
+  assert.equal(isActiveAuthorVote({ userId: "Author@Example.com", voteType: "dislike" }, authors), true);
+  assert.equal(isActiveAuthorVote({ userId: "author@example.com", supersededAt: new Date() }, authors), false);
+  assert.equal(isActiveAuthorVote({ userId: "reader@example.com", voteType: "dislike" }, authors), false);
 });

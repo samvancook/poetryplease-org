@@ -1391,6 +1391,10 @@ async function getAuthorVoteUserIds() {
   return ids;
 }
 
+export function isActiveAuthorVote(vote = {}, authorVoteUserIds = new Set()) {
+  return !vote.supersededAt && authorVoteUserIds.has(normalizeKey(vote.userId || ""));
+}
+
 async function getAuthorVoteIdentities() {
   const identities = new Map();
   const [userSnap, profileSnap] = await Promise.all([
@@ -8496,6 +8500,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
   const sourceFlagRef = sourceFlagId
     ? db.collection(COLLECTIONS.contentFlags).doc(sourceFlagId)
     : null;
+  const authorVoteUserIds = decision === "accepted" ? await getAuthorVoteUserIds() : new Set();
   const reviewResult = await db.runTransaction(async (transaction) => {
     const snap = await transaction.get(ref);
     if (!snap.exists) return { error: "repair_request_not_found", status: 404 };
@@ -8509,8 +8514,41 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
       return { error: "repair_not_returned", status: 409 };
     }
 
+    let supersededAuthorVoteCount = 0;
     if (decision === "accepted") {
-      const original = contentRecord?.data || {};
+      const imageId = normalizeText(request.imageId || "");
+      if (!imageId || normalizeKey(imageId) !== normalizeKey(initialRequest.imageId)) {
+        return { error: "repair_content_changed", status: 409 };
+      }
+      const currentReturnedAssets = extractReturnedRepairAssetFields(request, request.statusNote || "");
+      if (!currentReturnedAssets.replacementAssetLink) {
+        return { error: "replacement_asset_link_required", status: 409 };
+      }
+      const [currentContent, matchingFlags, matchingVotes, sourceFlag] = await Promise.all([
+        transaction.get(contentRef),
+        transaction.get(db.collection(COLLECTIONS.contentFlags).where("imageId", "==", imageId)),
+        transaction.get(db.collection(COLLECTIONS.votes).where("imageId", "==", imageId)),
+        sourceFlagRef ? transaction.get(sourceFlagRef) : Promise.resolve(null),
+      ]);
+      if (!currentContent.exists || (sourceFlagRef && (!sourceFlag?.exists
+        || normalizeKey(sourceFlag.data()?.imageId) !== normalizeKey(imageId)))) {
+        return { error: "repair_original_content_not_found", status: 409 };
+      }
+      const pendingFlags = matchingFlags.docs.filter((doc) => doc.data()?.status === "pending");
+      if (pendingFlags.some((doc) => {
+        const linkedRequestId = normalizeText(doc.data()?.repairRequestId);
+        return linkedRequestId && linkedRequestId !== requestId;
+      })) {
+        return { error: "other_pending_repair_for_item", status: 409 };
+      }
+      const priorAuthorVotes = matchingVotes.docs.filter((doc) =>
+        isActiveAuthorVote(doc.data() || {}, authorVoteUserIds)
+      );
+      supersededAuthorVoteCount = priorAuthorVotes.length;
+      if (pendingFlags.length + priorAuthorVotes.length > 450) {
+        return { error: "too_many_reviews_to_reopen", status: 409 };
+      }
+      const original = currentContent.data() || {};
       const previousAssetLink = normalizeText(
         original.imageUrl
         || original.driveLink
@@ -8520,9 +8558,9 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
         || ""
       );
       transaction.set(contentRef, {
-        imageUrl: returnedAssets.replacementAssetLink,
-        driveLink: returnedAssets.replacementAssetLink,
-        replacementAssetId: returnedAssets.replacementAssetId || "",
+        imageUrl: currentReturnedAssets.replacementAssetLink,
+        driveLink: currentReturnedAssets.replacementAssetLink,
+        replacementAssetId: currentReturnedAssets.replacementAssetId || "",
         previousAssetLink,
         activeRepairRequestId: requestId,
         repairReplacementActivatedAt: FieldValue.serverTimestamp(),
@@ -8531,8 +8569,12 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
         repairReplacementNote: note,
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
-      if (sourceFlagRef) {
-        transaction.set(sourceFlagRef, {
+      const flagsToResolve = new Map(pendingFlags.map((doc) => [doc.id, doc.ref]));
+      if (sourceFlag?.exists && sourceFlag.data()?.status === "pending") {
+        flagsToResolve.set(sourceFlag.id, sourceFlagRef);
+      }
+      for (const flagRef of flagsToResolve.values()) {
+        transaction.set(flagRef, {
           status: "resolved",
           resolution: "recreated",
           repairStatus: "resolved",
@@ -8540,14 +8582,26 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
           reviewedAt: FieldValue.serverTimestamp(),
           reviewedBy: ctx.decoded.uid,
           reviewedByEmail: ctx.decoded.email || "",
-          replacementAssetId: returnedAssets.replacementAssetId || "",
-          replacementAssetLink: returnedAssets.replacementAssetLink,
+          replacementAssetId: currentReturnedAssets.replacementAssetId || "",
+          replacementAssetLink: currentReturnedAssets.replacementAssetLink,
           repairRequestId: requestId,
           moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry(
             "replacement_accepted",
             { uid: ctx.decoded.uid, email: ctx.decoded.email },
             note
           )),
+        }, { merge: true });
+      }
+      for (const vote of priorAuthorVotes) {
+        transaction.update(vote.ref, {
+          supersededAt: FieldValue.serverTimestamp(),
+          supersededReason: "content_corrected",
+          supersededByRepairRequestId: requestId,
+        });
+      }
+      if (priorAuthorVotes.length) {
+        transaction.set(db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID), {
+          invalidatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
       }
     }
@@ -8563,6 +8617,10 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
       replacementActivatedAt: decision === "accepted" ? FieldValue.serverTimestamp() : null,
       replacementActivatedCollection: decision === "accepted" ? contentRecord.collection : "",
       replacementActivatedDocId: decision === "accepted" ? contentRecord.docId : "",
+      ...(decision === "accepted" ? {
+        reopenedAuthorVoteCount: supersededAuthorVoteCount,
+        authorVotingReopenedAt: FieldValue.serverTimestamp(),
+      } : {}),
       updatedAt: FieldValue.serverTimestamp(),
       history: FieldValue.arrayUnion({
         action: `return_${decision}`,
@@ -8571,7 +8629,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
         actor: ctx.decoded.email || ctx.decoded.uid,
       }),
     }, { merge: true });
-    return { alreadyReviewed: false };
+    return { alreadyReviewed: false, supersededAuthorVoteCount };
   });
 
   if (reviewResult.error) {
@@ -8580,12 +8638,14 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
   if (decision === "accepted" && !reviewResult.alreadyReviewed) {
     invalidateContentCache();
     invalidateFlaggedContentCache();
+    if (reviewResult.supersededAuthorVoteCount) invalidateRatingsSnapshot();
     await invalidateScoreboardSnapshot(`repair_replacement_accepted:${requestId}`);
   }
   const saved = await ref.get();
   res.json({
     ok: true,
     alreadyReviewed: reviewResult.alreadyReviewed,
+    supersededAuthorVoteCount: reviewResult.supersededAuthorVoteCount || 0,
     request: repairRequestJson(saved),
   });
 });
@@ -9030,8 +9090,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/editText"), async (req, res) => {
       const current = currentContentSnap.data() || {};
       const pendingFlags = matchingFlags.docs.filter((doc) => doc.data()?.status === "pending");
       const priorAuthorVotes = matchingVotes.docs.filter((doc) => {
-        const vote = doc.data() || {};
-        return !vote.supersededAt && authorVoteUserIds.has(normalizeKey(vote.userId || ""));
+        return isActiveAuthorVote(doc.data() || {}, authorVoteUserIds);
       });
       if (!currentFlagSnap.exists || !currentContentSnap.exists
         || currentFlag.status !== "pending"
@@ -9240,8 +9299,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
       ]);
       const pendingFlags = matchingFlags.docs.filter((doc) => doc.data()?.status === "pending");
       const priorAuthorVotes = matchingVotes.docs.filter((doc) => {
-        const vote = doc.data() || {};
-        return !vote.supersededAt && authorVoteUserIds.has(normalizeKey(vote.userId || ""));
+        return isActiveAuthorVote(doc.data() || {}, authorVoteUserIds);
       });
       if (!freshFlag.exists || freshFlag.data()?.status !== "pending" || !freshContent.exists
         || pendingFlags.some((doc) => ["requested", "in_progress"].includes(doc.data()?.repairStatus))) {
