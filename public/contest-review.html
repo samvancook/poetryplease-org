@@ -33,6 +33,7 @@
     .status { min-height:24px; font-weight:700; }
     .error { color:var(--error); }
     .pill { display:inline-block; padding:5px 9px; border-radius:999px; background:var(--soft); font-size:13px; font-weight:700; }
+    .winner-review-intro { border-left:4px solid var(--accent); background:var(--soft); padding:8px 16px; margin:18px 0; }
     .compare-toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:16px 0; }
     .compare-toolbar button[aria-pressed="true"] { background:var(--accent); border-color:var(--accent); color:white; }
     .compare-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); gap:14px; }
@@ -93,7 +94,7 @@
     <div id="status" class="status">Sign in with an authorized contest account.</div>
     <section id="final-selection" class="card" hidden>
       <h2>Final selection</h2>
-      <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Keep a shared draft shortlist, then confirm the winners circle and winner. Pass-only poems remain out of this list. These decisions send no contestant email.</p>
+      <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
       <div id="final-selection-status" class="status" aria-live="polite"></div>
       <div id="final-selection-content"></div>
     </section>
@@ -471,6 +472,8 @@
     let finalCompareIds = [];
     let finalCompareView = "side-by-side";
     let finalCompareIndex = 0;
+    let finalWinnerReview = false;
+    let savedCandidateComparison = null;
     let finalSelectionProgramId = "";
 
     function updateCompareNavigation() {
@@ -495,6 +498,8 @@
         finalCompareIds = [];
         finalCompareView = "side-by-side";
         finalCompareIndex = 0;
+        finalWinnerReview = false;
+        savedCandidateComparison = null;
       }
       finalSelectionCandidates = (report.submissions || []).filter((row) => !row.archived).map((row) => {
         const reads = row.finalistReads || [];
@@ -510,7 +515,10 @@
       }).filter((row) => row.champion > 0 || (row.initialYes === 3 && row.possible > 0) || row.shortlisted || ["circle", "winner"].includes(row.outcomeStatus))
         .sort((left, right) => right.champion - left.champion || right.possible - left.possible ||
           right.initialYes - left.initialYes || left.title.localeCompare(right.title));
-      finalCompareIds = finalCompareIds.filter((id) => finalSelectionCandidates.some((row) => row.id === id));
+      const circleCandidates = finalSelectionCandidates.filter((row) => ["circle", "winner"].includes(row.outcomeStatus))
+        .sort((left, right) => (right.outcomeStatus === "winner") - (left.outcomeStatus === "winner"));
+      const eligibleCompared = finalWinnerReview ? circleCandidates : finalSelectionCandidates;
+      finalCompareIds = finalCompareIds.filter((id) => eligibleCompared.some((row) => row.id === id));
       finalCompareIndex = Math.min(finalCompareIndex, Math.max(0, finalCompareIds.length - 1));
       if (finalCompareView === "side-by-side") finalCompareIndex = Math.floor(finalCompareIndex / 4) * 4;
       const compared = finalCompareIds.map((id) => finalSelectionCandidates.find((row) => row.id === id)).filter(Boolean);
@@ -525,7 +533,8 @@
         const actions = row.outcomeStatus === "winner"
           ? action("circle", "Clear winner")
           : row.outcomeStatus === "circle"
-            ? action("winner", "Make winner") + action("undecided", "Remove from circle")
+            ? (winner ? '<button type="button" disabled title="Clear the current winner first">Winner already selected</button> ' : action("winner", "Make winner")) +
+              action("undecided", "Remove from circle")
             : action("circle", "Add to circle");
         const notes = row.finalistReads.filter((read) => read.decision).map((read) =>
           "<li>" + escapeHtml(read.decision) + (read.note ? ": " + escapeHtml(read.note) : "") + "</li>").join("");
@@ -541,31 +550,12 @@
       };
       const page = compared.slice(finalCompareIndex, finalCompareIndex + 4);
       const compareBody = !compared.length
-        ? "<p>Choose Compare beside candidates below, or use Compare all.</p>"
+        ? (finalWinnerReview ? "<p>No circle poems in this comparison. Use Show all circle poems to restore them.</p>" : "<p>Choose Compare beside candidates below, or use Compare all.</p>")
         : finalCompareView === "slider"
           ? '<div id="compare-slider" class="compare-slider" aria-label="Slide through compared poems">' +
             compared.map(details).join("") + "</div>"
           : '<div class="compare-grid">' + page.map(details).join("") + "</div>";
-      document.getElementById("final-selection-content").innerHTML =
-        '<p><strong>' + reads.filter((read) => !!read.decision).length + ' / ' + reads.length +
-        ' finalist reads complete</strong> · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
-        ' on draft shortlist · ' + circleCount + ' in confirmed circle · ' +
-        (winner ? "Winner: " + escapeHtml(winner.title) : "No winner yet") + '.</p>' +
-        '<h3>Compare selected poems (' + compared.length + ')</h3>' +
-        '<div class="compare-toolbar">' +
-        '<button type="button" data-compare-all' + (!finalSelectionCandidates.length ? " disabled" : "") + '>Compare all ' +
-          finalSelectionCandidates.length + ' candidates</button>' +
-        '<button type="button" data-clear-compare' + (!compared.length ? " disabled" : "") + '>Clear comparison</button>' +
-        '<button type="button" data-compare-view="side-by-side" aria-pressed="' + (finalCompareView === "side-by-side") +
-          '">Side by side</button>' +
-        '<button type="button" data-compare-view="slider" aria-pressed="' + (finalCompareView === "slider") +
-          '">Slider</button></div>' +
-        (compared.length
-          ? '<div class="compare-navigation"><button type="button" data-compare-step="-1" aria-label="Previous compared poems">← Previous</button>' +
-            '<span id="compare-position"></span>' +
-            '<button type="button" data-compare-step="1" aria-label="Next compared poems">Next →</button></div>'
-          : "") +
-        compareBody +
+      const candidateTable = finalWinnerReview ? "" :
         '<h3>Selection candidates</h3>' +
         (finalSelectionCandidates.length
           ? '<div style="overflow:auto;max-height:430px;"><table class="progress-table"><thead><tr><th>Poem</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Draft shortlist</th><th>Compare</th></tr></thead><tbody>' +
@@ -578,6 +568,35 @@
               (finalCompareIds.includes(row.id) ? "Remove from compare" : "Compare") +
               "</button></td></tr>").join("") + "</tbody></table></div>"
           : "<p>No selection candidates yet.</p>");
+      document.getElementById("final-selection-content").innerHTML =
+        '<p><strong>' + reads.filter((read) => !!read.decision).length + ' / ' + reads.length +
+        ' finalist reads complete</strong> · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
+        ' on draft shortlist · ' + circleCount + ' in confirmed circle · ' +
+        (winner ? "Winner: " + escapeHtml(winner.title) : "No winner yet") + '.</p>' +
+        (finalWinnerReview
+          ? '<div id="winner-review" class="winner-review-intro"><h3>Choose the winner</h3><p>Review every winners-circle poem and its finalist notes, then use Make winner on one card. ' +
+            (winner ? 'To choose a different poem, clear the current winner first. ' : '') +
+            'No contestant email is sent.</p></div>'
+          : '<div class="compare-toolbar"><button type="button" class="primary" data-review-circle' +
+            (!circleCandidates.length ? " disabled" : "") + '>Review winners circle (' + circleCandidates.length + ')</button></div>') +
+        '<h3>' + (finalWinnerReview ? "Winners circle review" : "Compare selected poems") + ' (' + compared.length + ')</h3>' +
+        '<div class="compare-toolbar">' +
+        (finalWinnerReview
+          ? '<button type="button" data-review-circle>Show all ' + circleCandidates.length + ' circle poems</button>' +
+            '<button type="button" data-exit-winner-review>Back to candidate comparison</button>'
+          : '<button type="button" data-compare-all' + (!finalSelectionCandidates.length ? " disabled" : "") +
+            '>Compare all ' + finalSelectionCandidates.length + ' candidates</button>' +
+            '<button type="button" data-clear-compare' + (!compared.length ? " disabled" : "") + '>Clear comparison</button>') +
+        '<button type="button" data-compare-view="side-by-side" aria-pressed="' + (finalCompareView === "side-by-side") +
+          '">Side by side</button>' +
+        '<button type="button" data-compare-view="slider" aria-pressed="' + (finalCompareView === "slider") +
+          '">Slider</button></div>' +
+        (compared.length
+          ? '<div class="compare-navigation"><button type="button" data-compare-step="-1" aria-label="Previous compared poems">← Previous</button>' +
+            '<span id="compare-position"></span>' +
+            '<button type="button" data-compare-step="1" aria-label="Next compared poems">Next →</button></div>'
+          : "") +
+        compareBody + candidateTable;
       updateCompareNavigation();
       const slider = document.getElementById("compare-slider");
       if (slider) {
@@ -643,6 +662,31 @@
       const button = event.target.closest("button");
       if (!button) return;
       const status = document.getElementById("final-selection-status");
+      if (button.hasAttribute("data-review-circle")) {
+        if (!finalWinnerReview) {
+          savedCandidateComparison = {
+            ids: [...finalCompareIds], view: finalCompareView, index: finalCompareIndex,
+          };
+        }
+        finalWinnerReview = true;
+        finalCompareIds = finalSelectionCandidates.filter((row) =>
+          ["circle", "winner"].includes(row.outcomeStatus)).sort((left, right) =>
+            (right.outcomeStatus === "winner") - (left.outcomeStatus === "winner")).map((row) => row.id);
+        finalCompareView = "slider";
+        finalCompareIndex = 0;
+        renderFinalSelection();
+        status.textContent = "Reviewing winners-circle poems. No judging decision has changed.";
+        return;
+      }
+      if (button.hasAttribute("data-exit-winner-review")) {
+        finalWinnerReview = false;
+        finalCompareIds = savedCandidateComparison?.ids || [];
+        finalCompareView = savedCandidateComparison?.view || "side-by-side";
+        finalCompareIndex = savedCandidateComparison?.index || 0;
+        savedCandidateComparison = null;
+        renderFinalSelection();
+        return;
+      }
       if (button.hasAttribute("data-compare-all")) {
         finalCompareIds = finalSelectionCandidates.map((row) => row.id);
         finalCompareView = "slider";
