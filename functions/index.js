@@ -8439,12 +8439,16 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
   const requestId = normalizeText(req.params.requestId);
   const decision = normalizeKey(req.body?.decision);
   const note = normalizeText(req.body?.note || "");
+  const correctedTitle = normalizeText(req.body?.correctedTitle || "");
   if (!requestId) return res.status(400).json({ error: "missing_request_id" });
   if (!["accepted", "rejected"].includes(decision)) {
     return res.status(400).json({ error: "invalid_decision" });
   }
   if (decision === "rejected" && !note) {
     return res.status(400).json({ error: "rejection_note_required" });
+  }
+  if (correctedTitle.length > 300) {
+    return res.status(400).json({ error: "corrected_title_too_long" });
   }
 
   const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(requestId);
@@ -8457,6 +8461,11 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
   }
   if (initialDisposition !== "apply") {
     return res.status(409).json({ error: "repair_not_returned" });
+  }
+  if (decision === "accepted" && !correctedTitle && /\btitle\b|name of (?:the )?poem/i.test(
+    `${initialRequest.requestNote || ""} ${initialRequest.issueReason || ""}`
+  )) {
+    return res.status(409).json({ error: "corrected_title_required" });
   }
 
   const returnedAssets = extractReturnedRepairAssetFields(
@@ -8558,6 +8567,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
         || ""
       );
       transaction.set(contentRef, {
+        ...(correctedTitle ? { title: correctedTitle } : {}),
         imageUrl: currentReturnedAssets.replacementAssetLink,
         driveLink: currentReturnedAssets.replacementAssetLink,
         replacementAssetId: currentReturnedAssets.replacementAssetId || "",
@@ -8618,6 +8628,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
       replacementActivatedCollection: decision === "accepted" ? contentRecord.collection : "",
       replacementActivatedDocId: decision === "accepted" ? contentRecord.docId : "",
       ...(decision === "accepted" ? {
+        ...(correctedTitle ? { acceptedCorrectedTitle: correctedTitle } : {}),
         reopenedAuthorVoteCount: supersededAuthorVoteCount,
         authorVotingReopenedAt: FieldValue.serverTimestamp(),
       } : {}),
