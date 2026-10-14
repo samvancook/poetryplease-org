@@ -6798,7 +6798,7 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
   const allContent = await getAllContent();
   const contentById = new Map(allContent.map((item) => [normalizeKey(item.imageId || ""), item]));
   const [snap, repairSnap] = await Promise.all([
-    db.collection(COLLECTIONS.contentFlags).limit(250).get(),
+    db.collection(COLLECTIONS.contentFlags).get(),
     db.collection(COLLECTIONS.contentRepairRequests).limit(250).get(),
   ]);
   const contentFlags = snap.docs
@@ -6809,6 +6809,7 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
         id: doc.id,
         ...(data || {}),
         currentImageUrl: current?.imageUrl || data.currentImageUrl || "",
+        currentExcerpt: current?.excerpt || data.currentExcerpt || data.excerpt || "",
         currentTitle: current?.title || data.title || "",
       };
     })

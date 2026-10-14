@@ -927,7 +927,25 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      div.innerHTML = `Logged in as ${label}${authorPreviewBadge}${roleBadge}${teamBadge}${ownContentBadge}${graphicsStartBadges}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge} <button id="logout-button" type="button">Log out</button>${viewToggle}`;
+      const staffTools = `${roleBadge}${teamBadge}${ownContentBadge}${graphicsStartBadges}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge}${viewToggle}`;
+      if (canAccessScoreboard && !document.getElementById('staff-menu-styles')) {
+        const style = document.createElement('style');
+        style.id = 'staff-menu-styles';
+        style.textContent = `
+          .staff-tools-menu { display:inline-block;position:relative;margin-left:8px;vertical-align:middle;z-index:30; }
+          .staff-tools-menu summary { display:inline-block;list-style:none;cursor:pointer;padding:7px 11px;border:1px solid #dad0c1;border-radius:10px;background:#fff;color:#2f5d62;font-weight:700; }
+          .staff-tools-menu summary::-webkit-details-marker { display:none; }
+          .staff-tools-menu summary:focus-visible { outline:2px solid #2f5d62;outline-offset:2px; }
+          .staff-tools-menu nav { position:absolute;right:0;top:calc(100% + 6px);width:min(320px,calc(100vw - 32px));max-height:70vh;overflow:auto;padding:8px;border:1px solid #dad0c1;border-radius:14px;background:#fffdf8;box-shadow:0 16px 36px #18130c2e; }
+          .staff-tools-menu nav a,.staff-tools-menu nav button,.staff-tools-menu nav label,.staff-tools-menu nav span { display:block !important;width:100%;margin:0 !important;padding:9px 11px !important;border:0 !important;border-radius:8px !important;background:transparent !important;color:#2f5d62 !important;text-align:left;font-size:14px !important; }
+          .staff-tools-menu nav a:hover,.staff-tools-menu nav button:hover { background:#d7e7e9 !important; }
+          .staff-tools-menu nav label { display:flex !important; }
+        `;
+        document.head.appendChild(style);
+      }
+      div.innerHTML = canAccessScoreboard
+        ? `Logged in as ${label}${authorPreviewBadge}<details class="staff-tools-menu" id="staff-tools-menu"><summary aria-label="Open navigation menu">☰ Menu</summary><nav aria-label="Team navigation">${staffTools}<button id="logout-button" type="button">Log out</button></nav></details>`
+        : `Logged in as ${label}${authorPreviewBadge}${staffTools} <button id="logout-button" type="button">Log out</button>`;
       on($('#logout-button'), 'click', async () => {
         try {
           await firebase.auth().signOut();
