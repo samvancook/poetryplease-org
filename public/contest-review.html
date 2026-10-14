@@ -92,8 +92,8 @@
       <span id="my-finalist" class="pill" hidden></span>
     </div>
     <div id="status" class="status">Sign in with an authorized contest account.</div>
-    <section id="final-selection" class="card" hidden>
-      <h2>Final selection</h2>
+    <details id="final-selection" class="card" hidden>
+      <summary class="admin-progress-summary">Final selection</summary>
       <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
       <div id="final-selection-status" class="status" aria-live="polite"></div>
       <div id="final-selection-content"></div>
@@ -110,7 +110,7 @@
         <button id="contest-email-refresh" type="button">Build recipient and email preview</button>
         <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
       </details>
-    </section>
+    </details>
     <details id="admin-progress" class="card" hidden>
       <summary class="admin-progress-summary">Assignments and review progress</summary>
       <div id="progress-metrics" class="metric-row"></div>
@@ -568,8 +568,10 @@
           ? '<div id="compare-slider" class="compare-slider" aria-label="Slide through compared poems">' +
             compared.map(details).join("") + "</div>"
           : '<div class="compare-grid">' + page.map(details).join("") + "</div>";
+      const compareOpen = document.getElementById("final-compare-panel")?.open ?? true;
+      const candidatesOpen = document.getElementById("final-candidates-panel")?.open ?? false;
       const candidateTable = finalWinnerReview ? "" :
-        '<h3>Selection candidates</h3>' +
+        '<details id="final-candidates-panel" style="margin-top:18px;"' + (candidatesOpen ? " open" : "") + '><summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Selection candidates (' + finalSelectionCandidates.length + ')</summary>' +
         (finalSelectionCandidates.length
           ? '<div style="overflow:auto;max-height:430px;"><table class="progress-table"><thead><tr><th>Poem</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Draft shortlist</th><th>Compare</th></tr></thead><tbody>' +
             finalSelectionCandidates.map((row) => '<tr><td>' + escapeHtml(row.title) +
@@ -580,7 +582,7 @@
               '</button></td><td><button type="button" data-compare data-submission="' + escapeHtml(row.id) + '">' +
               (finalCompareIds.includes(row.id) ? "Remove from compare" : "Compare") +
               "</button></td></tr>").join("") + "</tbody></table></div>"
-          : "<p>No selection candidates yet.</p>");
+          : "<p>No selection candidates yet.</p>") + "</details>";
       document.getElementById("final-selection-content").innerHTML =
         '<p><strong>' + reads.filter((read) => !!read.decision).length + ' / ' + reads.length +
         ' finalist reads complete</strong> · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
@@ -592,7 +594,8 @@
             'No contestant email is sent.</p></div>'
           : '<div class="compare-toolbar"><button type="button" class="primary" data-review-circle' +
             (!circleCandidates.length ? " disabled" : "") + '>Review winners circle (' + circleCandidates.length + ')</button></div>') +
-        '<h3>' + (finalWinnerReview ? "Winners circle review" : "Compare selected poems") + ' (' + compared.length + ')</h3>' +
+        '<details id="final-compare-panel" style="margin-top:18px;"' + (compareOpen ? " open" : "") + '><summary style="cursor:pointer;font-size:1.2em;font-weight:700;">' +
+          (finalWinnerReview ? "Winners circle review" : "Compare selected poems") + ' (' + compared.length + ')</summary>' +
         '<div class="compare-toolbar">' +
         (finalWinnerReview
           ? '<button type="button" data-review-circle>Show all ' + circleCandidates.length + ' circle poems</button>' +
@@ -609,7 +612,7 @@
             '<span id="compare-position"></span>' +
             '<button type="button" data-compare-step="1" aria-label="Next compared poems">Next →</button></div>'
           : "") +
-        compareBody + candidateTable;
+        compareBody + "</details>" + candidateTable;
       updateCompareNavigation();
       const slider = document.getElementById("compare-slider");
       if (slider) {
@@ -870,8 +873,10 @@
         renderProgress();
         renderFinalSelection();
         const targetId = location.hash.slice(1);
-        if (targetId === "final-selection") {
-          requestAnimationFrame(() => selection.scrollIntoView({ block: "start" }));
+        if (targetId === "final-selection" || targetId === "contest-email-panel") {
+          selection.open = true;
+          if (targetId === "contest-email-panel") document.getElementById("contest-email-panel").open = true;
+          requestAnimationFrame(() => document.getElementById(targetId).scrollIntoView({ block: "start" }));
         } else if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
           panel.open = true;
           if (targetId === "finalist-admin") document.getElementById("finalist-admin").open = true;
