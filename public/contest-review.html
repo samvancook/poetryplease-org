@@ -887,7 +887,7 @@
       document.getElementById("contest-email-filter-count").textContent = matches.length + " of " +
         contestEmailRecipients.length + " recipients match; " + eligible.length + " eligible and unsent in this preview.";
       const bulk = document.getElementById("contest-email-send-filtered");
-      bulk.textContent = "Send next " + Math.min(25, eligible.length) + " filtered drafts";
+      bulk.textContent = "Send next " + Math.min(100, eligible.length) + " filtered drafts";
       bulk.disabled = !contestEmailSendEnabled || contestEmailSending || !eligible.length;
       showContestEmailDraft(select.value === "" ? -1 : Number(select.value));
     }
@@ -941,7 +941,7 @@
               '<pre id="contest-email-preview-message" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>' +
               '<button id="contest-email-send-selected" type="button" disabled>Send selected draft</button> ' +
               '<button id="contest-email-send-filtered" type="button" disabled>Send filtered drafts</button>' +
-              '<p>Bulk send processes up to 25 eligible recipients per click. Review the count and confirm before sending.</p>' +
+              '<p>Bulk send processes up to 100 eligible recipients per click. Review the count and confirm before sending.</p>' +
               '<div id="contest-email-send-status" class="status" aria-live="polite"></div>'
             : "<p>No submissions found for this contest.</p>");
         renderContestEmailFilters();
@@ -956,7 +956,7 @@
       const programId = document.getElementById("program").value;
       const select = document.getElementById("contest-email-recipient-select");
       const candidates = filtered
-        ? contestEmailMatches().map(({ recipient }) => recipient).filter(contestEmailEligible).slice(0, 25)
+        ? contestEmailMatches().map(({ recipient }) => recipient).filter(contestEmailEligible).slice(0, 100)
         : [contestEmailRecipients[Number(select?.value)]].filter((recipient) => recipient && contestEmailEligible(recipient));
       const status = document.getElementById("contest-email-send-status");
       if (!programId || !contestEmailSendEnabled || contestEmailSending || !candidates.length) return;
