@@ -104,6 +104,12 @@
         <div id="remaining-status" class="status" aria-live="polite">No preview loaded.</div>
         <button id="apply-remaining" type="button" class="primary" disabled>Mark remaining entries not selected</button>
       </details>
+      <details id="contest-email-panel" style="margin-top:18px;">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Entrant emails</summary>
+        <p>Preview recipients and message copy for this contest before sending. Building a preview sends nothing. Sending stays locked until the approved copy is enabled.</p>
+        <button id="contest-email-refresh" type="button">Build recipient and email preview</button>
+        <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
+      </details>
     </section>
     <details id="admin-progress" class="card" hidden>
       <summary class="admin-progress-summary">Assignments and review progress</summary>
@@ -684,8 +690,164 @@
       }
     }
 
+
+    let contestEmailRecipients = [];
+    let contestEmailSendEnabled = false;
+    let contestEmailSent = new Set();
+    let contestEmailSending = false;
+
+    function clearContestEmailPreview() {
+      contestEmailRecipients = [];
+      contestEmailSendEnabled = false;
+      contestEmailSent = new Set();
+      document.getElementById("contest-email-preview-body").textContent = "No preview loaded.";
+    }
+
+    function contestEmailEligible(recipient) {
+      return recipient.email && !recipient.mixedOutcomes && recipient.previewToken &&
+        !recipient.submissions.some((submission) => submission.internalStatus === "undecided") &&
+        !contestEmailSent.has(recipient.email);
+    }
+
+    function contestEmailMatches() {
+      const outcome = document.getElementById("contest-email-outcome-filter")?.value || "";
+      const search = (document.getElementById("contest-email-search-filter")?.value || "").trim().toLowerCase();
+      return contestEmailRecipients.map((recipient, index) => ({ recipient, index }))
+        .filter(({ recipient }) => (!outcome || recipient.outcome === outcome) &&
+          (!search || (recipient.email || "").toLowerCase().includes(search) ||
+            recipient.submissions.some((submission) => (submission.title || "").toLowerCase().includes(search))));
+    }
+
+    function renderContestEmailFilters() {
+      const select = document.getElementById("contest-email-recipient-select");
+      if (!select) return;
+      const previous = select.value;
+      const matches = contestEmailMatches();
+      select.innerHTML = matches.map(({ recipient, index }) => '<option value="' + index + '">' +
+        escapeHtml((recipient.email || "[missing address]") + " — " +
+          ({ winner: "Winner", circle: "Winners circle", notSelected: "Rejected" }[recipient.outcome] || recipient.outcome) +
+          (recipient.mixedOutcomes ? " — mixed outcomes" : "")) + "</option>").join("");
+      if (matches.some(({ index }) => String(index) === previous)) select.value = previous;
+      const eligible = matches.filter(({ recipient }) => contestEmailEligible(recipient));
+      document.getElementById("contest-email-filter-count").textContent = matches.length + " of " +
+        contestEmailRecipients.length + " recipients match; " + eligible.length + " eligible and unsent in this preview.";
+      const bulk = document.getElementById("contest-email-send-filtered");
+      bulk.textContent = "Send next " + Math.min(25, eligible.length) + " filtered drafts";
+      bulk.disabled = !contestEmailSendEnabled || contestEmailSending || !eligible.length;
+      showContestEmailDraft(select.value === "" ? -1 : Number(select.value));
+    }
+
+    function showContestEmailDraft(index) {
+      const recipient = contestEmailRecipients[index];
+      const message = document.getElementById("contest-email-preview-message");
+      if (!message) return;
+      message.textContent = recipient
+        ? "To: " + (recipient.email || "[missing address]") + "\nSubject: " + recipient.subject + "\n\n" + recipient.body
+        : "No matching recipient.";
+      document.getElementById("contest-email-send-selected").disabled =
+        !contestEmailSendEnabled || contestEmailSending || !recipient || !contestEmailEligible(recipient);
+    }
+
+    async function loadContestEmailPreview() {
+      const programId = document.getElementById("program").value;
+      const body = document.getElementById("contest-email-preview-body");
+      if (!programId) return void (body.textContent = "Choose a contest first.");
+      body.textContent = "Building read-only preview…";
+      try {
+        const preview = await api("admin/contestOutcomeEmailPreview?programId=" + encodeURIComponent(programId));
+        if (document.getElementById("program").value !== programId) return;
+        contestEmailRecipients = preview.recipients || [];
+        contestEmailSent = new Set();
+        const counts = preview.decisionCounts || {};
+        contestEmailSendEnabled = preview.sendEnabled === true &&
+          Number(counts.winner || 0) === 1 && Number(counts.circle || 0) > 0;
+        body.innerHTML = '<p><strong>Preview only — building this view sends no email.</strong> ' +
+          Number(preview.submissionCount || 0) + " submissions; " + Number(preview.recipientCount || 0) +
+          " recipient records.</p>" +
+          "<p>Winner: " + Number(counts.winner || 0) + " · Winners circle: " + Number(counts.circle || 0) +
+          " · Rejected: " + Number(counts.notSelected || 0) +
+          " · Still undecided: " + Number(counts.undecided || 0) + ".</p>" +
+          "<p>Check before sending: " + Number(preview.missingContactCount || 0) +
+          " missing/invalid addresses; " + Number(preview.mixedOutcomeRecipientCount || 0) +
+          " people with mixed outcomes; " + Number(preview.archivedCount || 0) +
+          " archived entries included. Publication links are not included yet.</p>" +
+          (contestEmailSendEnabled ? "" : "<p><strong>Sending is currently locked.</strong></p>") +
+          (contestEmailRecipients.length
+            ? '<div class="controls" style="margin:12px 0;">' +
+              '<label for="contest-email-outcome-filter">Outcome</label> ' +
+              '<select id="contest-email-outcome-filter"><option value="">All outcomes</option>' +
+              '<option value="winner">Winner</option><option value="circle">Winners circle</option>' +
+              '<option value="notSelected">Rejected</option></select> ' +
+              '<label for="contest-email-search-filter">Email or title</label> ' +
+              '<input id="contest-email-search-filter" type="search" placeholder="Search submitters or titles"></div>' +
+              '<p id="contest-email-filter-count"></p>' +
+              '<label for="contest-email-recipient-select">Preview a recipient</label> ' +
+              '<select id="contest-email-recipient-select" style="max-width:100%;"></select>' +
+              '<pre id="contest-email-preview-message" style="white-space:pre-wrap;overflow-wrap:anywhere;"></pre>' +
+              '<button id="contest-email-send-selected" type="button" disabled>Send selected draft</button> ' +
+              '<button id="contest-email-send-filtered" type="button" disabled>Send filtered drafts</button>' +
+              '<p>Bulk send processes up to 25 eligible recipients per click. Review the count and confirm before sending.</p>' +
+              '<div id="contest-email-send-status" class="status" aria-live="polite"></div>'
+            : "<p>No submissions found for this contest.</p>");
+        renderContestEmailFilters();
+      } catch (error) {
+        contestEmailRecipients = [];
+        contestEmailSendEnabled = false;
+        body.textContent = "Could not build email preview: " + error.message;
+      }
+    }
+
+    async function sendContestEmailBatch(filtered) {
+      const programId = document.getElementById("program").value;
+      const select = document.getElementById("contest-email-recipient-select");
+      const candidates = filtered
+        ? contestEmailMatches().map(({ recipient }) => recipient).filter(contestEmailEligible).slice(0, 25)
+        : [contestEmailRecipients[Number(select?.value)]].filter((recipient) => recipient && contestEmailEligible(recipient));
+      const status = document.getElementById("contest-email-send-status");
+      if (!programId || !contestEmailSendEnabled || contestEmailSending || !candidates.length) return;
+      if (!window.confirm("Send " + candidates.length + " contest outcome email" +
+        (candidates.length === 1 ? "" : "s") + "? This cannot be undone.")) return;
+      contestEmailSending = true;
+      renderContestEmailFilters();
+      let sent = 0;
+      for (const recipient of candidates) {
+        status.textContent = "Sending: " + sent + " of " + candidates.length + " accepted…";
+        try {
+          await api("admin/contestOutcomeEmails/send", {
+            method: "POST", body: { programId, email: recipient.email, previewToken: recipient.previewToken },
+          });
+          contestEmailSent.add(recipient.email);
+          sent += 1;
+        } catch (error) {
+          status.textContent = sent + " accepted; stopped at " + recipient.email + ": " + error.message +
+            ". Check delivery before retrying.";
+          contestEmailSending = false;
+          renderContestEmailFilters();
+          return;
+        }
+      }
+      contestEmailSending = false;
+      renderContestEmailFilters();
+      status.textContent = sent + " message" + (sent === 1 ? "" : "s") +
+        " accepted. Rebuild the preview to check the latest decisions.";
+    }
+
+    document.getElementById("contest-email-refresh").addEventListener("click", loadContestEmailPreview);
+    document.getElementById("contest-email-preview-body").addEventListener("input", (event) => {
+      if (event.target.id === "contest-email-search-filter") renderContestEmailFilters();
+    });
+    document.getElementById("contest-email-preview-body").addEventListener("change", (event) => {
+      if (event.target.id === "contest-email-outcome-filter") renderContestEmailFilters();
+      if (event.target.id === "contest-email-recipient-select") showContestEmailDraft(Number(event.target.value));
+    });
+    document.getElementById("contest-email-preview-body").addEventListener("click", (event) => {
+      if (event.target.id === "contest-email-send-selected") sendContestEmailBatch(false);
+      if (event.target.id === "contest-email-send-filtered") sendContestEmailBatch(true);
+    });
+
     async function loadProgress() {
       clearRemainingPreview();
+      clearContestEmailPreview();
       const panel = document.getElementById("admin-progress");
       const selection = document.getElementById("final-selection");
       const selectionNav = document.getElementById("final-selection-nav");
