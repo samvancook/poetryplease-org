@@ -137,6 +137,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - expose `Delete permanently` and `Recreate` as distinct admin actions from both Flags and Content Library
   - make permanent deletion remove the Poetry Please item from active content, preserve a compact deletion audit record, and send no new work downstream
   - make recreation hide the flawed item from review, create a stable repair request linked to the original content id, and send that request to Weaver
+  - automate repair intake across Poetry Please and Weaver: after Poetry Please creates the existing repair request, send its stable request ID through an authenticated, retryable trigger; Weaver fetches the details from Poetry Please's existing `GET /internal/repairRequests/:requestId` endpoint and idempotently creates or updates one durable job keyed by that ID. Keep the P.I.G. contract unchanged. First reconcile Plantain request `SS1YeP4kTyNNx3DIrw86` with a single manual Weaver sync and verify its appearance in P.I.G. before enabling automatic intake.
   - have Weaver track the repair request as a separate lifecycle (`requested`, `accepted`, `in P.I.G.`, `returned`, `reviewed`, `completed`, or `failed`) instead of treating it as a fresh unrelated graphic
   - have P.I.G. receive the original image/source asset, editable metadata, problem note, and available creation history so staff can revise the existing work rather than start blind
   - return the replacement through Weaver into Poetry Please, preserving lineage between the original item, repair request, P.I.G. output, and replacement item
@@ -147,6 +148,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - prep first: inventory which P.I.G. source files and editable generation settings actually survive today; fall back to original image plus notes when an editable source is unavailable
   - begin with one QI canary and an admin-only manual action before extending the workflow to `INT`, `EXC`, `FPI`, or bulk repairs
   - finish the returned-repair acceptance loop:
+    - review returned Killmonger request `EXIQB20UoNj1vAWDqrL7` against an authoritative current poem title before accepting it as the author-voting re-entry canary; the returned graphic displays `I GREW MY HAIR AS A PROMISE TO THE BOY` while the original Poetry Please record retains the old title
     - require Weaver to send structured `replacementAssetId` and `replacementAssetLink` fields instead of preserving them only in status notes/history
     - confirm Weaver mirrors Poetry Please `returnReviewStatus: accepted` or `status: resolved` into its repair ledger
     - test rejection end to end, including the required note and resuming the same job without creating another repair request
