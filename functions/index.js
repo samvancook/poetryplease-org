@@ -558,17 +558,24 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
 }
 
 async function findContentRecordByImageId(imageId) {
-  const normalized = normalizeKey(imageId);
+  const exactId = normalizeText(imageId);
+  const normalized = normalizeKey(exactId);
   if (!normalized) return null;
   for (const collection of [COLLECTIONS.graphics, COLLECTIONS.excerpts, COLLECTIONS.fullPoems, COLLECTIONS.videos]) {
-    const snap = await db.collection(collection).limit(1000).get();
-    const match = snap.docs.find((doc) => {
-      const data = doc.data() || {};
-      const candidate = data.imageId || data.imageID || data.videoId || "";
-      return normalizeKey(candidate) === normalized;
-    });
-    if (match) {
-      return { collection, docId: match.id, data: match.data() || {} };
+    const ref = db.collection(collection);
+    const direct = await ref.doc(exactId).get();
+    if (direct.exists) {
+      const data = direct.data() || {};
+      if (normalizeKey(data.imageId || data.imageID || data.videoId || direct.id) === normalized) {
+        return { collection, docId: direct.id, data };
+      }
+    }
+    for (const field of ["imageId", "imageID", "videoId"]) {
+      const snap = await ref.where(field, "==", exactId).limit(1).get();
+      const match = snap.docs[0];
+      if (match) {
+        return { collection, docId: match.id, data: match.data() || {} };
+      }
     }
   }
   return null;
