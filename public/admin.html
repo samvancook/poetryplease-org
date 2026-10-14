@@ -645,6 +645,16 @@
             <option value="ordinary">Ordinary user submissions</option>
           </select>
         </div>
+        <details id="contest-entrant-directory" hidden style="margin:0 0 18px;">
+          <summary style="cursor:pointer;font-weight:700;">Entrant details &amp; CSV</summary>
+          <p>Private contact records for the selected contest. Available only to Admin and Contest Admin; judging stays blinded. CSV files contain personal information—store and share them carefully.</p>
+          <button id="contest-entrants-load" type="button" class="secondary">Load entrant details</button>
+          <button id="contest-entrants-export" type="button" class="secondary" disabled>Download all entrants CSV</button>
+          <div id="contest-entrants-status" class="status" aria-live="polite">Load the selected contest’s entrants.</div>
+          <label for="contest-entrants-search">Find entrant</label>
+          <input id="contest-entrants-search" type="search" placeholder="Name, email, title, or reference" style="width:100%;max-width:430px;">
+          <div id="contest-entrants-results"></div>
+        </details>
         <div id="user-submissions-status" class="status">Loading submissions…</div>
         <div id="user-submissions-list"></div>
       </div>
@@ -1184,7 +1194,7 @@
             (document.getElementById('repair-requests-panel')?.open || document.getElementById('flags-panel')?.open)) {
           loadSectionOnce('flags', loadFlags);
         }
-      } else if (roles.includes('contest_admin') && !roles.includes('team')) {
+      } else if (roles.includes('contest_admin')) {
         if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
       } else if (roles.includes('team')) {
         if (!state.flaggedContentCollapsed &&
@@ -2693,8 +2703,90 @@
       }
     }
 
+    let contestEntrants = [];
+    let contestEntrantsProgramId = "";
+
+    function clearContestEntrants() {
+      contestEntrants = [];
+      contestEntrantsProgramId = "";
+      document.getElementById("contest-entrants-export").disabled = true;
+      document.getElementById("contest-entrants-results").textContent = "";
+      document.getElementById("contest-entrants-status").textContent = "Load the selected contest’s entrants.";
+    }
+
+    function updateContestEntrantDirectoryVisibility() {
+      const programId = state.submissionProgramFilter;
+      const authorized = (state.me?.roles || []).some((role) => role === "admin" || role === "contest_admin");
+      const visible = authorized && state.submissionPrograms.some((program) => program.id === programId);
+      document.getElementById("contest-entrant-directory").hidden = !visible;
+      if (!visible || contestEntrantsProgramId !== programId) clearContestEntrants();
+    }
+
+    function renderContestEntrants() {
+      const query = document.getElementById("contest-entrants-search").value.trim().toLowerCase();
+      const matching = contestEntrants.filter((row) => !query ||
+        [row.firstName, row.lastName, row.email, row.title, row.submissionId]
+          .some((value) => String(value || "").toLowerCase().includes(query)));
+      const shown = matching.slice(0, 50);
+      document.getElementById("contest-entrants-status").textContent =
+        contestEntrants.length + " entrant records; " + matching.length +
+        " match the search. Showing " + shown.length + ". The CSV includes all " +
+        contestEntrants.length + " records, regardless of search.";
+      document.getElementById("contest-entrants-results").innerHTML = shown.length
+        ? '<div style="overflow-x:auto;"><table><thead><tr><th>Submission</th><th>First</th><th>Last</th><th>Pronouns</th><th>Email</th><th>Phone</th></tr></thead><tbody>' +
+          shown.map((row) => '<tr><td>' + escapeHtml(row.title || "Untitled") + '<br><small>' +
+            escapeHtml(row.submissionId) + '</small></td><td>' + escapeHtml(row.firstName) +
+            '</td><td>' + escapeHtml(row.lastName) + '</td><td>' + escapeHtml(row.pronouns) +
+            '</td><td>' + escapeHtml(row.email) + '</td><td>' + escapeHtml(row.phone) +
+            '</td></tr>').join("") + '</tbody></table></div>'
+        : '<p>No entrants match.</p>';
+    }
+
+    async function loadContestEntrants() {
+      const programId = state.submissionProgramFilter;
+      const status = document.getElementById("contest-entrants-status");
+      clearContestEntrants();
+      if (!state.submissionPrograms.some((program) => program.id === programId)) {
+        status.textContent = "Choose a contest first.";
+        return;
+      }
+      status.textContent = "Loading private entrant records…";
+      try {
+        const result = await api("admin/contestEntrants?programId=" + encodeURIComponent(programId));
+        if (state.submissionProgramFilter !== programId) return;
+        contestEntrants = result.rows || [];
+        contestEntrantsProgramId = programId;
+        document.getElementById("contest-entrants-export").disabled = !contestEntrants.length;
+        renderContestEntrants();
+        if (result.missingEntrantCount) status.textContent +=
+          " " + result.missingEntrantCount + " records lack an entrant email.";
+      } catch (error) {
+        status.textContent = "Could not load entrant details: " + error.message;
+      }
+    }
+
+    function downloadContestEntrants() {
+      const programId = state.submissionProgramFilter;
+      if (!programId || programId !== contestEntrantsProgramId || !contestEntrants.length) return;
+      const columns = ["submissionId", "title", "firstName", "lastName", "pronouns", "email", "phone"];
+      const safeCell = (value) => {
+        let text = String(value ?? "");
+        if (/^[\s\u0000-\u001f]*[=+@-]/.test(text)) text = "'" + text;
+        return '"' + text.replace(/"/g, '""') + '"';
+      };
+      const csv = "\uFEFF" + [columns.join(","), ...contestEntrants.map((row) =>
+        columns.map((key) => safeCell(row[key])).join(","))].join("\r\n");
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "contest-entrants-" + programId + ".csv";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
     function renderUserSubmissions() {
       updateContestJudgingLinks();
+      updateContestEntrantDirectoryVisibility();
       const container = document.getElementById("user-submissions-list");
       const statusEl = document.getElementById("user-submissions-status");
       if (!state.submissions.length) {
@@ -5432,6 +5524,7 @@
         loadedAdminSections.clear();
         updateAuthUI(user);
         if (!user) {
+          clearContestEntrants();
           state.me = null;
           setStatus("Please sign in with your admin account first.", true);
           document.getElementById("results").innerHTML = '<div class="empty">You need to sign in before accessing admin tools.</div>';
@@ -5533,7 +5626,13 @@
       document.getElementById("scan-excerpt-duplicates").addEventListener("click", () => scanExcerptDuplicates());
       document.getElementById("user-submissions-toggle").addEventListener("click", () => {
         state.userSubmissionsCollapsed = !state.userSubmissionsCollapsed;
+        if (state.userSubmissionsCollapsed) clearContestEntrants();
         applyUserSubmissionsCollapseState();
+      });
+      document.getElementById("contest-entrants-load").addEventListener("click", loadContestEntrants);
+      document.getElementById("contest-entrants-export").addEventListener("click", downloadContestEntrants);
+      document.getElementById("contest-entrants-search").addEventListener("input", () => {
+        if (contestEntrantsProgramId) renderContestEntrants();
       });
       document.getElementById("user-submissions-query").addEventListener("input", (event) => {
         state.submissionQuery = event.target.value || "";
@@ -5552,6 +5651,7 @@
       });
       document.getElementById("user-submissions-program-filter").addEventListener("change", (event) => {
         state.submissionProgramFilter = event.target.value || "all";
+        clearContestEntrants();
         state.submissionPage = 0;
         renderUserSubmissions();
         loadContestJudgingOverview();
