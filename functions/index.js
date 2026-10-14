@@ -10511,13 +10511,62 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   });
 });
 
+const CONTEST_OUTCOME_EMAIL_TYPES = ["winner", "circle", "notSelected"];
+const DEFAULT_CONTEST_OUTCOME_EMAIL_TEMPLATES = {
+  winner: {
+    subject: "Your {{programName}} entry — winner",
+    body: "Hi {{firstName}},\n\nWe're delighted to let you know that {{titles}} has been selected as the winner of {{programName}}. Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\nThank you for sharing your work with us.\n\nThe Poetry, Please team",
+  },
+  circle: {
+    subject: "Your {{programName}} entry — winners circle",
+    body: "Hi {{firstName}},\n\nWe're delighted to let you know that {{titles}} has been selected for the winners circle of {{programName}}. Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\nThank you for sharing your work with us.\n\nThe Poetry, Please team",
+  },
+  notSelected: {
+    subject: "Thank you for entering {{programName}}",
+    body: "Hi {{firstName}},\n\nThank you for sharing {{titles}} with {{programName}}. It wasn't selected for this year's winners circle, but we're grateful you trusted us with your work.\n\nWe'll share the celebrated pieces in Poetry, Please once they're published.\n\nThe Poetry, Please team",
+  },
+};
+
+function contestOutcomeTemplates(saved = {}) {
+  return Object.fromEntries(CONTEST_OUTCOME_EMAIL_TYPES.map((outcome) => {
+    const row = saved?.[outcome];
+    return [outcome, typeof row?.subject === "string" && typeof row?.body === "string"
+      ? { subject: row.subject, body: row.body }
+      : { ...DEFAULT_CONTEST_OUTCOME_EMAIL_TEMPLATES[outcome] }];
+  }));
+}
+
+function renderContestOutcomeTemplate(value, variables) {
+  return value.replace(/{{\s*(firstName|programName|titles)\s*}}/g,
+    (_, key) => variables[key]);
+}
+
+function validateContestOutcomeTemplates(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const templates = {};
+  for (const outcome of CONTEST_OUTCOME_EMAIL_TYPES) {
+    const row = input[outcome];
+    if (!row || typeof row.subject !== "string" || typeof row.body !== "string") return null;
+    const subject = row.subject.trim();
+    const body = row.body.trim();
+    if (!subject || subject.length > 200 || /[\r\n]/.test(subject) ||
+      !body || body.length > 12000) return null;
+    const variables = [...subject.matchAll(/{{([^{}]+)}}/g), ...body.matchAll(/{{([^{}]+)}}/g)];
+    if (variables.some((match) => !["firstName", "programName", "titles"].includes(match[1].trim()))) return null;
+    templates[outcome] = { subject, body };
+  }
+  return templates;
+}
+
 async function buildContestOutcomeEmailPreview(programId) {
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return null;
-  const [submissionSnap, entrantSnap] = await Promise.all([
+  const [submissionSnap, entrantSnap, templateSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
+    db.collection("contestOutcomeEmailTemplates").doc(programId).get(),
   ]);
+  const templates = contestOutcomeTemplates(templateSnap.data()?.templates);
   const programName = normalizeText(programSnap.data()?.name || programId);
   const entrants = new Map(entrantSnap.docs.map((doc) => [doc.id, doc.data() || {}]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc)
@@ -10555,27 +10604,9 @@ async function buildContestOutcomeEmailPreview(programId) {
       : decisions.has("circle") ? "circle" : "notSelected";
     const selected = group.submissions.filter((row) => row.decision === outcome);
     const titleList = selected.map((row) => '"' + row.title + '"').join(", ");
-    const greeting = "Hi " + group.firstName + ",";
-    let subject;
-    let body;
-    if (outcome === "winner") {
-      subject = "Your " + programName + " entry — winner";
-      body = greeting + "\n\nWe're delighted to let you know that " + titleList +
-        " has been selected as the winner of " + programName +
-        ". Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\n" +
-        "Thank you for sharing your work with us.\n\nThe Poetry, Please team";
-    } else if (outcome === "circle") {
-      subject = "Your " + programName + " entry — winners circle";
-      body = greeting + "\n\nWe're delighted to let you know that " + titleList +
-        " has been selected for the winners circle of " + programName +
-        ". Before we announce it, we'll be in touch to confirm your final text, byline, and publication details.\n\n" +
-        "Thank you for sharing your work with us.\n\nThe Poetry, Please team";
-    } else {
-      subject = "Thank you for entering " + programName;
-      body = greeting + "\n\nThank you for sharing " + titleList + " with " + programName +
-        ". It wasn't selected for this year's winners circle, but we're grateful you trusted us with your work.\n\n" +
-        "We'll share the celebrated pieces in Poetry, Please once they're published.\n\nThe Poetry, Please team";
-    }
+    const variables = { firstName: group.firstName, programName, titles: titleList };
+    const subject = renderContestOutcomeTemplate(templates[outcome].subject, variables);
+    const body = renderContestOutcomeTemplate(templates[outcome].body, variables);
     return {
       email: group.email, outcome, submissionCount: group.submissions.length,
       submissions: group.submissions, mixedOutcomes: decisions.size > 1,
@@ -10587,13 +10618,43 @@ async function buildContestOutcomeEmailPreview(programId) {
   return {
     ok: true, previewOnly: true, emailSent: false,
     sendEnabled: CONTEST_OUTCOME_EMAILS_ENABLED,
-    programId, programName,
+    programId, programName, templatesCustomized: templateSnap.exists,
     submissionCount: submissions.length, recipientCount: recipients.length,
     missingContactCount, archivedCount, decisionCounts,
     mixedOutcomeRecipientCount: recipients.filter((row) => row.mixedOutcomes).length,
     recipients,
   };
 }
+
+app.get(getBoth("/admin/contestOutcomeEmailTemplates"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const [programSnap, templateSnap] = await Promise.all([
+    db.collection(COLLECTIONS.submissionPrograms).doc(programId).get(),
+    db.collection("contestOutcomeEmailTemplates").doc(programId).get(),
+  ]);
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  res.json({ ok: true, programId, customized: templateSnap.exists,
+    templates: contestOutcomeTemplates(templateSnap.data()?.templates) });
+});
+
+app.post(getBoth("/admin/contestOutcomeEmailTemplates"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const templates = validateContestOutcomeTemplates(req.body?.templates);
+  if (!templates) return res.status(400).json({ error: "invalid_contest_email_templates" });
+  const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  await db.collection("contestOutcomeEmailTemplates").doc(programId).set({
+    programId, templates, updatedBy: ctx.decoded.uid,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  res.json({ ok: true, programId, customized: true, templates, emailSent: false });
+});
 
 app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
