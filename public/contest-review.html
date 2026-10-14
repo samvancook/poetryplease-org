@@ -85,7 +85,7 @@
     <div id="status" class="status">Sign in with an authorized contest account.</div>
     <section id="final-selection" class="card" hidden>
       <h2>Final selection</h2>
-      <p>Compare Champion candidates, keep a shared draft shortlist, then confirm the winners circle and winner. These decisions send no contestant email.</p>
+      <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Keep a shared draft shortlist, then confirm the winners circle and winner. Pass-only poems remain out of this list. These decisions send no contestant email.</p>
       <div id="final-selection-status" class="status" aria-live="polite"></div>
       <div id="final-selection-content"></div>
     </section>
@@ -482,7 +482,7 @@
           possible: reads.filter((read) => read.decision === "possible").length,
           initialYes: Number(row.initialYesCount || 0),
         };
-      }).filter((row) => row.champion > 0 || row.shortlisted || ["circle", "winner"].includes(row.outcomeStatus))
+      }).filter((row) => row.champion > 0 || (row.initialYes === 3 && row.possible > 0) || row.shortlisted || ["circle", "winner"].includes(row.outcomeStatus))
         .sort((left, right) => right.champion - left.champion || right.possible - left.possible ||
           right.initialYes - left.initialYes || left.title.localeCompare(right.title));
       finalCompareIds = finalCompareIds.filter((id) => finalSelectionCandidates.some((row) => row.id === id));
@@ -521,7 +521,7 @@
           ? '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:14px;">' +
             compared.map(details).join("") + "</div>"
           : "<p>Choose Compare beside candidates below to read them side by side.</p>") +
-        '<h3>Champion candidates</h3>' +
+        '<h3>Selection candidates</h3>' +
         (finalSelectionCandidates.length
           ? '<div style="overflow:auto;max-height:430px;"><table class="progress-table"><thead><tr><th>Poem</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Draft shortlist</th><th>Compare</th></tr></thead><tbody>' +
             finalSelectionCandidates.map((row) => '<tr><td>' + escapeHtml(row.title) +
@@ -532,7 +532,7 @@
               '</button></td><td><button type="button" data-compare data-submission="' + escapeHtml(row.id) + '">' +
               (finalCompareIds.includes(row.id) ? "Remove" : "Compare") +
               "</button></td></tr>").join("") + "</tbody></table></div>"
-          : "<p>No Champion candidates yet.</p>");
+          : "<p>No selection candidates yet.</p>");
     }
 
     async function loadProgress() {
