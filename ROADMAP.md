@@ -140,6 +140,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - have Weaver track the repair request as a separate lifecycle (`requested`, `accepted`, `in P.I.G.`, `returned`, `reviewed`, `completed`, or `failed`) instead of treating it as a fresh unrelated graphic
   - have P.I.G. receive the original image/source asset, editable metadata, problem note, and available creation history so staff can revise the existing work rather than start blind
   - return the replacement through Weaver into Poetry Please, preserving lineage between the original item, repair request, P.I.G. output, and replacement item
+  - after a correction or accepted replacement is active, notify the author with a direct link to review that corrected item and cast a fresh vote; keep the earlier vote as superseded history rather than overwriting it, and use the fresh vote for the current version
   - show administrators a confirmation and status trail for both outcomes, including who acted, when, why, downstream status, and final replacement link
   - prevent deleted items from silently reappearing through later imports unless they belong to an explicit approved recreation request
   - prep first: define canonical cross-tool ids, deletion tombstones, repair-request schema, history fields safe to share with P.I.G., retry/idempotency rules, and service authentication for Poetry Please -> Weaver
