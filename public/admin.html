@@ -390,6 +390,19 @@
       background: rgba(255,255,255,0.6);
       padding: 10px;
     }
+    #flag-review-list table { table-layout: fixed; }
+    #flag-review-list th, #flag-review-list td { overflow-wrap: anywhere; }
+    #flag-review-list th:nth-child(1) { width: 21%; }
+    #flag-review-list th:nth-child(2) { width: 23%; }
+    #flag-review-list th:nth-child(3) { width: 18%; }
+    #flag-review-list th:nth-child(4) { width: 13%; }
+    #flag-review-list th:nth-child(5) { width: 15%; }
+    #flag-review-list th:nth-child(6) { width: 10%; }
+    .flag-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr); gap: 18px; }
+    .flag-detail-layout .preview-card { max-height: 70vh; overflow: auto; }
+    .flag-detail-layout .preview-card img { max-height: 420px; }
+    .flag-content-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; line-height: 1.5; margin: 0; }
+    .flag-detail-actions .actions { justify-content: flex-start; }
     .empty {
       padding: 16px;
       border: 1px dashed var(--line);
@@ -422,6 +435,7 @@
       line-height: 1.5;
     }
     @media (max-width: 860px) {
+      .flag-detail-layout { grid-template-columns: 1fr; }
       table, thead, tbody, tr, th, td { display: block; }
       thead { display: none; }
       tr {
@@ -982,6 +996,9 @@
             <option value="pending">Pending</option>
             <option value="resolved">Resolved</option>
           </select>
+          <select id="flag-person-filter" aria-label="Filter by who flagged content">
+            <option value="all">Flagged by anyone</option>
+          </select>
           <select id="flag-type-filter">
             <option value="all">All types</option>
             <option value="graphics">Graphics only</option>
@@ -1103,6 +1120,8 @@
       repairRequests: [],
       flagQuery: "",
       flagStatusFilter: "all",
+      flagPersonFilter: "all",
+      expandedFlagId: "",
       flagTypeFilter: "all",
       flagQualityLaneFilter: "all",
       flagSort: "newest",
@@ -4739,58 +4758,62 @@
             </tr>
           </thead>
           <tbody>
-            ${flags.map((flag) => `
-              <tr>
-                <td>
-                  <div class="user-name">${flag.title || flag.imageId || 'Untitled content'}</div>
-                  ${flag.isSystemQuarantine ? '<span class="chip">System quarantine</span>' : ''}
-                  <div>${flag.imageType || '—'}${flag.releaseCatalog ? ' · ' + flag.releaseCatalog : ''}</div>
-                  ${flag.imageId ? `<div class="meta"><a href="/?item=${encodeURIComponent(flag.imageId)}" target="_blank" rel="noopener noreferrer">Open item</a></div>` : ''}
-                  <div class="preview-grid">
-                    <div class="preview-card">
-                      <strong>Current live asset</strong>
-                      ${flag.currentImageUrl ? `<img src="${flag.currentImageUrl}" alt="Current asset for ${flag.title || flag.imageId || 'content'}" />` : '<div class="empty-preview">No current preview available.</div>'}
-                    </div>
-                    <div class="preview-card">
-                      <strong>Replacement preview</strong>
-                      <div class="empty-preview" data-replacement-preview="${flag.id}">Choose a file to preview it here.</div>
-                    </div>
+            ${flags.map((flag) => {
+              const expanded = state.expandedFlagId === flag.id;
+              const imageType = String(flag.imageType || '').toUpperCase();
+              const isVideo = ['VV', 'YT', 'VIDEO', 'HV'].includes(imageType);
+              const canReplace = !['EXC', 'FP', 'VV', 'YT', 'VIDEO', 'HV'].includes(imageType);
+              const imagePreview = flag.currentImageUrl && !isVideo
+                ? `<img src="${escapeHtml(flag.currentImageUrl)}" alt="Current asset for ${escapeHtml(flag.title || flag.imageId || 'content')}" loading="lazy" />`
+                : '';
+              const textPreview = String(flag.currentExcerpt || '').trim()
+                ? `<pre class="flag-content-text">${escapeHtml(flag.currentExcerpt)}</pre>` : '';
+              return `
+                <tr class="flag-summary-row" data-toggle-flag="${escapeHtml(flag.id)}" tabindex="0" aria-label="${expanded ? 'Hide' : 'Show'} content and review details for ${escapeHtml(flag.title || flag.imageId || 'content')}" style="cursor:pointer;">
+                  <td><strong>${escapeHtml(flag.title || flag.imageId || 'Untitled content')}</strong>${flag.isSystemQuarantine ? ' <span class="chip">System quarantine</span>' : ''}<div class="meta">${escapeHtml(imageType || '—')}${flag.releaseCatalog ? ' · ' + escapeHtml(flag.releaseCatalog) : ''}</div></td>
+                  <td>${flag.qualityLane ? `<strong>${escapeHtml(formatQualityLane(flag.qualityLane))}</strong><br>` : ''}${escapeHtml(flag.note || '—')}</td>
+                  <td>${escapeHtml(flag.flaggedByEmail || flag.flaggedByUid || '—')}</td>
+                  <td>${formatLastActive(flag.createdAt)}</td>
+                  <td>${escapeHtml(flag.status || 'pending')}<div class="meta">${expanded ? 'Hide details ▴' : 'View details ▾'}</div></td>
+                  <td><button type="button" class="secondary" data-toggle-flag="${escapeHtml(flag.id)}" aria-expanded="${expanded}">${expanded ? 'Hide' : 'View'}</button></td>
+                </tr>
+                ${expanded ? `<tr class="flag-detail-row"><td colspan="6"><div class="flag-detail-layout">
+                  <div>
+                    <div class="preview-card"><strong>Current content</strong>${imagePreview}${textPreview}${!imagePreview && !textPreview ? '<div class="empty-preview">No current image or text is available for this item.</div>' : ''}</div>
+                    ${canReplace ? `<div class="preview-card" style="margin-top:10px;"><strong>Replacement preview</strong><div class="empty-preview" data-replacement-preview="${escapeHtml(flag.id)}">Choose a file to preview it here.</div></div>` : ''}
                   </div>
-                </td>
-                <td>${flag.qualityLane ? `<div><strong>${escapeHtml(formatQualityLane(flag.qualityLane))}</strong></div>` : ''}${flag.note || '—'}</td>
-                <td>${flag.flaggedByEmail || flag.flaggedByUid || '—'}</td>
-                <td>${formatLastActive(flag.createdAt)}</td>
-                <td>
-                  <div>${flag.status || 'pending'}${flag.resolution ? ` · ${flag.resolution}` : ''}</div>
-                  ${flag.reviewNote ? `<div class="meta">Latest note: ${escapeHtml(flag.reviewNote)}</div>` : ''}
-                  ${renderFlagHistory(flag)}
-                </td>
-                <td>
-                  ${flag.isSystemQuarantine ? `
-                    <div class="actions" style="margin-top:0;">
-                      <button type="button" data-review-quarantine="${flag.imageId}" data-decision="release">Release asset</button>
-                      <button type="button" class="secondary" data-review-quarantine="${flag.imageId}" data-decision="delete">Delete asset</button>
-                    </div>
-                    <div class="meta">Release restores this asset to Poetry Please and poem scoring. Delete permanently removes it.</div>
-                  ` : `
-                    <div class="actions" style="margin-top:0;">
-                      <button type="button" data-review-flag="${flag.id}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Keep content</button>
-                      <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="recreate" ${flag.status !== 'pending' || flag.repairStatus === 'requested' ? 'disabled' : ''}>Request recreation</button>
-                      <button type="button" class="secondary" data-review-flag="${flag.id}" data-decision="delete" ${flag.status !== 'pending' ? 'disabled' : ''}>Delete content</button>
+                  <div class="flag-detail-actions">
+                    <div><strong>Review status</strong>: ${escapeHtml(flag.status || 'pending')}${flag.resolution ? ` · ${escapeHtml(flag.resolution)}` : ''}</div>
+                    ${flag.reviewNote ? `<div class="meta">Latest note: ${escapeHtml(flag.reviewNote)}</div>` : ''}
+                    ${renderFlagHistory(flag)}
+                    ${flag.isSystemQuarantine ? `
+                      <div class="actions"><button type="button" data-review-quarantine="${escapeHtml(flag.imageId)}" data-decision="release">Release asset</button><button type="button" class="secondary" data-review-quarantine="${escapeHtml(flag.imageId)}" data-decision="delete">Delete asset</button></div>
+                      <div class="meta">Release restores this asset to Poetry Please and poem scoring. Delete permanently removes it.</div>
+                    ` : `
+                      <div class="actions"><button type="button" data-review-flag="${escapeHtml(flag.id)}" data-decision="approved" ${flag.status !== 'pending' ? 'disabled' : ''}>Keep content</button><button type="button" class="secondary" data-review-flag="${escapeHtml(flag.id)}" data-decision="recreate" ${flag.status !== 'pending' || flag.repairStatus === 'requested' ? 'disabled' : ''}>Request recreation</button><button type="button" class="secondary" data-review-flag="${escapeHtml(flag.id)}" data-decision="delete" ${flag.status !== 'pending' ? 'disabled' : ''}>Delete content</button></div>
                       ${flag.repairStatus ? `<div class="meta">Repair: ${escapeHtml(flag.repairStatus)}</div>` : ''}
-                    </div>
-                    <div class="actions" style="margin-top:10px;flex-wrap:wrap;">
-                      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''} />
-                      <button type="button" class="secondary" data-upload-replacement="${flag.id}" ${flag.status !== 'pending' || ['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? 'disabled' : ''}>Replace asset</button>
-                    </div>
-                    ${['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') ? '<div class="meta">Replacement upload is currently available for graphics only.</div>' : ''}
-                  `}
-                </td>
-              </tr>
-            `).join('')}
+                      ${canReplace ? `<div class="actions"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" data-replacement-file="${escapeHtml(flag.id)}" ${flag.status !== 'pending' ? 'disabled' : ''} /><button type="button" class="secondary" data-upload-replacement="${escapeHtml(flag.id)}" ${flag.status !== 'pending' ? 'disabled' : ''}>Replace asset</button></div>` : '<div class="meta">Replacement upload is currently available for graphics only.</div>'}
+                    `}
+                  </div>
+                </div></td></tr>` : ''}
+              `;
+            }).join('')}
           </tbody>
         </table>
       `;
+
+      container.querySelectorAll('tr.flag-summary-row').forEach((row) => {
+        const toggle = () => {
+          state.expandedFlagId = state.expandedFlagId === row.dataset.toggleFlag ? '' : row.dataset.toggleFlag;
+          renderFlags();
+        };
+        row.addEventListener('click', toggle);
+        row.addEventListener('keydown', (event) => {
+          if (!['Enter', ' '].includes(event.key) || event.target !== row) return;
+          event.preventDefault();
+          toggle();
+        });
+      });
 
       container.querySelectorAll('[data-review-flag]').forEach((button) => {
         button.addEventListener('click', () => reviewFlag(button.getAttribute('data-review-flag'), button.getAttribute('data-decision')));
@@ -4951,11 +4974,13 @@
         ].join(' ').toLowerCase();
         const matchesQuery = !query || haystack.includes(query);
         const matchesStatus = state.flagStatusFilter === 'all' || (flag.status || 'pending') === state.flagStatusFilter;
+        const flagger = String(flag.flaggedByEmail || flag.flaggedByUid || '').trim().toLowerCase();
+        const matchesPerson = state.flagPersonFilter === 'all' || flagger === state.flagPersonFilter;
         const matchesType = state.flagTypeFilter === 'all'
           || (state.flagTypeFilter === 'graphics' ? !['EXC', 'FP', 'VV', 'YT'].includes(flag.imageType || '') : (flag.imageType || '') === state.flagTypeFilter);
         const lane = inferQualityLane(flag);
         const matchesQualityLane = state.flagQualityLaneFilter === 'all' || lane === state.flagQualityLaneFilter;
-        return matchesQuery && matchesStatus && matchesType && matchesQualityLane;
+        return matchesQuery && matchesStatus && matchesPerson && matchesType && matchesQualityLane;
       });
       const byTime = (flag) => normalizeTimestamp(flag.createdAt)?.getTime?.() || 0;
       const alpha = (value) => String(value || '').toLowerCase();
@@ -5090,6 +5115,13 @@
         const payload = await api('admin/contentFlags', { method: 'GET' });
         state.flags = payload.flags || [];
         state.repairRequests = payload.repairRequests || [];
+        const personFilter = document.getElementById('flag-person-filter');
+        const people = [...new Set(state.flags.map((flag) => String(flag.flaggedByEmail || flag.flaggedByUid || '').trim()).filter(Boolean))]
+          .sort((a, b) => a.localeCompare(b));
+        personFilter.innerHTML = '<option value="all">Flagged by anyone</option>' + people.map((person) =>
+          `<option value="${escapeHtml(person.toLowerCase())}">${escapeHtml(person)}</option>`).join('');
+        if (!people.some((person) => person.toLowerCase() === state.flagPersonFilter)) state.flagPersonFilter = 'all';
+        personFilter.value = state.flagPersonFilter;
         renderRepairRequests();
         renderFlags();
       } catch (err) {
@@ -5533,6 +5565,10 @@
       });
       document.getElementById("flag-status-filter").addEventListener("change", (event) => {
         state.flagStatusFilter = event.target.value || "all";
+        renderFlags();
+      });
+      document.getElementById("flag-person-filter").addEventListener("change", (event) => {
+        state.flagPersonFilter = event.target.value || "all";
         renderFlags();
       });
       document.getElementById("flag-type-filter").addEventListener("change", (event) => {
