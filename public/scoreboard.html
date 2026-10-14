@@ -76,6 +76,10 @@
     th.asc::after { content: "▲"; position: absolute; right: 8px; color: var(--accent); }
     th.desc::after { content: "▼"; position: absolute; right: 8px; color: var(--accent); }
     tr:hover td { background: rgba(47, 93, 98, 0.05); }
+    #scoreboard tbody tr.content-row { cursor: pointer; }
+    #scoreboard tbody tr.content-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .file-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .file-actions button { padding: 6px 9px; border-radius: 9px; white-space: nowrap; }
     .progress { width: 100%; background-color: #eee4d3; border-radius: 999px; overflow: hidden; height: 1rem; }
     .progress-fill { height: 100%; background: linear-gradient(90deg, #2f5d62, #6aa6ab); width: 0; transition: width 0.4s ease; }
     .empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 18px; }
@@ -239,7 +243,7 @@
               <th data-column="type">Type</th>
               <th data-column="charCount">Character Count</th>
               <th data-column="lineCount">Line Count</th>
-              <th data-column="fileLink">File Link</th>
+              <th data-column="fileLink">File</th>
               <th data-column="likes">Likes</th>
               <th data-column="dislikes">Dislikes</th>
               <th data-column="meh">Meh</th>
@@ -1033,16 +1037,22 @@
       pageRows.forEach((row, index) => {
         const isTextPreviewType = ['fp', 'exc'].includes(normalizeTypeForFilter(row.type)) && String(row.excerpt || '').trim();
         const textPreviewUrl = `/api/scoreboard/textPreview?id=${encodeURIComponent(row.imageId || '')}`;
-        const link = isTextPreviewType
-          ? `<a href="${escapeHtml(textPreviewUrl)}" class="text-preview-link" data-image-id="${escapeHtml(row.imageId)}">Open</a>`
-          : row.fileLink ? `<a href="${escapeHtml(row.fileLink)}" target="_blank" rel="noopener noreferrer">Open</a>` : '<span class="meta">No link</span>';
+        const openUrl = isTextPreviewType ? textPreviewUrl : row.fileLink;
+        const canDownload = /^https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/poetry-please\.firebasestorage\.app\/o\//.test(row.cloudLink || '')
+          && !['vv', 'yt', 'video', 'hv'].includes(normalizeTypeForFilter(row.type));
+        const fileActions = row.fileLink
+          ? `<div class="file-actions"><button type="button" class="copy-file-link" data-image-id="${escapeHtml(row.imageId)}">Copy</button>${canDownload ? `<button type="button" class="download-file" data-image-id="${escapeHtml(row.imageId)}">Download</button>` : ''}</div>`
+          : '<span class="meta">No file</span>';
+        const rowAttrs = openUrl
+          ? ` class="content-row" tabindex="0" role="link" aria-label="Open ${escapeHtml(row.imageId)}" data-image-id="${escapeHtml(row.imageId)}"`
+          : '';
         const typeLabel = formatContentTypeLabel(row.type);
         const charCount = Number(row.charCount || 0) || 0;
         const lineCount = Number(row.lineCount || 0) || 0;
         const displayBookTitle = canonicalBookTitle(row.bookTitle, row.releaseCatalog);
         const html = isUserView
-          ? `<tr>${isAuthorView ? `<td>${(currentPage - 1) * pageSize + index + 1}</td>` : ''}<td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${link}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
-          : `<tr><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${link}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
+          ? `<tr${rowAttrs}>${isAuthorView ? `<td>${(currentPage - 1) * pageSize + index + 1}</td>` : ''}<td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${fileActions}</td><td>${escapeHtml(row.vote || '')}</td></tr>`
+          : `<tr${rowAttrs}><td>${escapeHtml(row.imageId)}</td><td>${escapeHtml(row.author)}</td><td>${escapeHtml(row.poemTitle)}</td><td>${escapeHtml(displayBookTitle)}</td><td>${escapeHtml(typeLabel)}</td><td>${charCount || ''}</td><td>${lineCount || ''}</td><td>${fileActions}</td><td>${row.likes}</td><td>${row.dislikes}</td><td>${row.meh || 0}</td><td>${row.movedMe}</td><td>${row.totalVotes}</td><td>${row.score}</td><td>${formatScorePerVote(row.scorePerVote)}</td><td>${formatRate(row.movedMeRate)}</td></tr>`;
         tbody.insertAdjacentHTML('beforeend', html);
       });
     }
@@ -1814,15 +1824,67 @@
         currentPage += 1;
         loadScoreboardPage();
       });
-      document.querySelector('#scoreboard tbody').addEventListener('click', (event) => {
-        const link = event.target.closest('.text-preview-link');
-        if (!link) return;
-        event.preventDefault();
-        const imageId = link.dataset.imageId;
-        const row = filteredData.find((item) => item.imageId === imageId) || aggregatedData.find((item) => item.imageId === imageId) || rawVotes.find((item) => item.imageId === imageId);
+      const scoreboardBody = document.querySelector('#scoreboard tbody');
+      const findScoreboardRow = (imageId) => filteredData.find((item) => item.imageId === imageId);
+      const openScoreboardRow = (row) => {
+        const imageId = row.imageId || '';
+        if (['fp', 'exc'].includes(normalizeTypeForFilter(row.type)) && String(row.excerpt || '').trim()) {
+          const url = `/api/scoreboard/textPreview?id=${encodeURIComponent(imageId)}`;
+          const windowName = `poetry-please-text-${imageId.replace(/[^a-z0-9_-]/gi, '-')}`;
+          openComparisonWindow(url, windowName);
+        } else if (row.fileLink) {
+          window.open(row.fileLink, '_blank', 'noopener,noreferrer');
+        }
+      };
+      scoreboardBody.addEventListener('click', async (event) => {
+        const targetRow = event.target.closest('tr.content-row');
+        if (!targetRow) return;
+        const row = findScoreboardRow(targetRow.dataset.imageId);
         if (!row) return;
-        const windowName = `poetry-please-text-${String(imageId || 'preview').replace(/[^a-z0-9_-]/gi, '-')}`;
-        openComparisonWindow(link.href, windowName);
+        if (event.target.closest('.copy-file-link')) {
+          try {
+            await navigator.clipboard.writeText(row.fileLink);
+            setStatus('File link copied.');
+          } catch {
+            setStatus('Could not copy the file link.', true);
+          }
+          return;
+        }
+        const downloadButton = event.target.closest('.download-file');
+        if (downloadButton) {
+          downloadButton.disabled = true;
+          try {
+            const token = await getIdTokenOrNull();
+            const response = await fetch(`/api/authorAssetDownload/${encodeURIComponent(row.imageId)}`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
+            if (!response.ok) throw new Error('This file is not available for direct download.');
+            const blobUrl = URL.createObjectURL(await response.blob());
+            const filename = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]
+              || `${row.imageId || 'poetry-please-graphic'}.jpg`;
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+          } catch (error) {
+            setStatus(error.message || 'Download failed.', true);
+          } finally {
+            downloadButton.disabled = false;
+          }
+          return;
+        }
+        openScoreboardRow(row);
+      });
+      scoreboardBody.addEventListener('keydown', (event) => {
+        if (!['Enter', ' '].includes(event.key) || event.target.closest('button, a')) return;
+        const targetRow = event.target.closest('tr.content-row');
+        const row = targetRow && findScoreboardRow(targetRow.dataset.imageId);
+        if (!row) return;
+        event.preventDefault();
+        openScoreboardRow(row);
       });
       document.getElementById('teamProgressBody').addEventListener('click', (event) => {
         const row = event.target.closest('tr[data-user]');
