@@ -5407,8 +5407,8 @@
         }
 
         renderAdminPreviewToggle();
-        document.body.classList.toggle("contest-admin-only", !isAdmin && isContestAdmin);
-        if (!isAdmin && isContestAdmin) {
+        document.body.classList.toggle("contest-admin-only", !isAdmin && !isTeam && isContestAdmin);
+        if (!isAdmin && !isTeam && isContestAdmin) {
           document.querySelector("h1").textContent = "Contest Admin";
           document.querySelector("main.shell > p.lede").textContent = "Manage contest submissions and reviews without access to general site administration.";
           loadExpandedSections();
