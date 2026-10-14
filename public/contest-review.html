@@ -530,7 +530,7 @@
               '</td><td><button type="button" data-shortlist data-submission="' + escapeHtml(row.id) + '">' +
               (row.shortlisted ? "Remove from shortlist" : "Shortlist") +
               '</button></td><td><button type="button" data-compare data-submission="' + escapeHtml(row.id) + '">' +
-              (finalCompareIds.includes(row.id) ? "Remove" : "Compare") +
+              (finalCompareIds.includes(row.id) ? "Remove from compare" : "Compare") +
               "</button></td></tr>").join("") + "</tbody></table></div>"
           : "<p>No selection candidates yet.</p>");
     }
