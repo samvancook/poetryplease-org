@@ -510,7 +510,7 @@ test("only public embeds match a preserved event catalog", () => {
   const indexSource = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   assert.match(indexSource, /preservedEventReleaseCatalog\(item, releaseCatalog, BOOK_RELEASE_CATALOG_KEYS\)/);
   assert.match(indexSource, /const catalogs = includeEventCatalogs \? contentReleaseCatalogs\(item\) : \[item\?\.releaseCatalog\];/);
-  assert.match(indexSource, /const CONTENT_SNAPSHOT_VERSION = 3;/);
+  assert.match(indexSource, /const CONTENT_SNAPSHOT_VERSION = 4;/);
   const calls = indexSource.match(/filterContentByFeedFilters\([\s\S]*?\);/g) || [];
   const embedCall = calls.find((call) => call.includes("allContent, flaggedIds"));
   const appCall = calls.find((call) => call.includes("filterContentByFeedFilters(all, filters)"));
