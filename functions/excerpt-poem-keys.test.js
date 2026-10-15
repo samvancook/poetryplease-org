@@ -2,6 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { excerptHash } from "./excerpt-linebreaks.js";
 import { parsePoemKeySeed, planExcerptPoemKey, lookupExcerptPoemKey } from "./excerpt-poem-keys.js";
+import { parseDoc } from "./index.js";
+
+test("content feed projection carries the saved Catalog identity", () => {
+  const result = parseDoc({ id: "existing", data: () => ({ imageId: "existing", excerpt: "same text", poemKey: "BPP-00001", poemKeySource: "catalog_seed_2026-10-15", poemKeyConfidence: 1 }) });
+  assert.equal(result.poemKey, "BPP-00001");
+  assert.equal(result.poemKeySource, "catalog_seed_2026-10-15");
+  assert.equal(result.poemKeyConfidence, 1);
+  assert.equal(result.imageId, "existing");
+  assert.equal(result.excerpt, "same text");
+});
 
 test("CSV seed preserves quoted commas and multiline titles", () => {
   const seed = parsePoemKeySeed(`excerpt_hash,catalog_book,poem_key,match,poem_title\n${excerptHash("a line")},Roads,BPP-00001,unique,"Title, with\na newline"\n`);
