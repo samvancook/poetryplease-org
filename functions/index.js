@@ -8362,8 +8362,21 @@ export async function notifyWeaverRepair(requestId, apiKey, fetchImpl = fetch) {
   });
   if (!response.ok) throw new Error(`weaver_repair_notification_http_${response.status}`);
   const receipt = await response.json();
-  if (receipt?.ok !== true) throw new Error("weaver_repair_notification_invalid_receipt");
-  return receipt;
+  const record = receipt?.records?.find((row) => row.poetryPleaseRepairRequestId === requestId);
+  if (receipt?.ok !== true || receipt.repairRequestId !== requestId
+    || receipt.fetchedCount !== 1 || receipt.processedCount !== 1
+    || receipt.errorCount !== 0 || receipt.blockedCount !== 0 || !record
+    || !record.repairDestination
+    || (record.repairDestination === "pig" && (!record.pigJobId
+      || record.weaverRepairStatus !== "waiting_on_pig"))) {
+    throw new Error("weaver_repair_notification_invalid_receipt");
+  }
+  return {
+    repairRequestId: requestId,
+    repairDestination: record.repairDestination,
+    pigJobId: record.pigJobId || "",
+    weaverRepairStatus: record.weaverRepairStatus || "",
+  };
 }
 
 app.get(getBoth("/internal/repairRequests"), async (req, res) => {
@@ -12217,9 +12230,10 @@ export const weaverrepairnotify = onDocumentCreated({
   if (!current.exists || current.data()?.weaverNotificationStatus === "delivered") return;
   if (normalizeKey(current.data()?.action) !== "recreate") return;
   try {
-    await notifyWeaverRepair(event.params.requestId, POETRY_PLEASE_API_KEY_SECRET.value());
+    const receipt = await notifyWeaverRepair(event.params.requestId, POETRY_PLEASE_API_KEY_SECRET.value());
     await ref.set({
       weaverNotificationStatus: "delivered",
+      weaverNotificationReceipt: receipt,
       weaverNotifiedAt: FieldValue.serverTimestamp(),
       weaverNotificationError: FieldValue.delete(),
     }, { merge: true });
