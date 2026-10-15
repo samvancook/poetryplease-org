@@ -18,6 +18,13 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - next: visually verify an uploaded dummy banner and its crop on the entrant page; collect staff feedback on the builder and reviewer flow
   - launch gate: confirm whether every verified @buttonpoetry.com address should have reviewer access, and verify reviewer/Admin denial with a non-Button contestant account
   - next: confirm the ranked shortlist, admin override, export, and content-featuring path before declaring the Google Form/response-sheet replacement complete; the completed pilot entries are sufficient for the initial review check
+- Google Analytics tuning (tracking live since 2026-10-10; plan and audit notes in the project's `ga/` folder):
+  - done 2026-10-15: event data retention set to 14 months on all four GA properties; `vote` and `sign_up` marked as key events on poetry-please
+  - next (GA Admin, a few clicks): register custom dimensions `vote_value`, `content_type`, `author` (event scope) and `view`, `user_type` (user scope) under Admin > Custom definitions
+  - next (GA Admin): add `poetry-please.firebaseapp.com` under Data stream > Configure tag settings > List unwanted referrals; about 79 of 86 recent "Referral" sessions are the Google sign-in redirect returning from that domain
+  - next (GA Admin, buttonpoetry.com - GA4 property): un-mark `first_visit` as a key event; it inflates that property's key-event rate to about 87%
+  - optional follow-on: set Firebase `authDomain` to `poetryplease.org` so sign-in redirects stay on the site, after adding `https://poetryplease.org/__/auth/handler` to the Google OAuth client's authorized redirect URIs; deploy only after that URI is in place or Google sign-in breaks
+  - next: tag Mailchimp links with `utm_source=mailchimp&utm_medium=email&utm_campaign=…` (see `LINK_GUIDE.md`) and compare votes per session for Email vs Direct
 - Shared staff navigation (planned, incremental):
   - replace scattered page-specific links with a consistent, persistent navigation shell across the main app, Admin, Contest Builder, Contest Review, and other staff tools
   - show only destinations each signed-in role can use; preserve the current page, selected contest/program, and useful deep links when moving between screens
