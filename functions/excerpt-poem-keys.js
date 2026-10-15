@@ -36,7 +36,7 @@ export function parsePoemKeySeed(csv) {
   return byHash;
 }
 
-export function planExcerptPoemKey(data, seed) {
+export function planExcerptPoemKey(data, seed, { requireTitle = false } = {}) {
   if (data.poemKey) return { reason: "already_keyed" };
   if (!String(data.book || "").trim()) {
     if (data.poemKeySource === "no_book_source") return { reason: "already_no_book_source" };
@@ -47,6 +47,9 @@ export function planExcerptPoemKey(data, seed) {
   if (row.match !== "unique") return { reason: row.match || "unmatched" };
   if (!validKey(row.poem_key)) return { reason: "invalid_seed_key" };
   if (normalizePoemLabel(data.book) !== normalizePoemLabel(row.catalog_book)) return { reason: "book_mismatch" };
+  if (requireTitle && (!titleLabel(data.poem || data.title) || titleLabel(data.poem || data.title) !== titleLabel(row.poem_title))) {
+    return { reason: "poem_title_mismatch" };
+  }
   return { fields: { poemKey: row.poem_key, poemKeySource: POEM_KEY_SOURCE, poemKeyConfidence: 1 } };
 }
 
