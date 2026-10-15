@@ -16,6 +16,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
+import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 
 // Firebase Admin v12 (modular)
@@ -203,6 +204,20 @@ async function fetchCanonicalPoems(bookTitle) {
     && normalizeText(row?.title)
     && normalizeText(row?.served_text || row?.cleaned_text || row?.text)
   ));
+}
+
+const excerptPoemKeyCatalogCache = new Map();
+async function fetchExcerptPoemKeyRows(book) {
+  const key = normalizePoemLabel(book);
+  const cached = excerptPoemKeyCatalogCache.get(key);
+  if (cached && cached.expires > Date.now()) return cached.promise;
+  const entry = { expires: Date.now() + 30000, promise: null };
+  entry.promise = fetchCanonicalPoems(book).then((rows) => {
+    entry.expires = Date.now() + 5 * 60 * 1000;
+    return rows;
+  });
+  excerptPoemKeyCatalogCache.set(key, entry);
+  return entry.promise;
 }
 
 async function mapWithConcurrency(items, concurrency, mapper) {
@@ -3899,6 +3914,9 @@ function mapAdminContentDoc(collection, doc) {
     title: data.title || data.poem || "",
     poem: data.poem || "",
     excerpt: data.excerpt || "",
+    poemKey: data.poemKey || "",
+    poemKeySource: data.poemKeySource || "",
+    poemKeyConfidence: data.poemKeyConfidence ?? null,
     book: data.book || "",
     pageNumber: data.pageNumber || "",
     url: data.url || "",
@@ -4356,6 +4374,9 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
       err.duplicateOfImageId = primary.imageId || primary.imageID || primary.id;
       throw err;
     }
+  }
+  if (normalizeKey(type) === "excerpts") {
+    Object.assign(built.payload, await lookupExcerptPoemKey(built.payload, existing, fetchExcerptPoemKeyRows));
   }
   await ref.set({
     ...existing,
@@ -5087,6 +5108,9 @@ app.get(getBoth("/contentById"), async (req, res) => {
     item: mapToArr(item),
     imageId: item.imageId || "",
     contentId: item.contentId || "",
+    poemKey: item.poemKey || "",
+    poemKeySource: item.poemKeySource || "",
+    poemKeyConfidence: item.poemKeyConfidence ?? null,
   });
 });
 
