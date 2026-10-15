@@ -977,6 +977,8 @@
       </div>
       <div id="flagged-content-section-body" hidden>
         <p class="lede" style="margin-bottom:16px;max-width:none;">Review content flagged by authors, team members, or admins. Pending flags stay out of the regular feed until you resolve them.</p>
+        <p class="meta">For an excerpt or full poem, open its row to correct the title or text. Saving a correction resolves its pending flags and reopens author review. For text inside an image, replace the asset or request recreation. Changes to the book's source text also need to be corrected in Catalog so a later import keeps the fix.</p>
+        <button id="refresh-flagged-content" type="button" class="secondary" style="margin-bottom:16px;">Refresh flags and repairs</button>
         <details id="batch-flag-panel" class="flag-subpanel">
           <summary>Batch flag content</summary>
           <div class="flag-subpanel-body">
@@ -1190,17 +1192,12 @@
         if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
         if (!state.contentLibraryCollapsed) loadSectionOnce('library', loadContentLibrary);
         if (!state.idHygieneCollapsed) loadSectionOnce('health', () => Promise.all([loadWeaverExcHealth(), loadWeaverImportHealth()]));
-        if (!state.flaggedContentCollapsed &&
-            (document.getElementById('repair-requests-panel')?.open || document.getElementById('flags-panel')?.open)) {
-          loadSectionOnce('flags', loadFlags);
-        }
       } else if (roles.includes('contest_admin')) {
         if (!state.userSubmissionsCollapsed) loadSectionOnce('submissions', loadUserSubmissions);
-      } else if (roles.includes('team')) {
-        if (!state.flaggedContentCollapsed &&
-            (document.getElementById('repair-requests-panel')?.open || document.getElementById('flags-panel')?.open)) {
-          loadSectionOnce('flags', loadFlags);
-        }
+      }
+      if ((admin || roles.includes('team')) && !state.flaggedContentCollapsed &&
+          (document.getElementById('repair-requests-panel')?.open || document.getElementById('flags-panel')?.open)) {
+        loadSectionOnce('flags', loadFlags);
       }
     }
 
@@ -5266,7 +5263,11 @@
 
     async function loadFlags() {
       const statusEl = document.getElementById('flag-review-status');
+      const repairStatusEl = document.getElementById('repair-request-status');
       statusEl.textContent = 'Loading flagged content…';
+      statusEl.className = 'status';
+      repairStatusEl.textContent = 'Loading recreation requests…';
+      repairStatusEl.className = 'status';
       try {
         const payload = await api('admin/contentFlags', { method: 'GET' });
         state.flags = payload.flags || [];
@@ -5282,9 +5283,12 @@
         renderFlags();
       } catch (err) {
         console.error(err);
+        loadedAdminSections.delete('flags');
         document.getElementById('flag-review-list').innerHTML = '<div class="empty">Could not load flagged content.</div>';
         statusEl.textContent = err.message || 'Could not load flagged content.';
         statusEl.className = 'status error';
+        repairStatusEl.textContent = 'Could not load recreation requests. Use “Refresh flags and repairs” to retry.';
+        repairStatusEl.className = 'status error';
       }
     }
 
@@ -5708,6 +5712,10 @@
       document.getElementById("flagged-content-toggle").addEventListener("click", () => {
         state.flaggedContentCollapsed = !state.flaggedContentCollapsed;
         applyFlaggedContentCollapseState();
+      });
+      document.getElementById('refresh-flagged-content').addEventListener('click', () => {
+        loadedAdminSections.delete('flags');
+        loadSectionOnce('flags', loadFlags);
       });
       ['repair-requests-panel', 'flags-panel'].forEach((id) => {
         document.getElementById(id).addEventListener('toggle', (event) => {
