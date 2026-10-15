@@ -9185,43 +9185,58 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
   if (decision === "recreate") {
     const repairRef = db.collection(COLLECTIONS.contentRepairRequests).doc();
     const content = contentRecord?.data || {};
-    await repairRef.set({
-      status: "requested",
-      action: "recreate",
-      sourceFlagId: flagId,
-      imageId: flagData.imageId || "",
-      contentType: flagData.imageType || content.imageType || "",
-      author: flagData.author || content.author || "",
-      book: flagData.book || content.book || "",
-      title: flagData.title || content.title || content.poem || "",
-      releaseCatalog: flagData.releaseCatalog || content.releaseCatalog || "",
-      bookShortener: flagData.bookShortener || content.bookShortener || "",
-      issueReason: flagData.note || "",
-      requestNote: note,
-      originalCollection: contentRecord?.collection || "",
-      originalDocId: contentRecord?.docId || "",
-      originalContent: content,
-      requestedBy: ctx.decoded.uid,
-      requestedByEmail: ctx.decoded.email || "",
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-      history: [buildFlagHistoryEntry("recreation_requested", {
-        uid: ctx.decoded.uid,
-        email: ctx.decoded.email,
-      }, note)],
+    const repairResult = await db.runTransaction(async (tx) => {
+      const currentFlag = await tx.get(flagRef);
+      if (!currentFlag.exists) return { error: "flag_not_found", status: 404 };
+      const currentFlagData = currentFlag.data() || {};
+      if (currentFlagData.repairRequestId) {
+        return { repairRequestId: currentFlagData.repairRequestId };
+      }
+      if (normalizeKey(currentFlagData.status) !== "pending") {
+        return { error: "flag_not_pending", status: 409 };
+      }
+      tx.set(repairRef, {
+        status: "requested",
+        action: "recreate",
+        sourceFlagId: flagId,
+        imageId: currentFlagData.imageId || "",
+        contentType: currentFlagData.imageType || content.imageType || "",
+        author: currentFlagData.author || content.author || "",
+        book: currentFlagData.book || content.book || "",
+        title: currentFlagData.title || content.title || content.poem || "",
+        releaseCatalog: currentFlagData.releaseCatalog || content.releaseCatalog || "",
+        bookShortener: currentFlagData.bookShortener || content.bookShortener || "",
+        issueReason: currentFlagData.note || "",
+        requestNote: note,
+        originalCollection: contentRecord?.collection || "",
+        originalDocId: contentRecord?.docId || "",
+        originalContent: content,
+        requestedBy: ctx.decoded.uid,
+        requestedByEmail: ctx.decoded.email || "",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+        history: [buildFlagHistoryEntry("recreation_requested", {
+          uid: ctx.decoded.uid,
+          email: ctx.decoded.email,
+        }, note)],
+      });
+      tx.set(flagRef, {
+        repairRequestId: repairRef.id,
+        repairStatus: "requested",
+        reviewNote: note,
+        moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry(
+          "recreation_requested",
+          { uid: ctx.decoded.uid, email: ctx.decoded.email },
+          note
+        )),
+      }, { merge: true });
+      return { repairRequestId: repairRef.id };
     });
-    await flagRef.set({
-      repairRequestId: repairRef.id,
-      repairStatus: "requested",
-      reviewNote: note,
-      moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry(
-        "recreation_requested",
-        { uid: ctx.decoded.uid, email: ctx.decoded.email },
-        note
-      )),
-    }, { merge: true });
+    if (repairResult.error) {
+      return res.status(repairResult.status).json({ error: repairResult.error });
+    }
     invalidateFlaggedContentCache();
-    return res.json({ ok: true, repairRequestId: repairRef.id, status: "repair_requested" });
+    return res.json({ ok: true, repairRequestId: repairResult.repairRequestId, status: "repair_requested" });
   }
 
   if (decision === "delete" && contentRecord) {
