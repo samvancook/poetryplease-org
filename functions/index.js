@@ -1,6 +1,7 @@
 import { onRequest } from "firebase-functions/v2/https";
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { onSchedule } from "firebase-functions/v2/scheduler";
+import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import express from "express";
 import cors from "cors";
@@ -8351,6 +8352,20 @@ function repairRequestJson(doc) {
   };
 }
 
+export async function notifyWeaverRepair(requestId, apiKey, fetchImpl = fetch) {
+  if (!requestId || !apiKey) throw new Error("repair_notification_configuration_missing");
+  const response = await fetchImpl("https://weaver-912447899335.us-central1.run.app/api/repair-requests/notify", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": apiKey },
+    body: JSON.stringify({ repairRequestId: requestId }),
+    signal: AbortSignal.timeout(45000),
+  });
+  if (!response.ok) throw new Error(`weaver_repair_notification_http_${response.status}`);
+  const receipt = await response.json();
+  if (receipt?.ok !== true) throw new Error("weaver_repair_notification_invalid_receipt");
+  return receipt;
+}
+
 app.get(getBoth("/internal/repairRequests"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
@@ -12185,6 +12200,37 @@ app.use((req, res) => {
     error: "not_found",
     message: "Try /healthz, /imageTypes, /releaseCatalogs, /ratingsSummary, etc.",
   });
+});
+
+export const weaverrepairnotify = onDocumentCreated({
+  document: "contentRepairRequests/{requestId}",
+  database: "poetrypleasedatabase",
+  region: "us-central1",
+  memory: "256MiB",
+  timeoutSeconds: 60,
+  retry: true,
+  secrets: [POETRY_PLEASE_API_KEY_SECRET],
+}, async (event) => {
+  if (!event.data) return;
+  const ref = event.data.ref;
+  const current = await ref.get();
+  if (!current.exists || current.data()?.weaverNotificationStatus === "delivered") return;
+  if (normalizeKey(current.data()?.action) !== "recreate") return;
+  try {
+    await notifyWeaverRepair(event.params.requestId, POETRY_PLEASE_API_KEY_SECRET.value());
+    await ref.set({
+      weaverNotificationStatus: "delivered",
+      weaverNotifiedAt: FieldValue.serverTimestamp(),
+      weaverNotificationError: FieldValue.delete(),
+    }, { merge: true });
+  } catch (err) {
+    await ref.set({
+      weaverNotificationStatus: "retry_pending",
+      weaverNotificationError: err.name === "TimeoutError" ? "weaver_repair_notification_timeout" : err.message,
+      weaverNotificationAttemptedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    throw err;
+  }
 });
 
 export const qilibraryyearworker = onTaskDispatched({
