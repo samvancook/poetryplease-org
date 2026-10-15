@@ -128,7 +128,7 @@ const CONTENT_CACHE_TTL_MS = 15 * 60 * 1000;
 const CONTENT_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
-const CONTENT_SNAPSHOT_VERSION = 3;
+const CONTENT_SNAPSHOT_VERSION = 4;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const RATINGS_SNAPSHOT_DOC_ID = "ratings-summary";
 const RATINGS_SNAPSHOT_PATH = "system/ratings-summary";
@@ -396,7 +396,7 @@ app.use(
 app.use(express.json({ limit: "16mb" }));
 
 /** ====== HELPERS ====== */
-function parseDoc(snap) {
+export function parseDoc(snap) {
   const d = snap.data() || {};
   const imageId = d.imageId || d.imageID || d.videoId || "";
   const contentId = d.contentId || snap.id || "";
@@ -424,6 +424,9 @@ function parseDoc(snap) {
     sourceEventLabel: d.sourceEventLabel || "",
     imageType: d.imageType || "",
     excerpt: d.excerpt || "",
+    poemKey: d.poemKey || "",
+    poemKeySource: d.poemKeySource || "",
+    poemKeyConfidence: d.poemKeyConfidence ?? null,
     youtubeId: d.youtubeId || "",
     uploadTime: d.uploadTime || "",
     socialViews: Number(d.socialViews || 0) || 0,
