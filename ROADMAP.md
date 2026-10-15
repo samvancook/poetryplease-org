@@ -3,6 +3,13 @@
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
 ## Active Focus
+- Shared Catalog poem keys (bounded rollout, 2026-10-15; PR #210):
+  - attached Catalog-owned `poemKey`, source and confidence to 7,770 of 14,764 existing excerpts using current-text hash plus matching book; 20 random mappings passed live `/poem-keys/<key>` checks
+  - new excerpt writes look up a unique Catalog book/title key; ambiguous, missing-source or unavailable lookups remain unkeyed for review, and existing matching keys are preserved
+  - remaining: 665 book-label conflicts, 127 ambiguous matches, and 6,202 hashes absent from the seed; review these separately without guessing or changing excerpt IDs, text, votes, visibility or ordering timestamps
+  - rollback backup: https://drive.google.com/file/d/1msBxfoSfayFdWe6coFqtYpkfMf02Zu62/view ; verification: https://drive.google.com/file/d/1hS_ECUNQA6PqfeuE2Q3I8hgMW4x9rl4l/view
+  - undo with `node functions/backfill_excerpt_poem_keys.js --undo /path/to/downloaded-backup.json --apply`; this restores only the key metadata on unchanged mappings and refreshes the existing content feed
+- Repair quote-source follow-up (2026-10-15): North Of Omaha request `j2haBi5yCultXa0hx881` and THEY// HE `hZOR8r64CQmEPeybelX0` now carry verified source excerpts; Weaver confirmed their existing jobs each actionable once in P.I.G. Piano `DKJzR2G3UiMYwYUQ1mDl` and GHOST STORY `quwNpxfPPtYR5XaN9Ywx` remain blocked pending authoritative quote selection from their original source rows. Do not infer text from images or poem titles, or create new requests.
 - Contest program and judging workflow (live; initial pilot closed):
   - native Poetry Please intake is live with Google and email-link sign-in, My Submissions, required poem title, eligibility/terms checks, and an internal test program
   - three-reviewer Yes / Maybe / No adjudication and Admin totals are live; three synthetic entries reached three saved reviews, and the Admin totals display was repaired
