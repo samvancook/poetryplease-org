@@ -7930,6 +7930,111 @@ async function importWeaverFullPoemsPayload(rawPayload, actor = {}) {
   };
 }
 
+export function planExistingCatalogFullPoemUpdates(existing = [], poems = []) {
+  const existingByTitle = new Map();
+  const poemsByTitle = new Map();
+  for (const [rows, groups] of [[existing, existingByTitle], [poems, poemsByTitle]]) {
+    for (const row of rows) {
+      const key = normalizeCatalogLookupKey(row.title);
+      groups.set(key, [...(groups.get(key) || []), row]);
+    }
+  }
+  const updates = [];
+  const skipped = [];
+  for (const [key, rows] of existingByTitle) {
+    const matches = poemsByTitle.get(key) || [];
+    if (rows.length !== 1 || matches.length !== 1) {
+      skipped.push(...rows.map((row) => ({ id: row.id, reason: matches.length ? "ambiguous_title" : "unmatched_title" })));
+      continue;
+    }
+    const row = rows[0];
+    const poem = matches[0];
+    const excerpt = normalizeText(poem.served_text || poem.cleaned_text || poem.text);
+    if (!excerpt || !normalizeText(poem.poem_key)
+      || (row.poemKey && row.poemKey !== poem.poem_key)) {
+      skipped.push({ id: row.id, reason: "missing_or_conflicting_catalog_key" });
+      continue;
+    }
+    if (String(row.excerpt || "") === excerpt) continue;
+    updates.push({
+      id: row.id,
+      book: row.book,
+      title: row.title,
+      expectedExcerpt: String(row.excerpt || ""),
+      excerpt,
+      poemKey: poem.poem_key,
+    });
+  }
+  return { updates, skipped };
+}
+
+export async function applyCatalogFullPoemTextUpdate(update, authorVoteUserIds) {
+  const contentRef = db.collection(COLLECTIONS.fullPoems).doc(update.id);
+  return db.runTransaction(async (tx) => {
+    const [content, flags, votes, repairs] = await Promise.all([
+      tx.get(contentRef),
+      tx.get(db.collection(COLLECTIONS.contentFlags).where("imageId", "==", update.id)),
+      tx.get(db.collection(COLLECTIONS.votes).where("imageId", "==", update.id)),
+      tx.get(db.collection(COLLECTIONS.contentRepairRequests).where("imageId", "==", update.id)),
+    ]);
+    const current = content.data() || {};
+    if (!content.exists || current.book !== update.book || current.title !== update.title
+      || String(current.excerpt || "") !== update.expectedExcerpt
+      || (current.poemKey && current.poemKey !== update.poemKey)) {
+      throw new Error("content_changed_refresh_first");
+    }
+    const pendingFlags = flags.docs.filter((doc) => doc.data()?.status === "pending");
+    const authorVotes = votes.docs.filter((doc) => isActiveAuthorVote(doc.data(), authorVoteUserIds));
+    const sourceRepairs = repairs.docs.filter((doc) => {
+      const row = doc.data() || {};
+      return row.contentType === "FP" && row.originalCollection === COLLECTIONS.fullPoems
+        && row.status !== "resolved" && !row.replacementAssetId && !row.replacementAssetLink;
+    });
+    if (pendingFlags.length + authorVotes.length + sourceRepairs.length > 450) {
+      throw new Error("too_many_reviews_to_reopen");
+    }
+    const now = FieldValue.serverTimestamp();
+    const note = "Source text corrected from the published Catalog.";
+    const actor = { uid: "catalog-sync", email: "catalog-sync@poetryplease.org" };
+    tx.update(contentRef, {
+      excerpt: update.excerpt,
+      poemKey: update.poemKey,
+      poemKeySource: "catalog_full_poem_sync",
+      poemKeyConfidence: 1,
+      updatedAt: now,
+      updatedBy: actor.uid,
+    });
+    for (const flag of pendingFlags) {
+      tx.set(flag.ref, {
+        status: "resolved", resolution: "updated", repairStatus: "resolved",
+        currentExcerpt: update.excerpt, reviewNote: note,
+        reviewedBy: actor.uid, reviewedAt: now,
+        moderationHistory: FieldValue.arrayUnion(buildFlagHistoryEntry("text_corrected", actor, note)),
+      }, { merge: true });
+    }
+    for (const vote of authorVotes) {
+      tx.update(vote.ref, {
+        supersededAt: now, supersededReason: "content_corrected",
+        supersededByCatalogPoemKey: update.poemKey,
+      });
+    }
+    for (const repair of sourceRepairs) {
+      tx.update(repair.ref, {
+        status: "resolved", statusNote: note, resolvedAt: now, updatedAt: now,
+        history: FieldValue.arrayUnion({ action: "source_text_corrected", actor: actor.uid,
+          note, at: new Date().toISOString() }),
+      });
+    }
+    if (authorVotes.length) {
+      tx.set(db.collection(COLLECTIONS.systemState).doc(RATINGS_SNAPSHOT_DOC_ID), {
+        invalidatedAt: now,
+      }, { merge: true });
+    }
+    return { resolvedFlagCount: pendingFlags.length, supersededVoteCount: authorVotes.length,
+      resolvedRepairIds: sourceRepairs.map((doc) => doc.id) };
+  });
+}
+
 app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
@@ -7938,6 +8043,8 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
   try {
     const requestedBook = normalizeText(req.body?.book);
     const apply = req.body?.apply === true;
+    const updateExisting = req.body?.updateExisting === true;
+    const addMissing = req.body?.addMissing !== false;
     const catalogRecord = resolveCatalogBookRecord({ book: requestedBook });
     if (!catalogRecord || normalizeText(catalogRecord.entityType || "book") !== "book") {
       return res.status(404).json({ error: "canonical_book_not_found" });
@@ -7979,9 +8086,23 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
       });
     });
 
+    const planned = updateExisting ? planExistingCatalogFullPoemUpdates(existing, poems) : { updates: [], skipped: [] };
+    const planHash = sha256(JSON.stringify(planned.updates));
+    if (apply && updateExisting && req.body?.planHash !== planHash) {
+      return res.status(409).json({ error: "catalog_update_plan_changed", planHash });
+    }
     const results = [];
     if (apply) {
-      for (const item of missing) {
+      const authorVoteUserIds = planned.updates.length ? await getAuthorVoteUserIds() : new Set();
+      for (const update of planned.updates) {
+        try {
+          const reopened = await applyCatalogFullPoemTextUpdate(update, authorVoteUserIds);
+          results.push({ id: update.id, ok: true, created: false, ...reopened });
+        } catch (err) {
+          results.push({ id: update.id, ok: false, error: err.message || "catalog_update_failed" });
+        }
+      }
+      for (const item of addMissing ? missing : []) {
         const result = await upsertContentLibraryItem("fullpoems", item, {
           uid: "catalog-sync",
           email: "catalog-sync@poetryplease.org",
@@ -7990,6 +8111,10 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
       }
       if (results.length) {
         invalidateContentCache();
+        if (planned.updates.length) {
+          invalidateFlaggedContentCache();
+          invalidateRatingsSnapshot();
+        }
         await invalidateScoreboardSnapshot("catalog_full_poem_sync");
       }
     }
@@ -8004,7 +8129,14 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
       catalogPoemCount: poems.length,
       existingFpCount: existing.length,
       missingFpCount: missing.length,
-      appliedCount: results.length,
+      plannedUpdateCount: planned.updates.length,
+      planHash,
+      updates: planned.updates.map((row) => ({ id: row.id, title: row.title, poemKey: row.poemKey,
+        beforeCharacters: row.expectedExcerpt.length, afterCharacters: row.excerpt.length })),
+      skippedUpdates: planned.skipped,
+      appliedCount: results.filter((row) => row.ok !== false).length,
+      errorCount: results.filter((row) => row.ok === false).length,
+      results,
       missing: missing.map((row) => ({ id: row.docId, title: row.title })),
     });
   } catch (err) {

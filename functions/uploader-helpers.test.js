@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import {
   approvedQiLibrarySourceRows,
   buildQiLibraryWritebackValues,
@@ -516,4 +517,132 @@ test("only public embeds match a preserved event catalog", () => {
   const appCall = calls.find((call) => call.includes("filterContentByFeedFilters(all, filters)"));
   assert.ok(embedCall?.includes("includeEventCatalogs: true"), "embedBookLead includes event catalogs");
   assert.ok(appCall && !appCall.includes("includeEventCatalogs"), "fetchFiltered keeps releaseCatalog-only matching");
+});
+
+function catalogSyncFunction(name, globals = {}) {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const match = new RegExp(`export (?:async )?function ${name}\\(`).exec(source);
+  assert.ok(match, `exported function ${name} exists`);
+  const end = source.indexOf("\n}\n", match.index) + 2;
+  const declaration = source.slice(match.index, end).replace(/^export /, "");
+  return runInNewContext(`${declaration}; ${name}`, {
+    normalizeText: (value) => String(value || "").trim(),
+    normalizeKey: (value) => String(value || "").trim().toLowerCase(),
+    normalizeCatalogLookupKey: (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(),
+    ...globals,
+  });
+}
+
+test("Catalog text planning keeps the existing ID and requires an unambiguous title and key", () => {
+  const plan = catalogSyncFunction("planExistingCatalogFullPoemUpdates");
+  const result = plan([
+    { id: "OLD-FP-STABLE-ID", book: "Book", title: "Poem!", excerpt: "old text", driveLink: "keep" },
+  ], [{ title: "Poem", poem_key: "BPP-00001", served_text: "new\ntext" }]);
+  assert.equal(result.updates.length, 1);
+  assert.equal(result.updates[0].id, "OLD-FP-STABLE-ID");
+  assert.equal(result.updates[0].title, "Poem!");
+  assert.equal(result.updates[0].expectedExcerpt, "old text");
+  assert.equal(result.updates[0].excerpt, "new\ntext");
+  assert.equal(result.updates[0].poemKey, "BPP-00001");
+});
+
+test("Catalog text planning leaves repeated titles, unmatched titles, and conflicting keys alone", () => {
+  const plan = catalogSyncFunction("planExistingCatalogFullPoemUpdates");
+  const result = plan([
+    { id: "sonnet", title: "Sonnet", excerpt: "old" },
+    { id: "renamed", title: "Earlier title", excerpt: "old" },
+    { id: "conflict", title: "Known", excerpt: "old", poemKey: "BPP-00002" },
+    { id: "unchanged", title: "Same", excerpt: "same" },
+  ], [
+    { title: "Sonnet", poem_key: "BPP-00001", text: "one" },
+    { title: "Sonnet", poem_key: "BPP-00003", text: "two" },
+    { title: "New title", poem_key: "BPP-00004", text: "old" },
+    { title: "Known", poem_key: "BPP-00005", text: "new" },
+    { title: "Same", poem_key: "BPP-00006", text: "same" },
+  ]);
+  assert.equal(result.updates.length, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.skipped)), [
+    { id: "sonnet", reason: "ambiguous_title" },
+    { id: "renamed", reason: "unmatched_title" },
+    { id: "conflict", reason: "missing_or_conflicting_catalog_key" },
+  ]);
+  const duplicates = plan([{ id: "a", title: "Same" }, { id: "b", title: "Same" }], [
+    { title: "Same", poem_key: "BPP-00001", text: "new" },
+  ]);
+  assert.equal(duplicates.updates.length, 0);
+  assert.equal(duplicates.skipped.length, 2);
+});
+
+function catalogSyncTransactionFixture({ excerpt = "old text", book = "Book" } = {}) {
+  const rows = new Map([
+    ["fullPoems/stable", { imageId: "stable", book, title: "Poem", excerpt, driveLink: "keep", releaseYear: "2026", sourceRecordId: "original-source" }],
+    ["contentFlags/pending", { imageId: "stable", status: "pending", reason: "appended text" }],
+    ["contentFlags/resolved", { imageId: "stable", status: "resolved", reviewNote: "keep history" }],
+    ["votes/uid", { imageId: "stable", userId: "author-uid", voteType: "dislike" }],
+    ["votes/email", { imageId: "stable", userId: "author@example.com", voteType: "meh" }],
+    ["votes/staff", { imageId: "stable", userId: "staff", voteType: "like" }],
+    ["votes/history", { imageId: "stable", userId: "author-uid", supersededAt: "earlier" }],
+    ["contentRepairRequests/source", { imageId: "stable", contentType: "FP", originalCollection: "fullPoems", status: "in_progress", history: [] }],
+    ["contentRepairRequests/graphic", { imageId: "stable", contentType: "FPI", originalCollection: "graphics", status: "in_progress" }],
+  ]);
+  const writes = [];
+  const ref = (collection, id) => ({ collection, id, key: `${collection}/${id}` });
+  const snap = (key) => ({ id: key.split("/")[1], ref: ref(...key.split("/")), exists: rows.has(key), data: () => rows.get(key) });
+  const db = {
+    collection: (name) => ({ doc: (id) => ref(name, id), where: (field, op, value) => ({ collection: name, field, value }) }),
+    runTransaction: async (callback) => {
+      const queued = [];
+      const result = await callback({
+        get: async (target) => target.key ? snap(target.key) : { docs: [...rows.keys()]
+          .filter((key) => key.startsWith(`${target.collection}/`) && rows.get(key)[target.field] === target.value).map(snap) },
+        update: (target, fields) => queued.push({ target, fields }),
+        set: (target, fields) => queued.push({ target, fields }),
+      });
+      for (const write of queued) {
+        const current = { ...(rows.get(write.target.key) || {}) };
+        for (const [key, value] of Object.entries(write.fields)) {
+          current[key] = value?.union ? [...(current[key] || []), ...value.union] : value;
+        }
+        rows.set(write.target.key, current);
+        writes.push(write);
+      }
+      return result;
+    },
+  };
+  const apply = catalogSyncFunction("applyCatalogFullPoemTextUpdate", {
+    db, COLLECTIONS: { fullPoems: "fullPoems", contentFlags: "contentFlags", votes: "votes", contentRepairRequests: "contentRepairRequests", systemState: "systemState" },
+    RATINGS_SNAPSHOT_DOC_ID: "ratings",
+    FieldValue: { serverTimestamp: () => "now", arrayUnion: (...union) => ({ union }) },
+    buildFlagHistoryEntry: (action, actor, note) => ({ action, actor, note }),
+    isActiveAuthorVote: catalogSyncFunction("isActiveAuthorVote"),
+  });
+  return { apply, rows, writes };
+}
+
+test("Catalog text correction resolves source flags and repairs and reopens UID/email author votes without changing staff votes or metadata", async () => {
+  const fixture = catalogSyncTransactionFixture();
+  const result = await fixture.apply({ id: "stable", book: "Book", title: "Poem", expectedExcerpt: "old text", excerpt: "new\ntext", poemKey: "BPP-00001" }, new Set(["author-uid", "author@example.com"]));
+  assert.equal(result.resolvedFlagCount, 1);
+  assert.equal(result.supersededVoteCount, 2);
+  assert.deepEqual(Array.from(result.resolvedRepairIds), ["source"]);
+  assert.equal(fixture.rows.get("fullPoems/stable").excerpt, "new\ntext");
+  assert.equal(fixture.rows.get("fullPoems/stable").driveLink, "keep");
+  assert.equal(fixture.rows.get("fullPoems/stable").releaseYear, "2026");
+  assert.equal(fixture.rows.get("fullPoems/stable").sourceRecordId, "original-source");
+  assert.equal(fixture.rows.get("contentFlags/pending").status, "resolved");
+  assert.equal(fixture.rows.get("contentFlags/resolved").reviewNote, "keep history");
+  assert.equal(fixture.rows.get("contentRepairRequests/source").status, "resolved");
+  assert.equal(fixture.rows.get("contentRepairRequests/graphic").status, "in_progress");
+  assert.equal(fixture.rows.get("votes/uid").voteType, "dislike");
+  assert.equal(fixture.rows.get("votes/email").supersededAt, "now");
+  assert.equal(fixture.rows.get("votes/staff").supersededAt, undefined);
+  assert.equal(fixture.rows.get("votes/history").supersededAt, "earlier");
+});
+
+test("Catalog text correction rejects a concurrent edit or a wrong book before writing anything", async () => {
+  for (const options of [{ excerpt: "staff just edited this" }, { book: "Another book" }]) {
+    const fixture = catalogSyncTransactionFixture(options);
+    await assert.rejects(fixture.apply({ id: "stable", book: "Book", title: "Poem", expectedExcerpt: "old text", excerpt: "new", poemKey: "BPP-00001" }, new Set()), /content_changed_refresh_first/);
+    assert.equal(fixture.writes.length, 0);
+  }
 });
