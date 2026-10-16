@@ -34,6 +34,7 @@ const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVI
 const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
 const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
 const CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID = "button-poetry-s-fall-2026-short-form-contest-da82891d"; // Explicitly approved Fall contest only.
+const CONTEST_MAIL_IDENTITY = { fromEmail: "no-reply@buttonpoetry.com", fromName: "Button Poetry Contests", replyTo: "support@buttonpoetry.com" };
 const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -10889,7 +10890,7 @@ app.post(getBoth("/admin/contestOutcomeEmails/test"), async (req, res) => {
   try {
     const delivery = await sendAuthorInviteWithMandrill({
       apiKey, email, message: { subject, text: body },
-      tag: "poetry-please-contest-outcome-test",
+      tag: "poetry-please-contest-outcome-test", ...CONTEST_MAIL_IDENTITY,
     });
     await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
       deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -10945,7 +10946,7 @@ app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
   try {
     const delivery = await sendAuthorInviteWithMandrill({
       apiKey, email, message: { subject: recipient.subject, text: recipient.body },
-      tag: "poetry-please-contest-outcome",
+      tag: "poetry-please-contest-outcome", ...CONTEST_MAIL_IDENTITY,
     });
     await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
       deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -10993,7 +10994,7 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
     programName: normalizeText(programSnap.data()?.name || programSnap.data()?.title || programId), view, reviewUrl,
   });
   try {
-    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment" });
+    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment", ...CONTEST_MAIL_IDENTITY });
     await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
       deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return res.json({ ok: true, reviewerEmail, view, reviewUrl, assignmentCount: ids.length, delivery });
