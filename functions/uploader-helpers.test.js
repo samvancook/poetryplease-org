@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
+import { createHash } from "node:crypto";
 import {
   approvedQiLibrarySourceRows,
   buildQiLibraryWritebackValues,
@@ -631,6 +632,104 @@ function catalogSyncFunction(name, globals = {}) {
     ...globals,
   });
 }
+
+function contestGraphicsSource() {
+  const program = { id: "fall-program", name: "Fall Short Form", sourceEvent: "Fall Short Form" };
+  const submission = { id: "submission-123", submissionProgramId: program.id, contestSubmission: true,
+    contestOutcomeStatus: "circle", title: "Poem", text: "first line\n\nlast line", submitterDisplayName: "writer@example.test" };
+  const entrant = { submissionProgramId: program.id, firstName: "Actual", lastName: "Writer", phone: "private" };
+  const build = catalogSyncFunction("buildContestGraphicsRequest", {
+    sha256: (value) => createHash("sha256").update(value).digest("hex"),
+  });
+  return { program, submission, entrant, build };
+}
+
+test("contest graphics use stable submission provenance, exact line breaks and verified credits without contact details", () => {
+  const { program, submission, entrant, build } = contestGraphicsSource();
+  const request = build(program, submission, entrant);
+  assert.equal(request.contentType, "QI");
+  assert.equal(request.sourcePayload.author, "Actual Writer");
+  assert.equal(request.sourcePayload.quoteText, submission.text);
+  assert.equal(request.sourcePayload.submissionId, submission.id);
+  assert.equal(request.sourcePayload.programId, program.id);
+  assert.equal(JSON.stringify(request).includes("@"), false);
+  assert.equal(JSON.stringify(request).includes("private"), false);
+  assert.equal(build(program, { ...submission, title: "", text: "updated" }, entrant).graphicsRequestId, request.graphicsRequestId);
+  assert.equal(build(program, { ...submission, title: "" }, entrant).sourcePayload.poemTitle, "");
+  assert.equal(build(program, { ...submission, submitterDisplayName: "Chosen Pen Name" }, entrant).sourcePayload.author, "Chosen Pen Name");
+});
+
+test("contest graphics refuse unselected, archived, wrong-program and incomplete sources", () => {
+  const { program, submission, entrant, build } = contestGraphicsSource();
+  for (const patch of [{ contestOutcomeStatus: "undecided" }, { contestArchived: true }, { submissionProgramId: "another" }]) {
+    assert.throws(() => build(program, { ...submission, ...patch }, entrant), /selection_required/);
+  }
+  assert.throws(() => build(program, submission, { ...entrant, firstName: "", lastName: "" }), /source_incomplete/);
+});
+
+test("contest graphics return to one stable content ID and retain source attribution without inventing a book or title", async () => {
+  const { program, submission, entrant, build } = contestGraphicsSource();
+  const request = build(program, { ...submission, title: "" }, entrant);
+  const prepare = catalogSyncFunction("prepareContestGraphicReturn", {
+    COLLECTIONS: { contentSubmissions: "submissions" },
+    db: { collection: () => ({ where: (_, op, id) => {
+      assert.equal(op, "=="); assert.equal(id, "weaver:qi:canonical");
+      return { limit: () => ({ get: async () => ({ size: 1, docs: [{ id: submission.id,
+        data: () => ({ ...submission, contestGraphicsRequest: request }) }] }) }) };
+    } }) },
+  });
+  const item = { imageType: "QI", sourceRequestId: "weaver:qi:canonical", imageUrl: "saved.png", title: "guessed", book: "guessed", sourceCompletionId: "pig:1" };
+  const result = await prepare(item);
+  assert.equal(result.docId, "PP-CONTEST-QI-submission-123");
+  assert.equal(result.sourceSubmissionId, submission.id);
+  assert.equal(result.sourceProgramId, program.id);
+  assert.equal(result.title, ""); assert.equal(result.book, "");
+  assert.equal(result.author, "Actual Writer");
+  assert.equal(result.imageUrl, item.imageUrl);
+  assert.equal((await prepare({ ...item, sourceCompletionId: "pig:retry" })).docId, result.docId);
+});
+
+test("contest dispatch freezes a timed-out payload, saves the canonical receipt and reuses it on repeated sends", async () => {
+  const { program, submission, entrant, build } = contestGraphicsSource();
+  const state = { ...submission };
+  let handler, sends = 0;
+  const ref = { get: async () => ({ id: submission.id, exists: true, data: () => ({ ...state }) }),
+    set: async (values) => Object.assign(state, values) };
+  const db = { collection: (name) => ({ doc: () => name === "submissions" ? ref : {
+    get: async () => ({ exists: true, data: () => name === "programs" ? program : entrant }),
+  } }), runTransaction: async (callback) => callback({ get: () => ref.get(), set: (_, values) => ref.set(values) }) };
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf('app.post(getBoth("/internal/contestGraphicsHandoff")');
+  runInNewContext(source.slice(start, source.indexOf("async function importWeaverGraphicsPayload", start)), {
+    app: { post: (_, callback) => { handler = callback; } }, getBoth: (value) => value,
+    hasValidPoetryPleaseApiKey: () => true, normalizeText: (value) => String(value || "").trim(),
+    CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID: program.id, buildContestGraphicsRequest: build,
+    COLLECTIONS: { contentSubmissions: "submissions", submissionPrograms: "programs", submissionEntrants: "entrants" },
+    db, Date, AbortSignal, POETRY_PLEASE_API_KEY_SECRET: { value: () => "existing-key" },
+    FieldValue: { serverTimestamp: () => "now" },
+    fetch: async (_, options) => {
+      sends += 1;
+      const request = JSON.parse(options.body).requests[0];
+      if (sends === 1) throw new Error("timed_out");
+      assert.equal(request.sourcePayload.quoteText, submission.text);
+      return { ok: true, json: async () => ({ ok: true, records: [{ ...request, graphicsRequestId: "weaver:qi:canonical", handoffStatus: "requested" }] }) };
+    },
+  });
+  const responses = [];
+  const codes = [];
+  const res = { status: (code) => { codes.push(code); return res; }, json: (body) => responses.push(body) };
+  const req = { body: { programId: program.id, submissionId: submission.id } };
+  await handler(req, res);
+  assert.equal(codes[0], 502);
+  assert.equal(state.contestGraphicsStatus, "dispatch_failed");
+  state.text = "later edit must not create another request";
+  await handler(req, res);
+  assert.equal(state.contestGraphicsStatus, "queued");
+  assert.equal(state.contestGraphicsRequestId, "weaver:qi:canonical");
+  await handler(req, res);
+  assert.equal(sends, 2);
+  assert.equal(responses[2].alreadyDispatched, true);
+});
 
 test("Catalog text planning keeps the existing ID and requires an unambiguous title and key", () => {
   const plan = catalogSyncFunction("planExistingCatalogFullPoemUpdates");
