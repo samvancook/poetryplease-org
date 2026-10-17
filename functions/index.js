@@ -1172,6 +1172,9 @@ function mapSubmissionDoc(doc) {
     contestReviewTarget: Number(data.contestReviewTarget || 0) || 0,
     contestArchived: data.contestArchived === true,
     contestOutcomeStatus: data.contestOutcomeStatus || "undecided",
+    contestGraphicsStatus: data.contestGraphicsStatus || "",
+    contestGraphicsRequestId: data.contestGraphicsRequestId || "",
+    contestGraphicsContentId: data.contestGraphicsContentId || "",
     contestShortlisted: data.contestShortlisted === true,
     contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
     contestSpotCheckBatchId: data.contestSpotCheckBatchId || "",
@@ -4087,6 +4090,8 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   const sourceDriveFileId = normalizeText(body.sourceDriveFileId);
   if (sourceSystem) payload.sourceSystem = sourceSystem;
   if (sourceRecordId) payload.sourceRecordId = sourceRecordId;
+  if (normalizeText(body.sourceSubmissionId)) payload.sourceSubmissionId = normalizeText(body.sourceSubmissionId);
+  if (normalizeText(body.sourceProgramId)) payload.sourceProgramId = normalizeText(body.sourceProgramId);
   if (sourceDriveFileId) payload.sourceDriveFileId = sourceDriveFileId;
   if (normalizeText(body.excerptHash)) payload.excerptHash = normalizeText(body.excerptHash);
   if (normalizeText(body.normalizedExcerpt)) payload.normalizedExcerpt = normalizeText(body.normalizedExcerpt);
@@ -7470,10 +7475,156 @@ app.post(getBoth("/internal/idHygiene/applyPig"), async (req, res) => {
   }
 });
 
+export function buildContestGraphicsRequest(program, submission, entrant) {
+  if (!program.id || !program.name || !submission.id || submission.contestSubmission !== true
+      || submission.submissionProgramId !== program.id || submission.contestArchived === true
+      || !["winner", "circle"].includes(submission.contestOutcomeStatus)) {
+    throw Object.assign(new Error("contest_graphics_selection_required"), { status: 409 });
+  }
+  const displayName = normalizeText(submission.submitterDisplayName);
+  const author = displayName && !displayName.includes("@") && normalizeKey(displayName) !== "contest entrant"
+    ? displayName : [normalizeText(entrant.firstName), normalizeText(entrant.lastName)].filter(Boolean).join(" ");
+  const quoteText = normalizeText(submission.text);
+  if (!author || !quoteText || entrant.submissionProgramId !== program.id) {
+    throw Object.assign(new Error("contest_graphics_source_incomplete"), { status: 409 });
+  }
+  const sourceRecordId = `poetryplease:contest:${program.id}:${submission.id}`;
+  return {
+    graphicsRequestId: `weaver:contest:${sha256(sourceRecordId).slice(0, 32)}`,
+    sourceSystem: "poetry_please_contest",
+    sourceStatus: "needs_graphics",
+    contentType: "QI",
+    imageType: "QI",
+    sourcePayload: {
+      submissionId: submission.id,
+      programId: program.id,
+      recordId: sourceRecordId,
+      author,
+      poemTitle: normalizeText(submission.title),
+      // Weaver/P.I.G. use bookTitle to group queues. This is a contest label;
+      // the return adapter keeps the published record's actual book empty.
+      bookTitle: normalizeText(program.name),
+      quoteText,
+      contentType: "QI",
+      imageType: "QI",
+      releaseCatalog: "Contest",
+      sourceEvent: normalizeText(program.sourceEvent || program.name),
+      sourceEventLabel: normalizeText(program.sourceEventLabel || program.name),
+      outcome: submission.contestOutcomeStatus,
+      notes: "Selected contest piece: use the complete supplied text and author credit. The queue group is a contest, not a book. Preserve the supplied title; a blank title was intentionally not supplied. Return through Weaver graphics QC and the existing Poetry Please import.",
+    },
+  };
+}
+
+export async function prepareContestGraphicReturn(item) {
+  const requestId = normalizeText(item.sourceRequestId);
+  if (!requestId) return item;
+  const matches = await db.collection(COLLECTIONS.contentSubmissions)
+    .where("contestGraphicsRequestId", "==", requestId).limit(2).get();
+  if (!matches.size) return item;
+  if (matches.size !== 1) throw new Error("ambiguous_contest_graphics_request");
+  const doc = matches.docs[0];
+  const submission = doc.data();
+  const source = submission.contestGraphicsRequest?.sourcePayload;
+  if (!source || source.submissionId !== doc.id || source.programId !== submission.submissionProgramId
+      || submission.contestSubmission !== true || submission.contestArchived === true
+      || !["winner", "circle"].includes(submission.contestOutcomeStatus)
+      || normalizeText(item.imageType).toUpperCase() !== "QI") {
+    throw new Error("contest_graphics_return_identity_mismatch");
+  }
+  const contentId = `PP-CONTEST-QI-${doc.id}`;
+  return {
+    ...item,
+    docId: contentId, imageId: contentId, contentId,
+    sourceSubmissionId: doc.id,
+    sourceProgramId: source.programId,
+    sourceRecordId: source.recordId,
+    author: source.author,
+    title: source.poemTitle,
+    book: "", bookShortener: "", bookLink: "",
+    releaseCatalog: source.releaseCatalog,
+    sourceEvent: source.sourceEvent,
+    sourceEventLabel: source.sourceEventLabel,
+  };
+}
+
+app.post(getBoth("/internal/contestGraphicsHandoff"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const programId = normalizeText(req.body?.programId);
+  const submissionId = normalizeText(req.body?.submissionId);
+  // This release covers only Sam's explicitly authorized Fall 2026 selections.
+  if (programId !== CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID || !submissionId || submissionId.includes("/")) {
+    return res.status(400).json({ error: "contest_graphics_program_not_enabled" });
+  }
+  const ref = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
+  try {
+    const [programSnap, entrantSnap] = await Promise.all([
+      db.collection(COLLECTIONS.submissionPrograms).doc(programId).get(),
+      db.collection(COLLECTIONS.submissionEntrants).doc(submissionId).get(),
+    ]);
+    if (!programSnap.exists || !entrantSnap.exists) return res.status(404).json({ error: "contest_source_not_found" });
+    const reserved = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw Object.assign(new Error("submission_not_found"), { status: 404 });
+      const submission = { ...snap.data(), id: snap.id };
+      const prepared = buildContestGraphicsRequest({ ...programSnap.data(), id: programId }, submission, entrantSnap.data());
+      if (submission.contestGraphicsRequestId && ["queued", "imported"].includes(submission.contestGraphicsStatus)) {
+        return { alreadyDispatched: true, graphicsRequestId: submission.contestGraphicsRequestId };
+      }
+      if (submission.contestGraphicsStatus === "dispatching" && submission.contestGraphicsLeaseUntilMs > Date.now()) {
+        throw Object.assign(new Error("contest_graphics_dispatch_in_progress"), { status: 409 });
+      }
+      // Retain the original payload on a timed-out retry, even if source text
+      // was edited in the meantime. Weaver canonicalizes this identity itself.
+      const request = submission.contestGraphicsRequest || prepared;
+      tx.set(ref, {
+        contestGraphicsRequest: request,
+        contestGraphicsStatus: "dispatching",
+        contestGraphicsLeaseUntilMs: Date.now() + 90000,
+      }, { merge: true });
+      return { request };
+    });
+    if (reserved.alreadyDispatched) return res.json({ ok: true, programId, submissionId, ...reserved });
+    try {
+      const response = await fetch("https://weaver-912447899335.us-central1.run.app/graphics-handoff/requests", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": POETRY_PLEASE_API_KEY_SECRET.value() },
+        body: JSON.stringify({ requests: [reserved.request] }),
+        signal: AbortSignal.timeout(45000),
+      });
+      const body = await response.json();
+      const record = body.records?.[0];
+      if (!response.ok || body.ok !== true || body.records?.length !== 1 || !record?.graphicsRequestId
+          || record.contentType !== "QI" || record.handoffStatus === "blocked"
+          || record.sourcePayload?.submissionId !== submissionId || record.sourcePayload?.programId !== programId
+          || record.sourcePayload?.quoteText !== reserved.request.sourcePayload.quoteText) {
+        throw new Error("weaver_contest_graphics_invalid_receipt");
+      }
+      await ref.set({
+        contestGraphicsRequestId: record.graphicsRequestId,
+        contestGraphicsStatus: "queued",
+        contestGraphicsQueuedAt: FieldValue.serverTimestamp(),
+        contestGraphicsLeaseUntilMs: 0,
+        contestGraphicsError: "",
+      }, { merge: true });
+      return res.json({ ok: true, programId, submissionId, graphicsRequestId: record.graphicsRequestId, status: "queued" });
+    } catch (error) {
+      await ref.set({ contestGraphicsStatus: "dispatch_failed", contestGraphicsLeaseUntilMs: 0,
+        contestGraphicsError: error.message }, { merge: true });
+      throw error;
+    }
+  } catch (error) {
+    return res.status(error.status || 502).json({ error: error.message || "contest_graphics_dispatch_failed" });
+  }
+});
+
 async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor = {}) {
   const sourceRecords = flattenWeaverGraphicsRecords(rawPayload);
   const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record, { defaultImageType }));
-  const mappedItems = buildWeaverGraphicsImportItems(rawPayload, { defaultImageType });
+  const mappedItems = [];
+  for (const item of buildWeaverGraphicsImportItems(rawPayload, { defaultImageType })) {
+    mappedItems.push(await prepareContestGraphicReturn(item));
+  }
   const { acceptedItems, duplicateItems } = await buildWeaverGraphicsDuplicatePlan(mappedItems);
 
   if (!mappedItems.length) {
@@ -7504,6 +7655,15 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
   for (const item of [...acceptedItems, ...promotedDuplicateItems].slice(0, 500)) {
     try {
       const result = await upsertContentLibraryItem("graphics", item, actor);
+      if (item.sourceSubmissionId) {
+        await db.collection(COLLECTIONS.contentSubmissions).doc(item.sourceSubmissionId).set({
+          contestGraphicsStatus: "imported",
+          contestGraphicsContentId: result.item.id,
+          contestGraphicsAssetUrl: result.item.imageUrl || "",
+          contestGraphicsCompletionId: item.sourceCompletionId || "",
+          contestGraphicsImportedAt: FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
       results.push({
         ok: true,
         id: result.item?.id || "",
