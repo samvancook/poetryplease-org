@@ -4651,6 +4651,23 @@ async function listAllAuthUsers(limit = 1000) {
   return users;
 }
 
+export async function searchAuthUsersPage(query, pageToken = undefined, listUsers = (...args) => auth.listUsers(...args), readProfiles = async (uids) => {
+  const snapshots = await db.getAll(...uids.map((uid) => db.collection(COLLECTIONS.users).doc(uid)), { fieldMask: ["displayName"] });
+  return new Map(snapshots.map((snap) => [snap.id, snap.data() || {}]));
+}) {
+  const normalizedQuery = normalizeKey(query);
+  const page = await listUsers(1000, pageToken || undefined);
+  const missingNames = page.users.filter((user) => user.email && !user.displayName && !normalizeKey(user.email).includes(normalizedQuery));
+  const profiles = missingNames.length ? await readProfiles(missingNames.map((user) => user.uid)) : new Map();
+  return {
+    users: page.users.map((user) => user.displayName ? user : { ...user, displayName: profiles.get(user.uid)?.displayName || "" })
+      .filter((user) => [user.email, user.displayName]
+      .some((value) => normalizeKey(value).includes(normalizedQuery))),
+    scannedCount: page.users.length,
+    nextPageToken: page.pageToken || null,
+  };
+}
+
 
 async function getVoteCountsByUserId() {
   const counts = new Map();
@@ -12419,14 +12436,17 @@ app.get(getBoth("/admin/users"), async (req, res) => {
 
   const queryText = normalizeKey(req.query?.q || "");
   const exactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(queryText) ? queryText : "";
+  const searchPage = queryText && !exactEmail
+    ? await searchAuthUsersPage(queryText, normalizeText(req.query?.pageToken || ""))
+    : null;
   const [authUsers, voteStats] = await Promise.all([
-    exactEmail
+    searchPage ? Promise.resolve(searchPage.users) : exactEmail
       ? auth.getUserByEmail(exactEmail).then((user) => [user]).catch((error) => {
         if (error.code === "auth/user-not-found") return [];
         throw error;
       })
       : listAllAuthUsers(1000),
-    getVoteStatsByUserId(),
+    searchPage && !searchPage.users.length ? Promise.resolve(new Map()) : getVoteStatsByUserId(),
   ]);
   const synced = await Promise.all(authUsers.map((authUser) => syncUserRecordFromAuthUser(authUser)));
   const anonymousRows = [];
@@ -12498,7 +12518,13 @@ app.get(getBoth("/admin/users"), async (req, res) => {
     }
   }
 
-  res.json({ users: rows, syncedCount: authUsers.length });
+  res.json({
+    users: rows,
+    syncedCount: authUsers.length,
+    scannedCount: searchPage?.scannedCount ?? authUsers.length,
+    nextPageToken: searchPage?.nextPageToken || null,
+    searchComplete: !searchPage?.nextPageToken,
+  });
 });
 
 app.post(getBoth("/admin/users/:uid/roles"), async (req, res) => {

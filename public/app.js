@@ -2050,6 +2050,7 @@ let embedLockedItemId = '';
 let embedRotationTimer = null;
 const EMBED_ROTATION_MS = 45000;
 let selectedItemRecord = null;
+const sessionFlaggedContentIds = new Set();
 let routeItemConsumed = false;
 let routeItemUnavailable = false;
 let lockedLane = false;
@@ -3126,6 +3127,7 @@ function buildFilteredList(data) {
 
   // Dropdown filters
   list = list.filter(g => {
+    if (sessionFlaggedContentIds.has(normalizeFilterValue(g.id))) return false;
     if (!matchesSelectedType(g, selectedType)) return false;
     if (selectedCatalog && canonicalCatalogFilterValue(g.releaseCatalog) !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
@@ -3310,7 +3312,7 @@ async function refillCurrentViewWithRetry() {
   if (data) initQueueFromData(data);
 }
 
-function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false) {
+function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false, afterFlag = false) {
   idx = -1;
   currentItem = null;
   window.currentItem = null;
@@ -3318,6 +3320,8 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
   if (gal) {
     gal.innerHTML = retry
       ? '<p>Poetry, Please could not load the feed. Please try again.</p><button id="btn-feed-retry" type="button">Retry</button>'
+      : afterFlag
+      ? `<p>${message}</p><button id="btn-feed-retry" type="button">Retry this queue</button>`
       : lockedLane
       ? `<div style="text-align:center;max-width:520px;margin:32px auto;">
           <p style="font-size:22px;font-weight:700;margin:0 0 10px;">${message}</p>
@@ -3345,6 +3349,20 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
     container.appendChild(button);
   };
   addAuthorQueueButton(gal?.querySelector('div') || gal);
+  const addGraphicsQueueLink = (container) => {
+    if (!afterFlag || !container) return;
+    const url = new URL(window.location.href);
+    ['item', 'book', 'catalog', 'event', 'maxChars', 'maxLines', 'includeLengthMetadata'].forEach((key) => url.searchParams.delete(key));
+    url.searchParams.set('type', 'PROMO');
+    // Keep the author scope, including staff author previews.
+    if (filterByAuthor && selectedAuthor) url.searchParams.set('author', selectedAuthor);
+    const link = document.createElement('a');
+    link.href = url.href;
+    link.textContent = 'Review more graphics';
+    link.style.cssText = 'display:inline-block;min-height:44px;padding:12px 18px;box-sizing:border-box;border-radius:12px;background:#dceff1;color:#345f64;font-weight:700;';
+    container.appendChild(link);
+  };
+  addGraphicsQueueLink(gal);
   const mediaWrap = ensureMediaWrap();
   mediaWrap.querySelectorAll('.meta-row').forEach((n) => n.remove());
   const mediaBox = mediaWrap.querySelector('.media-box');
@@ -3359,12 +3377,13 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
     {
       const action = document.createElement('button');
       action.type = 'button';
-      action.textContent = lockedLane && !retry ? 'Show me more poems!' : 'Retry';
+      action.textContent = afterFlag ? 'Retry this queue' : lockedLane && !retry ? 'Show me more poems!' : 'Retry';
       action.style.cssText = 'min-height:44px;padding:10px 18px;border-radius:12px;border:0;background:#fff;color:#222;font-weight:700;pointer-events:auto;cursor:pointer;';
-      action.addEventListener('click', lockedLane && !retry ? exitLockedLane : ppAutoloadFirstItem);
+      action.addEventListener('click', lockedLane && !retry && !afterFlag ? exitLockedLane : ppAutoloadFirstItem);
       statusBox.appendChild(action);
     }
     addAuthorQueueButton(statusBox);
+    addGraphicsQueueLink(statusBox);
     mediaWrap.appendChild(statusBox);
   }
   const back = $('#btn-go-back');
@@ -3433,13 +3452,18 @@ function rebuildQueueAfterFilter() {
 }
 
 async function refreshAfterFlaggedContent(flaggedItemId) {
-  const data = await fetchLatestBatch().catch(() => null);
-  if (data) {
-    initQueueFromData(data);
-    return;
-  }
-
   const normalizedId = normalizeFilterValue(flaggedItemId);
+  sessionFlaggedContentIds.add(normalizedId);
+  if (normalizeFilterValue(selectedItemId) === normalizedId || normalizeFilterValue(selectedItemRecord?.id) === normalizedId) {
+    selectedItemId = '';
+    selectedItemRecord = null;
+    routeItemConsumed = true;
+    writeRouteState();
+  }
+  if (normalizeFilterValue(embedLockedItemId) === normalizedId) embedLockedItemId = '';
+  for (let i = historyStack.length - 1; i >= 0; i--) {
+    if (normalizeFilterValue(historyStack[i]?.id) === normalizedId) historyStack.splice(i, 1);
+  }
   queue = queue.filter((entry) => normalizeFilterValue(entry?.id) !== normalizedId);
   if (lastData) {
     const strip = (items) => (Array.isArray(items) ? items.filter((entry) => {
@@ -3453,12 +3477,20 @@ async function refreshAfterFlaggedContent(flaggedItemId) {
     };
   }
 
+  const data = await fetchBestBatchForCurrentView().catch(() => null);
+  if (data) initQueueFromData(data);
+  // If the flagged item was last, do not fall back to an earlier reviewed item.
+  else if (idx >= queue.length) queue = [];
+
   if (!queue.length) {
-    renderEmptyFilterState();
+    renderEmptyFilterState(data
+      ? 'Flag saved. You’ve reached the end of this review queue.'
+      : 'Flag saved. We could not load the next item. Retry this queue or review more graphics.', false, true);
     return;
   }
 
-  if (idx >= queue.length) idx = queue.length - 1;
+  if (data) return;
+  if (idx < 0) idx = 0;
   renderWhenReady(idx);
 }
 
@@ -3504,10 +3536,11 @@ async function flagCurrentContent() {
   }
 
   try {
-    await submitContentFlagWrapped(currentItem.id, trimmed);
+    const flaggedItemId = currentItem.id;
+    await submitContentFlagWrapped(flaggedItemId, trimmed);
     flashMessage('Flagged for review. We removed it from the regular feed for now.');
     if (window.PP?.toggleInfo) window.PP.toggleInfo(false);
-    await refreshAfterFlaggedContent(currentItem.id);
+    await refreshAfterFlaggedContent(flaggedItemId);
   } catch (err) {
     console.error('Flag content failed', err);
     alert(err?.message || 'Could not flag this content right now.');
@@ -3854,6 +3887,7 @@ function renderItemMedia(item) {
   }
 }
 function renderCurrent(item) {
+  if (sessionFlaggedContentIds.has(normalizeFilterValue(item?.id))) return;
   LoadTiming.mark('firstItemRender', item?.id || '');
   resetVoteButtons();
   currentItem = item;

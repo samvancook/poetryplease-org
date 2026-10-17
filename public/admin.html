@@ -492,7 +492,7 @@
       </div>
       <div id="users-section-body" hidden>
         <div class="controls">
-          <input id="search" type="search" placeholder="Search by email, name, or role" />
+          <input id="search" type="search" placeholder="Search all accounts by email or name" />
           <select id="role-filter">
             <option value="all">All roles</option>
             <option value="admin">Admins</option>
@@ -1111,6 +1111,7 @@
       exactUserResults: null,
       userSearchRequestId: 0,
       userSearchTimer: null,
+      userSearchLoading: false,
       query: "",
       roleFilter: "all",
       statusFilter: "all",
@@ -1545,7 +1546,9 @@
       const sortSelect = document.getElementById("user-sort");
       if (sortSelect) sortSelect.value = state.userSort;
       if (!users.length) {
-        container.innerHTML = '<div class="empty">No users match the current search.</div>';
+        container.innerHTML = state.userSearchLoading
+          ? '<div class="empty">Searching accounts…</div>'
+          : '<div class="empty">No users match the current search.</div>';
         return;
       }
 
@@ -1656,6 +1659,7 @@
         const payload = await api(`admin/users/${uid}/roles`, { method: "POST", body: { roles } });
         const idx = state.users.findIndex((user) => user.uid === uid);
         if (idx >= 0) state.users[idx] = { ...state.users[idx], ...(payload.user || {}) };
+        if (state.exactUserResults) state.exactUserResults = state.exactUserResults.map((user) => user.uid === uid ? { ...user, ...(payload.user || {}) } : user);
         renderUsers();
         setStatus("Roles updated.");
       } catch (err) {
@@ -1670,6 +1674,7 @@
         const payload = await api(`admin/users/${uid}/status`, { method: "POST", body: { disabled } });
         const idx = state.users.findIndex((user) => user.uid === uid);
         if (idx >= 0) state.users[idx] = { ...state.users[idx], ...(payload.user || {}) };
+        if (state.exactUserResults) state.exactUserResults = state.exactUserResults.map((user) => user.uid === uid ? { ...user, ...(payload.user || {}) } : user);
         renderUsers();
         setStatus(disabled ? "Account disabled." : "Account enabled.");
       } catch (err) {
@@ -1694,20 +1699,44 @@
       }
     }
 
-    async function lookupUserEmail(email, requestId) {
+    async function searchAllUsers(query, requestId) {
+      let pageToken = "";
+      let scannedCount = 0;
+      const matches = new Map();
       try {
-        const payload = await api("admin/users?q=" + encodeURIComponent(email), { method: "GET" });
-        if (requestId !== state.userSearchRequestId || state.query.trim().toLowerCase() !== email) return;
-        state.exactUserResults = payload.users || [];
-        renderUsers();
-        setStatus(state.exactUserResults.length ? "Found account for " + email + "." : "No account found for " + email + ".");
+        do {
+          const payload = await api("admin/users?q=" + encodeURIComponent(query) + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : ""), { method: "GET" });
+          if (requestId !== state.userSearchRequestId || state.query.trim().toLowerCase() !== query) return;
+          (payload.users || []).forEach((user) => matches.set(user.uid, user));
+          scannedCount += payload.scannedCount || 0;
+          pageToken = payload.nextPageToken || "";
+          state.exactUserResults = [...matches.values()];
+          state.userSearchLoading = !!pageToken;
+          // Keep accounts found beyond the initial list available to existing role/status actions.
+          const knownUsers = new Map(state.users.map((user) => [user.uid, user]));
+          matches.forEach((user, uid) => knownUsers.set(uid, user));
+          state.users = [...knownUsers.values()];
+          renderUsers();
+          setStatus(`${matches.size} matching accounts; searched ${scannedCount} accounts${pageToken ? " — searching remaining accounts…" : ". Search complete."}`);
+        } while (pageToken);
       } catch (err) {
         if (requestId !== state.userSearchRequestId) return;
-        setStatus("Could not search accounts: " + err.message, true);
+        state.userSearchLoading = false;
+        document.getElementById("results").innerHTML = '<div class="empty">Search incomplete. Refresh users to try again.</div>';
+        setStatus("Account search incomplete: " + err.message, true);
       }
     }
 
     async function loadUsers() {
+      const query = state.query.trim().toLowerCase();
+      if (query.length >= 2) {
+        const requestId = ++state.userSearchRequestId;
+        clearTimeout(state.userSearchTimer);
+        state.exactUserResults = [];
+        state.userSearchLoading = true;
+        renderUsers();
+        return searchAllUsers(query, requestId);
+      }
       setStatus("Loading users…");
       try {
         const payload = await api("admin/users", { method: "GET" });
@@ -5609,13 +5638,15 @@
         state.exactUserResults = null;
         state.userSearchRequestId += 1;
         clearTimeout(state.userSearchTimer);
+        const query = state.query.trim().toLowerCase();
+        state.userSearchLoading = query.length >= 2;
+        if (state.userSearchLoading) state.exactUserResults = [];
         renderUsers();
-        const email = state.query.trim().toLowerCase();
-        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (state.userSearchLoading) {
           const requestId = state.userSearchRequestId;
-          setStatus("Searching all accounts for " + email + "…");
-          state.userSearchTimer = setTimeout(() => lookupUserEmail(email, requestId), 250);
-        }
+          setStatus("Searching all accounts for " + query + "…");
+          state.userSearchTimer = setTimeout(() => searchAllUsers(query, requestId), 350);
+        } else setStatus(query ? "Enter at least two characters to search all accounts." : `Showing ${state.users.length} loaded users. Enter a name or email to search all accounts.`);
       });
       document.getElementById("role-filter").addEventListener("change", (event) => {
         state.roleFilter = event.target.value || "all";
