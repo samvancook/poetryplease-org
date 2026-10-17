@@ -235,6 +235,111 @@ test("cross-instance cache generations reject invalidated or newer snapshots", (
   assert.equal(isCacheGenerationCurrent({ sourceBuiltAtMs: 200, snapshotBuiltAtMs: 300, invalidatedAtMs: 100 }), false);
 });
 
+function contentCacheFixture() {
+  const state = { meta: {}, rows: [{ imageId: "original", imageUrl: "old" }], files: new Map(), sequence: 0 };
+  const clone = (value) => structuredClone(value);
+  const ref = {
+    async get() { return { data: () => clone(state.meta) }; },
+    async set(values) {
+      for (const [key, value] of Object.entries(values)) {
+        state.meta[key] = value?.increment ? Number(state.meta[key] || 0) + value.increment : value;
+      }
+    },
+  };
+  const db = {
+    collection: () => ({ doc: () => ref }),
+    runTransaction: async (callback) => callback({ get: () => ref.get(), set: (_, values) => ref.set(values) }),
+  };
+  const storage = { bucket: () => ({ file: (name) => ({
+    async save(bytes) {
+      if (state.beforeSave) await state.beforeSave(bytes);
+      state.files.set(name, bytes);
+    },
+    async download() { return [Buffer.from(state.files.get(name))]; },
+    async delete() { state.files.delete(name); },
+  }) }) };
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const block = source.slice(source.indexOf("async function invalidateContentCache()"), source.indexOf("async function findContentRecordByImageId"));
+  const instance = () => runInNewContext(`${block}; ({ getAllContentCached, invalidateContentCache })`, {
+    db, storage, Buffer, Date,
+    COLLECTIONS: { systemState: "systemState" },
+    CONTENT_SNAPSHOT_DOC_ID: "content-feed", CONTENT_SNAPSHOT_PATH: "system/content-feed/latest.json",
+    CONTENT_SNAPSHOT_VERSION: 5, CONTENT_CACHE_TTL_MS: 900000, CONTENT_SNAPSHOT_TTL_MS: 86400000,
+    contentCache: { builtAt: 0, generation: null, payload: null, inFlight: null, inFlightGeneration: null },
+    FieldValue: { increment: (n) => ({ increment: n }), serverTimestamp: () => new Date() },
+    randomBytes: () => ({ toString: () => String(++state.sequence) }),
+    timestampToMs: (value) => value ? new Date(value).getTime() : 0,
+    normalizeText: (value) => String(value || "").trim(),
+    canonicalizeContentRecord: (item) => ({ ...item, canonicalized: true }),
+    getAllContent: async () => {
+      const captured = clone(state.rows);
+      if (state.beforeRead) await state.beforeRead();
+      return captured;
+    },
+    console: { info() {}, warn() {} },
+  });
+  return { state, instance };
+}
+
+function deferredCacheStep() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+test("a repair refreshes another warm instance immediately without waiting for the TTL", async () => {
+  const { state, instance } = contentCacheFixture();
+  const reviewer = instance();
+  const publicViewer = instance();
+  assert.equal((await publicViewer.getAllContentCached())[0].imageUrl, "old");
+  state.rows[0].imageUrl = "accepted-replacement";
+  await reviewer.invalidateContentCache();
+  const updated = await publicViewer.getAllContentCached();
+  assert.equal(updated[0].imageUrl, "accepted-replacement");
+  assert.equal(updated[0].canonicalized, true);
+  assert.equal(state.meta.generation, 1);
+  assert.equal(state.files.size, 1);
+});
+
+test("a repair during a collection read cannot publish the captured old graphic", async () => {
+  const { state, instance } = contentCacheFixture();
+  const viewer = instance();
+  const started = deferredCacheStep();
+  const release = deferredCacheStep();
+  state.beforeRead = async () => { state.beforeRead = null; started.resolve(); await release.promise; };
+  const pending = viewer.getAllContentCached();
+  await started.promise;
+  state.rows[0].imageUrl = "accepted-replacement";
+  await instance().invalidateContentCache();
+  release.resolve();
+  assert.equal((await pending)[0].imageUrl, "accepted-replacement");
+  assert.equal(JSON.parse(state.files.get(state.meta.storagePath))[0].imageUrl, "accepted-replacement");
+});
+
+test("an older in-flight upload cannot overwrite a newer snapshot's bytes", async () => {
+  const { state, instance } = contentCacheFixture();
+  const started = deferredCacheStep();
+  const release = deferredCacheStep();
+  state.beforeSave = async () => { state.beforeSave = null; started.resolve(); await release.promise; };
+  const oldBuild = instance().getAllContentCached();
+  await started.promise;
+  state.rows[0].imageUrl = "accepted-replacement";
+  const reviewer = instance();
+  await reviewer.invalidateContentCache();
+  await reviewer.getAllContentCached();
+  const publishedPath = state.meta.storagePath;
+  release.resolve();
+  assert.equal((await oldBuild)[0].imageUrl, "accepted-replacement");
+  assert.equal(JSON.parse(state.files.get(publishedPath))[0].imageUrl, "accepted-replacement");
+});
+
+test("a fresh instance re-canonicalizes an existing durable snapshot", async () => {
+  const { state, instance } = contentCacheFixture();
+  await instance().getAllContentCached();
+  state.beforeRead = () => { throw new Error("must reuse durable snapshot"); };
+  assert.equal((await instance().getAllContentCached())[0].canonicalized, true);
+});
+
 test("QI Library graphics derive the canonical content ID required by the writer", () => {
   assert.equal(qiLibraryGraphicBaseId({
     bookShortener: "COTT",
@@ -456,13 +561,7 @@ test("verified Book Info product links are present in the Poetry Please lookup",
   );
 });
 
-test("durable content snapshots are re-canonicalized before serving", () => {
-  const indexSource = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-  assert.match(
-    indexSource,
-    /contentCache\.payload = snapshot\.payload\.map\(canonicalizeContentRecord\);/
-  );
-});
+
 
 
 const bookReleaseCatalogKeys = new Set(
@@ -511,7 +610,7 @@ test("only public embeds match a preserved event catalog", () => {
   const indexSource = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   assert.match(indexSource, /preservedEventReleaseCatalog\(item, releaseCatalog, BOOK_RELEASE_CATALOG_KEYS\)/);
   assert.match(indexSource, /const catalogs = includeEventCatalogs \? contentReleaseCatalogs\(item\) : \[item\?\.releaseCatalog\];/);
-  assert.match(indexSource, /const CONTENT_SNAPSHOT_VERSION = 4;/);
+  assert.match(indexSource, /const CONTENT_SNAPSHOT_VERSION = 5;/);
   const calls = indexSource.match(/filterContentByFeedFilters\([\s\S]*?\);/g) || [];
   const embedCall = calls.find((call) => call.includes("allContent, flaggedIds"));
   const appCall = calls.find((call) => call.includes("filterContentByFeedFilters(all, filters)"));

@@ -129,7 +129,7 @@ const CONTENT_CACHE_TTL_MS = 15 * 60 * 1000;
 const CONTENT_SNAPSHOT_TTL_MS = 24 * 60 * 60 * 1000;
 const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
-const CONTENT_SNAPSHOT_VERSION = 4;
+const CONTENT_SNAPSHOT_VERSION = 5;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 const RATINGS_SNAPSHOT_DOC_ID = "ratings-summary";
 const RATINGS_SNAPSHOT_PATH = "system/ratings-summary";
@@ -145,10 +145,11 @@ const CANONICAL_POEM_COUNT_TTL_MS = 6 * 60 * 60 * 1000;
 const canonicalPoemCountCache = new Map();
 let contentCache = {
   builtAt: 0,
+  generation: null,
   payload: null,
   inFlight: null,
+  inFlightGeneration: null,
 };
-let contentSnapshotInvalidatedAt = 0;
 let flaggedContentCache = {
   builtAt: 0,
   payload: null,
@@ -481,27 +482,29 @@ async function getAllContent() {
   return [...g, ...e, ...fp, ...v];
 }
 
-function invalidateContentCache() {
+async function invalidateContentCache() {
   contentCache.builtAt = 0;
+  contentCache.generation = null;
   contentCache.payload = null;
   contentCache.inFlight = null;
-  contentSnapshotInvalidatedAt = Date.now();
-  db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).set({
+  contentCache.inFlightGeneration = null;
+  await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).set({
+    generation: FieldValue.increment(1),
     invalidatedAt: FieldValue.serverTimestamp(),
     builtAt: null,
-  }, { merge: true }).catch((err) => {
-    console.warn("Content snapshot invalidation failed", err);
-  });
+  }, { merge: true });
 }
 
-async function readContentSnapshot() {
-  const metaSnap = await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).get();
-  if (!metaSnap.exists) return null;
-  const meta = metaSnap.data() || {};
+async function readContentCacheMetadata() {
+  const snap = await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).get();
+  return snap.data() || {};
+}
+
+async function readContentSnapshot(meta) {
+  if (!meta) meta = await readContentCacheMetadata();
   const builtAtMs = timestampToMs(meta.builtAt);
   const storagePath = normalizeText(meta.storagePath || CONTENT_SNAPSHOT_PATH);
   if (!builtAtMs || !storagePath || Number(meta.version || 0) !== CONTENT_SNAPSHOT_VERSION) return null;
-  if (contentSnapshotInvalidatedAt && builtAtMs <= contentSnapshotInvalidatedAt) return null;
 
   const [buffer] = await storage.bucket().file(storagePath).download();
   const payload = JSON.parse(buffer.toString("utf8"));
@@ -513,68 +516,101 @@ async function readContentSnapshot() {
     console.warn("Content snapshot missing identifiers; rebuilding from Firestore");
     return null;
   }
-  return { payload, builtAtMs };
+  return { payload, builtAtMs, storagePath };
 }
 
-async function writeContentSnapshot(payload) {
+async function writeContentSnapshot(payload, generation) {
   const builtAtMs = Date.now();
-  const file = storage.bucket().file(CONTENT_SNAPSHOT_PATH);
+  // Each build gets its own object: an older build must never overwrite the
+  // bytes referenced by a newer snapshot's metadata.
+  const storagePath = CONTENT_SNAPSHOT_PATH.replace("latest.json", `${randomBytes(16).toString("hex")}.json`);
+  const file = storage.bucket().file(storagePath);
   await file.save(JSON.stringify(payload), {
     contentType: "application/json; charset=utf-8",
     resumable: false,
     metadata: { cacheControl: "no-store, max-age=0" },
   });
-  await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).set({
-    storagePath: CONTENT_SNAPSHOT_PATH,
-    version: CONTENT_SNAPSHOT_VERSION,
-    builtAt: new Date(builtAtMs),
-    contentCount: payload.length,
-    updatedBy: "server",
-  }, { merge: true });
-  contentSnapshotInvalidatedAt = 0;
-  return builtAtMs;
+  const ref = db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID);
+  const published = await db.runTransaction(async (tx) => {
+    const meta = (await tx.get(ref)).data() || {};
+    if (Number(meta.generation || 0) !== generation) return false;
+    tx.set(ref, {
+      storagePath,
+      version: CONTENT_SNAPSHOT_VERSION,
+      builtAt: new Date(builtAtMs),
+      contentCount: payload.length,
+      updatedBy: "server",
+    }, { merge: true });
+    return { previousPath: normalizeText(meta.storagePath) };
+  });
+  if (!published) {
+    await file.delete({ ignoreNotFound: true });
+    return false;
+  }
+  if (published.previousPath && published.previousPath !== storagePath) {
+    storage.bucket().file(published.previousPath).delete({ ignoreNotFound: true }).catch((err) => {
+      console.warn("Previous content snapshot cleanup failed", err);
+    });
+  }
+  return true;
 }
 
 async function getAllContentCached({ forceRefresh = false } = {}) {
+  // This single shared-document read also checks warm instances. A local
+  // invalidation alone cannot refresh the other instances serving the feed.
+  const meta = await readContentCacheMetadata();
+  const generation = Number(meta.generation || 0);
   const now = Date.now();
-  if (!forceRefresh && contentCache.payload && (now - contentCache.builtAt) < CONTENT_CACHE_TTL_MS) {
+  if (!forceRefresh && contentCache.generation === generation && contentCache.payload && (now - contentCache.builtAt) < CONTENT_CACHE_TTL_MS) {
     return contentCache.payload;
   }
-  if (!forceRefresh && contentCache.inFlight) {
+  if (!forceRefresh && contentCache.inFlightGeneration === generation && contentCache.inFlight) {
     return contentCache.inFlight;
   }
-  contentCache.inFlight = (async () => {
+  const build = (async () => {
     const startedAt = Date.now();
+    let payload = null;
     if (!forceRefresh) {
       try {
-        const snapshot = await readContentSnapshot();
+        const snapshot = await readContentSnapshot(meta);
         if (snapshot && (now - snapshot.builtAtMs) < CONTENT_SNAPSHOT_TTL_MS) {
-          contentCache.payload = snapshot.payload.map(canonicalizeContentRecord);
-          // Memory freshness starts when the snapshot is loaded, not when the
-          // durable snapshot was originally built.
-          contentCache.builtAt = Date.now();
-          console.info("Content cache loaded", { source: "snapshot", count: snapshot.payload.length, durationMs: Date.now() - startedAt });
-          return contentCache.payload;
+          payload = snapshot.payload.map(canonicalizeContentRecord);
         }
       } catch (err) {
         console.warn("Content snapshot read failed; falling back to Firestore", err);
       }
     }
 
-    const payload = (await getAllContent()).map(canonicalizeContentRecord);
+    if (!payload) {
+      payload = (await getAllContent()).map(canonicalizeContentRecord);
+      try {
+        if (!await writeContentSnapshot(payload, generation)) {
+          return getAllContentCached();
+        }
+      } catch (err) {
+        console.warn("Content snapshot write failed", err);
+      }
+    }
+    // A repair can be accepted while the snapshot download or rebuild runs.
+    // Discard that generation instead of publishing its old content locally.
+    const current = await readContentCacheMetadata();
+    if (Number(current.generation || 0) !== generation) {
+      return getAllContentCached();
+    }
     contentCache.payload = payload;
     contentCache.builtAt = Date.now();
-    console.info("Content cache loaded", { source: "firestore", count: payload.length, durationMs: Date.now() - startedAt });
-    try {
-      await writeContentSnapshot(payload);
-    } catch (err) {
-      console.warn("Content snapshot write failed", err);
-    }
-    return contentCache.payload;
+    contentCache.generation = generation;
+    console.info("Content cache loaded", { count: payload.length, durationMs: Date.now() - startedAt });
+    return payload;
   })().finally(() => {
-    contentCache.inFlight = null;
+    if (contentCache.inFlight === build) {
+      contentCache.inFlight = null;
+      contentCache.inFlightGeneration = null;
+    }
   });
-  return contentCache.inFlight;
+  contentCache.inFlight = build;
+  contentCache.inFlightGeneration = generation;
+  return build;
 }
 
 async function findContentRecordByImageId(imageId) {
@@ -2551,7 +2587,7 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
     });
   }
   if (results.some((row) => row.ok)) {
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot("pig_id_hygiene");
   }
   return results;
@@ -6924,7 +6960,7 @@ app.post(getBoth("/admin/contentQuarantine/:imageId/review"), async (req, res) =
     }, { merge: true });
   }
 
-  invalidateContentCache();
+  await invalidateContentCache();
   await invalidateScoreboardSnapshot(`system_quarantine_${decision}:${imageId}`);
   res.json({ ok: true, imageId, decision });
 });
@@ -7111,7 +7147,7 @@ app.post(getBoth("/admin/storageAsset/delete"), async (req, res) => {
       });
     }
     await storage.bucket().file(inspection.storagePath).delete({ ignoreNotFound: true });
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot("storage_asset_delete:" + inspection.storagePath);
     res.json({
       ok: true,
@@ -7194,7 +7230,7 @@ app.post(getBoth("/admin/contentLibrary/upsert"), async (req, res) => {
       uid: ctx.decoded.uid,
       email: ctx.decoded.email,
     });
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot(`content_upsert:${normalizeKey(result?.item?.id || "")}`);
     res.json(result);
   } catch (err) {
@@ -7311,7 +7347,7 @@ app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot(`content_bulk_upsert:${type}`);
   }
   res.json({ ok: true, createdCount, updatedCount, errorCount, results });
@@ -7507,7 +7543,7 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:graphics");
   }
 
@@ -7870,7 +7906,7 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:excerpts");
   }
 
@@ -7914,7 +7950,7 @@ async function importWeaverFullPoemsPayload(rawPayload, actor = {}) {
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:fullpoems");
   }
 
@@ -8110,7 +8146,7 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
         results.push({ id: item.docId, created: !!result.created });
       }
       if (results.length) {
-        invalidateContentCache();
+        await invalidateContentCache();
         if (planned.updates.length) {
           invalidateFlaggedContentCache();
           invalidateRatingsSnapshot();
@@ -8314,7 +8350,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       ? result.item.weaverSelectedExcerptRecordIds.length
       : 0;
 
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:video");
     await ledgerRef.set({
       status: "completed",
@@ -8452,7 +8488,7 @@ app.post(getBoth("/internal/repairWaguespackSpelling"), async (req, res) => {
   }
   updatedByCollection[COLLECTIONS.authorProfiles] = profileMatches.length;
   updatedCount += profileMatches.length;
-  invalidateContentCache();
+  await invalidateContentCache();
   await invalidateScoreboardSnapshot("repair_waguespack_spelling");
   res.json({ ok: true, correctedAuthor, updatedCount, updatedByCollection });
 });
@@ -8835,7 +8871,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
     return res.status(reviewResult.status).json({ error: reviewResult.error });
   }
   if (decision === "accepted" && !reviewResult.alreadyReviewed) {
-    invalidateContentCache();
+    await invalidateContentCache();
     invalidateFlaggedContentCache();
     if (reviewResult.supersededAuthorVoteCount) invalidateRatingsSnapshot();
     await invalidateScoreboardSnapshot(`repair_replacement_accepted:${requestId}`);
@@ -8963,7 +8999,7 @@ app.get(getBoth("/internal/contentSnapshotHealth"), async (req, res) => {
       ok: true,
       available: true,
       readable: true,
-      storagePath: CONTENT_SNAPSHOT_PATH,
+      storagePath: snapshot.storagePath,
       version: CONTENT_SNAPSHOT_VERSION,
       builtAtMs: snapshot.builtAtMs,
       ageMs,
@@ -9167,7 +9203,7 @@ app.post(getBoth("/internal/resolveExcerptDuplicates"), async (req, res) => {
   }
 
   if (deletedExcerptCount || migratedVoteCount || removedRedundantVoteCount) {
-    invalidateContentCache();
+    await invalidateContentCache();
     ratingsCache.builtAt = 0;
     ratingsCache.payload = null;
     ratingsCache.inFlight = null;
@@ -9208,7 +9244,7 @@ app.post(getBoth("/admin/contentLibrary/deleteByIds"), async (req, res) => {
     deleted.push(id);
   }
   if (deleted.length) {
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot(`content_delete:${type}`);
   }
   res.json({ ok: true, deletedCount: deleted.length, missingCount: missing.length, deleted, missing });
@@ -9235,7 +9271,7 @@ app.post(getBoth("/admin/contentLibrary/deleteByDate"), async (req, res) => {
 
   await Promise.all(matches.map((doc) => doc.ref.delete()));
   if (matches.length) {
-    invalidateContentCache();
+    await invalidateContentCache();
     await invalidateScoreboardSnapshot(`content_delete_by_date:${type}:${targetDate}`);
   }
   res.json({ ok: true, deletedCount: matches.length, targetDate });
@@ -9345,7 +9381,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/editText"), async (req, res) => {
     }
     throw err;
   }
-  invalidateContentCache();
+  await invalidateContentCache();
   invalidateFlaggedContentCache();
   if (supersededVoteCount) invalidateRatingsSnapshot();
   await invalidateScoreboardSnapshot(`flag_text_edited:${flag.imageId || flagId}`);
@@ -9429,7 +9465,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
 
   if (decision === "delete" && contentRecord) {
     await db.collection(contentRecord.collection).doc(contentRecord.docId).delete();
-    invalidateContentCache();
+    await invalidateContentCache();
   }
 
   const matchingFlags = await db.collection(COLLECTIONS.contentFlags)
@@ -9575,7 +9611,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     }
     throw err;
   }
-  invalidateContentCache();
+  await invalidateContentCache();
   invalidateFlaggedContentCache();
   if (supersededVoteCount) invalidateRatingsSnapshot();
   await invalidateScoreboardSnapshot(`flag_replaced:${flag.imageId || flagId}`);
