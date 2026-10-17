@@ -867,7 +867,7 @@ function updateUserStatusUI() {
     if (div) {
       const label = user.email || user.uid;
       const isTeam = !authorPreviewMode && !!currentAccount?.roles?.includes('team');
-      const canEditAuthorProfile = authorPreviewMode || isAdmin;
+      const canEditAuthorProfile = isAdmin;
       const canAccessScoreboard = isAdmin || isTeam;
       const canBuildContests = !authorPreviewMode && (isAdmin || !!currentAccount?.roles?.includes('contest_builder'));
       const canReviewContests = !authorPreviewMode && !isAuthorOnlyAccount() && (canAccessScoreboard || canBuildContests || (user.emailVerified && String(user.email || '').toLowerCase().endsWith('@buttonpoetry.com')));
@@ -1004,7 +1004,7 @@ function renderAuthorReviewGuide() {
   const laneHref = (type) => `${IS_MOBILE_UI ? '/m' : '/app'}?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
   const feedbackHref = 'mailto:support@buttonpoetry.com?subject=Poetry%20Please%20author%20feedback';
   const savedCollapse = safeLocalStorageGet('pp_author_review_guide_collapsed');
-  const collapsed = savedCollapse === 'true' || (IS_MOBILE_UI && savedCollapse !== 'false');
+  const collapsed = savedCollapse !== 'false';
   topBar?.classList.toggle('author-guide-collapsed', collapsed);
   guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <h2 style="margin:0;font-size:${IS_MOBILE_UI ? '1rem' : '1.2rem'};">Review your graphics and excerpts</h2>
@@ -1081,6 +1081,7 @@ function updateFilterControlsVisibility() {
     : (canSeeDropdownFilters || (!authorPreviewMode && roles.includes('author')) || isAuthorPromoLane());
   const typeContainer = document.getElementById('type-filter-container');
   const catalogContainer = document.getElementById('catalog-filter-container');
+  const eventContainer = document.getElementById('event-filter-container');
   const bookContainer = document.getElementById('book-filter-container');
   const queueModeContainer = document.getElementById('queue-mode-container');
   const lengthContainer = ensureFullPoemLengthControls();
@@ -1091,6 +1092,10 @@ function updateFilterControlsVisibility() {
   if (catalogContainer) {
     if (canSeeDropdownFilters) catalogContainer.style.removeProperty('display');
     else catalogContainer.style.display = 'none';
+  }
+  if (eventContainer) {
+    if (canSeeDropdownFilters) eventContainer.style.removeProperty('display');
+    else eventContainer.style.display = 'none';
   }
   if (bookContainer) {
     if (canSeeDropdownFilters) bookContainer.style.removeProperty('display');
@@ -3680,6 +3685,11 @@ function resetVoteButtons(){
   [['btn-like','Like'],['btn-dislike','Dislike'],['btn-moved','Moved Me'],['btn-meh','Meh']].forEach(([id,txt])=>{
     const b=$('#'+id); if (b){ b.disabled=false; b.classList.remove('voted'); b.textContent=txt; }
   });
+  [['btn-mobile-moved', 'Moved Me — favorite'], ['btn-mobile-meh', 'Meh — no strong preference'],
+    ['btn-mobile-like', 'Like — use this item'], ['btn-mobile-dislike', 'Dislike — do not use this item']].forEach(([id, label]) => {
+    const button = document.getElementById(id);
+    if (button) { button.setAttribute('aria-label', label); button.title = label; }
+  });
 }
 function renderItemMedia(item) {
   LoadTiming.mark('mediaRenderStart', item?.imageType || '');
@@ -4376,6 +4386,13 @@ const AuthorQueueTour = (() => {
       help.setAttribute('aria-label', 'Replay author review tour');
       help.addEventListener('click', start);
       document.body.appendChild(help);
+    }
+    if (IS_MOBILE_UI) {
+      const guideBody = document.getElementById('author-review-guide-body');
+      if (guideBody && help.parentElement !== guideBody) {
+        help.style.cssText = 'position:static;margin-top:10px;box-shadow:none;';
+        guideBody.appendChild(help);
+      }
     }
     if (safeLocalStorageGet(key) !== 'done') start();
   }
