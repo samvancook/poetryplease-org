@@ -12436,16 +12436,17 @@ app.get(getBoth("/admin/users"), async (req, res) => {
 
   const queryText = normalizeKey(req.query?.q || "");
   const exactEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(queryText) ? queryText : "";
-  const searchPage = queryText && !exactEmail
+  const exactUser = exactEmail && !req.query?.pageToken
+    ? await auth.getUserByEmail(exactEmail).catch((error) => {
+      if (error.code === "auth/user-not-found") return null;
+      throw error;
+    })
+    : null;
+  const searchPage = queryText && !exactUser
     ? await searchAuthUsersPage(queryText, normalizeText(req.query?.pageToken || ""))
     : null;
   const [authUsers, voteStats] = await Promise.all([
-    searchPage ? Promise.resolve(searchPage.users) : exactEmail
-      ? auth.getUserByEmail(exactEmail).then((user) => [user]).catch((error) => {
-        if (error.code === "auth/user-not-found") return [];
-        throw error;
-      })
-      : listAllAuthUsers(1000),
+    searchPage ? Promise.resolve(searchPage.users) : exactUser ? Promise.resolve([exactUser]) : listAllAuthUsers(1000),
     searchPage && !searchPage.users.length ? Promise.resolve(new Map()) : getVoteStatsByUserId(),
   ]);
   const synced = await Promise.all(authUsers.map((authUser) => syncUserRecordFromAuthUser(authUser)));
