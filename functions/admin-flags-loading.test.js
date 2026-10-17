@@ -89,6 +89,25 @@ test("account search accumulates pages, ignores stale results and reports incomp
   assert.match(result.innerHTML, /Refresh users/);
 });
 
+test("an email-shaped partial query falls back to paged search when no exact account exists", async () => {
+  let route;
+  let searches = 0;
+  const context = vm.createContext({ app: { get: (_path, handler) => { route = handler; } }, getBoth: (path) => path,
+    requireRole: async () => ({}), normalizeKey, normalizeText: (value) => String(value || '').trim(),
+    auth: { getUserByEmail: async () => { const error = new Error('missing'); error.code = 'auth/user-not-found'; throw error; } },
+    searchAuthUsersPage: async (query, token) => { searches++; assert.equal(query, 'ory@example.test'); assert.equal(token, '');
+      return { users: [{ uid: 'target', email: 'emory@example.test', displayName: 'Emory' }], scannedCount: 1000, nextPageToken: 'next' }; },
+    getVoteStatsByUserId: async () => new Map(), syncUserRecordFromAuthUser: async (user) => user });
+  const source = apiSource.slice(apiSource.indexOf('app.get(getBoth("/admin/users"),'), apiSource.indexOf('app.post(getBoth("/admin/users/:uid/roles"),'));
+  vm.runInContext(source, context);
+  let response;
+  await route({ query: { q: 'ory@example.test' } }, { json: (value) => { response = value; } });
+  assert.equal(searches, 1);
+  assert.equal(response.users[0].uid, 'target');
+  assert.equal(response.nextPageToken, 'next');
+  assert.equal(response.searchComplete, false);
+});
+
 function flagFlowContext(fetchData) {
   const flagged = { id: "flagged", imageType: "FP", book: "Roads" };
   const next = { id: "next", imageType: "FP", book: "Roads" };
