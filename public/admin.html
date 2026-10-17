@@ -5012,34 +5012,56 @@
       });
     }
 
+    function collectRepairReviewDetails(requestId, decision, titleCorrection) {
+      const trigger = document.querySelector(`[data-review-repair="${CSS.escape(requestId)}"]`);
+      const cell = trigger?.closest('td');
+      if (!cell || cell.querySelector('[data-repair-review-form]')) return Promise.resolve(null);
+      const actions = trigger.closest('.actions');
+      const required = decision === 'rejected';
+      const form = document.createElement('form');
+      form.dataset.repairReviewForm = requestId;
+      form.setAttribute('aria-label', required ? 'Reject returned repair' : 'Accept returned repair');
+      form.innerHTML = `
+        ${titleCorrection ? '<label>Confirmed title shown on the returned graphic<input name="correctedTitle" maxlength="300" required /></label>' : ''}
+        <label>${required ? 'Describe what still needs to be repaired' : 'Acceptance note (optional)'}
+          <textarea name="note" ${required ? 'required' : ''}></textarea>
+        </label>
+        <div class="actions" style="margin-top:8px;">
+          <button type="submit">${required ? 'Confirm rejection' : 'Confirm acceptance'}</button>
+          <button type="button" class="secondary" data-cancel-repair-review>Cancel</button>
+        </div>
+      `;
+      actions.hidden = true;
+      actions.style.display = 'none';
+      cell.append(form);
+      return new Promise((resolve) => {
+        const finish = (value) => {
+          form.remove();
+          actions.hidden = false;
+          actions.style.display = '';
+          resolve(value);
+        };
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          const note = form.elements.namedItem('note').value.trim();
+          const correctedTitle = titleCorrection ? form.elements.namedItem('correctedTitle').value.trim() : '';
+          if ((required && !note) || (titleCorrection && !correctedTitle)) return;
+          finish({ note, correctedTitle });
+        });
+        form.querySelector('[data-cancel-repair-review]').addEventListener('click', () => finish(null));
+        form.querySelector('input, textarea')?.focus();
+      });
+    }
+
     async function reviewRepairReturn(requestId, decision) {
       const statusEl = document.getElementById('repair-request-status');
-      const required = decision === 'rejected';
       const request = (state.repairRequests || []).find((row) => row.id === requestId);
       const titleCorrection = decision === 'accepted' && /\btitle\b|name of (?:the )?poem/i.test(
         `${request?.requestNote || ''} ${request?.issueReason || ''}`
       );
-      let correctedTitle = '';
-      if (titleCorrection) {
-        correctedTitle = window.prompt('Enter the confirmed title shown on the returned graphic:', '');
-        if (correctedTitle === null) return;
-        correctedTitle = correctedTitle.trim();
-        if (!correctedTitle) {
-          statusEl.textContent = 'Confirm the corrected title before accepting this repair.';
-          statusEl.className = 'status error';
-          return;
-        }
-      }
-      const note = window.prompt(
-        required ? 'Describe what still needs to be repaired:' : 'Optional acceptance note:',
-        ''
-      );
-      if (note === null) return;
-      if (required && !note.trim()) {
-        statusEl.textContent = 'A rejection note is required so Weaver knows what to repair.';
-        statusEl.className = 'status error';
-        return;
-      }
+      const details = await collectRepairReviewDetails(requestId, decision, titleCorrection);
+      if (!details) return;
+      const { note, correctedTitle } = details;
       statusEl.textContent = `${decision === 'accepted' ? 'Accepting' : 'Rejecting'} returned repair…`;
       statusEl.className = 'status';
       try {
