@@ -4387,6 +4387,13 @@ const AuthorQueueTour = (() => {
       help.addEventListener('click', start);
       document.body.appendChild(help);
     }
+    if (IS_MOBILE_UI) {
+      const guideBody = document.getElementById('author-review-guide-body');
+      if (guideBody && help.parentElement !== guideBody) {
+        help.style.cssText = 'position:static;margin-top:10px;box-shadow:none;';
+        guideBody.appendChild(help);
+      }
+    }
     if (safeLocalStorageGet(key) !== 'done') start();
   }
 
