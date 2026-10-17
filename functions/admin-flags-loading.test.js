@@ -108,6 +108,39 @@ test("an email-shaped partial query falls back to paged search when no exact acc
   assert.equal(response.searchComplete, false);
 });
 
+test("author preview hides unrelated event filters while staff retains them", () => {
+  const source = appSource.slice(appSource.indexOf('function updateFilterControlsVisibility()'), appSource.indexOf('\nasync function refreshCurrentAccount()'));
+  for (const staff of [false, true]) {
+    const elements = new Map();
+    const document = { getElementById: (id) => {
+      if (!elements.has(id)) elements.set(id, { style: { display: 'none', removeProperty(key) { delete this[key]; } } });
+      return elements.get(id);
+    } };
+    const context = vm.createContext({ document, currentUserIsTeamOrAdmin: () => staff, currentAccount: { roles: staff ? ['team'] : ['author'] },
+      IS_MOBILE_UI: false, authorPreviewMode: !staff, isAuthorPromoLane: () => !staff, ensureFullPoemLengthControls: () => null,
+      updateAuthorPromoControls() {} });
+    vm.runInContext(source, context);
+    context.updateFilterControlsVisibility();
+    assert.equal(elements.get('event-filter-container').style.display, staff ? undefined : 'none');
+    assert.equal(elements.get('type-filter-container').style.display, undefined);
+  }
+});
+
+test("mobile vote controls expose their meaning without replacing their emoji", () => {
+  const nodes = new Map(['moved', 'meh', 'like', 'dislike'].map((kind) => [`btn-mobile-${kind}`, { textContent: 'emoji', attributes: {}, setAttribute(key, value) { this.attributes[key] = value; } }]));
+  const context = vm.createContext({ $: () => null, document: { getElementById: (id) => nodes.get(id) } });
+  const source = appSource.slice(appSource.indexOf('function resetVoteButtons(){'), appSource.indexOf('\nfunction renderItemMedia('));
+  vm.runInContext(source, context);
+  context.resetVoteButtons();
+  assert.match(nodes.get('btn-mobile-moved').attributes['aria-label'], /Moved Me.*favorite/);
+  assert.match(nodes.get('btn-mobile-meh').attributes['aria-label'], /no strong preference/);
+  assert.match(nodes.get('btn-mobile-dislike').attributes['aria-label'], /do not use/);
+  for (const node of nodes.values()) {
+    assert.equal(node.title, node.attributes['aria-label']);
+    assert.equal(node.textContent, 'emoji');
+  }
+});
+
 function flagFlowContext(fetchData) {
   const flagged = { id: "flagged", imageType: "FP", book: "Roads" };
   const next = { id: "next", imageType: "FP", book: "Roads" };
