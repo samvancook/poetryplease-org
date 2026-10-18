@@ -11,7 +11,10 @@ test("controlled invite explains review actions and cannot be mistaken for a cla
   assert.match(message.subject, /^\[TEST\]/);
   assert.match(message.text, /QI quote images and INT interior photos/);
   assert.match(message.text, /early version of a piece/);
-  assert.match(message.text, /poems and excerpts/);
+  assert.match(message.text, /EXC excerpts/);
+  assert.match(message.text, /guided tour/);
+  assert.match(message.text, /reply with the item and your notes/);
+  assert.doesNotMatch(message.text, /note in the editor|vote for the poems|Edit profile|My content/i);
   assert.match(message.text, /cannot claim an author account/);
   assert.match(message.text, /private-test-token/);
 });
