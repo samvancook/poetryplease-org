@@ -599,10 +599,22 @@
                 <fieldset id="contest-mail-settings-fields" disabled style="border:0;padding:0;min-width:0;">
                   <div class="controls">
                     <label>Send as — name <input id="contest-mail-from-name" maxlength="100" required /></label>
-                    <label>Send as — email <input id="contest-mail-from-email" type="email" maxlength="254" required aria-describedby="contest-mail-from-help" /></label>
-                    <label>Replies go to <input id="contest-mail-reply-to" type="email" maxlength="254" required /></label>
+                    <div>
+                      <label for="contest-mail-from-email">Send as — email</label>
+                      <select id="contest-mail-from-email" required aria-describedby="contest-mail-from-help"></select>
+                      <label id="contest-mail-from-email-custom-label" hidden>New sender address
+                        <input id="contest-mail-from-email-custom" type="email" maxlength="254" disabled />
+                      </label>
+                    </div>
+                    <div>
+                      <label for="contest-mail-reply-to">Replies go to</label>
+                      <select id="contest-mail-reply-to" required></select>
+                      <label id="contest-mail-reply-to-custom-label" hidden>New reply address
+                        <input id="contest-mail-reply-to-custom" type="email" maxlength="254" disabled />
+                      </label>
+                    </div>
                   </div>
-                  <p id="contest-mail-from-help">Use a Button Poetry sender address (@buttonpoetry.com) and a monitored mailbox for replies. This does not change author invitation emails.</p>
+                  <p id="contest-mail-from-help">Defaults: send from no-reply@buttonpoetry.com; replies go to support@buttonpoetry.com. Choose “Add another address…” to save another choice for this contest. Sender addresses must use @buttonpoetry.com; replies should go to a monitored mailbox.</p>
                   <button id="contest-mail-settings-save" type="submit">Save sender and replies</button>
                 </fieldset>
               </form>
@@ -2501,6 +2513,35 @@
       document.getElementById('contest-email-preview-body').textContent = message;
     }
 
+    function updateContestMailAddressField(id) {
+      const custom = document.getElementById(id).value === '__other__';
+      document.getElementById(id + '-custom-label').hidden = !custom;
+      const input = document.getElementById(id + '-custom');
+      input.disabled = !custom;
+      input.required = custom;
+    }
+
+    function renderContestMailAddress(id, choices, selected) {
+      const select = document.getElementById(id);
+      const addresses = [...new Set([...(choices || []), selected])];
+      select.innerHTML = addresses.map((address) => '<option value="' + escapeHtml(address) + '">' +
+        escapeHtml(address) + '</option>').join('') + '<option value="__other__">Add another address…</option>';
+      select.value = selected;
+      document.getElementById(id + '-custom').value = '';
+      updateContestMailAddressField(id);
+    }
+
+    function applyContestMailSettings(result) {
+      document.getElementById('contest-mail-from-name').value = result.mailIdentity.fromName;
+      renderContestMailAddress('contest-mail-from-email', result.addressOptions?.fromEmail, result.mailIdentity.fromEmail);
+      renderContestMailAddress('contest-mail-reply-to', result.addressOptions?.replyTo, result.mailIdentity.replyTo);
+    }
+
+    function selectedContestMailAddress(id) {
+      const value = document.getElementById(id).value;
+      return (value === '__other__' ? document.getElementById(id + '-custom').value : value).trim();
+    }
+
     async function loadContestMailSettings() {
       const programId = state.submissionProgramFilter;
       const fields = document.getElementById('contest-mail-settings-fields');
@@ -2511,9 +2552,7 @@
       try {
         const result = await api('admin/contestMailSettings?programId=' + encodeURIComponent(programId));
         if (state.submissionProgramFilter !== programId) return;
-        document.getElementById('contest-mail-from-name').value = result.mailIdentity.fromName;
-        document.getElementById('contest-mail-from-email').value = result.mailIdentity.fromEmail;
-        document.getElementById('contest-mail-reply-to').value = result.mailIdentity.replyTo;
+        applyContestMailSettings(result);
         fields.dataset.programId = programId;
         fields.disabled = false;
         status.textContent = 'Applies to assignment notices, test messages and outcome emails.';
@@ -2530,15 +2569,18 @@
       const status = document.getElementById('contest-mail-settings-status');
       const mailIdentity = {
         fromName: document.getElementById('contest-mail-from-name').value.trim(),
-        fromEmail: document.getElementById('contest-mail-from-email').value.trim(),
-        replyTo: document.getElementById('contest-mail-reply-to').value.trim(),
+        fromEmail: selectedContestMailAddress('contest-mail-from-email'),
+        replyTo: selectedContestMailAddress('contest-mail-reply-to'),
       };
       fields.disabled = true;
       clearContestEmailPreview();
       status.textContent = 'Saving sender and replies…';
       try {
-        await api('admin/contestMailSettings', { method: 'POST', body: { programId, mailIdentity } });
-        if (state.submissionProgramFilter === programId) status.textContent = 'Saved. No email sent. Rebuild the email preview before sending.';
+        const result = await api('admin/contestMailSettings', { method: 'POST', body: { programId, mailIdentity } });
+        if (state.submissionProgramFilter === programId) {
+          applyContestMailSettings(result);
+          status.textContent = 'Saved. No email sent. Rebuild the email preview before sending.';
+        }
       } catch (error) {
         if (state.submissionProgramFilter === programId) status.textContent = 'Could not save settings: ' + error.message;
       } finally {
@@ -5878,6 +5920,12 @@
         if (event.target.open) loadContestMailSettings();
       });
       document.getElementById('contest-mail-settings-form').addEventListener('submit', saveContestMailSettings);
+      ['contest-mail-from-email', 'contest-mail-reply-to'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', () => {
+          updateContestMailAddressField(id);
+          clearContestEmailPreview('Sender or replies edited. Save settings, then rebuild the preview.');
+        });
+      });
       document.getElementById('contest-mail-settings-form').addEventListener('input', () => {
         clearContestEmailPreview('Sender or replies edited. Save settings, then rebuild the preview.');
       });

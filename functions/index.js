@@ -61,6 +61,21 @@ function contestMailIdentity(program = {}) {
 function sameContestMailIdentity(program, identity) {
   return JSON.stringify(contestMailIdentity(program)) === JSON.stringify(identity);
 }
+
+function contestMailAddressOptions(program = {}, nextIdentity = contestMailIdentity(program)) {
+  const previous = contestMailIdentity(program);
+  const saved = program.mailAddressOptions || {};
+  const addresses = (key, defaultAddress, currentAddress, nextAddress) => {
+    const prior = Array.isArray(saved[key]) ? saved[key] : [];
+    return [...new Set([defaultAddress, ...prior, currentAddress, nextAddress]
+      .filter((address) => validateContestMailIdentity({ ...CONTEST_MAIL_IDENTITY, [key]: address }))
+      .map((address) => address.trim().toLowerCase()))];
+  };
+  return {
+    fromEmail: addresses("fromEmail", CONTEST_MAIL_IDENTITY.fromEmail, previous.fromEmail, nextIdentity.fromEmail),
+    replyTo: addresses("replyTo", CONTEST_MAIL_IDENTITY.replyTo, previous.replyTo, nextIdentity.replyTo),
+  };
+}
 const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -11263,7 +11278,8 @@ app.get(getBoth("/admin/contestMailSettings"), async (req, res) => {
   if (!programId) return res.status(400).json({ error: "missing_program_id" });
   const snap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!snap.exists) return res.status(404).json({ error: "submission_program_not_found" });
-  res.json({ ok: true, programId, mailIdentity: contestMailIdentity(snap.data()), emailSent: false });
+  res.json({ ok: true, programId, mailIdentity: contestMailIdentity(snap.data()),
+    addressOptions: contestMailAddressOptions(snap.data()), emailSent: false });
 });
 
 app.post(getBoth("/admin/contestMailSettings"), async (req, res) => {
@@ -11277,12 +11293,13 @@ app.post(getBoth("/admin/contestMailSettings"), async (req, res) => {
   const saved = await db.runTransaction(async (transaction) => {
     const snap = await transaction.get(ref);
     if (!snap.exists) return false;
-    transaction.update(ref, { mailIdentity, mailIdentityUpdatedBy: ctx.decoded.uid,
+    const addressOptions = contestMailAddressOptions(snap.data(), mailIdentity);
+    transaction.update(ref, { mailIdentity, mailAddressOptions: addressOptions, mailIdentityUpdatedBy: ctx.decoded.uid,
       mailIdentityUpdatedAt: FieldValue.serverTimestamp() });
-    return true;
+    return { addressOptions };
   });
   if (!saved) return res.status(404).json({ error: "submission_program_not_found" });
-  res.json({ ok: true, programId, mailIdentity, emailSent: false });
+  res.json({ ok: true, programId, mailIdentity, addressOptions: saved.addressOptions, emailSent: false });
 });
 
 app.get(getBoth("/admin/contestOutcomeEmailTemplates"), async (req, res) => {

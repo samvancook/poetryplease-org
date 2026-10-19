@@ -185,7 +185,9 @@ function adminHarness(api) {
     return elements.get(id);
   };
   const state = { submissionProgramFilter: programId };
-  const context = vm.createContext({ document: { getElementById: element }, state, api });
+  const context = vm.createContext({ document: { getElementById: element }, state, api,
+    escapeHtml: (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('\"', '&quot;'),
+  });
   vm.runInContext(adminSource.slice(adminSource.indexOf('    let contestEmailPreviewRecipients ='),
     adminSource.indexOf('    function contestEmailRecipientEligible(')) + '\n' +
     adminSource.slice(adminSource.indexOf('    function showContestEmailDraft('), adminSource.indexOf('    async function sendSelectedContestEmail(')), context);
@@ -226,4 +228,52 @@ test('a late settings response cannot populate a different contest', async () =>
   assert.equal(h.element('contest-mail-settings-fields').disabled, true);
   assert.equal(h.element('contest-mail-settings-fields').dataset.programId, '');
   assert.equal(h.element('contest-mail-from-email').value, '');
+});
+
+
+test('default dropdown addresses are automatic and added addresses remain available after switching back', async () => {
+  const h = harness();
+  const defaults = (await h.call('GET', 'contestMailSettings', { programId })).data;
+  assert.deepEqual(defaults.addressOptions, { fromEmail: ['no-reply@buttonpoetry.com'], replyTo: ['support@buttonpoetry.com'] });
+  await save(h, { ...custom, replyTo: 'editor@buttonpoetry.com' });
+  await save(h, defaults.mailIdentity);
+  const loaded = (await h.call('GET', 'contestMailSettings', { programId })).data;
+  assert.deepEqual(loaded.mailIdentity, defaults.mailIdentity);
+  assert.deepEqual(loaded.addressOptions.fromEmail, ['no-reply@buttonpoetry.com', 'sam@buttonpoetry.com']);
+  assert.deepEqual(loaded.addressOptions.replyTo, ['support@buttonpoetry.com', 'editor@buttonpoetry.com']);
+  assert.equal(h.sent.length, 0);
+});
+
+test('dropdown history omits invalid saved addresses and stays within its contest', async () => {
+  const h = harness();
+  h.put('submissionPrograms', programId, { mailAddressOptions: { fromEmail: ['outsider@example.com', 'sam@buttonpoetry.com'], replyTo: ['bad', 'editor@buttonpoetry.com'] } });
+  const loaded = (await h.call('GET', 'contestMailSettings', { programId })).data;
+  assert.deepEqual(loaded.addressOptions.fromEmail, ['no-reply@buttonpoetry.com', 'sam@buttonpoetry.com']);
+  assert.deepEqual(loaded.addressOptions.replyTo, ['support@buttonpoetry.com', 'editor@buttonpoetry.com']);
+  h.put('submissionPrograms', 'other', { name: 'Other' });
+  const other = (await h.call('GET', 'contestMailSettings', { programId: 'other' })).data;
+  assert.deepEqual(other.addressOptions.replyTo, ['support@buttonpoetry.com']);
+});
+
+test('Add another address reveals the email field and saving adds the selected choice to the dropdown', async () => {
+  const calls = [];
+  const h = adminHarness(async (path, options) => {
+    calls.push({ path, options });
+    const mailIdentity = options?.body?.mailIdentity || { ...custom, fromEmail: 'no-reply@buttonpoetry.com' };
+    return { mailIdentity, addressOptions: { fromEmail: ['no-reply@buttonpoetry.com', mailIdentity.fromEmail], replyTo: ['support@buttonpoetry.com'] } };
+  });
+  await h.context.loadContestMailSettings();
+  assert.equal(h.element('contest-mail-from-email').value, 'no-reply@buttonpoetry.com');
+  assert.equal(h.element('contest-mail-from-email-custom').disabled, true);
+  h.element('contest-mail-from-email').value = '__other__';
+  h.context.updateContestMailAddressField('contest-mail-from-email');
+  assert.equal(h.element('contest-mail-from-email-custom-label').hidden, false);
+  assert.equal(h.element('contest-mail-from-email-custom').required, true);
+  h.element('contest-mail-from-email-custom').value = 'editor@buttonpoetry.com';
+  await h.context.saveContestMailSettings({ preventDefault() {} });
+  assert.equal(calls[1].options.body.mailIdentity.fromEmail, 'editor@buttonpoetry.com');
+  assert.equal(h.element('contest-mail-from-email').value, 'editor@buttonpoetry.com');
+  assert.match(h.element('contest-mail-from-email').innerHTML, /editor@buttonpoetry.com/);
+  assert.match(h.element('contest-mail-from-email').innerHTML, /no-reply@buttonpoetry.com/);
+  assert.equal(h.element('contest-mail-from-email-custom').disabled, true);
 });
