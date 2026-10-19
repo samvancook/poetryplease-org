@@ -130,6 +130,10 @@
         "destination": "/scroll.html"
       },
       {
+        "source": "/posts",
+        "destination": "/posts.html"
+      },
+      {
         "source": "/m",
         "destination": "/mobile.html"
       },

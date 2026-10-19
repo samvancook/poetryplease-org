@@ -1,0 +1,52 @@
+/* The post variant keeps a stable 4:5 frame; the original scroll view is separate. */
+body[data-feed-variant="posts"] { --paper:#f8f7f4; --ink:#242424; --teal:#303e3b; }
+[data-feed-variant="posts"] .site-header { padding:10px max(16px,calc((100vw - 480px)/2)); border-color:#e9e7e1; }
+[data-feed-variant="posts"] .brand { font:22px/1.2 Georgia,serif; font-weight:400; letter-spacing:-.7px; }
+[data-feed-variant="posts"] .variant { font-size:10px; color:#888780; }
+[data-feed-variant="posts"] #account-toggle { border:0; background:transparent; color:#666760; font-size:12px; }
+[data-feed-variant="posts"] main { max-width:512px; padding:0 16px 28px; }
+[data-feed-variant="posts"] .intro { margin:14px 0; font-size:11px; color:#898981; }
+.post-card { margin:0 0 20px; }
+.post-open { display:block; width:100%; padding:0; border:0; border-radius:0; background:transparent; text-align:left; }
+.post-frame { position:relative; display:grid; place-items:center; width:100%; aspect-ratio:4/5; overflow:hidden; background:#090909; color:#f8f7f4; border-radius:3px; }
+.post-frame > img,.post-frame > video { position:absolute; width:100%; height:100%; inset:0; object-fit:contain; }
+.post-video-preview { pointer-events:none; }
+.post-open-hint { display:block; padding:8px 0 0; color:#92928b; font-size:10px; line-height:1.4; text-align:right; }
+.post-text-preview .post-poem { width:100%; max-height:calc(100% - 90px); overflow:hidden; mask-image:linear-gradient(#000 90%,transparent); }
+.post-poem { padding:28px 22px; color:#f8f7f4; text-align:left; }
+.post-poem .poem-lines { font-size:clamp(16px,4.3vw,21px); line-height:1.65; }
+.post-excerpt-label { position:absolute; top:17px; left:22px; font:italic 12px Georgia,serif; color:#aaa9a4; }
+.post-video-hint { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; gap:16px; max-width:85%; padding:24px; font:20px/1.5 Georgia,serif; overflow-wrap:anywhere; text-shadow:0 1px 8px #000; }
+.post-video-hint small { font:12px/1.5 system-ui,sans-serif; color:#aaa9a4; }
+.post-play { display:grid; place-items:center; border:1px solid #6c6c68; border-radius:50%; width:56px; height:56px; padding-left:3px; font-size:19px; background:#0005; }
+.post-unavailable { padding:24px; color:#aaa9a4; font-size:13px; }
+.post-dialog { position:fixed; inset:0; margin:auto; width:100%; max-width:600px; height:100dvh; max-height:100dvh; padding:0; border:0; border-radius:0; background:var(--paper); color:var(--ink); overflow:auto; overscroll-behavior:contain; }
+.post-dialog::backdrop { background:#1119; }
+.post-dialog-toolbar { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between; min-height:56px; padding:calc(6px + env(safe-area-inset-top)) 16px 6px; background:var(--paper); border-bottom:1px solid #e9e7e1; }
+.post-dialog-toolbar > span { font:19px Georgia,serif; letter-spacing:-.5px; }
+.post-close { border:0; background:transparent; font-size:28px; font-weight:300; line-height:1; }
+.post-dialog-body { padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
+.post-expanded { background:#090909; color:#f8f7f4; }
+.post-expanded .post-poem { padding:38px 24px; }
+.post-enlarge { display:block; width:100%; padding:0; border:0; border-radius:0; background:#090909; cursor:zoom-in; }
+.post-enlarge img { display:block; width:100%; height:auto; max-height:70dvh; object-fit:contain; }
+.post-expanded video { display:block; width:100%; height:auto; max-height:72dvh; object-fit:contain; }
+.post-expanded iframe { display:block; width:100%; border:0; aspect-ratio:16/9; }
+.post-expanded .post-vertical-video { aspect-ratio:9/16; max-height:72dvh; }
+.post-info { padding:22px 20px 0; }
+.post-meta h2 { margin:3px 0 5px; font:22px/1.4 Georgia,serif; overflow-wrap:anywhere; }
+.post-meta p { margin:4px 0; overflow-wrap:anywhere; }
+.post-kind { font:italic 13px Georgia,serif; color:#71726a; }
+.post-author { font-size:14px; }
+.post-book { font:italic 14px/1.5 Georgia,serif; color:#71726a; }
+.post-info .votes { padding:20px 0 8px; gap:8px; }
+.post-info .vote-button { background:transparent; border-color:#e2e1da; min-height:62px; border-radius:8px; }
+.post-info .vote-button .emoji { font-size:22px; }
+.post-info .vote-button[aria-pressed="true"] { background:#e8eeea; border-color:#586b62; }
+.post-info .card-status { padding-left:0; }
+.post-actions { display:flex; align-items:center; gap:12px; margin-top:14px; padding-top:14px; border-top:1px solid #e4e3dc; }
+.post-actions a,.post-actions button { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:10px 14px; border:1px solid #d6d7cf; border-radius:6px; background:transparent; color:var(--ink); text-decoration:none; font-size:13px; }
+.post-actions .post-share { margin-left:auto; border-color:transparent; padding-right:0; }
+.post-share-status { margin:5px 0 0; font-size:12px; color:#71726a; }
+.post-share-link { width:100%; min-width:0; font-size:12px; margin-top:8px; }
+@media(min-width:760px) { .post-dialog { height:calc(100dvh - 40px); max-height:calc(100dvh - 40px); border-radius:10px; } }

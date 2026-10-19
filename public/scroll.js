@@ -1,8 +1,10 @@
 import { ScrollFeedPager, originalViewerUrl, safeMediaUrl } from './scroll-feed-core.js';
+import { renderPostCard, closePostDetails } from './post-cards.js';
 
 const $ = (id) => document.getElementById(id);
 const auth = firebase.auth();
 const initial = new URLSearchParams(location.search);
+const postVariant = document.body.dataset.feedVariant === 'posts';
 const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Don’t use']];
 let account = null;
 let ownAuthor = '';
@@ -77,7 +79,10 @@ $('image-close').addEventListener('click', () => $('image-viewer').close());
 $('image-zoom-in').addEventListener('click', () => setImageZoom(imageZoom + .5));
 $('image-zoom-out').addEventListener('click', () => setImageZoom(imageZoom - .5));
 $('image-viewer').addEventListener('close', () => {
-  document.body.style.overflow = previousOverflow;
+  // A feed reset can close both nested dialogs before this close event runs.
+  document.body.style.overflow = postVariant
+    ? (document.querySelector('.post-dialog[open]') ? 'hidden' : '')
+    : previousOverflow;
   $('enlarged-image').removeAttribute('src');
   imageReturnFocus?.focus({ preventScroll: true });
 });
@@ -93,7 +98,7 @@ const pager = new ScrollFeedPager({
   fetchPage: (context, signal) => api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12 }, signal),
   append: (items) => items.forEach(renderCard),
   changed: updateFooter,
-  clear: () => $('feed').replaceChildren(),
+  clear: () => { if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
 });
 function restartFeed() {
   automaticPages = true;
@@ -144,6 +149,14 @@ const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserve
 }, { threshold: 0.05 }) : null;
 
 function renderCard(item) {
+  if (postVariant) {
+    $('feed').append(renderPostCard(item, {
+      createVotes: createVoteControls,
+      openImage,
+      viewerUrl: originalViewerUrl(item, routeFilters()),
+    }));
+    return;
+  }
   const card = node('article', 'scroll-card');
   card.dataset.itemId = item.id;
   card.setAttribute('aria-label', [item.type, item.title, item.author].filter(Boolean).join(' · '));
@@ -178,6 +191,19 @@ function renderCard(item) {
   media.append(renderCaption(item));
   card.append(media);
 
+  card.append(...createVoteControls(item, card));
+  const details = node('details', 'card-details');
+  details.append(node('summary', '', 'About this item'));
+  details.append(node('p', '', [item.type, item.catalog, item.book].filter(Boolean).join(' · ')));
+  const original = node('a', '', 'Open in single-item view');
+  original.href = originalViewerUrl(item, routeFilters());
+  details.append(original);
+  if (item.bookUrl) { const book = node('a', '', 'Book details'); book.href = safeMediaUrl(item.bookUrl); book.target = '_blank'; book.rel = 'noopener'; details.append(node('br'), book); }
+  card.append(details);
+  $('feed').append(card);
+}
+
+function createVoteControls(item, card) {
   const controls = node('div', 'votes');
   controls.setAttribute('role', 'group');
   controls.setAttribute('aria-label', 'Your response to ' + (item.title || 'this item'));
@@ -211,16 +237,7 @@ function renderCard(item) {
     });
     controls.append(button);
   }
-  card.append(controls, status);
-  const details = node('details', 'card-details');
-  details.append(node('summary', '', 'About this item'));
-  details.append(node('p', '', [item.type, item.catalog, item.book].filter(Boolean).join(' · ')));
-  const original = node('a', '', 'Open in single-item view');
-  original.href = originalViewerUrl(item, routeFilters());
-  details.append(original);
-  if (item.bookUrl) { const book = node('a', '', 'Book details'); book.href = safeMediaUrl(item.bookUrl); book.target = '_blank'; book.rel = 'noopener'; details.append(node('br'), book); }
-  card.append(details);
-  $('feed').append(card);
+  return [controls, status];
 }
 
 $('load-more').addEventListener('click', () => { automaticPages = true; pager.loadMore(); });
