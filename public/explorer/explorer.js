@@ -480,8 +480,8 @@ if (typeof document !== "undefined") {
         const key = shop ? shop.url : "book:" + E.normalized(book);
         const existing = products.get(key);
         if (existing) {
-          existing.author = row.author || summary.author || existing.author;
-          existing.catalog = E.catalogValue(row) || E.catalogValue(summary) || existing.catalog;
+          existing.author = existing.author || row.author || summary.author || "";
+          existing.catalog = existing.catalog || E.catalogValue(row) || E.catalogValue(summary);
           existing.aliases.push(book);
           existing.links = [...existing.links, ...links].filter((link, index, all) => all.findIndex((entry) => entry.url === link.url) === index);
         } else {
