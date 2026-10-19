@@ -79,7 +79,10 @@ $('image-close').addEventListener('click', () => $('image-viewer').close());
 $('image-zoom-in').addEventListener('click', () => setImageZoom(imageZoom + .5));
 $('image-zoom-out').addEventListener('click', () => setImageZoom(imageZoom - .5));
 $('image-viewer').addEventListener('close', () => {
-  document.body.style.overflow = previousOverflow;
+  // A feed reset can close both nested dialogs before this close event runs.
+  document.body.style.overflow = postVariant
+    ? (document.querySelector('.post-dialog[open]') ? 'hidden' : '')
+    : previousOverflow;
   $('enlarged-image').removeAttribute('src');
   imageReturnFocus?.focus({ preventScroll: true });
 });
