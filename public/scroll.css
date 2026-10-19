@@ -54,7 +54,7 @@ main { max-width:680px; margin:auto; padding:0 10px 36px; }
 
 /* Interior pages use their full available width without cropping any source pixels. */
 .interior-stage { display:block; aspect-ratio:auto; }
-.interior-stage img { position:static; height:auto; }
+.interior-stage img { position:static; height:auto; aspect-ratio:auto 1 / 1; }
 .image-stage:focus-visible { outline-offset:-4px; }
 #image-viewer { position:fixed; inset:0; margin:0; width:100vw; max-width:none; height:100dvh; max-height:none; padding:0; border:0; background:#000; color:white; overflow:hidden; }
 #image-viewer[open] { display:flex; flex-direction:column; }
