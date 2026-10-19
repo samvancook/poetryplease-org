@@ -32,8 +32,12 @@ export function resolveExcerpt(data, registry, poems) {
   const excerpt = label(data.excerpt);
   const longEnough = excerpt.length >= 35 && excerpt.split(/\s+/).length >= 6;
   const fits = (key) => longEnough && (variants.get(key) || []).some((poem) => poem.includes(excerpt));
-  if (named.length === 1) return { key: named[0].poem_key, method: "catalog_registry_book_title", canonicalBook,
-    title: named[0].title, passageVerified: fits(named[0].poem_key) };
+  if (named.length === 1) {
+    // A title identifies a candidate, but cannot prove that this excerpt belongs to it.
+    if (!fits(named[0].poem_key)) return { reason: "title_match_without_verified_passage" };
+    return { key: named[0].poem_key, method: "catalog_registry_book_title", canonicalBook,
+      title: named[0].title, passageVerified: true };
+  }
   const candidates = named.length ? named : [...active.values()];
   const matching = candidates.filter((row) => fits(row.poem_key));
   if (matching.length === 1) return { key: matching[0].poem_key, method: "catalog_exact_excerpt_span", canonicalBook,
