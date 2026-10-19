@@ -592,6 +592,34 @@
               <div id="contest-outcome-bulk-status" class="status" aria-live="polite">No preview loaded.</div>
               <button id="contest-outcome-bulk-apply" type="button" disabled>Mark remaining entries not selected</button>
             </details>
+            <details id="contest-mail-settings-panel" style="margin-top:18px;">
+              <summary style="font-weight:700;cursor:pointer;">Email sender and replies</summary>
+              <p>These settings apply to this contest’s assignment notices and outcome emails. Saving sends no email.</p>
+              <form id="contest-mail-settings-form">
+                <fieldset id="contest-mail-settings-fields" disabled style="border:0;padding:0;min-width:0;">
+                  <div class="controls">
+                    <label>Send as — name <input id="contest-mail-from-name" maxlength="100" required /></label>
+                    <div>
+                      <label for="contest-mail-from-email">Send as — email</label>
+                      <select id="contest-mail-from-email" required aria-describedby="contest-mail-from-help"></select>
+                      <label id="contest-mail-from-email-custom-label" hidden>New sender address
+                        <input id="contest-mail-from-email-custom" type="email" maxlength="254" disabled />
+                      </label>
+                    </div>
+                    <div>
+                      <label for="contest-mail-reply-to">Replies go to</label>
+                      <select id="contest-mail-reply-to" required></select>
+                      <label id="contest-mail-reply-to-custom-label" hidden>New reply address
+                        <input id="contest-mail-reply-to-custom" type="email" maxlength="254" disabled />
+                      </label>
+                    </div>
+                  </div>
+                  <p id="contest-mail-from-help">Defaults: send from no-reply@buttonpoetry.com; replies go to support@buttonpoetry.com. Choose “Add another address…” to save another choice for this contest. Sender addresses must use @buttonpoetry.com; replies should go to a monitored mailbox.</p>
+                  <button id="contest-mail-settings-save" type="submit">Save sender and replies</button>
+                </fieldset>
+              </form>
+              <div id="contest-mail-settings-status" class="status" aria-live="polite">Open to load this contest’s email settings.</div>
+            </details>
             <details id="contest-email-preview-panel" style="margin-top:18px;">
               <summary style="font-weight:700;cursor:pointer;">Entrant email preview (draft only)</summary>
               <p>Check recipients and wording before approving any send. Building the preview never sends email.</p>
@@ -2471,9 +2499,94 @@
     }
 
     let contestEmailPreviewRecipients = [];
+    let contestEmailPreviewIdentity = null;
+    let contestEmailPreviewRequestId = 0;
     let contestEmailPreviewSendEnabled = false;
     let contestEmailPreviewSent = new Set();
     let contestEmailBulkSending = false;
+
+    function clearContestEmailPreview(message = 'Rebuild the preview to use the current sender and replies.') {
+      contestEmailPreviewRequestId += 1;
+      contestEmailPreviewRecipients = [];
+      contestEmailPreviewIdentity = null;
+      contestEmailPreviewSendEnabled = false;
+      document.getElementById('contest-email-preview-body').textContent = message;
+    }
+
+    function updateContestMailAddressField(id) {
+      const custom = document.getElementById(id).value === '__other__';
+      document.getElementById(id + '-custom-label').hidden = !custom;
+      const input = document.getElementById(id + '-custom');
+      input.disabled = !custom;
+      input.required = custom;
+    }
+
+    function renderContestMailAddress(id, choices, selected) {
+      const select = document.getElementById(id);
+      const addresses = [...new Set([...(choices || []), selected])];
+      select.innerHTML = addresses.map((address) => '<option value="' + escapeHtml(address) + '">' +
+        escapeHtml(address) + '</option>').join('') + '<option value="__other__">Add another address…</option>';
+      select.value = selected;
+      document.getElementById(id + '-custom').value = '';
+      updateContestMailAddressField(id);
+    }
+
+    function applyContestMailSettings(result) {
+      document.getElementById('contest-mail-from-name').value = result.mailIdentity.fromName;
+      renderContestMailAddress('contest-mail-from-email', result.addressOptions?.fromEmail, result.mailIdentity.fromEmail);
+      renderContestMailAddress('contest-mail-reply-to', result.addressOptions?.replyTo, result.mailIdentity.replyTo);
+    }
+
+    function selectedContestMailAddress(id) {
+      const value = document.getElementById(id).value;
+      return (value === '__other__' ? document.getElementById(id + '-custom').value : value).trim();
+    }
+
+    async function loadContestMailSettings() {
+      const programId = state.submissionProgramFilter;
+      const fields = document.getElementById('contest-mail-settings-fields');
+      const status = document.getElementById('contest-mail-settings-status');
+      fields.disabled = true;
+      fields.dataset.programId = '';
+      status.textContent = 'Loading sender and replies…';
+      try {
+        const result = await api('admin/contestMailSettings?programId=' + encodeURIComponent(programId));
+        if (state.submissionProgramFilter !== programId) return;
+        applyContestMailSettings(result);
+        fields.dataset.programId = programId;
+        fields.disabled = false;
+        status.textContent = 'Applies to assignment notices, test messages and outcome emails.';
+      } catch (error) {
+        if (state.submissionProgramFilter === programId) status.textContent = 'Could not load settings: ' + error.message;
+      }
+    }
+
+    async function saveContestMailSettings(event) {
+      event.preventDefault();
+      const fields = document.getElementById('contest-mail-settings-fields');
+      const programId = fields.dataset.programId;
+      if (fields.disabled || !programId || programId !== state.submissionProgramFilter) return;
+      const status = document.getElementById('contest-mail-settings-status');
+      const mailIdentity = {
+        fromName: document.getElementById('contest-mail-from-name').value.trim(),
+        fromEmail: selectedContestMailAddress('contest-mail-from-email'),
+        replyTo: selectedContestMailAddress('contest-mail-reply-to'),
+      };
+      fields.disabled = true;
+      clearContestEmailPreview();
+      status.textContent = 'Saving sender and replies…';
+      try {
+        const result = await api('admin/contestMailSettings', { method: 'POST', body: { programId, mailIdentity } });
+        if (state.submissionProgramFilter === programId) {
+          applyContestMailSettings(result);
+          status.textContent = 'Saved. No email sent. Rebuild the email preview before sending.';
+        }
+      } catch (error) {
+        if (state.submissionProgramFilter === programId) status.textContent = 'Could not save settings: ' + error.message;
+      } finally {
+        if (state.submissionProgramFilter === programId) fields.disabled = false;
+      }
+    }
 
     function contestEmailRecipientEligible(recipient) {
       return recipient.email && !recipient.mixedOutcomes && recipient.previewToken &&
@@ -2514,7 +2627,8 @@
       const message = document.getElementById('contest-email-preview-message');
       if (!message) return;
       message.textContent = recipient
-        ? 'To: ' + (recipient.email || '[missing address]') + '\nSubject: ' +
+        ? 'From: ' + contestEmailPreviewIdentity.fromName + ' <' + contestEmailPreviewIdentity.fromEmail + '>\nReplies go to: ' +
+          contestEmailPreviewIdentity.replyTo + '\nTo: ' + (recipient.email || '[missing address]') + '\nSubject: ' +
           recipient.subject + '\n\n' + recipient.body
         : 'No matching recipient.';
       const sendButton = document.getElementById('contest-email-send-selected');
@@ -2552,7 +2666,9 @@
       const batch = filteredContestEmailRecipients().map(({ recipient }) => recipient)
         .filter(contestEmailRecipientEligible).slice(0, 25);
       if (!batch.length || !window.confirm('Send ' + batch.length +
-        ' outcome emails to the currently filtered recipients? This cannot be undone.')) return;
+        ' outcome emails to the currently filtered recipients?\nFrom: ' + contestEmailPreviewIdentity.fromName +
+        ' <' + contestEmailPreviewIdentity.fromEmail + '>\nReplies go to: ' + contestEmailPreviewIdentity.replyTo +
+        '\nThis cannot be undone.')) return;
       contestEmailBulkSending = true;
       renderContestEmailRecipientFilter();
       let sent = 0;
@@ -2582,11 +2698,13 @@
       const program = state.submissionPrograms.find((row) => row.id === state.submissionProgramFilter);
       const body = document.getElementById('contest-email-preview-body');
       if (!program) { body.textContent = 'Select a contest first.'; return; }
+      const requestId = ++contestEmailPreviewRequestId;
       body.textContent = 'Building read-only preview…';
       try {
         const preview = await api('admin/contestOutcomeEmailPreview?programId=' + encodeURIComponent(program.id));
-        if (state.submissionProgramFilter !== program.id) return;
+        if (state.submissionProgramFilter !== program.id || requestId !== contestEmailPreviewRequestId) return;
         contestEmailPreviewRecipients = preview.recipients || [];
+        contestEmailPreviewIdentity = preview.mailIdentity;
         contestEmailPreviewSent = new Set();
         const counts = preview.decisionCounts || {};
         contestEmailPreviewSendEnabled = preview.sendEnabled === true &&
@@ -2621,6 +2739,7 @@
             : '<p>No submissions found for this contest.</p>');
         renderContestEmailRecipientFilter();
       } catch (error) {
+        if (state.submissionProgramFilter !== program.id || requestId !== contestEmailPreviewRequestId) return;
         body.textContent = 'Could not build email preview: ' + error.message;
       }
     }
@@ -2686,8 +2805,10 @@
       const body = document.getElementById('contest-judging-overview-body');
       const requestId = ++state.contestProgressRequestId;
       panel.hidden = !program;
-      const emailBody = document.getElementById('contest-email-preview-body');
-      emailBody.textContent = 'No preview loaded.';
+      clearContestEmailPreview('No preview loaded.');
+      document.getElementById('contest-mail-settings-fields').disabled = true;
+      document.getElementById('contest-mail-settings-fields').dataset.programId = '';
+      if (program && document.getElementById('contest-mail-settings-panel').open) loadContestMailSettings();
       contestOutcomeBulkPreview = null;
       document.getElementById('contest-outcome-bulk-apply').disabled = true;
       document.getElementById('contest-outcome-bulk-status').textContent = 'No preview loaded.';
@@ -5795,6 +5916,19 @@
       document.getElementById('contest-outcome-bulk-preview').addEventListener('click', loadContestOutcomeBulkPreview);
       document.getElementById('contest-outcome-bulk-apply').addEventListener('click', applyContestOutcomeBulk);
       document.getElementById('contest-email-preview-refresh').addEventListener('click', loadContestEmailPreview);
+      document.getElementById('contest-mail-settings-panel').addEventListener('toggle', (event) => {
+        if (event.target.open) loadContestMailSettings();
+      });
+      document.getElementById('contest-mail-settings-form').addEventListener('submit', saveContestMailSettings);
+      ['contest-mail-from-email', 'contest-mail-reply-to'].forEach((id) => {
+        document.getElementById(id).addEventListener('change', () => {
+          updateContestMailAddressField(id);
+          clearContestEmailPreview('Sender or replies edited. Save settings, then rebuild the preview.');
+        });
+      });
+      document.getElementById('contest-mail-settings-form').addEventListener('input', () => {
+        clearContestEmailPreview('Sender or replies edited. Save settings, then rebuild the preview.');
+      });
       document.getElementById('contest-email-preview-body').addEventListener('change', (event) => {
         if (event.target.id === 'contest-email-recipient-select') showContestEmailDraft(event.target.value === '' ? -1 : Number(event.target.value));
         if (event.target.id === 'contest-email-outcome-filter') renderContestEmailRecipientFilter();

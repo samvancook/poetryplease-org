@@ -60,3 +60,18 @@ test("Mandrill rejection is not reported as sent", async () => {
     fetchImpl: async () => ({ ok: true, json: async () => [{ email: "sam@buttonpoetry.com", status: "rejected" }] }),
   }), /mandrill_send_failed/);
 });
+
+test("contest mail passes the selected From name/address and Reply-To to Mandrill", async () => {
+  let payload;
+  await sendAuthorInviteWithMandrill({
+    apiKey: "test-key", email: "reviewer@buttonpoetry.com", message: { subject: "Contest", text: "Review" },
+    fromEmail: "no-reply@buttonpoetry.com", fromName: "Button Poetry Contests", replyTo: "support@buttonpoetry.com",
+    fetchImpl: async (_url, options) => {
+      payload = JSON.parse(options.body);
+      return { ok: true, json: async () => [{ email: "reviewer@buttonpoetry.com", status: "queued", _id: "fake-contest" }] };
+    },
+  });
+  assert.equal(payload.message.from_email, "no-reply@buttonpoetry.com");
+  assert.equal(payload.message.from_name, "Button Poetry Contests");
+  assert.equal(payload.message.headers["Reply-To"], "support@buttonpoetry.com");
+});
