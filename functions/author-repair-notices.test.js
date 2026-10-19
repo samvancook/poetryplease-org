@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
 
 const fixture = () => ({
@@ -53,4 +55,33 @@ test("one delivery per accepted version; uncertain sends never automatically ret
   for (const status of ["sent", "sending", "uncertain"]) assert.equal(repairNoticeCanReserve({ status }), false);
   assert.equal(repairNoticeCanReserve(null), true);
   assert.notEqual(first.previewHash, next.previewHash);
+});
+
+test("successful controlled delivery immediately updates the displayed summary", async () => {
+  const html = readFileSync(new URL("../public/admin.html", import.meta.url), "utf8");
+  const source = html.slice(html.indexOf("async function previewRepairNotice("), html.indexOf("function collectRepairReviewDetails("));
+  const controls = Object.fromEntries(["test", "send"].map((name) => [name, {
+    addEventListener(_event, handler) { this.handler = handler; },
+  }]));
+  const summary = {}, status = {};
+  const container = { querySelectorAll: () => Object.values(controls), querySelector: (selector) => ({
+    '[data-repair-notice-test]': controls.test, '[data-repair-notice-send]': controls.send,
+    '[data-repair-notice-status]': status, '[data-repair-notice-summary]': summary,
+  })[selector] };
+  const calls = [];
+  const context = { document: { querySelector: () => container }, CSS: { escape: String }, escapeHtml: String,
+    api: async (path, options) => {
+      calls.push({ path, options });
+      return options.method === 'GET'
+        ? { recipient: { email: 'author@example.com' }, message: { subject: 'Updated item', text: 'Review it' }, previewHash: 'verified-preview', canSend: false }
+        : { email: 'sam@buttonpoetry.com', delivery: { status: 'sent', messageId: 'receipt-1' } };
+    },
+  };
+  runInNewContext(`${source}; this.preview = previewRepairNotice;`, context);
+  await context.preview('same-repair');
+  await controls.test.handler();
+  assert.match(summary.textContent, /Test delivery: sent\. Author delivery: not sent/);
+  assert.match(status.textContent, /receipt-1/);
+  assert.equal(calls[1].options.body.testOnly, true);
+  assert.equal(calls[1].options.body.previewHash, 'verified-preview');
 });
