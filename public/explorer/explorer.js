@@ -215,7 +215,7 @@
   function productLinks(row, summary) {
     const sources = [summary || {}, row || {}];
     const fields = [
-      ["Button shop", "buttonBookstoreLink"], ["Book link", "bookLink"], ["Product", "productLink"],
+      ["Short link", "shortLink"], ["Button shop", "buttonBookstoreLink"], ["Book link", "bookLink"], ["Product", "productLink"],
       ["Amazon", "amazon"], ["Bookshop", "bookshop"], ["Barnes & Noble", "barnesAndNoble"],
       ["Goodreads", "goodreads"],
     ];
@@ -333,7 +333,7 @@ if (typeof document !== "undefined") {
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
 
     const PAGE_SIZE = 40;
-    const state = { rows: [], summaries: [], filtered: [], visibleCount: PAGE_SIZE, coverageFilters: {} };
+    const state = { rows: [], summaries: [], filtered: [], visibleCount: PAGE_SIZE, coverageFilters: {}, legacyProducts: [], productLinksUnavailable: false };
     const $ = (id) => document.getElementById(id);
     const plainText = (value) => String(value == null ? "" : value).trim();
     const escapeHtml = (value) => String(value == null ? "" : value)
@@ -452,6 +452,10 @@ if (typeof document !== "undefined") {
     }
 
     function renderLinks(links) {
+      const shortLinks = state.legacyProducts.filter((product) => product.shortLink
+        && links.some((link) => link.url === product.bookLink))
+        .map((product) => ({ label: "Short link", url: product.shortLink }));
+      links = [...shortLinks, ...links].filter((link, index, all) => all.findIndex((entry) => entry.url === link.url) === index);
       if (!links.length) return '<span class="muted">Not exposed by the current read-only Poetry Please response.</span>';
       return '<span class="product-actions">' + links.map((link) =>
         '<span class="product-action"><a href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener noreferrer">'
@@ -461,21 +465,43 @@ if (typeof document !== "undefined") {
     }
 
     function productLinkRows(rows) {
+      const filters = selectedFilters();
       const summaryByBook = new Map(state.summaries.map((summary) => [E.normalized(summary.book || summary.bookTitle), summary]));
-      const seen = new Set();
-      return rows.map((row) => {
+      const products = new Map(state.legacyProducts.map((product) => [product.bookLink, {
+        book: product.title, author: product.author, catalog: product.releaseCatalog,
+        links: E.productLinks(product), aliases: [product.title],
+      }]));
+      for (const row of state.rows) {
         const book = row.book || row.bookTitle || "Book not returned";
-        const key = E.normalized(book);
-        if (seen.has(key)) return null;
-        seen.add(key);
-        const summary = summaryByBook.get(key) || {};
-        return {
-          book,
-          author: row.author || summary.author || "",
-          catalog: E.catalogValue(summary) || E.catalogValue(row),
-          links: E.productLinks(row, summary),
-        };
-      }).filter(Boolean).sort((a, b) => a.book.localeCompare(b.book));
+        const summary = summaryByBook.get(E.normalized(book)) || {};
+        // Prefer the row's URL to avoid merging editions with the same book title.
+        const links = E.productLinks(row).length ? E.productLinks(row) : E.productLinks(row, summary);
+        const shop = links.find((link) => /^https?:\/\/buttonpoetry\.com\/product\//i.test(link.url));
+        const key = shop ? shop.url : "book:" + E.normalized(book);
+        const existing = products.get(key);
+        if (existing) {
+          existing.author = row.author || summary.author || existing.author;
+          existing.catalog = E.catalogValue(row) || E.catalogValue(summary) || existing.catalog;
+          existing.aliases.push(book);
+          existing.links = [...existing.links, ...links].filter((link, index, all) => all.findIndex((entry) => entry.url === link.url) === index);
+        } else {
+          products.set(key, { book, author: row.author || summary.author || "",
+            catalog: E.catalogValue(summary) || E.catalogValue(row), links, aliases: [book] });
+        }
+      }
+      const contentScoped = filters.assetType || filters.confidence || filters.flagsOnly || Object.keys(filters.coverage).length;
+      const relatedBooks = new Set(rows.map((row) => E.normalized(row.book || row.bookTitle)));
+      const query = E.normalized(filters.query);
+      return [...products.values()].filter((product) => {
+        const aliases = product.aliases.map(E.normalized);
+        return (!filters.author || E.normalized(product.author) === E.normalized(filters.author))
+          && (!filters.book || aliases.includes(E.normalized(filters.book)))
+          && (!filters.catalog || E.normalized(product.catalog) === E.normalized(filters.catalog))
+          && (!query || E.normalized([product.book, product.author, product.catalog, ...product.aliases,
+            ...product.links.map((link) => link.url)].join(" ")).includes(query))
+          && (!filters.productLink || (filters.productLink === "has" ? product.links.length > 0 : product.links.length === 0))
+          && (!contentScoped || aliases.some((alias) => relatedBooks.has(alias)));
+      }).sort((a, b) => a.book.localeCompare(b.book));
     }
 
     function renderProductLinksView(rows) {
@@ -636,7 +662,7 @@ if (typeof document !== "undefined") {
         $("load-more").hidden = true;
         renderSummary(state.filtered, state.rows);
         setStatus(products.count + " matching book" + (products.count === 1 ? "" : "s")
-          + ". Read-only: no source records are changed.");
+          + (state.productLinksUnavailable ? ". Legacy product links could not be loaded; reload to retry." : ". Read-only: no source records are changed."));
         syncUrl();
         return;
       }
@@ -691,9 +717,18 @@ if (typeof document !== "undefined") {
       const model = E.viewModel(payload);
       state.rows = model.rows;
       state.summaries = model.summaries;
-      fillSelect("author", model.authors, "authors");
-      fillSelect("book", model.books, "books");
-      fillSelect("catalog", model.catalogs, "catalogs");
+      try {
+        const response = await fetch("/explorer/product-links.json", { method: "GET" });
+        if (!response.ok) throw new Error("Product links unavailable");
+        const data = await response.json();
+        state.legacyProducts = Array.isArray(data.products) ? data.products : [];
+      } catch (error) {
+        state.productLinksUnavailable = true;
+      }
+      const unique = (values) => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b));
+      fillSelect("author", unique([...model.authors, ...state.legacyProducts.map((product) => product.author)]), "authors");
+      fillSelect("book", unique([...model.books, ...state.legacyProducts.map((product) => product.title)]), "books");
+      fillSelect("catalog", unique([...model.catalogs, ...state.legacyProducts.map((product) => product.releaseCatalog)]), "catalogs");
       fillSelect("asset-type", E.ASSET_TYPES, "asset types");
       fillConfidenceSelect(state.rows);
       restoreFilters();
