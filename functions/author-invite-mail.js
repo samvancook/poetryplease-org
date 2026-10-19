@@ -29,6 +29,25 @@ export function buildAuthorInviteMessage({ name, email, inviteUrl, expiresAt, bo
   return { subject, text };
 }
 
+export function buildAuthorRepairMessage({ name, title, book, reviewUrl, hadEarlierVote = false }) {
+  if (!reviewUrl?.startsWith("https://poetryplease.org/app?item=")) throw new Error("invalid_repair_review_url");
+  return {
+    subject: "Poetry Please: an updated graphic for your review",
+    text: [
+      name ? `Hi ${name},` : "Hello,", "",
+      `We've updated ${title ? `“${title}”` : "a graphic"}${book ? ` from ${book}` : ""}.`, "",
+      "If you'd like, take another look and tell us what you think of this version.",
+      hadEarlierVote
+        ? "Your earlier vote stays in the history. This updated version is open for a fresh vote."
+        : "You can give the updated version a vote in Poetry Please.", "",
+      "Review the updated item:", reviewUrl, "",
+      "Sign in with the email address that received this message.", "",
+      "If you'd like another adjustment, reply with the item and your notes. Sam will personally respond.", "",
+      "Button Poetry Team",
+    ].join("\n"),
+  };
+}
+
 export function buildContestAssignmentMessage({ programName, view, reviewUrl }) {
   const label = {
     assigned: "assigned review batch",

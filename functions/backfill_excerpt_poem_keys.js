@@ -85,7 +85,9 @@ if (apply && planned.length) {
     }
     await batch.commit(); report.written += Math.min(400, planned.length - offset);
   }
-  await db.collection("systemState").doc("content-feed").set({ invalidatedAt: FieldValue.serverTimestamp(), builtAt: null }, { merge: true });
+  await db.collection("systemState").doc("content-feed").set({
+    generation: FieldValue.increment(1), invalidatedAt: FieldValue.serverTimestamp(), builtAt: null,
+  }, { merge: true });
   report.contentFeedInvalidated = true;
 }
 console.log(JSON.stringify(report, null, 2));

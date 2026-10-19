@@ -5028,6 +5028,10 @@
                   </div>
                 ` : ''}
                 ${row.returnReviewNote ? `<div class="meta">${escapeHtml(row.returnReviewNote)}</div>` : ''}
+                ${row.returnReviewStatus === 'accepted' && row.replacementActivated && state.me?.roles?.includes('admin') ? `
+                  <div class="actions" style="margin-top:8px;"><button type="button" class="secondary" data-preview-repair-notice="${escapeHtml(row.id)}">Preview author email</button></div>
+                  <div data-repair-notice="${escapeHtml(row.id)}" aria-live="polite"></div>
+                ` : ''}
               </td>
             </tr>
           `).join('')}</tbody>
@@ -5039,6 +5043,52 @@
           button.getAttribute('data-decision')
         ));
       });
+      container.querySelectorAll('[data-preview-repair-notice]').forEach((button) => {
+        button.addEventListener('click', () => previewRepairNotice(button.dataset.previewRepairNotice));
+      });
+    }
+
+    async function previewRepairNotice(requestId) {
+      const container = document.querySelector(`[data-repair-notice="${CSS.escape(requestId)}"]`);
+      container.textContent = 'Preparing author email preview…';
+      const labels = {
+        author_recipient_not_verified: 'No verified author account matches this item. No email will be sent.',
+        author_recipient_ambiguous: 'More than one author account matches. Resolve the recipient before sending.',
+        author_has_active_vote: 'The author has an active vote on this item. Check it before sending a fresh-vote reminder.',
+        repair_replacement_superseded: 'This repair is no longer the current version. No email will be sent.',
+        item_not_in_author_review: 'This item is outside the current author review lanes.',
+      };
+      try {
+        const preview = await api(`admin/contentRepairRequests/${encodeURIComponent(requestId)}/authorNotice`, { method: 'GET' });
+        const attempted = (delivery) => ['sending', 'sent', 'uncertain'].includes(delivery?.status);
+        container.innerHTML = `
+          <p><strong>To:</strong> ${escapeHtml(preview.recipient.email)}</p>
+          <p><strong>${escapeHtml(preview.message.subject)}</strong></p>
+          <div style="white-space:pre-wrap;overflow-wrap:anywhere;">${escapeHtml(preview.message.text)}</div>
+          <div class="actions" style="margin-top:8px;">
+            <button type="button" data-repair-notice-test ${attempted(preview.testDelivery) ? 'disabled' : ''}>Send test to Sam</button>
+            <button type="button" data-repair-notice-send ${!preview.canSend || attempted(preview.authorDelivery) ? 'disabled' : ''}>Send to author</button>
+          </div>
+          <div class="meta">${preview.canSend ? '' : 'Author sending awaits approval. '}Test delivery: ${escapeHtml(preview.testDelivery?.status || 'not sent')}. Author delivery: ${escapeHtml(preview.authorDelivery?.status || 'not sent')}.</div>
+          <div data-repair-notice-status role="status"></div>`;
+        const send = async (testOnly) => {
+          const status = container.querySelector('[data-repair-notice-status]');
+          container.querySelectorAll('button').forEach((button) => { button.disabled = true; });
+          status.textContent = 'Sending through Mandrill…';
+          try {
+            const result = await api(`admin/contentRepairRequests/${encodeURIComponent(requestId)}/authorNotice/send`, {
+              method: 'POST', body: { testOnly, previewHash: preview.previewHash },
+            });
+            status.textContent = `Mandrill ${result.delivery.status}: ${result.email}. Receipt: ${result.delivery.messageId}`;
+          } catch (error) {
+            status.textContent = `${error.message || 'Delivery could not be confirmed.'} Refresh the preview to check its saved status before retrying.`;
+          }
+        };
+        container.querySelector('[data-repair-notice-test]').addEventListener('click', () => send(true));
+        container.querySelector('[data-repair-notice-send]').addEventListener('click', () => send(false));
+      } catch (error) {
+        container.textContent = labels[error.message] || error.message || 'Could not prepare the author email.';
+      }
     }
 
     function collectRepairReviewDetails(requestId, decision, titleCorrection) {
@@ -5094,11 +5144,20 @@
       statusEl.textContent = `${decision === 'accepted' ? 'Accepting' : 'Rejecting'} returned repair…`;
       statusEl.className = 'status';
       try {
-        await api(`admin/contentRepairRequests/${requestId}/review`, {
+        const payload = await api(`admin/contentRepairRequests/${requestId}/review`, {
           method: 'POST',
           body: { decision, note, ...(correctedTitle ? { correctedTitle } : {}) },
         });
-        await loadFlags();
+        if (payload.request) {
+          state.repairRequests = state.repairRequests.map((row) => row.id === requestId ? payload.request : row);
+          renderRepairRequests();
+        }
+        const refreshed = await loadFlags();
+        const saved = decision === 'accepted'
+          ? `Replacement accepted and saved.${payload.supersededAuthorVoteCount ? ' Earlier author votes are retained in history; fresh voting is open.' : ''} Author email can be previewed on the accepted request.`
+          : 'Rejection saved.';
+        statusEl.textContent = `${saved}${refreshed ? '' : ' The list could not refresh; use Refresh flags and repairs.'}`;
+        statusEl.className = refreshed ? 'status success' : 'status';
       } catch (err) {
         statusEl.textContent = err.message || 'Could not review returned repair.';
         statusEl.className = 'status error';
@@ -5332,6 +5391,7 @@
         personFilter.value = state.flagPersonFilter;
         renderRepairRequests();
         renderFlags();
+        return true;
       } catch (err) {
         console.error(err);
         loadedAdminSections.delete('flags');
@@ -5340,6 +5400,7 @@
         statusEl.className = 'status error';
         repairStatusEl.textContent = 'Could not load recreation requests. Use “Refresh flags and repairs” to retry.';
         repairStatusEl.className = 'status error';
+        return false;
       }
     }
 
