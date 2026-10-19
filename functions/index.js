@@ -11,6 +11,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { GoogleAuth, Impersonated } from "google-auth-library";
+import { paginateScrollFeed } from "./scroll-feed.js";
 import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
@@ -5080,9 +5081,13 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     ).map(({ item }) => item)
     : null;
 
+  const scrollPage = req.body?.scroll === true ? paginateScrollFeed(filteredNew, {
+    seed: normalizeText(req.body?.scrollSeed), after: normalizeText(req.body?.cursor), limit: req.body?.limit || 12,
+  }) : null;
   res.json({
-    allGraphics: filteredAll.map(mapToCounterArr),
-    newGraphics: (rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
+    allGraphics: scrollPage ? [] : filteredAll.map(mapToCounterArr),
+    newGraphics: (scrollPage?.items || rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
+    ...(scrollPage ? { hasMore: scrollPage.hasMore, nextCursor: scrollPage.nextCursor, feedMode: "scroll" } : {}),
     totalImages: all.length,
     votedImagesCount: all.length - all.filter((item) => !votedIds.has((item.imageId || "").trim().toLowerCase())).length,
     remainingImagesCount: filteredNew.length,

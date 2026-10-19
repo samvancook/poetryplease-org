@@ -1,0 +1,165 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+import { paginateScrollFeed } from './scroll-feed.js';
+import { ScrollFeedPager, safeMediaUrl, normalizeScrollItem, originalViewerUrl } from '../public/scroll-feed-core.js';
+
+const content = (count) => Array.from({ length: count }, (_, i) => ({ imageId: 'item-' + i, imageType: 'EXC', title: 'Poem ' + i, book: 'Roads', excerpt: 'line one\nline two' }));
+const row = (id) => ['Author', 'Title', 'Book', id, '', '', '', 'EXC', 'one\ntwo'];
+
+test('keyset pages visit every item once even when earlier voted items disappear', () => {
+  const all = content(87);
+  const seen = new Set();
+  let cursor = '';
+  let remaining = all;
+  for (let i = 0; i < 20; i++) {
+    const page = paginateScrollFeed(remaining, { seed: 'session', after: cursor, limit: 12 });
+    for (const item of page.items) { assert.ok(!seen.has(item.imageId)); seen.add(item.imageId); }
+    if (!page.hasMore) break;
+    cursor = page.nextCursor;
+    remaining = all.filter((item) => !seen.has(item.imageId));
+  }
+  assert.equal(seen.size, 87);
+});
+
+test('a removed cursor anchor still advances, duplicate IDs and page size are bounded', () => {
+  const all = content(40);
+  const first = paginateScrollFeed(all, { seed: 'same', limit: 5 });
+  const gone = all.filter((item) => !first.items.includes(item));
+  const next = paginateScrollFeed(gone, { seed: 'same', after: first.nextCursor, limit: 5 });
+  assert.equal(next.items.length, 5);
+  assert.ok(next.items.every((item) => !first.items.includes(item)));
+  const duplicates = paginateScrollFeed([...all, { ...all[0], imageId: ' ITEM-0 ' }], { limit: 999999 });
+  assert.equal(duplicates.items.length, 24);
+  assert.equal(paginateScrollFeed([], {}).hasMore, false);
+  assert.equal(paginateScrollFeed(all, { limit: 'not-a-number' }).items.length, 12);
+});
+
+test('session order is stable but changes between sessions', () => {
+  const all = content(20);
+  const a = paginateScrollFeed(all, { seed: 'a' });
+  assert.deepEqual(a, paginateScrollFeed(all.slice().reverse(), { seed: 'a' }));
+  assert.notDeepEqual(a.items, paginateScrollFeed(all, { seed: 'b' }).items);
+});
+
+test('front-end pager coalesces repeated triggers and appends no duplicate cards', async () => {
+  let resolve;
+  let calls = 0;
+  const appended = [];
+  const pager = new ScrollFeedPager({ fetchPage: () => { calls++; return new Promise((done) => { resolve = done; }); }, append: (items) => appended.push(...items), changed() {}, clear() {} });
+  const first = pager.reset({ type: 'EXC' });
+  await pager.loadMore(); await pager.loadMore();
+  assert.equal(calls, 1);
+  resolve({ newGraphics: [row('A'), row('a'), row('B')], hasMore: true, nextCursor: 'page2' });
+  await first;
+  assert.deepEqual(appended.map((item) => item.id), ['A', 'B']);
+  const second = pager.loadMore();
+  resolve({ newGraphics: [row('A'), row('C')], hasMore: false, nextCursor: null });
+  await second;
+  assert.deepEqual(appended.map((item) => item.id), ['A', 'B', 'C']);
+  await pager.loadMore();
+  assert.equal(calls, 2);
+});
+
+test('changing a filter cancels and ignores a stale response', async () => {
+  const pending = [];
+  const shown = [];
+  const pager = new ScrollFeedPager({ fetchPage: (context, signal) => new Promise((resolve) => pending.push({ context, signal, resolve })), append: (items) => shown.push(...items), changed() {}, clear() { shown.length = 0; } });
+  const old = pager.reset({ book: 'Old' });
+  const fresh = pager.reset({ book: 'New' });
+  assert.equal(pending[0].signal.aborted, true);
+  pending[1].resolve({ newGraphics: [row('new')], hasMore: false });
+  await fresh;
+  pending[0].resolve({ newGraphics: [row('old')], hasMore: false });
+  await old;
+  assert.deepEqual(shown.map((item) => item.id), ['new']);
+  assert.equal(pager.hasMore, false);
+});
+
+test('failed pages retain cards and retry the same cursor; non-advancing cursors stop', async () => {
+  const seen = [];
+  const cursors = [];
+  let n = 0;
+  const pager = new ScrollFeedPager({ fetchPage: async (context) => {
+    cursors.push(context.cursor);
+    n++;
+    if (n === 1) return { newGraphics: [row('a')], hasMore: true, nextCursor: 'two' };
+    if (n === 2) throw new Error('offline');
+    return { newGraphics: [row('b')], hasMore: true, nextCursor: 'two' };
+  }, append: (items) => seen.push(...items), changed() {}, clear() {} });
+  await pager.reset({}); await pager.loadMore();
+  assert.match(pager.error.message, /offline/);
+  assert.equal(seen.length, 1);
+  await pager.loadMore();
+  assert.match(pager.error.message, /retry/);
+  assert.deepEqual(cursors, [null, 'two', 'two']);
+  assert.equal(seen.length, 1);
+});
+
+test('scrolling fetches pages only; it never sends a vote', async () => {
+  const calls = [];
+  const pager = new ScrollFeedPager({ fetchPage: async (body) => { calls.push(body); return { newGraphics: [row('one')], hasMore: false }; }, append() {}, changed() {}, clear() {} });
+  await pager.reset({ type: 'EXC', scrollSeed: 'one' });
+  await pager.loadMore();
+  assert.deepEqual(calls, [{ type: 'EXC', scrollSeed: 'one', cursor: null }]);
+  assert.ok(!('voteType' in calls[0]));
+});
+
+test('metadata and text remain plain strings and media URLs require HTTPS', () => {
+  assert.equal(safeMediaUrl('javascript:alert(1)'), '');
+  assert.equal(safeMediaUrl('http://example.com/a.png'), '');
+  const item = normalizeScrollItem(['A', '<script>bad</script>', 'Book', 'id', 'https://example.com/a.png', '', '', 'EXC', 'first\n\nlast']);
+  assert.equal(item.text, 'first\n\nlast');
+  assert.equal(item.title, '<script>bad</script>');
+  const url = new URL(originalViewerUrl(item, { author: 'A', book: 'Book', authorPreview: '1' }), 'https://poetryplease.org');
+  assert.equal(url.searchParams.get('item'), 'id');
+  assert.equal(url.searchParams.get('book'), 'Book');
+  assert.equal(url.searchParams.get('authorPreview'), '1');
+});
+
+const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
+function routeHarness() {
+  let handler;
+  const all = [...content(30), { imageId: 'flagged', imageType: 'EXC', book: 'Roads' }, { imageId: 'broken', broken: true, imageType: 'EXC', book: 'Roads' }, { imageId: 'private', imageType: 'FP', book: 'Roads' }];
+  const context = vm.createContext({ app: { post: (_p, fn) => { handler = fn; } }, getBoth: (p) => p,
+    verifyIdTokenFromHeader: async (req) => req.decoded, normalizeText: (v) => String(v || '').trim(), normalizeKey: (v) => String(v || '').trim().toLowerCase(),
+    getAllContentCached: async () => all, getFlaggedContentIds: async () => new Set(['flagged']),
+    getUniqueVotedImageIdsByUser: async () => new Set(['item-0']), canSeeFullPoemsInReview: async (decoded) => decoded?.staff === true,
+    excludeBrokenContent: (items) => items.filter((i) => !i.broken), excludeFlaggedContent: (items, ids) => items.filter((i) => !ids.has(i.imageId)),
+    reviewVisibleContent: (items, full) => items.filter((i) => full || i.imageType !== 'FP'),
+    parseOptionalCount: (value) => value == null ? null : Number(value), parseBoolean: (value) => value === true,
+    sampleItems: (items, limit) => items.slice(0, limit), mapToCounterArr: (i) => i.imageId, mapToArr: (i) => row(i.imageId), paginateScrollFeed,
+  });
+  vm.runInContext(source.slice(source.indexOf('function matchesFilterValue('), source.indexOf('function firstNonEmpty(')) + '\n' +
+    source.slice(source.indexOf('app.post(getBoth("/fetchFiltered")'), source.indexOf('app.get(getBoth("/embedBookLead")')), context);
+  return async (body, decoded) => {
+    let status = 200; let data;
+    await handler({ body, decoded }, { status(code) { status = code; return this; }, json(value) { data = JSON.parse(JSON.stringify(value)); } });
+    return { status, data };
+  };
+}
+
+test('scroll mode retains feed visibility, flags, broken-media and existing-vote exclusions', async () => {
+  const call = routeHarness();
+  assert.equal((await call({ scroll: true })).status, 400);
+  const result = (await call({ scroll: true, anonId: 'test', book: 'Roads', limit: 12, scrollSeed: 'test' })).data;
+  assert.deepEqual(result.allGraphics, []);
+  assert.equal(result.newGraphics.length, 12);
+  assert.equal(result.domainRemainingImagesCount, 29);
+  assert.equal(result.hasMore, true);
+  const ids = result.newGraphics.map((r) => r[3]);
+  assert.ok(!ids.some((id) => ['flagged', 'broken', 'private', 'item-0'].includes(id)));
+  const full = (await call({ scroll: true, type: 'FP', anonId: 'test' }, { email: 'staff@example.com', staff: true })).data;
+  assert.equal(full.newGraphics[0][3], 'private');
+  const hidden = (await call({ scroll: true, type: 'FP', anonId: 'test' })).data;
+  assert.equal(hidden.newGraphics.length, 0);
+});
+
+test('legacy filtered-feed callers retain the same response shape and metadata', async () => {
+  const data = (await routeHarness()({ anonId: 'test', book: 'Roads', limit: 10 })).data;
+  assert.equal(data.allGraphics.length, 30);
+  assert.equal(data.newGraphics.length, 10);
+  assert.equal(data.hasMore, undefined);
+  assert.equal(data.nextCursor, undefined);
+});
