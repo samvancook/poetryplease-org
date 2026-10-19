@@ -135,6 +135,11 @@
 
   function syncItemActions() {
     const hasItem = !!window.currentItem;
+    const reading = window.PP?.isEventReading?.() === true;
+    const next = document.getElementById('btnSkip');
+    if (next) next.textContent = reading ? 'Next graphic' : 'Poetry, Please';
+    const book = document.getElementById('btnBook');
+    if (book) book.hidden = !window.currentItem?.bookUrl;
     ['btn-mobile-moved', 'btn-mobile-meh', 'btn-mobile-like', 'btn-mobile-dislike', 'btnBack', 'btnBook', 'btnSkip', 'btnMoreInfo'].forEach((id) => {
       const button = document.getElementById(id);
       if (button) button.disabled = !hasItem;
