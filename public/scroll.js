@@ -3,15 +3,14 @@ import { ScrollFeedPager, originalViewerUrl, safeMediaUrl } from './scroll-feed-
 const $ = (id) => document.getElementById(id);
 const auth = firebase.auth();
 const initial = new URLSearchParams(location.search);
-const allowedTypes = ['PROMO', 'QI', 'INT', 'EXC', 'VIDEO'];
 const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Don’t use']];
 let account = null;
 let ownAuthor = '';
 let activeIdentity = null;
 let sessionGeneration = 0;
-let sessionReady = false;
 let automaticPages = true;
-let filters = { type: initial.get('type') || 'PROMO', author: initial.get('author') || '', book: initial.get('book') || '', catalog: initial.get('catalog') || '' };
+// The scroll view has one mixed feed. URL lane/book filters are intentionally ignored.
+let filters = { type: 'PROMO', author: '' };
 const anonymousId = (() => {
   try {
     const saved = localStorage.getItem('pp_anon');
@@ -41,25 +40,54 @@ function node(tag, className, text) {
   return element;
 }
 function isStaff() { return account?.roles?.some((role) => role === 'team' || role === 'admin'); }
-function canReviewFullPoems() { return isStaff() && initial.get('authorPreview') !== '1'; }
 function isAuthorOnly() { return account?.roles?.includes('author') && !isStaff(); }
 function routeFilters() {
-  return { ...filters, ...(initial.get('authorPreview') === '1' && isStaff() ? { authorPreview: '1', locked: '1' } : {}) };
+  return { author: filters.author, ...(initial.get('authorPreview') === '1' && isStaff() ? { authorPreview: '1', locked: '1' } : {}) };
 }
 function updateRoute() {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(routeFilters())) if (value) params.set(key, value);
-  history.replaceState(null, '', location.pathname + '?' + params.toString());
-  $('original-view').href = '/m?' + params.toString();
-  $('filter-summary').textContent = [filters.type === 'PROMO' ? 'Graphics and excerpts' : filters.type, filters.author, filters.book].filter(Boolean).join(' · ') + ' · Filters';
+  history.replaceState(null, '', location.pathname + (params.size ? '?' + params.toString() : ''));
+  $('original-view').href = '/m' + (params.size ? '?' + params.toString() : '');
 }
+let imageZoom = 1;
+let imageReturnFocus = null;
+let previousOverflow = '';
+function setImageZoom(value) {
+  imageZoom = Math.max(1, Math.min(4, value));
+  $('enlarged-image').style.width = (imageZoom * 100) + '%';
+  $('image-zoom-out').disabled = imageZoom === 1;
+  $('image-zoom-in').disabled = imageZoom === 4;
+  $('image-zoom-status').textContent = Math.round(imageZoom * 100) + '% · Use + to enlarge. Swipe to move around the image.';
+}
+function openImage(item, trigger) {
+  imageReturnFocus = trigger;
+  $('image-viewer-title').textContent = item.title || 'Image';
+  $('enlarged-image').src = item.mediaUrl;
+  $('enlarged-image').alt = [item.title, item.author].filter(Boolean).join(' · ');
+  setImageZoom(1);
+  previousOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  $('image-viewer').showModal();
+  $('image-viewport').scrollTop = 0;
+  $('image-viewport').scrollLeft = 0;
+  $('image-close').focus();
+}
+$('image-close').addEventListener('click', () => $('image-viewer').close());
+$('image-zoom-in').addEventListener('click', () => setImageZoom(imageZoom + .5));
+$('image-zoom-out').addEventListener('click', () => setImageZoom(imageZoom - .5));
+$('image-viewer').addEventListener('close', () => {
+  document.body.style.overflow = previousOverflow;
+  $('enlarged-image').removeAttribute('src');
+  imageReturnFocus?.focus({ preventScroll: true });
+});
 function updateFooter(state) {
   $('feed').setAttribute('aria-busy', String(state.loading));
   $('load-more').hidden = state.loading || !state.hasMore;
   $('load-more').disabled = state.loading;
   $('load-more').textContent = state.error ? 'Retry loading' : 'Load more';
   $('feed-status').textContent = state.loading ? 'Loading more…' : state.error ? state.error.message :
-    state.hasMore ? 'More below' : state.seen.size ? 'You’ve reached the end of this queue. Change the filters to explore more.' : 'No unreviewed items match these filters.';
+    state.hasMore ? 'More below' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.';
 }
 const pager = new ScrollFeedPager({
   fetchPage: (context, signal) => api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12 }, signal),
@@ -134,13 +162,16 @@ function renderCard(item) {
     stage.append(play);
     media.append(stage);
   } else if (item.mediaUrl) {
-    const stage = node('div', 'image-stage');
+    const stage = node('button', 'image-stage' + (item.type === 'INT' ? ' interior-stage' : ''));
+    stage.type = 'button';
+    stage.setAttribute('aria-label', 'Enlarge ' + (item.title || 'image'));
+    stage.addEventListener('click', () => openImage(item, stage));
     const image = node('img');
     image.src = item.mediaUrl;
     image.alt = [item.type === 'INT' ? 'Interior photo' : 'Graphic', item.title, item.author].filter(Boolean).join(' · ');
     image.loading = 'lazy';
     image.decoding = 'async';
-    image.addEventListener('error', () => stage.replaceChildren(node('p', '', 'Image unavailable. Open this item in the original viewer below.')), { once: true });
+    image.addEventListener('error', () => { stage.disabled = true; stage.replaceChildren(node('p', '', 'Image unavailable. Open this item in the original viewer below.')); }, { once: true });
     stage.append(image);
     media.append(stage);
   } else media.append(node('p', 'card-text', 'No preview is available. Open this item in the original viewer below.'));
@@ -192,13 +223,6 @@ function renderCard(item) {
   $('feed').append(card);
 }
 
-$('filters').addEventListener('submit', (event) => {
-  event.preventDefault();
-  if (!sessionReady) return;
-  filters = { ...filters, type: $('filter-type').value, author: ownAuthor || $('filter-author').value.trim(), book: $('filter-book').value.trim() };
-  $('filters-panel').open = false;
-  restartFeed();
-});
 $('load-more').addEventListener('click', () => { automaticPages = true; pager.loadMore(); });
 if ('IntersectionObserver' in window) {
   new IntersectionObserver((entries) => {
@@ -219,7 +243,6 @@ auth.onAuthStateChanged(async (user) => {
   const identity = user?.email || anonymousId;
   if (identity === activeIdentity) return;
   activeIdentity = identity;
-  sessionReady = false;
   const generation = ++sessionGeneration;
   pager.reset(null);
   $('feed-status').textContent = 'Loading your queue…';
@@ -237,19 +260,14 @@ auth.onAuthStateChanged(async (user) => {
       if (generation !== sessionGeneration) return;
       ownAuthor = String(data?.profile?.displayName || data?.workingProfile?.displayName || '').trim();
       if (!ownAuthor) throw new Error('Your author profile could not be resolved. Please use the single-item view for now.');
-      filters.author = ownAuthor;
-      if (!initial.has('type')) filters.type = 'QI';
-      if (!['PROMO', 'QI', 'INT', 'EXC'].includes(filters.type)) filters.type = 'PROMO';
     }
-    $('filter-author').disabled = !!ownAuthor;
-    $('filter-author').value = filters.author;
-    $('filter-book').value = filters.book;
-    const fpOption = $('filter-type').querySelector('[value="FP"]');
-    if (canReviewFullPoems() && !fpOption) { const option = node('option', '', 'FP · Full poems'); option.value = 'FP'; $('filter-type').append(option); }
-    if (!canReviewFullPoems() && fpOption) fpOption.remove();
-    if (!allowedTypes.includes(filters.type) && !(canReviewFullPoems() && filters.type === 'FP')) filters.type = 'PROMO';
-    $('filter-type').value = filters.type;
-    sessionReady = true;
+    // Author ownership and explicit staff preview are access scopes, not browsing filters.
+    filters = { type: 'PROMO', author: ownAuthor };
+    if (isStaff() && initial.get('authorPreview') === '1') {
+      const previewAuthor = String(initial.get('author') || '').trim();
+      if (!previewAuthor) throw new Error('An author is required for author preview. Please use the single-item view.');
+      filters.author = previewAuthor;
+    }
     await restartFeed();
   } catch (error) {
     if (generation === sessionGeneration) $('feed-status').textContent = error.message || 'Your account could not be loaded. Please reload or open the single-item view.';
