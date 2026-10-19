@@ -4991,7 +4991,7 @@
       const rows = state.repairRequests || [];
       const query = String(state.repairRequestQuery || '').trim().toLowerCase();
       const visibleRows = query ? rows.filter((row) => [
-        row.title, row.imageId, row.author, row.book, row.contentType,
+        row.title, row.acceptedCorrectedTitle, row.imageId, row.author, row.book, row.contentType,
         row.requestNote, row.issueReason, row.status, row.returnReviewStatus,
       ].join(' ').toLowerCase().includes(query)) : rows;
       const statusEl = document.getElementById('repair-request-status');
@@ -5069,7 +5069,7 @@
             <button type="button" data-repair-notice-test ${attempted(preview.testDelivery) ? 'disabled' : ''}>Send test to Sam</button>
             <button type="button" data-repair-notice-send ${!preview.canSend || attempted(preview.authorDelivery) ? 'disabled' : ''}>Send to author</button>
           </div>
-          <div class="meta">${preview.canSend ? '' : 'Author sending awaits approval. '}Test delivery: ${escapeHtml(preview.testDelivery?.status || 'not sent')}. Author delivery: ${escapeHtml(preview.authorDelivery?.status || 'not sent')}.</div>
+          <div class="meta" data-repair-notice-summary>${preview.canSend ? '' : 'Author sending awaits approval. '}Test delivery: ${escapeHtml(preview.testDelivery?.status || 'not sent')}. Author delivery: ${escapeHtml(preview.authorDelivery?.status || 'not sent')}.</div>
           <div data-repair-notice-status role="status"></div>`;
         const send = async (testOnly) => {
           const status = container.querySelector('[data-repair-notice-status]');
@@ -5079,6 +5079,8 @@
             const result = await api(`admin/contentRepairRequests/${encodeURIComponent(requestId)}/authorNotice/send`, {
               method: 'POST', body: { testOnly, previewHash: preview.previewHash },
             });
+            preview[testOnly ? 'testDelivery' : 'authorDelivery'] = { status: 'sent' };
+            container.querySelector('[data-repair-notice-summary]').textContent = `${preview.canSend ? '' : 'Author sending awaits approval. '}Test delivery: ${preview.testDelivery?.status || 'not sent'}. Author delivery: ${preview.authorDelivery?.status || 'not sent'}.`;
             status.textContent = `Mandrill ${result.delivery.status}: ${result.email}. Receipt: ${result.delivery.messageId}`;
           } catch (error) {
             status.textContent = `${error.message || 'Delivery could not be confirmed.'} Refresh the preview to check its saved status before retrying.`;
