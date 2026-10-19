@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { postPermalink, sharePost, videoEmbedUrl } from '../public/post-cards.js';
+
+const item = { id: 'graphic & one', title: 'A poem', author: 'A poet' };
+test('sharing uses the canonical item identity without private feed or account parameters', () => {
+  const url = new URL(postPermalink({ ...item, authorPreview: '1', book: 'Private scope' }));
+  assert.equal(url.origin, 'https://poetryplease.org');
+  assert.equal(url.pathname, '/app');
+  assert.deepEqual([...url.searchParams], [['item', 'graphic & one']]);
+});
+test('native share receives the individual link; cancel does not overwrite the clipboard', async () => {
+  const shares = [];
+  let copies = 0;
+  assert.equal(await sharePost(item, { share: async data => shares.push(data), copy: async () => copies++ }), 'shared');
+  assert.equal(shares[0].url, postPermalink(item));
+  const canceled = Object.assign(new Error('Canceled'), { name: 'AbortError' });
+  assert.equal(await sharePost(item, { share: async () => { throw canceled; }, copy: async () => copies++ }), 'canceled');
+  assert.equal(copies, 0);
+});
+test('unavailable or denied native share falls back to copy, then a selectable link', async () => {
+  let copied;
+  assert.equal(await sharePost(item, { copy: async url => { copied = url; } }), 'copied');
+  assert.equal(copied, postPermalink(item));
+  assert.equal(await sharePost(item, { share: async () => { throw new Error('Denied'); }, copy: async () => {} }), 'copied');
+  assert.equal(await sharePost(item, { copy: async () => { throw new Error('Denied'); } }), 'manual');
+});
+test('video embeds support vertical Shorts, normal YouTube, and Drive without unsafe URLs', () => {
+  assert.equal(videoEmbedUrl('https://www.youtube.com/shorts/abc123'), 'https://www.youtube-nocookie.com/embed/abc123');
+  assert.equal(videoEmbedUrl('https://youtu.be/abc123?t=10'), 'https://www.youtube-nocookie.com/embed/abc123');
+  assert.equal(videoEmbedUrl('https://www.youtube.com/watch?v=abc123'), 'https://www.youtube-nocookie.com/embed/abc123');
+  assert.equal(videoEmbedUrl('https://drive.google.com/file/d/abc123/view'), 'https://drive.google.com/file/d/abc123/preview');
+  assert.equal(videoEmbedUrl('javascript:alert(1)'), '');
+  assert.equal(videoEmbedUrl('https://evil.example/watch?v=abc123'), '');
+});
