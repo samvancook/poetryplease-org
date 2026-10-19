@@ -1,0 +1,16 @@
+/* Separate continuous variant: adjoining 4:5 posts with labels inside the frame. */
+body.posts-continuous { background:#090909; }
+.posts-continuous .site-header { background:#090909; color:#fff; border:0; }
+.posts-continuous .brand,.posts-continuous #account-toggle { color:#fff; }
+.posts-continuous .variant { color:#b9b9b3; }
+.posts-continuous .account-menu { border-color:#454540; }
+.posts-continuous .account-menu a { color:#fff; }
+.posts-continuous main { max-width:480px; padding:0; }
+.posts-continuous .post-card { margin:0; }
+.posts-continuous .post-open { position:relative; }
+.posts-continuous .post-frame { border-radius:0; }
+/* Keep a quiet black inset for the white label without covering the artwork. */
+.posts-continuous .post-frame > img,.posts-continuous .post-frame > video { height:calc(100% - 32px); }
+.posts-continuous .post-open-hint { position:absolute; bottom:10px; right:16px; z-index:1; padding:0; color:#fff; }
+.posts-continuous .feed-footer { color:#b9b9b3; margin:0; padding-top:20px; }
+@media(min-width:760px) { .posts-continuous main { padding-top:0; } }
