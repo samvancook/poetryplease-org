@@ -4659,6 +4659,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // API for mobile.html
   window.PP = Object.assign({}, window.PP, {
     isEventReading: ()=>eventReadingMode,
+    canGoBack: ()=>historyStack.length > 0,
     vote: (v)=>onVoteAny(v),
     skip: ()=>onSkip(),
     goBack: ()=>onGoBack(),

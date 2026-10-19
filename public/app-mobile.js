@@ -142,7 +142,7 @@
     if (book) book.hidden = !window.currentItem?.bookUrl;
     ['btn-mobile-moved', 'btn-mobile-meh', 'btn-mobile-like', 'btn-mobile-dislike', 'btnBack', 'btnBook', 'btnSkip', 'btnMoreInfo'].forEach((id) => {
       const button = document.getElementById(id);
-      if (button) button.disabled = !hasItem;
+      if (button) button.disabled = id === 'btnBack' && reading ? !window.PP?.canGoBack?.() : !hasItem;
     });
   }
 
