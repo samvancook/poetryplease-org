@@ -18,6 +18,7 @@ import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-
 import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
+import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
 
 // Firebase Admin v12 (modular)
 import { initializeApp } from "firebase-admin/app";
@@ -9032,6 +9033,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
         ...(correctedTitle ? { acceptedCorrectedTitle: correctedTitle } : {}),
         reopenedAuthorVoteCount: supersededAuthorVoteCount,
         authorVotingReopenedAt: FieldValue.serverTimestamp(),
+        authorNoticeStatus: "awaiting_approval",
       } : {}),
       updatedAt: FieldValue.serverTimestamp(),
       history: FieldValue.arrayUnion({
@@ -9060,6 +9062,87 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
     supersededAuthorVoteCount: reviewResult.supersededAuthorVoteCount || 0,
     request: repairRequestJson(saved),
   });
+});
+
+async function loadAuthorRepairNotice(ref, transaction = null) {
+  const get = (target) => transaction ? transaction.get(target) : target.get();
+  const snap = await get(ref);
+  if (!snap.exists) throw new Error("repair_request_not_found");
+  const request = snap.data();
+  const collection = request.replacementActivatedCollection;
+  const docId = request.replacementActivatedDocId;
+  if (![COLLECTIONS.graphics, COLLECTIONS.excerpts].includes(collection) || !docId || docId.includes("/")) {
+    throw new Error("repair_original_content_not_found");
+  }
+  const [content, profiles, users, votes] = await Promise.all([
+    get(db.collection(collection).doc(docId)),
+    get(db.collection(COLLECTIONS.authorProfiles)),
+    get(db.collection(COLLECTIONS.users).where("roles", "array-contains", "author")),
+    get(db.collection(COLLECTIONS.votes).where("imageId", "==", normalizeText(request.imageId))),
+  ]);
+  if (!content.exists) throw new Error("repair_original_content_not_found");
+  const rows = (snapshot) => snapshot.docs.map((doc) => ({ ...doc.data(), id: doc.id }));
+  return { request, plan: buildAuthorRepairNoticePlan({ requestId: ref.id, request, content: content.data(),
+    profiles: rows(profiles), users: rows(users), votes: rows(votes) }) };
+}
+
+app.get(getBoth("/admin/contentRepairRequests/:requestId/authorNotice"), async (req, res) => {
+  if (!await requireRole(req, res, ["admin"])) return;
+  const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(normalizeText(req.params.requestId));
+  try {
+    const { request, plan } = await loadAuthorRepairNotice(ref);
+    return res.json({ ok: true, ...plan, canSend: BROADER_EMAIL_SENDS_ENABLED,
+      authorDelivery: request.authorNoticeDeliveries?.[repairNoticeDeliveryKey(plan, false)] || null,
+      testDelivery: request.authorNoticeDeliveries?.[repairNoticeDeliveryKey(plan, true)] || null,
+    });
+  } catch (error) {
+    return res.status(409).json({ error: error.message });
+  }
+});
+
+app.post(getBoth("/admin/contentRepairRequests/:requestId/authorNotice/send"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  const testOnly = req.body?.testOnly === true;
+  if (!testOnly && !BROADER_EMAIL_SENDS_ENABLED) return res.status(409).json({ error: "broader_email_sends_awaiting_approval" });
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
+  const ref = db.collection(COLLECTIONS.contentRepairRequests).doc(normalizeText(req.params.requestId));
+  let plan, deliveryKey;
+  try {
+    await db.runTransaction(async (transaction) => {
+      const loaded = await loadAuthorRepairNotice(ref, transaction);
+      plan = loaded.plan;
+      if (plan.previewHash !== req.body?.previewHash) throw new Error("notice_changed_preview_again");
+      deliveryKey = repairNoticeDeliveryKey(plan, testOnly);
+      if (!repairNoticeCanReserve(loaded.request.authorNoticeDeliveries?.[deliveryKey])) throw new Error("repair_notice_already_attempted");
+      transaction.set(ref, { authorNoticeDeliveries: { [deliveryKey]: {
+        revision: plan.revision, previewHash: plan.previewHash, testOnly,
+        email: testOnly ? AUTHOR_INVITE_TEST_EMAIL : plan.recipient.email,
+        status: "sending", createdAt: FieldValue.serverTimestamp(), createdBy: ctx.decoded.uid,
+      } } }, { merge: true });
+    });
+  } catch (error) {
+    return res.status(409).json({ error: error.message });
+  }
+  const email = testOnly ? AUTHOR_INVITE_TEST_EMAIL : plan.recipient.email;
+  const message = testOnly ? { subject: `[TEST] ${plan.message.subject}`,
+    text: `Controlled repair-notice test to Sam. Intended author: ${plan.recipient.email}\n\n${plan.message.text}` } : plan.message;
+  let delivery;
+  try {
+    delivery = await sendAuthorInviteWithMandrill({ apiKey, email, message, tag: testOnly ? "poetry-please-repair-test" : "poetry-please-author-repair" });
+  } catch (error) {
+    await ref.update({ [`authorNoticeDeliveries.${deliveryKey}.status`]: "uncertain" });
+    return res.status(502).json({ error: "repair_notice_send_unconfirmed" });
+  }
+  await ref.update({
+    [`authorNoticeDeliveries.${deliveryKey}.status`]: "sent",
+    [`authorNoticeDeliveries.${deliveryKey}.providerStatus`]: delivery.status,
+    [`authorNoticeDeliveries.${deliveryKey}.messageId`]: delivery.messageId,
+    [`authorNoticeDeliveries.${deliveryKey}.sentAt`]: FieldValue.serverTimestamp(),
+    ...(!testOnly ? { authorNoticeStatus: "sent" } : {}),
+  });
+  return res.json({ ok: true, testOnly, email, delivery });
 });
 
 app.get(getBoth("/internal/userCoverage"), async (req, res) => {
