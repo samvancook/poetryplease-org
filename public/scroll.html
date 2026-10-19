@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex">
+  <title>Poetry, Please — Scroll</title>
+  <link rel="icon" href="/pp-loader-logo.png">
+  <link rel="stylesheet" href="/scroll.css?v=20261019a">
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+  <script>
+    firebase.initializeApp({apiKey:'AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8',authDomain:'poetry-please.firebaseapp.com',projectId:'poetry-please',appId:'1:609992589187:web:ea8aed51a08c3716b880b6'});
+  </script>
+  <script type="module" src="/scroll.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#feed">Skip to poems and graphics</a>
+  <header class="site-header">
+    <div class="topline"><a class="brand" href="/m">Poetry, Please</a><span class="variant">Scroll test</span><button id="account-toggle" type="button" aria-expanded="false" aria-controls="account-menu">Account</button></div>
+    <div id="account-menu" class="account-menu" hidden><p id="account-status">Checking account…</p><button id="sign-in" type="button">Sign in with Google</button><button id="sign-out" type="button" hidden>Sign out</button><a id="original-view" href="/m">Single-item view</a></div>
+    <details id="filters-panel"><summary id="filter-summary">Filters</summary>
+      <form id="filters">
+        <label>Content<select id="filter-type"><option value="PROMO">Graphics and excerpts</option><option value="QI">QI · Quote images</option><option value="INT">INT · Interior photos</option><option value="EXC">EXC · Excerpts</option><option value="VIDEO">Videos</option></select></label>
+        <label>Author<input id="filter-author" autocomplete="off" placeholder="Any author"></label>
+        <label>Book<input id="filter-book" autocomplete="off" placeholder="Any book"></label>
+        <button type="submit">Apply filters</button>
+      </form>
+    </details>
+  </header>
+  <main>
+    <p class="intro">Scroll to explore. Vote when you want to—scrolling doesn’t record a vote.</p>
+    <div id="feed" aria-label="Poems and graphics" tabindex="-1"></div>
+    <div class="feed-footer" id="feed-footer"><p id="feed-status" role="status" aria-live="polite">Loading…</p><button id="load-more" type="button" hidden>Load more</button></div>
+    <noscript>This view needs JavaScript. <a href="/m">Open the original mobile viewer.</a></noscript>
+  </main>
+</body>
+</html>

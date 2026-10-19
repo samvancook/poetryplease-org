@@ -126,6 +126,10 @@
         "destination": "/author.html"
       },
       {
+        "source": "/scroll",
+        "destination": "/scroll.html"
+      },
+      {
         "source": "/m",
         "destination": "/mobile.html"
       },
