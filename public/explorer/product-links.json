@@ -1,0 +1,760 @@
+{
+  "source": "https://sites.google.com/buttonpoetry.com/schedulingtoolbinder/product-link-lookup",
+  "auditedAt": "2026-10-18",
+  "sourceRows": 109,
+  "excludedRows": [
+    "null",
+    "Links to non-linked Ebook version on Amazon, used in initial Neil Post"
+  ],
+  "products": [
+    {
+      "title": "without the frills",
+      "bookLink": "https://buttonpoetry.com/product/without-the-frills/",
+      "shortLink": "",
+      "author": "Gigi Bella",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "unreliable narrator",
+      "bookLink": "https://buttonpoetry.com/product/unreliable-narrator/",
+      "shortLink": "",
+      "author": "Ayanna Florence",
+      "releaseCatalog": "Fall 2026"
+    },
+    {
+      "title": "peluda",
+      "bookLink": "https://buttonpoetry.com/product/peluda/",
+      "shortLink": "http://bit.ly/melissapeluda",
+      "author": "Melissa Lozada-Oliva",
+      "releaseCatalog": "Fall 2017"
+    },
+    {
+      "title": "on a date with disappointment",
+      "bookLink": "https://buttonpoetry.com/product/on-a-date-with-disappointment/",
+      "shortLink": "",
+      "author": "Najya Williams",
+      "releaseCatalog": "Spring 2025"
+    },
+    {
+      "title": "me Aunt Jemima and the nailgun.",
+      "bookLink": "https://buttonpoetry.com/product/me-aunt-jemima-and-the-nailgun/",
+      "shortLink": "http://bit.ly/azizabarnesbook",
+      "author": "Aziza Barnes",
+      "releaseCatalog": "Fall 2013"
+    },
+    {
+      "title": "i shimmer sometimes, too",
+      "bookLink": "https://buttonpoetry.com/product/i-shimmer-sometimes-too/",
+      "shortLink": "http://bit.ly/porshashimmer",
+      "author": "Porsha Olayiwola",
+      "releaseCatalog": "Fall 2019"
+    },
+    {
+      "title": "good luck in the real world",
+      "bookLink": "https://buttonpoetry.com/product/good-luck-in-the-real-world/",
+      "shortLink": "",
+      "author": "Adrienne Novy",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "ex traction",
+      "bookLink": "https://buttonpoetry.com/product/ex-traction/",
+      "shortLink": "https://bit.ly/coley-ex-traction",
+      "author": "Lara Coley",
+      "releaseCatalog": "Spring 2024"
+    },
+    {
+      "title": "black movie",
+      "bookLink": "https://buttonpoetry.com/product/black-movie/",
+      "shortLink": "http://bit.ly/blackmoviebook",
+      "author": "Danez Smith",
+      "releaseCatalog": "Spring 2014"
+    },
+    {
+      "title": "before & after our bodies",
+      "bookLink": "https://buttonpoetry.com/product/before-and-after-our-bodies/",
+      "shortLink": "https://bit.ly/self-portrait-book",
+      "author": "Phil SaintDenisSanchez",
+      "releaseCatalog": "Fall 2024"
+    },
+    {
+      "title": "You Better Be Lightning",
+      "bookLink": "https://buttonpoetry.com/product/you-better-be-lightning/",
+      "shortLink": "http://bit.ly/andreagibsonybbl",
+      "author": "Andrea Gibson",
+      "releaseCatalog": "Fall 2021"
+    },
+    {
+      "title": "Wild/Hurt",
+      "bookLink": "https://buttonpoetry.com/product/wild-hurt/",
+      "shortLink": "",
+      "author": "Meg Ford",
+      "releaseCatalog": "Spring 2025"
+    },
+    {
+      "title": "Where I Dry the Flowers",
+      "bookLink": "https://buttonpoetry.com/product/where-i-dry-the-flowers/",
+      "shortLink": "https://bit.ly/whereidrytheflowers",
+      "author": "Ollie Schminkey",
+      "releaseCatalog": "Spring 2024"
+    },
+    {
+      "title": "When the Ghosts Come Ashore",
+      "bookLink": "https://buttonpoetry.com/product/when-the-ghosts-come-ashore/",
+      "shortLink": "http://bit.ly/jacquighosts",
+      "author": "Jacqui Germain",
+      "releaseCatalog": "Spring 2016"
+    },
+    {
+      "title": "What I Learned From the Trees",
+      "bookLink": "https://buttonpoetry.com/product/what-i-learned-from-the-trees/",
+      "shortLink": "http://bit.ly/lebowmantrees",
+      "author": "L.E. Bowman",
+      "releaseCatalog": "Fall 2021"
+    },
+    {
+      "title": "We, The Spirits",
+      "bookLink": "https://buttonpoetry.com/product/we-the-spirits/",
+      "shortLink": "https://bit.ly/rodriguez-spirits",
+      "author": "Edythe Rodriguez",
+      "releaseCatalog": "Fall 2024"
+    },
+    {
+      "title": "We Were All Someone Else Yesterday",
+      "bookLink": "https://buttonpoetry.com/product/we-were-all-someone-else-yesterday/",
+      "shortLink": "http://bit.ly/omaryesterday",
+      "author": "Omar Holmon",
+      "releaseCatalog": "Spring 2020"
+    },
+    {
+      "title": "We Slept Here",
+      "bookLink": "https://buttonpoetry.com/product/we-slept-here/",
+      "shortLink": "http://bit.ly/weslepthere",
+      "author": "Sierra DeMulder",
+      "releaseCatalog": "Fall 2014"
+    },
+    {
+      "title": "WASH",
+      "bookLink": "https://buttonpoetry.com/product/wash/",
+      "shortLink": "",
+      "author": "Ebony Stewart",
+      "releaseCatalog": "Spring 2025"
+    },
+    {
+      "title": "Urbanshee",
+      "bookLink": "https://buttonpoetry.com/product/urbanshee/",
+      "shortLink": "https://bit.ly/urbanshee",
+      "author": "Siaara Freeman",
+      "releaseCatalog": "Fall 2022"
+    },
+    {
+      "title": "Transit",
+      "bookLink": "https://buttonpoetry.com/product/transit/",
+      "shortLink": "http://bit.ly/transitpoems",
+      "author": "Cam Awkward-Rich",
+      "releaseCatalog": "Fall 2015"
+    },
+    {
+      "title": "Toy Gun",
+      "bookLink": "https://buttonpoetry.com/product/toy-gun/",
+      "shortLink": "https://bit.ly/coonantoygun",
+      "author": "Matt Coonan",
+      "releaseCatalog": "Fall 2023"
+    },
+    {
+      "title": "Tooth Gaps in the Archives",
+      "bookLink": "https://buttonpoetry.com/product/tooth-gaps-in-the-archives/",
+      "shortLink": "",
+      "author": "Francis Dylan Waguespack",
+      "releaseCatalog": "Fall 2026"
+    },
+    {
+      "title": "Today Means Amen",
+      "bookLink": "https://buttonpoetry.com/product/today-means-amen/",
+      "shortLink": "http://bit.ly/todaymeansamenbook",
+      "author": "",
+      "releaseCatalog": ""
+    },
+    {
+      "title": "The Willies",
+      "bookLink": "https://buttonpoetry.com/product/the-willies/",
+      "shortLink": "http://bit.ly/thewillies",
+      "author": "Adam Falkner",
+      "releaseCatalog": "Spring 2020"
+    },
+    {
+      "title": "The Rent EATS First",
+      "bookLink": "https://buttonpoetry.com/product/the-rent-eats-first/",
+      "shortLink": "https://bit.ly/TheRentEATSFirst",
+      "author": "Eric Sirota",
+      "releaseCatalog": "Fall 2024"
+    },
+    {
+      "title": "The Only Worlds We Know",
+      "bookLink": "https://buttonpoetry.com/product/the-only-worlds-we-know/",
+      "shortLink": "http://bit.ly/michaelleeworlds",
+      "author": "Michael Lee",
+      "releaseCatalog": "Fall 2019"
+    },
+    {
+      "title": "The Future Limited Edition",
+      "bookLink": "https://buttonpoetry.com/product/the-future-limited-edition/",
+      "shortLink": "https://bit.ly/thefuturelimitededition",
+      "author": "Neil Hilborn",
+      "releaseCatalog": "Spring 2024"
+    },
+    {
+      "title": "The Future",
+      "bookLink": "https://buttonpoetry.com/product/thefuture/",
+      "shortLink": "http://bit.ly/neilfuture",
+      "author": "Neil Hilborn",
+      "releaseCatalog": "Spring 2018"
+    },
+    {
+      "title": "The Crown Ain't Worth Much",
+      "bookLink": "https://buttonpoetry.com/product/the-crown-aint-worth-much/",
+      "shortLink": "http://bit.ly/hanifcrown",
+      "author": "Hanif Abdurraqib",
+      "releaseCatalog": "Spring 2016"
+    },
+    {
+      "title": "If My Flowers Bloom",
+      "bookLink": "https://buttonpoetry.com/product/if-my-flowers-bloom/",
+      "shortLink": "https://bit.ly/if-my-flowers-bloom",
+      "author": "DeShara Suggs-Joe",
+      "releaseCatalog": "Spring 2024"
+    },
+    {
+      "title": "If My Body Could Speak",
+      "bookLink": "https://buttonpoetry.com/product/if-my-body-could-speak/",
+      "shortLink": "http://bit.ly/blythespeak",
+      "author": "Blythe Baird",
+      "releaseCatalog": "Spring 2019"
+    },
+    {
+      "title": "I'll Fly Away",
+      "bookLink": "https://buttonpoetry.com/product/ill-fly-away/",
+      "shortLink": "https://bit.ly/rudyflyaway",
+      "author": "Rudy Francisco",
+      "releaseCatalog": "Fall 2020"
+    },
+    {
+      "title": "I'd Rather Be Destroyed",
+      "bookLink": "https://buttonpoetry.com/product/id-rather-be-destroyed/",
+      "shortLink": "https://bit.ly/IdRatherBeDestroyed",
+      "author": "Zach Goldberg",
+      "releaseCatalog": "Fall 2024"
+    },
+    {
+      "title": "How to Maintain Eye Contact",
+      "bookLink": "https://buttonpoetry.com/product/how-to-maintain-eye-contact/",
+      "shortLink": "https://bit.ly/howtomaintaineyecontact",
+      "author": "Robert Wood Lynn",
+      "releaseCatalog": "Fall 2022"
+    },
+    {
+      "title": "Home.Girl.Hood.",
+      "bookLink": "https://buttonpoetry.com/product/home-girl-hood/",
+      "shortLink": "https://bit.ly/HomeGirlHood",
+      "author": "Ebony Stewart",
+      "releaseCatalog": "Spring 2022"
+    },
+    {
+      "title": "Highway or Belief",
+      "bookLink": "https://buttonpoetry.com/product/highway-or-belief/",
+      "shortLink": "http://bit.ly/highwayorbelief",
+      "author": "J. Scott Brownlee",
+      "releaseCatalog": "Fall 2013"
+    },
+    {
+      "title": "Helium (Alt Cover)",
+      "bookLink": "https://buttonpoetry.com/product/helium-limited-edition/",
+      "shortLink": "http://bit.ly/rudyheliumltd",
+      "author": "Rudy Francisco",
+      "releaseCatalog": "Fall 2021"
+    },
+    {
+      "title": "Helium",
+      "bookLink": "https://buttonpoetry.com/product/helium/",
+      "shortLink": "http://bit.ly/rudyfhelium",
+      "author": "Rudy Francisco",
+      "releaseCatalog": "Fall 2017"
+    },
+    {
+      "title": "Hated for the Gods",
+      "bookLink": "https://buttonpoetry.com/product/hated-for-the-gods/",
+      "shortLink": "https://bit.ly/hatedforthegods",
+      "author": "Sean Patrick Mulroy",
+      "releaseCatalog": "Fall 2023"
+    },
+    {
+      "title": "Guante Zine Bundle",
+      "bookLink": "https://buttonpoetry.com/product/guante-zine-bundle/",
+      "shortLink": "https://bit.ly/guante-zine-bundle",
+      "author": "",
+      "releaseCatalog": ""
+    },
+    {
+      "title": "Glandscapes",
+      "bookLink": "https://buttonpoetry.com/product/glandscapes/",
+      "shortLink": "",
+      "author": "Mickie Kennedy",
+      "releaseCatalog": "Fall 2025"
+    },
+    {
+      "title": "Fortunately",
+      "bookLink": "https://buttonpoetry.com/product/fortunately/",
+      "shortLink": "https://bit.ly/navafortunately",
+      "author": "Nava EtShalom",
+      "releaseCatalog": "Fall 2020"
+    },
+    {
+      "title": "Forgotten Necessities",
+      "bookLink": "https://buttonpoetry.com/product/forgotten-necessities/",
+      "shortLink": "",
+      "author": "Jared Singer",
+      "releaseCatalog": "Spring 2025"
+    },
+    {
+      "title": "Forgive Yourself These Tiny Acts of Self-Destruction",
+      "bookLink": "https://buttonpoetry.com/product/forgive-yourself/",
+      "shortLink": "http://bit.ly/jaredforgive",
+      "author": "Jared Singer",
+      "releaseCatalog": "Fall 2019"
+    },
+    {
+      "title": "Flee",
+      "bookLink": "https://buttonpoetry.com/product/flee/",
+      "shortLink": "",
+      "author": "Tim Raymond",
+      "releaseCatalog": "Fall 2026"
+    },
+    {
+      "title": "Fat Girl Finishing School",
+      "bookLink": "https://buttonpoetry.com/product/fat-girl-finishing-school/",
+      "shortLink": "http://bit.ly/FatGirlFinishingSchool",
+      "author": "Rachel Wiley",
+      "releaseCatalog": "Fall 2020"
+    },
+    {
+      "title": "Excuse Me As I Kiss The Sky",
+      "bookLink": "https://buttonpoetry.com/product/excuse-me-as-i-kiss-the-sky/",
+      "shortLink": "https://bit.ly/rudykissthesky",
+      "author": "Rudy Francisco",
+      "releaseCatalog": "Fall 2023"
+    },
+    {
+      "title": "Even the Saints Audition",
+      "bookLink": "https://buttonpoetry.com/product/even-the-saints-audition/",
+      "shortLink": "http://bit.ly/raychsaints",
+      "author": "Raych Jackson",
+      "releaseCatalog": "Fall 2019"
+    },
+    {
+      "title": "Ephemera",
+      "bookLink": "https://buttonpoetry.com/product/ephemera/",
+      "shortLink": "https://bit.ly/sierraephemera",
+      "author": "Sierra DeMulder",
+      "releaseCatalog": "Spring 2023"
+    },
+    {
+      "title": "Depression & Other Magic Tricks",
+      "bookLink": "https://buttonpoetry.com/product/depression-other-magic-tricks/",
+      "shortLink": "http://bit.ly/sabrinamagic",
+      "author": "Sabrina Benaim",
+      "releaseCatalog": "Fall 2017"
+    },
+    {
+      "title": "Dear Azula, I Have a Crush on Danny Phantom",
+      "bookLink": "https://buttonpoetry.com/product/dear-azula-i-have-a-crush-on-danny-phantom/",
+      "shortLink": "http://bit.ly/dearazula",
+      "author": "Azura & Jackson Tyabji & Neal",
+      "releaseCatalog": "Spring 2021"
+    },
+    {
+      "title": "Dead Dad Jokes",
+      "bookLink": "https://buttonpoetry.com/product/dead-dad-jokes/",
+      "shortLink": "https://bit.ly/deaddadjokes",
+      "author": "Ollie Schminkey",
+      "releaseCatalog": "Spring 2021"
+    },
+    {
+      "title": "Date & Time",
+      "bookLink": "https://buttonpoetry.com/product/date-time/",
+      "shortLink": "http://bit.ly/philkayedate",
+      "author": "Phil Kaye",
+      "releaseCatalog": "Fall 2018"
+    },
+    {
+      "title": "DON’T BE AFRAID TO BE BAD: A Big Book of Button Poetry Writing Prompts",
+      "bookLink": "https://buttonpoetry.com/product/dont-be-afraid-to-be-bad-a-big-book-of-button-poetry-writing-prompts/",
+      "shortLink": "",
+      "author": "Ollie Schminkey",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "Crown Noble",
+      "bookLink": "https://buttonpoetry.com/product/crown-noble/",
+      "shortLink": "https://bit.ly/crownnoble",
+      "author": "Bianca Phipps",
+      "releaseCatalog": "Fall 2020"
+    },
+    {
+      "title": "Cottonmouth",
+      "bookLink": "https://buttonpoetry.com/product/cottonmouth/",
+      "shortLink": "https://bit.ly/colemancottonmouth",
+      "author": "Miya Coleman",
+      "releaseCatalog": "Fall 2023"
+    },
+    {
+      "title": "Composition",
+      "bookLink": "https://buttonpoetry.com/product/composition/",
+      "shortLink": "https://bit.ly/wardcomposition",
+      "author": "Junious 'Jay' Ward",
+      "releaseCatalog": "Spring 2023"
+    },
+    {
+      "title": "Coin Laundry at Midnight",
+      "bookLink": "https://buttonpoetry.com/product/coin-laundry-at-midnight/",
+      "shortLink": "",
+      "author": "Carson Wolfe",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "Cipota",
+      "bookLink": "https://buttonpoetry.com/product/cipota/",
+      "shortLink": "",
+      "author": "Chelsea Guevara",
+      "releaseCatalog": "Fall 2025"
+    },
+    {
+      "title": "Butcher",
+      "bookLink": "https://buttonpoetry.com/product/butcher/",
+      "shortLink": "http://bit.ly/tmillerbutcher",
+      "author": "Natasha T. Miller",
+      "releaseCatalog": "Spring 2021"
+    },
+    {
+      "title": "Bubble Gum Stadium",
+      "bookLink": "https://buttonpoetry.com/product/bubble-gum-stadium/",
+      "shortLink": "",
+      "author": "Jalen Eutsey",
+      "releaseCatalog": "Spring 2025"
+    },
+    {
+      "title": "Both True",
+      "bookLink": "https://buttonpoetry.com/product/both-true/",
+      "shortLink": "",
+      "author": "Kristina Percy",
+      "releaseCatalog": "Fall 2025"
+    },
+    {
+      "title": "Born in a Second Language",
+      "bookLink": "https://buttonpoetry.com/product/born-in-a-second-language/",
+      "shortLink": "http://bit.ly/akosuaborn",
+      "author": "Akosua Zimba Afiriyie-Hwedie",
+      "releaseCatalog": "Spring 2021"
+    },
+    {
+      "title": "BloodFresh",
+      "bookLink": "https://buttonpoetry.com/product/bloodfresh/",
+      "shortLink": "https://bit.ly/bloodfresh",
+      "author": "Ebony Stewart",
+      "releaseCatalog": "Spring 2022"
+    },
+    {
+      "title": "Birthright",
+      "bookLink": "https://buttonpoetry.com/product/birthright/",
+      "shortLink": "http://bit.ly/georgebirthright",
+      "author": "George Abraham",
+      "releaseCatalog": "Spring 2020"
+    },
+    {
+      "title": "Autopsy",
+      "bookLink": "https://buttonpoetry.com/product/autopsy/",
+      "shortLink": "http://bit.ly/donteautopsy",
+      "author": "Donte Collins",
+      "releaseCatalog": "Spring 2017"
+    },
+    {
+      "title": "An Everyday Occurence",
+      "bookLink": "https://buttonpoetry.com/product/an-everyday-occurrence/",
+      "shortLink": "",
+      "author": "Hailey Tran",
+      "releaseCatalog": "Fall 2025"
+    },
+    {
+      "title": "Ain't Never Not Been Black",
+      "bookLink": "https://buttonpoetry.com/product/aint-never-not-been-black/",
+      "shortLink": "https://bit.ly/javonaintnever",
+      "author": "Javon Johnson",
+      "releaseCatalog": "Fall 2020"
+    },
+    {
+      "title": "Afterwards",
+      "bookLink": "https://buttonpoetry.com/product/afterwards/",
+      "shortLink": "http://bit.ly/myersafterwards",
+      "author": "Reagan Myers",
+      "releaseCatalog": "Fall 2021"
+    },
+    {
+      "title": "Tartarus",
+      "bookLink": "https://buttonpoetry.com/product/tartarus/",
+      "shortLink": "https://bit.ly/chapmantartarus",
+      "author": "Ty Chapman",
+      "releaseCatalog": "Spring 2024"
+    },
+    {
+      "title": "Sweet, Young, & Worried",
+      "bookLink": "https://buttonpoetry.com/product/sweet-young-worried/",
+      "shortLink": "https://bit.ly/sweetyoungworried",
+      "author": "Blythe Baird",
+      "releaseCatalog": "Fall 2022"
+    },
+    {
+      "title": "Swallowtail",
+      "bookLink": "https://buttonpoetry.com/product/swallowtail/",
+      "shortLink": "http://bit.ly/brennaswallowtail",
+      "author": "Brenna Twohy",
+      "releaseCatalog": "Fall 2019"
+    },
+    {
+      "title": "Stunt Water",
+      "bookLink": "https://buttonpoetry.com/product/stunt-water/",
+      "shortLink": "",
+      "author": "Buddy Wakefield",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "Still Desert",
+      "bookLink": "https://buttonpoetry.com/product/still-desert/",
+      "shortLink": "",
+      "author": "Daniel Elias Galicia",
+      "releaseCatalog": "Fall 2025"
+    },
+    {
+      "title": "Still Can't Do My Daughter's Hair",
+      "bookLink": "https://buttonpoetry.com/product/still-cant-do-my-daughters-hair/",
+      "shortLink": "http://bit.ly/evansdaughter",
+      "author": "William Evans",
+      "releaseCatalog": "Fall 2017"
+    },
+    {
+      "title": "Staying Right Here",
+      "bookLink": "https://buttonpoetry.com/product/staying-right-here/",
+      "shortLink": "https://bit.ly/StayingRightHere",
+      "author": "Usman Hameedi",
+      "releaseCatalog": "Spring 2023"
+    },
+    {
+      "title": "St. Trigger",
+      "bookLink": "https://buttonpoetry.com/product/st-trigger/",
+      "shortLink": "http://bit.ly/StTrigger",
+      "author": "Aaron Coleman",
+      "releaseCatalog": "Fall 2015"
+    },
+    {
+      "title": "So, Stranger",
+      "bookLink": "https://buttonpoetry.com/product/so-stranger/",
+      "shortLink": "https://bit.ly/sostranger",
+      "author": "Topaz Winters",
+      "releaseCatalog": "Spring 2022"
+    },
+    {
+      "title": "Smut Psalm",
+      "bookLink": "https://buttonpoetry.com/product/smut-psalm/",
+      "shortLink": "https://bit.ly/smut-psalm",
+      "author": "Josh Tvrdy",
+      "releaseCatalog": "Fall 2024"
+    },
+    {
+      "title": "Shapeshifter",
+      "bookLink": "https://buttonpoetry.com/product/shapeshifter/",
+      "shortLink": "",
+      "author": "L.E. Bowman",
+      "releaseCatalog": "Spring 2025"
+    },
+    {
+      "title": "SINK",
+      "bookLink": "https://buttonpoetry.com/product/sink/",
+      "shortLink": "https://bit.ly/desireesink",
+      "author": "Desiree Dallagiacomo",
+      "releaseCatalog": "Spring 2019"
+    },
+    {
+      "title": "Rock Stars",
+      "bookLink": "https://buttonpoetry.com/product/rock-stars/",
+      "shortLink": "https://bit.ly/masonrockstars",
+      "author": "Matt Mason",
+      "releaseCatalog": "Fall 2023"
+    },
+    {
+      "title": "Roads",
+      "bookLink": "https://buttonpoetry.com/product/roads/",
+      "shortLink": "",
+      "author": "Matt Mason",
+      "releaseCatalog": "Fall 2026"
+    },
+    {
+      "title": "Revenge Body",
+      "bookLink": "https://buttonpoetry.com/product/revenge-body/",
+      "shortLink": "http://bit.ly/wileyrevengebody",
+      "author": "Rachel Wiley",
+      "releaseCatalog": "Fall 2021"
+    },
+    {
+      "title": "Portrait of my Body as a Crime I'm Still Committing",
+      "bookLink": "https://buttonpoetry.com/product/portrait-of-my-body-as-a-crime-im-still-committing/",
+      "shortLink": "https://bit.ly/WintersPortraitofmyBody",
+      "author": "Topaz Winters",
+      "releaseCatalog": "Fall 2024"
+    },
+    {
+      "title": "Poetry By Chance: An Anthology of Poems Powered By Metaphor Dice",
+      "bookLink": "https://buttonpoetry.com/product/poetry-by-chance-an-anthology-of-poems-powered-by-metaphor-dice/",
+      "shortLink": "https://bit.ly/poetrybychance",
+      "author": "Taylor Mali",
+      "releaseCatalog": "Spring 2023"
+    },
+    {
+      "title": "Please Come Off-Book",
+      "bookLink": "https://buttonpoetry.com/product/please-come-off-book/",
+      "shortLink": "http://bit.ly/kantoroffbook",
+      "author": "Kevin Kantor",
+      "releaseCatalog": "Spring 2021"
+    },
+    {
+      "title": "Pink Elephant",
+      "bookLink": "https://buttonpoetry.com/product/pink-elephant/",
+      "shortLink": "",
+      "author": "Rachel Camacho",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "Patricide",
+      "bookLink": "https://buttonpoetry.com/product/patricide/",
+      "shortLink": "http://bit.ly/davepatricide",
+      "author": "David Harris",
+      "releaseCatalog": "Spring 2019"
+    },
+    {
+      "title": "Our Numbered Days",
+      "bookLink": "https://buttonpoetry.com/product/our-numbered-days/",
+      "shortLink": "http://bit.ly/ournumbereddays",
+      "author": "Neil Hilborn",
+      "releaseCatalog": "Spring 2015"
+    },
+    {
+      "title": "Nothing Is Okay",
+      "bookLink": "https://buttonpoetry.com/product/nothing-is-okay/",
+      "shortLink": "http://bit.ly/nothingisokay",
+      "author": "Rachel Wiley",
+      "releaseCatalog": "Spring 2018"
+    },
+    {
+      "title": "New American Best Friend",
+      "bookLink": "https://buttonpoetry.com/product/new-american-best-friend/",
+      "shortLink": "http://bit.ly/oliviabestfriend",
+      "author": "Olivia Gatwood",
+      "releaseCatalog": "Spring 2017"
+    },
+    {
+      "title": "Never Catch Me",
+      "bookLink": "https://buttonpoetry.com/product/never-catch-me/",
+      "shortLink": "https://bit.ly/nevercatchme",
+      "author": "Darius Simpson",
+      "releaseCatalog": "Fall 2022"
+    },
+    {
+      "title": "NOT A LOT OF REASONS TO SING, BUT ENOUGH",
+      "bookLink": "https://buttonpoetry.com/product/not-a-lot-of-reasons-to-sing-but-enough/",
+      "shortLink": "http://bit.ly/guantenotalot",
+      "author": "Kyle Tran Myhre",
+      "releaseCatalog": "Spring 2022"
+    },
+    {
+      "title": "My Dear Cult Leader",
+      "bookLink": "https://buttonpoetry.com/product/my-dear-cult-leader/",
+      "shortLink": "",
+      "author": "Aly Acevedo",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "Lord of the Butterflies",
+      "bookLink": "https://buttonpoetry.com/product/lord-of-the-butterflies/",
+      "shortLink": "http://bit.ly/andreagibsonlb",
+      "author": "Andrea Gibson",
+      "releaseCatalog": "Fall 2018"
+    },
+    {
+      "title": "Living at Baggage Claim",
+      "bookLink": "https://buttonpoetry.com/product/living-at-baggage-claim/",
+      "shortLink": "",
+      "author": "PAGES Matam",
+      "releaseCatalog": "Fall 2026"
+    },
+    {
+      "title": "Keep This To Yourself",
+      "bookLink": "https://buttonpoetry.com/product/keep-this-to-yourself/",
+      "shortLink": "http://bit.ly/keepthistoyourself",
+      "author": "Kerrin McCadden",
+      "releaseCatalog": "Spring 2020"
+    },
+    {
+      "title": "About Time",
+      "bookLink": "https://buttonpoetry.com/product/about-time/",
+      "shortLink": "https://bit.ly/hilborn-about-time",
+      "author": "Neil Hilborn",
+      "releaseCatalog": "Fall 2024"
+    },
+    {
+      "title": "ABC Death",
+      "bookLink": "https://buttonpoetry.com/product/abc-death/",
+      "shortLink": "http://bit.ly/abcdeath",
+      "author": "Shane & Joel Hawley & Erkkinen",
+      "releaseCatalog": "Fall 2018"
+    },
+    {
+      "title": "A Socially Acceptable Breakdown",
+      "bookLink": "https://buttonpoetry.com/product/a-socially-acceptable-breakdown/",
+      "shortLink": "http://bit.ly/rochebreakdown",
+      "author": "Patrick Roche",
+      "releaseCatalog": "Fall 2021"
+    },
+    {
+      "title": "A Peculiar People",
+      "bookLink": "https://buttonpoetry.com/product/a-peculiar-people/",
+      "shortLink": "https://bit.ly/apeculiarpeople",
+      "author": "Steven Willis",
+      "releaseCatalog": "Spring 2022"
+    },
+    {
+      "title": "A Love Song, A Death Rattle, A Battle Cry",
+      "bookLink": "https://buttonpoetry.com/product/love-song-death-rattle-battle-cry/",
+      "shortLink": "http://bit.ly/guantelovesong",
+      "author": "Kyle Tran Myhre",
+      "releaseCatalog": "Spring 2018"
+    },
+    {
+      "title": "A Guide to Undressing Your Monsters",
+      "bookLink": "https://buttonpoetry.com/product/a-guide-to-undressing-your-monsters/",
+      "shortLink": "http://bit.ly/samsaxguide",
+      "author": "Sam Sax",
+      "releaseCatalog": "Spring 2014"
+    },
+    {
+      "title": "A Choir of Honest Killers",
+      "bookLink": "https://buttonpoetry.com/product/a-choir-of-honest-killers/",
+      "shortLink": "",
+      "author": "Buddy Wakefield",
+      "releaseCatalog": "Spring 2026"
+    },
+    {
+      "title": "(On |Un-)Becoming",
+      "bookLink": "https://buttonpoetry.com/product/on-un-becoming/",
+      "shortLink": "",
+      "author": "FreeQuency",
+      "releaseCatalog": "Fall 2025"
+    }
+  ]
+}
