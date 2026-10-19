@@ -36,6 +36,31 @@ const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and r
 const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
 const CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID = "button-poetry-s-fall-2026-short-form-contest-da82891d"; // Explicitly approved Fall contest only.
 const CONTEST_MAIL_IDENTITY = { fromEmail: "no-reply@buttonpoetry.com", fromName: "Button Poetry Contests", replyTo: "support@buttonpoetry.com" };
+
+export function validateContestMailIdentity(input) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const { fromEmail, fromName, replyTo } = input;
+  if (![fromEmail, fromName, replyTo].every((value) => typeof value === "string" && !/[\r\n\x00-\x1f\x7f]/.test(value))) return null;
+  const identity = { fromEmail: fromEmail.trim().toLowerCase(), fromName: fromName.trim(), replyTo: replyTo.trim().toLowerCase() };
+  const validMailbox = (value) => value.length <= 254 &&
+    /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/.test(value) &&
+    !value.includes("..") && !value.startsWith(".") && !value.includes(".@") && value.split("@")[0].length <= 64;
+  // Reuse the established Button Poetry sending domain; never accept an arbitrary From domain.
+  if (!validMailbox(identity.fromEmail) || !identity.fromEmail.endsWith("@buttonpoetry.com") ||
+      !identity.fromName || identity.fromName.length > 100 || !validMailbox(identity.replyTo)) return null;
+  return identity;
+}
+
+function contestMailIdentity(program = {}) {
+  if (program.mailIdentity == null) return { ...CONTEST_MAIL_IDENTITY };
+  const identity = validateContestMailIdentity(program.mailIdentity);
+  if (!identity) throw new Error("invalid_saved_contest_mail_identity");
+  return identity;
+}
+
+function sameContestMailIdentity(program, identity) {
+  return JSON.stringify(contestMailIdentity(program)) === JSON.stringify(identity);
+}
 const AUTHOR_INVITE_TEST_EMAIL = "sam@buttonpoetry.com";
 const COLLECTIONS = {
   graphics: "graphics",
@@ -11171,6 +11196,7 @@ async function buildContestOutcomeEmailPreview(programId) {
     db.collection("contestOutcomeEmailTemplates").doc(programId).get(),
   ]);
   const templates = contestOutcomeTemplates(templateSnap.data()?.templates);
+  const mailIdentity = contestMailIdentity(programSnap.data());
   const programName = normalizeText(programSnap.data()?.name || programId);
   const entrants = new Map(entrantSnap.docs.map((doc) => [doc.id, doc.data() || {}]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc)
@@ -11216,19 +11242,48 @@ async function buildContestOutcomeEmailPreview(programId) {
       submissions: group.submissions, mixedOutcomes: decisions.size > 1,
       subject, body,
       previewToken: createHash("sha256").update(JSON.stringify({ programId, email: group.email,
-        outcome, subject, body, submissions: group.submissions })).digest("hex"),
+        outcome, subject, body, mailIdentity, submissions: group.submissions })).digest("hex"),
     };
   }).sort((a, b) => a.outcome.localeCompare(b.outcome) || a.email.localeCompare(b.email));
   return {
     ok: true, previewOnly: true, emailSent: false,
     sendEnabled: programId === CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID,
-    programId, programName, templatesCustomized: templateSnap.exists,
+    programId, programName, mailIdentity, templatesCustomized: templateSnap.exists,
     submissionCount: submissions.length, recipientCount: recipients.length,
     missingContactCount, archivedCount, decisionCounts,
     mixedOutcomeRecipientCount: recipients.filter((row) => row.mixedOutcomes).length,
     recipients,
   };
 }
+
+app.get(getBoth("/admin/contestMailSettings"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const snap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!snap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  res.json({ ok: true, programId, mailIdentity: contestMailIdentity(snap.data()), emailSent: false });
+});
+
+app.post(getBoth("/admin/contestMailSettings"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const mailIdentity = validateContestMailIdentity(req.body?.mailIdentity);
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  if (!mailIdentity) return res.status(400).json({ error: "invalid_contest_mail_identity" });
+  const ref = db.collection(COLLECTIONS.submissionPrograms).doc(programId);
+  const saved = await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref);
+    if (!snap.exists) return false;
+    transaction.update(ref, { mailIdentity, mailIdentityUpdatedBy: ctx.decoded.uid,
+      mailIdentityUpdatedAt: FieldValue.serverTimestamp() });
+    return true;
+  });
+  if (!saved) return res.status(404).json({ error: "submission_program_not_found" });
+  res.json({ ok: true, programId, mailIdentity, emailSent: false });
+});
 
 app.get(getBoth("/admin/contestOutcomeEmailTemplates"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
@@ -11287,6 +11342,7 @@ app.post(getBoth("/admin/contestOutcomeEmails/test"), async (req, res) => {
     db.collection("contestOutcomeEmailTemplates").doc(programId).get(),
   ]);
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const mailIdentity = contestMailIdentity(programSnap.data());
   const templates = contestOutcomeTemplates(templateSnap.data()?.templates);
   const variables = {
     firstName: "Test Reader",
@@ -11298,11 +11354,11 @@ app.post(getBoth("/admin/contestOutcomeEmails/test"), async (req, res) => {
   const body = "TEST MESSAGE — NOT A CONTEST RESULT. This uses sample entrant details only.\n\n" +
     renderContestOutcomeTemplate(templates[outcome].body, variables);
   const currentToken = createHash("sha256").update(JSON.stringify({
-    programId, email, outcome, subject, body,
+    programId, email, outcome, subject, body, mailIdentity,
   })).digest("hex");
   if (!commit) {
     return res.json({ ok: true, previewOnly: true, emailSent: false,
-      programId, email, outcome, subject, body, previewToken: currentToken });
+      programId, email, outcome, subject, body, mailIdentity, previewToken: currentToken });
   }
   if (!previewToken || previewToken !== currentToken) {
     return res.status(409).json({ error: "contest_test_email_preview_changed" });
@@ -11310,15 +11366,21 @@ app.post(getBoth("/admin/contestOutcomeEmails/test"), async (req, res) => {
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "mandrill_mail_not_configured" });
   const noticeRef = db.collection("contestOutcomeTestNotices").doc();
-  await noticeRef.set({
-    programId, email, outcome, subject, previewToken: currentToken,
-    deliveryStatus: "sending", sentBy: ctx.decoded.uid,
-    createdAt: FieldValue.serverTimestamp(),
+  const reserved = await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(db.collection(COLLECTIONS.submissionPrograms).doc(programId));
+    if (!current.exists || !sameContestMailIdentity(current.data(), mailIdentity)) return false;
+    transaction.set(noticeRef, {
+      programId, email, outcome, subject, previewToken: currentToken, mailIdentity,
+      deliveryStatus: "sending", sentBy: ctx.decoded.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    return true;
   });
+  if (!reserved) return res.status(409).json({ error: "contest_test_email_preview_changed" });
   try {
     const delivery = await sendAuthorInviteWithMandrill({
       apiKey, email, message: { subject, text: body },
-      tag: "poetry-please-contest-outcome-test", ...CONTEST_MAIL_IDENTITY,
+      tag: "poetry-please-contest-outcome-test", ...mailIdentity,
     });
     await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
       deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -11359,22 +11421,25 @@ app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
   const noticeId = createHash("sha256").update(programId + "|" + email).digest("hex").slice(0, 40);
   const noticeRef = db.collection(COLLECTIONS.contestOutcomeNotices).doc(noticeId);
   const reserved = await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(db.collection(COLLECTIONS.submissionPrograms).doc(programId));
     const prior = await transaction.get(noticeRef);
+    if (!current.exists || !sameContestMailIdentity(current.data(), preview.mailIdentity)) return "changed";
     if (prior.exists) return false;
     transaction.set(noticeRef, {
       programId, email, outcome: recipient.outcome,
       submissionIds: recipient.submissions.map((row) => row.id),
-      previewToken, subject: recipient.subject,
+      previewToken, subject: recipient.subject, mailIdentity: preview.mailIdentity,
       deliveryStatus: "sending", sentBy: ctx.decoded.uid,
       deliveryUpdatedAt: FieldValue.serverTimestamp(),
     });
     return true;
   });
+  if (reserved === "changed") return res.status(409).json({ error: "recipient_preview_changed_or_invalid" });
   if (!reserved) return res.status(409).json({ error: "contest_outcome_email_already_attempted" });
   try {
     const delivery = await sendAuthorInviteWithMandrill({
       apiKey, email, message: { subject: recipient.subject, text: recipient.body },
-      tag: "poetry-please-contest-outcome", ...CONTEST_MAIL_IDENTITY,
+      tag: "poetry-please-contest-outcome", ...preview.mailIdentity,
     });
     await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
       deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
@@ -11400,6 +11465,7 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   }
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const mailIdentity = contestMailIdentity(programSnap.data());
   const collection = view === "spotcheck" ? COLLECTIONS.contestSpotChecks
     : view === "finalist" ? COLLECTIONS.contestFinalistReads : COLLECTIONS.contestReviewAssignments;
   const snap = await db.collection(collection).where("programId", "==", programId).get();
@@ -11410,19 +11476,22 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   const fingerprint = createHash("sha256").update(JSON.stringify([programId, reviewerEmail, view, ids])).digest("hex");
   const noticeRef = db.collection(COLLECTIONS.contestAssignmentNotices).doc(fingerprint);
   const reserved = await db.runTransaction(async (transaction) => {
+    const current = await transaction.get(db.collection(COLLECTIONS.submissionPrograms).doc(programId));
     const prior = (await transaction.get(noticeRef)).data() || {};
+    if (!current.exists || !sameContestMailIdentity(current.data(), mailIdentity)) return "changed";
     if (["sending", "sent", "uncertain"].includes(prior.deliveryStatus)) return false;
-    transaction.set(noticeRef, { programId, reviewerEmail, view, assignmentIds: ids,
+    transaction.set(noticeRef, { programId, reviewerEmail, view, assignmentIds: ids, mailIdentity,
       deliveryStatus: "sending", deliveryUpdatedAt: FieldValue.serverTimestamp(), sentBy: ctx.decoded.uid });
     return true;
   });
+  if (reserved === "changed") return res.status(409).json({ error: "contest_notice_preview_changed" });
   if (!reserved) return res.status(409).json({ error: "contest_notice_already_attempted" });
   const reviewUrl = `https://poetryplease.org/contest-review.html?program=${encodeURIComponent(programId)}&view=${view}`;
   const message = buildContestAssignmentMessage({
     programName: normalizeText(programSnap.data()?.name || programSnap.data()?.title || programId), view, reviewUrl,
   });
   try {
-    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment", ...CONTEST_MAIL_IDENTITY });
+    const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment", ...mailIdentity });
     await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
       deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return res.json({ ok: true, reviewerEmail, view, reviewUrl, assignmentCount: ids.length, delivery });
