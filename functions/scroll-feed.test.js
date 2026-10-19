@@ -119,9 +119,9 @@ test('metadata and text remain plain strings and media URLs require HTTPS', () =
 });
 
 const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-function routeHarness() {
+function routeHarness(customContent) {
   let handler;
-  const all = [...content(30), { imageId: 'flagged', imageType: 'EXC', book: 'Roads' }, { imageId: 'broken', broken: true, imageType: 'EXC', book: 'Roads' }, { imageId: 'private', imageType: 'FP', book: 'Roads' }];
+  const all = customContent || [...content(30), { imageId: 'flagged', imageType: 'EXC', book: 'Roads' }, { imageId: 'broken', broken: true, imageType: 'EXC', book: 'Roads' }, { imageId: 'private', imageType: 'FP', book: 'Roads' }];
   const context = vm.createContext({ app: { post: (_p, fn) => { handler = fn; } }, getBoth: (p) => p,
     verifyIdTokenFromHeader: async (req) => req.decoded, normalizeText: (v) => String(v || '').trim(), normalizeKey: (v) => String(v || '').trim().toLowerCase(),
     getAllContentCached: async () => all, getFlaggedContentIds: async () => new Set(['flagged']),
@@ -162,4 +162,56 @@ test('legacy filtered-feed callers retain the same response shape and metadata',
   assert.equal(data.newGraphics.length, 10);
   assert.equal(data.hasMore, undefined);
   assert.equal(data.nextCursor, undefined);
+});
+
+
+test('event reading returns every eligible graphic from only the selected contest, including prior votes', async () => {
+  const event = "Button Poetry's Fall 2026 Short Form Contest";
+  const eight = content(8).map((item) => ({ ...item, imageType: 'QI', book: '', releaseCatalog: 'Contest', sourceEvent: event }));
+  const call = routeHarness([...eight,
+    { ...eight[0], imageId: 'spring', sourceEvent: 'Spring contest' },
+    { ...eight[0], imageId: 'flagged' }, { ...eight[0], imageId: 'broken', broken: true },
+    { ...eight[0], imageId: 'private', imageType: 'FP' }]);
+  const request = { eventReading: true, anonId: 'reader', catalog: 'Contest', type: 'QI', event };
+  const result = (await call(request)).data;
+  assert.equal(result.feedMode, 'event-reading');
+  assert.equal(result.collectionSize, 8);
+  assert.deepEqual(result.newGraphics.map((r) => r[3]), eight.map((item) => item.imageId));
+  assert.ok(result.newGraphics.some((r) => r[3] === 'item-0'), 'prior votes must not remove an item from a reading collection');
+  assert.equal((await call({ ...request, event: 'Spring contest' })).data.collectionSize, 1);
+  assert.ok(eight.every((item) => item.book === ''), 'reading must not invent book metadata');
+});
+
+test('event reading opt-in does not change ordinary or incompatible review requests', async () => {
+  const all = content(3).map((item) => ({ ...item, imageType: 'QI', releaseCatalog: 'Contest', sourceEvent: 'Fall contest' }));
+  const call = routeHarness(all);
+  for (const request of [
+    { catalog: 'Contest', type: 'QI', event: 'Fall contest' },
+    { eventReading: true, catalog: 'Contest', type: 'QI' },
+    { eventReading: true, catalog: 'Contest', type: 'QI', event: 'Fall contest', book: 'Roads' },
+  ]) {
+    const data = (await call({ ...request, anonId: 'reviewer' })).data;
+    assert.equal(data.feedMode, undefined);
+    assert.ok(!data.newGraphics.some((r) => r[3] === 'item-0'));
+  }
+});
+
+test('reading navigation visits all eight once, ends without a refill, and records no skip votes', async () => {
+  const appSource = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const q = Array.from({ length: 8 }, (_, i) => ({ id: 'graphic-' + i }));
+  const shown = [q[0].id];
+  const context = vm.createContext({ eventReadingMode: true, queue: q, idx: 0, currentItem: q[0],
+    IS_EMBED_UI: false, isTransitioning: false, historyStack: [], PRELOAD_AHEAD: 2,
+    safePreload() {}, renderWhenReady(i) { shown.push(q[i].id); context.currentItem = q[i]; },
+    renderEmptyFilterState() { context.currentItem = null; context.ended = true; },
+    submitVote() { throw new Error('reading must not record a skip vote'); },
+    refillCurrentViewWithRetry() { throw new Error('reading must not refill the completed set'); },
+  });
+  vm.runInContext(appSource.slice(appSource.indexOf('async function advanceEventReading()'), appSource.indexOf('function setVoteButtonsDisabled(')) +
+    appSource.slice(appSource.indexOf('async function onSkip(){'), appSource.indexOf('function onGoBack(){')), context);
+  for (let i = 0; i < 8; i++) await context.onSkip();
+  assert.deepEqual(shown, q.map((item) => item.id));
+  assert.equal(context.ended, true);
+  assert.equal(context.historyStack.length, 8);
+  assert.equal(context.queue.length, 8, 'retain items for Back navigation');
 });

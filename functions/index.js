@@ -5041,6 +5041,11 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   };
   const limit = Math.max(10, Math.min(Number(req.body?.limit) || 500, 5000));
 
+  // A public contest collection includes already-reviewed graphics; this is reading,
+  // not an unreviewed queue. It still shares flag/broken-media/visibility exclusions.
+  const eventReading = req.body?.eventReading === true && req.body?.scroll !== true
+    && filters.catalog.toLowerCase() === "contest" && filters.type.toUpperCase() === "QI"
+    && !!filters.event && !filters.book && !filters.author;
   const embedBook = req.body?.embedBook === true && !!filters.book;
   const tasks = [
     getAllContentCached(),
@@ -5081,13 +5086,17 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     ).map(({ item }) => item)
     : null;
 
+  const eventReadingPool = eventReading
+    ? filteredAll.slice().sort((a, b) => normalizeText(a.imageId).localeCompare(normalizeText(b.imageId)))
+    : null;
   const scrollPage = req.body?.scroll === true ? paginateScrollFeed(filteredNew, {
     seed: normalizeText(req.body?.scrollSeed), after: normalizeText(req.body?.cursor), limit: req.body?.limit || 12,
   }) : null;
   res.json({
     allGraphics: scrollPage ? [] : filteredAll.map(mapToCounterArr),
-    newGraphics: (scrollPage?.items || rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
+    newGraphics: (scrollPage?.items || eventReadingPool || rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
     ...(scrollPage ? { hasMore: scrollPage.hasMore, nextCursor: scrollPage.nextCursor, feedMode: "scroll" } : {}),
+    ...(eventReading ? { feedMode: "event-reading", collectionSize: eventReadingPool.length } : {}),
     totalImages: all.length,
     votedImagesCount: all.length - all.filter((item) => !votedIds.has((item.imageId || "").trim().toLowerCase())).length,
     remainingImagesCount: filteredNew.length,

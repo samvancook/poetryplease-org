@@ -1085,6 +1085,11 @@ function updateFilterControlsVisibility() {
   const bookContainer = document.getElementById('book-filter-container');
   const queueModeContainer = document.getElementById('queue-mode-container');
   const lengthContainer = ensureFullPoemLengthControls();
+  if (eventReadingMode) {
+    [typeContainer, catalogContainer, eventContainer, bookContainer, queueModeContainer, lengthContainer]
+      .forEach((el) => { if (el) el.style.display = 'none'; });
+    return;
+  }
   if (typeContainer) {
     if (canSeeTypeFilter) typeContainer.style.removeProperty('display');
     else typeContainer.style.display = 'none';
@@ -2059,6 +2064,7 @@ const sessionFlaggedContentIds = new Set();
 let routeItemConsumed = false;
 let routeItemUnavailable = false;
 let lockedLane = false;
+let eventReadingMode = false;
 let authorPreviewMode = false;
 
 // Ratings + heuristics state
@@ -2186,6 +2192,7 @@ function readRouteState() {
     maxLines: params.get('maxLines') || '',
     includeLengthMetadata: params.get('includeLengthMetadata') || '',
     locked: params.get('locked') || params.get('laneLocked') || '',
+    reading: params.get('reading') || '',
     authorPreview: params.get('authorPreview') || ''
   };
 }
@@ -2203,6 +2210,7 @@ function writeRouteState() {
     maxLines: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxLines : '',
     includeLengthMetadata: normalizeFilterValue(selectedType) === 'fp' && selectedLengthIncludesMetadata ? '1' : '',
     locked: lockedLane ? '1' : '',
+    reading: eventReadingMode ? '1' : '',
     authorPreview: authorPreviewMode ? '1' : ''
   };
 
@@ -2260,6 +2268,9 @@ function initializeRouteState() {
   if (authorPreviewMode) lockedLane = true;
   filterByAuthor = !!selectedAuthor;
   filterByBook = !!selectedBook;
+  eventReadingMode = route.reading === '1' && lockedLane && !selectedItemId
+    && selectedCatalog === 'Contest' && selectedType.toUpperCase() === 'QI'
+    && !!selectedEvent && !selectedBook && !selectedAuthor;
 }
 
 function setTypeFilter(value) {
@@ -2349,6 +2360,7 @@ function setEventFilter(value) {
 }
 
 function exitLockedLane() {
+  eventReadingMode = false;
   lockedLane = false;
   authorPreviewMode = false;
   selectedItemId = '';
@@ -2359,6 +2371,7 @@ function exitLockedLane() {
   selectedAuthor = '';
   selectedBook = '';
   selectedEvent = '';
+  document.getElementById('event-reading-context')?.remove();
   filterByAuthor = false;
   filterByBook = false;
   syncFilterControls();
@@ -2900,6 +2913,7 @@ function getActiveFilterPayload(extra = {}) {
     author: filterByAuthor ? selectedAuthor : '',
     book: filterByBook ? selectedBook : '',
     event: selectedEvent,
+    ...(eventReadingMode ? { eventReading: true } : {}),
     maxCharacters: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxCharacters : '',
     maxLines: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxLines : '',
     includeLengthMetadata: normalizeFilterValue(selectedType) === 'fp' && selectedLengthIncludesMetadata,
@@ -3235,7 +3249,7 @@ function preloadAsset(src, type) {
   preloadCache.set(src, p); return p;
 }
 function safePreload(i) { if (i < 0 || i >= queue.length) return; const it = queue[i]; return preloadAsset(it.mediaUrl, it.imageType); }
-function renderWhenReady(i) { const it = queue[i]; if (!it) return; const p = preloadCache.get(it.mediaUrl) || Promise.resolve(); p.finally(() => renderCurrent(it)); }
+function renderWhenReady(i) { const it = queue[i]; if (!it) return; const p = preloadCache.get(it.mediaUrl) || Promise.resolve(); return p.finally(() => renderCurrent(it)); }
 
 // ===== Viewport fit (dynamic media height) =====
 function setViewportVars() {
@@ -3290,6 +3304,9 @@ function adjustViewportFit() {
 }
 
 function getEmptyFilterMessage() {
+  if (eventReadingMode) return queue.length
+    ? `You’ve read all ${queue.length} graphics in this contest collection.`
+    : 'No graphics are available in this contest collection yet.';
   if (lockedLane) {
     if (filterByAuthor && selectedAuthor) return 'No items appeared in this author view right now. You can try the full author queue or reload.';
     if (filterByBook && selectedBook) return 'You’ve reached the end of this book-only set. You can browse all poems below.';
@@ -3331,7 +3348,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
       ? `<div style="text-align:center;max-width:520px;margin:32px auto;">
           <p style="font-size:22px;font-weight:700;margin:0 0 10px;">${message}</p>
           <p style="margin:0 0 18px;color:#6c6558;">Want to keep going?</p>
-          <button id="btn-show-more-poems" type="button" style="font-size:18px;font-weight:700;padding:12px 18px;border-radius:14px;border:1px solid #d9cfbe;background:#dceff1;color:#345f64;cursor:pointer;">Show me more poems!</button>
+          <button id="btn-show-more-poems" type="button" style="font-size:18px;font-weight:700;padding:12px 18px;border-radius:14px;border:1px solid #d9cfbe;background:#dceff1;color:#345f64;cursor:pointer;">${eventReadingMode ? 'Continue reading' : 'Show me more poems!'}</button>
         </div>`
       : `<p>${message}</p><button id="btn-feed-retry" type="button">Retry</button>`;
     const showMore = $('#btn-show-more-poems');
@@ -3382,7 +3399,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
     {
       const action = document.createElement('button');
       action.type = 'button';
-      action.textContent = afterFlag ? 'Retry this queue' : lockedLane && !retry ? 'Show me more poems!' : 'Retry';
+      action.textContent = afterFlag ? 'Retry this queue' : lockedLane && !retry ? (eventReadingMode ? 'Continue reading' : 'Show me more poems!') : 'Retry';
       action.style.cssText = 'min-height:44px;padding:10px 18px;border-radius:12px;border:0;background:#fff;color:#222;font-weight:700;pointer-events:auto;cursor:pointer;';
       action.addEventListener('click', lockedLane && !retry && !afterFlag ? exitLockedLane : ppAutoloadFirstItem);
       statusBox.appendChild(action);
@@ -3393,6 +3410,7 @@ function renderEmptyFilterState(message = getEmptyFilterMessage(), retry = false
   }
   const back = $('#btn-go-back');
   if (back) back.disabled = historyStack.length === 0;
+  if (eventReadingMode && $('#load-button')) $('#load-button').disabled = true;
   setVoteButtonsDisabled(true);
   renderMetaRows(null);
   renderCounter();
@@ -3612,7 +3630,7 @@ function renderMetaRows(item) {
 
   // Excerpt titles appear with their source caption inside the card.
   if (item.imageType !== 'EXC') mediaWrap.prepend(row(`Title: ${item.title || ''}`));
-  mediaWrap.prepend(row(
+  if (item.book) mediaWrap.prepend(row(
     `From their book: ${item.book || ''}`,
     'bookCheckbox',
     filterByBook && valuesMatch(selectedBook, item.book),
@@ -3914,6 +3932,26 @@ function renderCurrent(item) {
   servedCounter = (servedCounter || 0) + 1;
   renderMetaRows(item);
   renderItemMedia(item);
+  const nextLabel = eventReadingMode ? 'Next graphic' : 'Poetry, Please';
+  const loadButton = $('#load-button');
+  if (loadButton) { loadButton.textContent = nextLabel; loadButton.disabled = false; }
+  const bookButton = $('#btn-to-book');
+  if (bookButton) bookButton.style.display = item.bookUrl ? '' : 'none';
+  if (eventReadingMode) {
+    let label = document.getElementById('event-reading-context');
+    if (!label) {
+      label = document.createElement('p');
+      label.id = 'event-reading-context';
+      label.style.cssText = 'text-align:center;font:600 14px/1.35 system-ui;margin:8px 0;';
+      const target = IS_MOBILE_UI ? document.querySelector('.wrap > header') : document.getElementById('poetry-screen');
+      if (IS_MOBILE_UI && target) {
+        target.style.flexWrap = 'wrap';
+        label.style.flexBasis = '100%';
+        target.append(label);
+      } else target?.prepend(label);
+    }
+    label.textContent = `${selectedEvent} · ${idx + 1} of ${queue.length}`;
+  } else document.getElementById('event-reading-context')?.remove();
 
   const back = $('#btn-go-back');
   if (back) back.disabled = IS_EMBED_UI ? true : historyStack.length === 0;
@@ -4000,6 +4038,14 @@ function chooseNextIndex() {
 }
 
 // ===== Voting / Navigation =====
+async function advanceEventReading() {
+  if (idx + 1 < queue.length) {
+    idx += 1;
+    safePreload(idx + PRELOAD_AHEAD);
+    await renderWhenReady(idx);
+  } else renderEmptyFilterState();
+}
+
 function setVoteButtonsDisabled(disabled) {
   ['btn-like','btn-dislike','btn-moved','btn-meh'].forEach(id=>{ const b=$('#'+id); if (b) b.disabled=disabled; });
 }
@@ -4074,6 +4120,12 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
     if (value === 'meh')      updateCounters({ meh: 1 });
   } catch(e) { console.warn('vote error', e); }
   finally {
+    if (eventReadingMode) {
+      await advanceEventReading();
+      if (currentItem) setVoteButtonsDisabled(false);
+      isTransitioning = false;
+      return;
+    }
     removeItemFromQueueById(currentItem?.id);
     lastVoteType = (value || '').toLowerCase();
     sessionVotes = (sessionVotes || 0) + 1;
@@ -4102,9 +4154,17 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
 }
 async function onSkip(){
   if (IS_EMBED_UI) return;
+  if (eventReadingMode && !currentItem) return;
   if (isTransitioning) return;
   if (!currentItem) {
     await refillCurrentViewWithRetry();
+    return;
+  }
+  if (eventReadingMode) {
+    isTransitioning = true;
+    historyStack.push(currentItem);
+    try { await advanceEventReading(); }
+    finally { isTransitioning = false; }
     return;
   }
   isTransitioning = true;
@@ -4598,6 +4658,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // API for mobile.html
   window.PP = Object.assign({}, window.PP, {
+    isEventReading: ()=>eventReadingMode,
+    canGoBack: ()=>historyStack.length > 0,
     vote: (v)=>onVoteAny(v),
     skip: ()=>onSkip(),
     goBack: ()=>onGoBack(),
