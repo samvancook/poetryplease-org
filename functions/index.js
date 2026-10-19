@@ -11483,6 +11483,10 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const mailIdentity = contestMailIdentity(programSnap.data());
+  if (req.body?.expectedMailIdentity !== undefined &&
+      JSON.stringify(validateContestMailIdentity(req.body.expectedMailIdentity)) !== JSON.stringify(mailIdentity)) {
+    return res.status(409).json({ error: "contest_notice_preview_changed" });
+  }
   const collection = view === "spotcheck" ? COLLECTIONS.contestSpotChecks
     : view === "finalist" ? COLLECTIONS.contestFinalistReads : COLLECTIONS.contestReviewAssignments;
   const snap = await db.collection(collection).where("programId", "==", programId).get();

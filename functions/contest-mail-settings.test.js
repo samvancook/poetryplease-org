@@ -277,3 +277,63 @@ test('Add another address reveals the email field and saving adds the selected c
   assert.match(h.element('contest-mail-from-email').innerHTML, /no-reply@buttonpoetry.com/);
   assert.equal(h.element('contest-mail-from-email-custom').disabled, true);
 });
+
+test('assignment sender confirmation rejects changed settings without sending or reserving a notice', async () => {
+  const h = harness(custom);
+  const body = { programId, reviewerEmail: 'sam@buttonpoetry.com', view: 'assigned', expectedMailIdentity: custom };
+  await save(h, { ...custom, replyTo: 'sam@buttonpoetry.com' });
+  assert.equal((await h.call('POST', 'contestAssignmentNotices/send', body)).code, 409);
+  assert.equal(h.sent.length, 0);
+  assert.ok(![...h.rows.keys()].some((key) => key.startsWith('contestAssignmentNotices/')));
+});
+
+const reviewSource = readFileSync(new URL('../public/contest-review.html', import.meta.url), 'utf8');
+function reviewHarness(api) {
+  const elements = new Map();
+  const element = (id) => {
+    if (!elements.has(id)) elements.set(id, { value: '', textContent: '', disabled: false, dataset: {}, addEventListener() {} });
+    return elements.get(id);
+  };
+  element('program').value = programId;
+  const context = vm.createContext({ document: { getElementById: element }, api,
+    escapeHtml: (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('"', '&quot;'),
+    window: { confirm: () => false },
+  });
+  vm.runInContext(reviewSource.slice(reviewSource.indexOf('    function updateContestMailAddressField('), reviewSource.indexOf('    async function loadProgress(')), context);
+  return { context, element };
+}
+
+test('judging workspace exposes the same sender dropdowns and test preview headers', async () => {
+  const calls = [];
+  const h = reviewHarness(async (path, options) => {
+    calls.push(path);
+    if (path.startsWith('admin/contestMailSettings')) return { mailIdentity: custom, addressOptions: { fromEmail: ['no-reply@buttonpoetry.com', custom.fromEmail], replyTo: [custom.replyTo] } };
+    if (path === 'admin/contestOutcomeEmails/test') return { programId, email: 'sam@buttonpoetry.com', outcome: 'winner', subject: 'Test', body: 'Sample', previewToken: 'fake-preview', mailIdentity: custom };
+    throw new Error('Unexpected endpoint ' + path);
+  });
+  await h.context.loadContestMailSettings();
+  assert.match(h.element('contest-mail-from-email').innerHTML, /no-reply@buttonpoetry.com/);
+  h.element('contest-test-email').value = 'sam@buttonpoetry.com';
+  h.element('contest-test-outcome').value = 'winner';
+  await h.context.previewContestTestEmail();
+  assert.match(h.element('contest-test-message').textContent, /From: Sam — Contest Team <sam@buttonpoetry.com>/);
+  assert.match(h.element('contest-test-message').textContent, /Replies go to: support@buttonpoetry.com/);
+  assert.equal(h.element('contest-test-send').disabled, false);
+  await h.context.saveContestMailSettings({ preventDefault() {} });
+  assert.equal(h.element('contest-test-send').disabled, true);
+  assert.equal(vm.runInContext('contestEmailSendEnabled', h.context), false);
+  assert.ok(!calls.some((path) => /Emails\/send|Notices\/send/.test(path)));
+});
+
+test('editing settings discards an outstanding test preview in the judging workspace', async () => {
+  let finish;
+  const h = reviewHarness(() => new Promise((resolve) => { finish = resolve; }));
+  h.element('contest-test-email').value = 'sam@buttonpoetry.com';
+  h.element('contest-test-outcome').value = 'winner';
+  const loading = h.context.previewContestTestEmail();
+  h.context.clearContestTestPreview();
+  finish({ programId, email: 'sam@buttonpoetry.com', outcome: 'winner', mailIdentity: custom, subject: 'Test', body: 'Sample' });
+  await loading;
+  assert.equal(h.element('contest-test-send').disabled, true);
+  assert.equal(h.element('contest-test-message').hidden, true);
+});
