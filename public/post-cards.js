@@ -1,5 +1,27 @@
 import { safeMediaUrl } from './scroll-feed-core.js';
 
+// The renderer can be newer than a cached HTML shell. Keep its layout CSS in
+// step with the .post-art markup, including on already-cached continuous pages.
+export async function syncPostStyles(doc) {
+  const paths = new Set(['/posts.css', '/posts-continuous.css']);
+  const pending = [];
+  for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
+    const url = new URL(link.href, doc.baseURI);
+    if (!paths.has(url.pathname) || url.origin !== new URL(doc.baseURI).origin) continue;
+    if (url.searchParams.get('v') === '20261020a') continue;
+    url.searchParams.set('v', '20261020a');
+    pending.push(new Promise(resolve => {
+      link.addEventListener('load', resolve, { once: true });
+      link.addEventListener('error', resolve, { once: true });
+      link.href = url.href;
+    }));
+  }
+  await Promise.all(pending);
+}
+if (typeof document !== 'undefined' && document.body?.dataset.feedVariant === 'posts') {
+  await syncPostStyles(document);
+}
+
 const make = (tag, className, text) => {
   const el = document.createElement(tag);
   if (className) el.className = className;
