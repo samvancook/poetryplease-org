@@ -15,13 +15,18 @@
   <script>
     firebase.initializeApp({apiKey:'AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8',authDomain:'poetry-please.firebaseapp.com',projectId:'poetry-please',appId:'1:609992589187:web:ea8aed51a08c3716b880b6'});
   </script>
-  <script type="module" src="/scroll.js"></script>
+  <script type="module">
+    import { classicMobileTarget } from '/mobile-entry.js';
+    const target = classicMobileTarget(location.pathname, location.search);
+    if (target) location.replace(target + location.hash);
+    else import('/scroll.js');
+  </script>
 </head>
 <body data-feed-variant="posts" data-feed-mode="swipe" class="posts-continuous posts-swipe">
   <a class="skip-link" href="#feed">Skip to posts</a>
   <header class="site-header">
     <div class="topline"><a class="brand" href="/m">Poetry, Please</a><span class="variant">Swipe</span><button id="account-toggle" type="button" aria-expanded="false" aria-controls="account-menu">Account</button></div>
-    <div id="account-menu" class="account-menu" hidden><p id="account-status">Checking account…</p><button id="sign-in" type="button">Sign in with Google</button><button id="sign-out" type="button" hidden>Sign out</button><a id="original-view" href="/m">Single-item view</a><a href="/posts-continuous">Continuous posts</a></div>
+    <div id="account-menu" class="account-menu" hidden><p id="account-status">Checking account…</p><button id="sign-in" type="button">Sign in with Google</button><button id="sign-out" type="button" hidden>Sign out</button><a id="original-view" href="/m-classic">Single-item view</a><a href="/posts-continuous">Continuous posts</a></div>
   </header>
   <dialog id="image-viewer" aria-labelledby="image-viewer-title">
     <div class="image-viewer-toolbar"><span id="image-viewer-title">Image</span><button id="image-zoom-out" type="button" aria-label="Zoom out">−</button><button id="image-zoom-in" type="button" aria-label="Zoom in">+</button><button id="image-close" type="button">Close</button></div>
@@ -31,7 +36,7 @@
   <main>
     <div id="feed" aria-label="Swipe through poetry posts" tabindex="-1"></div>
     <div class="feed-footer" id="feed-footer"><p id="feed-status" role="status" aria-live="polite">Loading…</p><button id="load-more" type="button" hidden>Load more</button></div>
-    <noscript>This view needs JavaScript. <a href="/m">Open the original mobile viewer.</a></noscript>
+    <noscript>This view needs JavaScript. <a href="/m-classic">Open the single-item mobile viewer.</a></noscript>
   </main>
 </body>
 </html>

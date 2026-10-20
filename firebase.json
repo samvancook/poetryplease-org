@@ -9,6 +9,15 @@
     ],
     "headers": [
       {
+        "source": "/m{,-classic}",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, no-cache, must-revalidate, max-age=0"
+          }
+        ]
+      },
+      {
         "source": "/posts{,-continuous,-moon,-bright-moon,-swipe}",
         "headers": [
           {
@@ -160,6 +169,10 @@
       },
       {
         "source": "/m",
+        "destination": "/posts-swipe.html"
+      },
+      {
+        "source": "/m-classic",
         "destination": "/mobile.html"
       },
       {
