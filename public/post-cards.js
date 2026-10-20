@@ -4,7 +4,7 @@ import { createPoemLinks } from './poem-links.js';
 // The renderer can be newer than a cached HTML shell. Keep its layout CSS in
 // step with the .post-art markup, including on already-cached continuous pages.
 export async function syncPostStyles(doc) {
-  const versions = new Map([['/posts.css', '20261020b'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
+  const versions = new Map([['/posts.css', '20261020c'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
   const pending = [];
   for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
     const url = new URL(link.href, doc.baseURI);
