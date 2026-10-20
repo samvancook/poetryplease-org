@@ -12,6 +12,7 @@ import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { GoogleAuth, Impersonated } from "google-auth-library";
 import { paginateScrollFeed } from "./scroll-feed.js";
+import { paginateMobileFeed } from "./swipe-feed.js";
 import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
@@ -5047,13 +5048,14 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     && filters.catalog.toLowerCase() === "contest" && filters.type.toUpperCase() === "QI"
     && !!filters.event && !filters.book && !filters.author;
   const embedBook = req.body?.embedBook === true && !!filters.book;
+  const mobileFeed = req.body?.scroll === true && req.body?.feedPolicy === "mobile";
   const tasks = [
     getAllContentCached(),
     getFlaggedContentIds(),
     getUniqueVotedImageIdsByUser(userId),
     canSeeFullPoemsInReview(decoded),
   ];
-  if (embedBook) tasks.push(getRatingsSummaryCached());
+  if (embedBook || mobileFeed) tasks.push(getRatingsSummaryCached());
 
   const [allContent, flaggedIds, votedIds, canSeeFullPoems, ratingsSummary = null] = await Promise.all(tasks);
 
@@ -5089,13 +5091,22 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   const eventReadingPool = eventReading
     ? filteredAll.slice().sort((a, b) => normalizeText(a.imageId).localeCompare(normalizeText(b.imageId)))
     : null;
-  const scrollPage = req.body?.scroll === true ? paginateScrollFeed(filteredNew, {
+  const servedIds = mobileFeed && Array.isArray(req.body?.servedIds) ? req.body.servedIds : [];
+  const servedKeys = new Set(servedIds.filter(id => typeof id === "string").map(normalizeKey));
+  const welcomeItems = mobileFeed && req.body?.welcome === true && !decoded?.email && !filters.author
+    ? buildWelcomeBatch(filteredNew.filter(item => !servedKeys.has(normalizeKey(item.imageId))), ratingsSummary, 12)
+    : [];
+  const scrollPage = mobileFeed ? paginateMobileFeed(filteredNew, {
+    ratingsSummary, servedIds, welcomeItems, authorReview: !!filters.author,
+    preferVisual: !decoded?.email, includeMuted: Number(req.body?.sessionVotes || 0) >= 5,
+    seed: normalizeText(req.body?.scrollSeed), limit: req.body?.limit || 12,
+  }) : req.body?.scroll === true ? paginateScrollFeed(filteredNew, {
     seed: normalizeText(req.body?.scrollSeed), after: normalizeText(req.body?.cursor), limit: req.body?.limit || 12,
   }) : null;
   res.json({
     allGraphics: scrollPage ? [] : filteredAll.map(mapToCounterArr),
     newGraphics: (scrollPage?.items || eventReadingPool || rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
-    ...(scrollPage ? { hasMore: scrollPage.hasMore, nextCursor: scrollPage.nextCursor, feedMode: "scroll" } : {}),
+    ...(scrollPage ? { hasMore: scrollPage.hasMore, nextCursor: scrollPage.nextCursor, feedMode: scrollPage.feedMode || "scroll" } : {}),
     ...(eventReading ? { feedMode: "event-reading", collectionSize: eventReadingPool.length } : {}),
     totalImages: all.length,
     votedImagesCount: all.length - all.filter((item) => !votedIds.has((item.imageId || "").trim().toLowerCase())).length,

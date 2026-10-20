@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { paginateScrollFeed } from './scroll-feed.js';
+import { paginateMobileFeed } from './swipe-feed.js';
 import { ScrollFeedPager, safeMediaUrl, normalizeScrollItem, originalViewerUrl } from '../public/scroll-feed-core.js';
 
 const content = (count) => Array.from({ length: count }, (_, i) => ({ imageId: 'item-' + i, imageType: 'EXC', title: 'Poem ' + i, book: 'Roads', excerpt: 'line one\nline two' }));
@@ -119,19 +120,20 @@ test('metadata and text remain plain strings and media URLs require HTTPS', () =
 });
 
 const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-function routeHarness(customContent) {
+function routeHarness(customContent, ratings = {}) {
   let handler;
   const all = customContent || [...content(30), { imageId: 'flagged', imageType: 'EXC', book: 'Roads' }, { imageId: 'broken', broken: true, imageType: 'EXC', book: 'Roads' }, { imageId: 'private', imageType: 'FP', book: 'Roads' }];
   const context = vm.createContext({ app: { post: (_p, fn) => { handler = fn; } }, getBoth: (p) => p,
     verifyIdTokenFromHeader: async (req) => req.decoded, normalizeText: (v) => String(v || '').trim(), normalizeKey: (v) => String(v || '').trim().toLowerCase(),
-    getAllContentCached: async () => all, getFlaggedContentIds: async () => new Set(['flagged']),
+    getAllContentCached: async () => all, getFlaggedContentIds: async () => new Set(['flagged']), getRatingsSummaryCached: async () => ratings,
     getUniqueVotedImageIdsByUser: async () => new Set(['item-0']), canSeeFullPoemsInReview: async (decoded) => decoded?.staff === true,
     excludeBrokenContent: (items) => items.filter((i) => !i.broken), excludeFlaggedContent: (items, ids) => items.filter((i) => !ids.has(i.imageId)),
     reviewVisibleContent: (items, full) => items.filter((i) => full || i.imageType !== 'FP'),
     parseOptionalCount: (value) => value == null ? null : Number(value), parseBoolean: (value) => value === true,
-    sampleItems: (items, limit) => items.slice(0, limit), mapToCounterArr: (i) => i.imageId, mapToArr: (i) => row(i.imageId), paginateScrollFeed,
+    sampleItems: (items, limit) => items.slice(0, limit), mapToCounterArr: (i) => i.imageId, mapToArr: (i) => row(i.imageId), paginateScrollFeed, paginateMobileFeed,
   });
-  vm.runInContext(source.slice(source.indexOf('function matchesFilterValue('), source.indexOf('function firstNonEmpty(')) + '\n' +
+  vm.runInContext(source.slice(source.indexOf('function prioritizeVisualContent('), source.indexOf('function buildFeedPayload(')) + '\n' +
+    source.slice(source.indexOf('function matchesFilterValue('), source.indexOf('function firstNonEmpty(')) + '\n' +
     source.slice(source.indexOf('app.post(getBoth("/fetchFiltered")'), source.indexOf('app.get(getBoth("/embedBookLead")')), context);
   return async (body, decoded) => {
     let status = 200; let data;
@@ -162,6 +164,52 @@ test('legacy filtered-feed callers retain the same response shape and metadata',
   assert.equal(data.newGraphics.length, 10);
   assert.equal(data.hasMore, undefined);
   assert.equal(data.nextCursor, undefined);
+});
+
+test('Swipe requests curated welcome favorites and continues without serving the same IDs', async () => {
+  const all = content(36).map((item, i) => ({ ...item, imageType: i < 18 ? 'QI' : i < 27 ? 'INT' : 'EXC', book: 'Book ' + i }));
+  const ratings = Object.fromEntries(all.map((item, i) => [item.imageId, { total: 4, movedMe: 4, score: 100 - i }]));
+  const call = routeHarness(all, ratings);
+  const request = { scroll: true, feedPolicy: 'mobile', welcome: true, anonId: 'reader', type: 'PROMO', scrollSeed: 'session' };
+  const first = (await call(request)).data;
+  assert.equal(first.feedMode, 'mobile-welcome');
+  assert.deepEqual(first.newGraphics.slice(0, 3).map(row => row[3]), ['item-1', 'item-2', 'item-27']);
+  const servedIds = first.newGraphics.map(row => row[3]);
+  const second = (await call({ ...request, cursor: first.nextCursor, servedIds })).data;
+  assert.ok(second.newGraphics.every(row => !servedIds.includes(row[3])));
+  assert.ok(!second.newGraphics.some(row => row[3] === 'item-0'), 'existing votes stay excluded');
+});
+
+test('Swipe ranking keeps existing exclusions and author graphics-first review scope', async () => {
+  const all = [...content(5), { imageId: 'own-graphic', imageType: 'QI', book: 'Roads', author: 'Poet' },
+    { imageId: 'flagged', imageType: 'QI' }, { imageId: 'broken', imageType: 'QI', broken: true }, { imageId: 'private', imageType: 'FP' }];
+  const call = routeHarness(all, { 'own-graphic': { authorExcluded: true } });
+  const normal = (await call({ scroll: true, feedPolicy: 'mobile', anonId: 'reader', type: 'PROMO' })).data;
+  assert.ok(normal.newGraphics.every(row => !['flagged', 'broken', 'private', 'item-0', 'own-graphic'].includes(row[3])));
+  const own = (await call({ scroll: true, feedPolicy: 'mobile', anonId: 'author', author: 'Poet', type: 'PROMO' })).data;
+  assert.equal(own.feedMode, 'author-review');
+  assert.deepEqual(own.newGraphics.map(row => row[3]), ['own-graphic']);
+});
+
+test('only Swipe requests mobile ranking and sends all already-shown IDs on the next page', async () => {
+  const client = readFileSync(new URL('../public/scroll.js', import.meta.url), 'utf8');
+  const block = client.slice(client.indexOf('const pager = new ScrollFeedPager('), client.indexOf('function restartFeed()'));
+  for (const swipeVariant of [false, true]) {
+    const requests = [];
+    const context = vm.createContext({ ScrollFeedPager, swipeVariant, anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false,
+      renderCard() {}, updateFooter() {}, closePostDetails() {}, resetSwipeReview() {}, postVariant: true, $: () => ({ replaceChildren() {} }),
+      api: async (path, body) => { requests.push({ path, body }); return { newGraphics: requests.length === 1 ? [row('A'), row('B')] : [row('C')], hasMore: requests.length === 1, nextCursor: requests.length === 1 ? 'next' : null }; },
+    });
+    vm.runInContext(block + '\nglobalThis.testPager = pager;', context);
+    await context.testPager.reset({ type: 'PROMO', scrollSeed: 'seed' });
+    await context.testPager.loadMore();
+    assert.equal(requests[0].body.feedPolicy, swipeVariant ? 'mobile' : undefined);
+    if (swipeVariant) {
+      assert.deepEqual(Array.from(requests[0].body.servedIds), []);
+      assert.deepEqual(Array.from(requests[1].body.servedIds), ['a', 'b']);
+      assert.equal(requests[1].body.welcome, true);
+    }
+  }
 });
 
 
