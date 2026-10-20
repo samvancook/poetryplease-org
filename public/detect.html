@@ -22,112 +22,29 @@
   <script>
     (function () {
       const params = new URLSearchParams(location.search);
-
-      // --- Debug: stay put and show what we'd do ---
       if (params.get("noredirect") === "1") {
         document.getElementById("msg").textContent = "Debug mode: noredirect=1 — no redirect will occur.";
         return;
       }
 
-      // --- Original legacy overrides (preserved) ---
-      const forceMobileLegacy  = params.get("mobile")  === "1";
-      const forceDesktopLegacy = params.get("desktop") === "1";
-
-      // --- New explicit override (added) ---
-      let view = params.get("view");
-      if (view !== "mobile" && view !== "desktop") view = null;
-
-      // --- Optional persisted preference (added) ---
-      let pinned = null;
-      try { pinned = localStorage.getItem("pp_view"); } catch (_) {}
-
-      // --- Original auto logic (PRESERVED exactly) ---
+      const requested = params.get("view");
+      const explicit = requested === "mobile" || requested === "desktop" ? requested
+        : params.get("mobile") === "1" ? "mobile"
+        : params.get("desktop") === "1" ? "desktop" : null;
       const ua = navigator.userAgent || "";
-      const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
-      const isSkinny   = (function(){ try { return window.innerWidth < 900; } catch { return false; } })();
-      const originalAutoMobile = (isMobileUA || isSkinny);   // <— your original heuristic
-      const originalTarget = (function(){
-        if (forceMobileLegacy)  return "/m";
-        if (forceDesktopLegacy) return "/app";
-        if (originalAutoMobile) return "/m";
-        return "/app";
-      })();
-
-      // --- Enhanced auto logic (ADDED; original preserved) ---
-      function enhancedAutoIsMobile() {
-        try {
-          // Keep original signal first (never remove it)
-          if (originalAutoMobile) return true;
-
-          // 1) userAgentData.mobile (Chromium)
-          if (navigator.userAgentData && typeof navigator.userAgentData.mobile === "boolean") {
-            if (navigator.userAgentData.mobile) return true;
-          }
-
-          // 2) iPadOS 13+ pretending to be Mac
-          const platform = navigator.platform || "";
-          if (/Mac/.test(platform) && navigator.maxTouchPoints > 1) return true;
-
-          // 3) Coarse pointer / small viewport hint
-          if (window.matchMedia && window.matchMedia("(pointer:coarse)").matches) return true;
-          if (window.matchMedia && window.matchMedia("(max-width: 768px)").matches) return true;
-
-          return false;
-        } catch (e) {
-          return originalAutoMobile;
-        }
-      }
-
-      // --- Decide with precedence (no removals of legacy behavior) ---
-      // Highest → Lowest:
-      // 1) ?view=mobile|desktop (new)
-      // 2) Legacy flags ?mobile=1 / ?desktop=1 (original)
-      // 3) Real mobile devices should still land on mobile, even if a stale
-      //    desktop preview preference was pinned earlier.
-      // 4) Pinned choice (new)
-      // 5) Original auto logic (original)
-      // 6) Enhanced auto fallback (new)
-      let decided; // "mobile" | "desktop"
-      if (view) {
-        decided = view;
-      } else if (forceMobileLegacy) {
-        decided = "mobile";
-      } else if (forceDesktopLegacy) {
-        decided = "desktop";
-      } else if (enhancedAutoIsMobile()) {
-        decided = "mobile";
-      } else if (pinned === "mobile" || pinned === "desktop") {
-        decided = pinned;
-      } else {
-        decided = "desktop";
-      }
-
+      const mobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(ua)
+        || navigator.userAgentData?.mobile === true
+        || (/Mac/.test(navigator.platform || "") && navigator.maxTouchPoints > 1);
+      // A saved preview, narrow window or touchscreen desktop is not a phone.
+      const decided = explicit || (mobileDevice ? "mobile" : "desktop");
       const target = decided === "mobile" ? "/m" : "/app";
 
-      // Persist only explicit view or legacy flags to avoid surprising pins.
-      try {
-        if (view) {
-          localStorage.setItem("pp_view", decided);
-        } else if (forceMobileLegacy || forceDesktopLegacy) {
-          localStorage.setItem("pp_view", decided);
-        }
-      } catch (_) {}
-
-      // --- Avoid redirect loops if already at /m or /app ---
-      const here = location.pathname.replace(/\/+$/, "");
-      if ((decided === "mobile"  && here === "/m") ||
-          (decided === "desktop" && here === "/app")) {
-        document.getElementById("msg").textContent = `Already on ${decided}.`;
-        return;
-      }
-
-      // --- Preserve only non-detection params on redirect ---
-      const passthrough = new URLSearchParams(location.search);
-      ["view","mobile","desktop","noredirect"].forEach(k => passthrough.delete(k));
-      const qs  = passthrough.toString();
-      const dest = qs ? `${target}?${qs}` : target;
-
-      location.replace(dest);
+      ["mobile", "desktop", "noredirect"].forEach(key => params.delete(key));
+      // Carry explicit overrides through /app so its mobile guard agrees.
+      if (explicit) params.set("view", explicit);
+      else params.delete("view");
+      const query = params.toString();
+      location.replace(target + (query ? "?" + query : "") + (location.hash || ""));
     })();
   </script>
 </body>

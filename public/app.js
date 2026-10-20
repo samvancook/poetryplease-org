@@ -127,8 +127,7 @@ const LoadTiming = (() => {
 
   const ua = navigator.userAgent || '';
   const isMobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
-  const isSkinny = (() => { try { return window.innerWidth < 900; } catch (_) { return false; } })();
-  let isMobile = isMobileUA || isSkinny;
+  let isMobile = params.get('view') === 'mobile' || params.get('mobile') === '1' || isMobileUA;
 
   try {
     if (!isMobile && navigator.userAgentData && typeof navigator.userAgentData.mobile === 'boolean') {
@@ -137,10 +136,6 @@ const LoadTiming = (() => {
     if (!isMobile) {
       const platform = navigator.platform || '';
       if (/Mac/.test(platform) && navigator.maxTouchPoints > 1) isMobile = true;
-    }
-    if (!isMobile && window.matchMedia) {
-      if (window.matchMedia('(pointer:coarse)').matches) isMobile = true;
-      if (window.matchMedia('(max-width: 768px)').matches) isMobile = true;
     }
   } catch (_) {}
 
