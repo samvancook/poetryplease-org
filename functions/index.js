@@ -13,6 +13,7 @@ import { fileURLToPath } from "node:url";
 import { GoogleAuth, Impersonated } from "google-auth-library";
 import { paginateScrollFeed } from "./scroll-feed.js";
 import { paginateMobileFeed } from "./swipe-feed.js";
+import { relatedExcerptIds, resolvePoemRelations } from "./poem-relations.js";
 import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
@@ -5206,6 +5207,43 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   });
 });
 
+// Reading a related poem is separate from rating full poems in the review feed.
+// This read-only route retains flag/quarantine exclusions and never writes votes.
+app.get(getBoth("/poemContent"), async (req, res) => {
+  const targetId = normalizeText(req.query?.id);
+  if (!targetId || targetId.length > 300) return res.status(400).json({ error: "invalid_id" });
+  res.set("Cache-Control", "no-store");
+  try {
+    const [allContent, flaggedIds] = await Promise.all([getAllContentCached(), getFlaggedContentIds()]);
+    const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
+    const target = normalizeKey(targetId);
+    const imageMatches = all.filter(item => normalizeKey(item.imageId) === target);
+    const matches = imageMatches.length ? imageMatches : all.filter(item => normalizeKey(item.contentId || item.id) === target);
+    if (matches.length > 1) return res.status(409).json({ error: "ambiguous_content_id" });
+    const item = matches[0];
+    if (!item) return res.status(404).json({ error: "not_found" });
+    const occurrences = [];
+    if (["VV", "YT", "HV", "VIDEO"].includes(normalizeText(item.imageType).toUpperCase())) {
+      const ids = [...new Set([item.id, item.contentId, item.imageId].filter(Boolean))];
+      const snap = await db.collection(COLLECTIONS.excerptVideoOccurrences)
+        .where("canonicalVideoId", "in", ids).get();
+      snap.forEach(doc => occurrences.push(doc.data()));
+    }
+    const ids = relatedExcerptIds(item, all, occurrences);
+    for (let start = 0; start < ids.length; start += 10) {
+      const snap = await db.collection(COLLECTIONS.excerptVideoOccurrences)
+        .where("canonicalExcerptId", "in", ids.slice(start, start + 10)).get();
+      snap.forEach(doc => occurrences.push(doc.data()));
+    }
+    const related = resolvePoemRelations(item, all, occurrences);
+    res.json({ item: mapToArr(item), fullPoem: related.fullPoem ? mapToArr(related.fullPoem) : null,
+      videos: related.videos.map(mapToArr) });
+  } catch (error) {
+    console.error("Related poem reading failed", error);
+    res.status(503).json({ error: "related_content_unavailable" });
+  }
+});
+
 app.get(getBoth("/contentById"), async (req, res) => {
   const targetId = normalizeText(req.query?.id);
   if (!targetId) return res.status(400).json({ error: "missing_id" });
@@ -5227,11 +5265,6 @@ app.get(getBoth("/contentById"), async (req, res) => {
   const item = matches[0];
 
   if (!item) return res.status(404).json({ error: "not_found" });
-  if (normalizeText(item.imageType).toUpperCase() === "FP" &&
-      !await canSeeFullPoemsInReview(await verifyIdTokenFromHeader(req))) {
-    return res.status(404).json({ error: "not_found" });
-  }
-
   res.json({
     item: mapToArr(item),
     imageId: item.imageId || "",

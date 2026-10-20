@@ -9,6 +9,10 @@
     ],
     "headers": [
       {
+        "source": "/read",
+        "headers": [{ "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, max-age=0" }]
+      },
+      {
         "source": "/m{,-classic}",
         "headers": [
           {
@@ -71,6 +75,7 @@
       }
     ],
     "rewrites": [
+      { "source": "/read", "destination": "/read.html" },
       {
         "source": "/api/admin/manuscriptReconciliations/**",
         "function": {
