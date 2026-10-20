@@ -5265,11 +5265,6 @@ app.get(getBoth("/contentById"), async (req, res) => {
   const item = matches[0];
 
   if (!item) return res.status(404).json({ error: "not_found" });
-  if (normalizeText(item.imageType).toUpperCase() === "FP" &&
-      !await canSeeFullPoemsInReview(await verifyIdTokenFromHeader(req))) {
-    return res.status(404).json({ error: "not_found" });
-  }
-
   res.json({
     item: mapToArr(item),
     imageId: item.imageId || "",
