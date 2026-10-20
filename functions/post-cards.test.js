@@ -5,12 +5,12 @@ import { readingUrl } from '../public/poem-links.js';
 import { classicMobileTarget } from '../public/mobile-entry.js';
 
 const item = { id: 'graphic & one', title: 'A poem', author: 'A poet' };
-test('poem and video buttons open existing canonical items in the normal viewer', () => {
+test('poem and video buttons open existing canonical items in the current Swipe viewer', () => {
   for (const id of ['ETSA-FP-FOR-KORAH', 'YT-sIYLcc2Bva8', 'item & one']) {
     const url = new URL(readingUrl(id), 'https://poetryplease.org');
-    assert.equal(url.pathname, '/app');
+    assert.equal(url.pathname, '/m');
     assert.deepEqual([...url.searchParams], [['item', id]]);
-    assert.equal(classicMobileTarget('/m', url.search), '/m-classic' + url.search);
+    assert.equal(classicMobileTarget('/m', url.search), '');
   }
 });
 test('sharing uses the canonical item identity without private feed or account parameters', () => {

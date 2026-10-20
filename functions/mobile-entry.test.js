@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classicMobileTarget, cachedMobileTarget } from '../public/mobile-entry.js';
+import { classicMobileTarget, cachedMobileTarget, linkedItemPage } from '../public/mobile-entry.js';
 import { originalViewerUrl } from '../public/scroll-feed-core.js';
 
 test('normal mobile visits and campaign tracking use Swipe', () => {
@@ -22,10 +22,23 @@ test('single-item links target the classic variant with item and author scope in
   assert.equal(url.searchParams.get('author'), 'Matt Mason');
   assert.equal(url.searchParams.get('authorPreview'), '1');
 });
-test('legacy item, book, lane, tour and invitation queries retain their exact values', () => {
-  for (const query of ['?book=Roads&type=EXC', '?item=graphic%20one', '?authorInvite=example-token', '?tour=1', '?author=Matt%20Mason&type=PROMO&locked=1', '?event=Fall&catalog=Contest&type=QI']) {
+test('book, lane, tour and invitation queries retain their exact values', () => {
+  for (const query of ['?book=Roads&type=EXC', '?authorInvite=example-token', '?tour=1', '?author=Matt%20Mason&type=PROMO&locked=1', '?event=Fall&catalog=Contest&type=QI']) {
     assert.equal(classicMobileTarget('/m', query), '/m-classic' + query);
   }
+});
+test('canonical linked items stay in Swipe, including migration from cached mobile HTML', () => {
+  assert.equal(classicMobileTarget('/m', '?item=ETSA-FP-FOR-KORAH'), '');
+  assert.equal(classicMobileTarget('/m', '?item=YT-sIYLcc2Bva8&view=mobile'), '');
+  assert.equal(cachedMobileTarget('/m', '?item=ETSA-FP-FOR-KORAH'), '/posts-swipe?item=ETSA-FP-FOR-KORAH');
+});
+test('a linked full poem loads by canonical ID alone without joining the ranked feed', async () => {
+  const calls=[];
+  const row=['Raych Jackson','For Korah','Even the Saints Audition','ETSA-FP-FOR-KORAH','','','','FP','Full text'];
+  const page=await linkedItemPage(row[3],async id=>{calls.push(id);return {item:row};});
+  assert.deepEqual(calls,[row[3]]);
+  assert.deepEqual(page,{newGraphics:[row],hasMore:false,nextCursor:null});
+  await assert.rejects(linkedItemPage('missing',async()=>({})),/not available/);
 });
 test('supported staff author-preview scope stays in Swipe; incomplete previews retain the classic route', () => {
   assert.equal(classicMobileTarget('/m', '?author=Matt%20Mason&authorPreview=1&locked=1'), '');
