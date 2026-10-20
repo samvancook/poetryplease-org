@@ -4,13 +4,14 @@ import { createPoemLinks } from './poem-links.js';
 // The renderer can be newer than a cached HTML shell. Keep its layout CSS in
 // step with the .post-art markup, including on already-cached continuous pages.
 export async function syncPostStyles(doc) {
-  const paths = new Set(['/posts.css', '/posts-continuous.css']);
+  const versions = new Map([['/posts.css', '20261020a'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
   const pending = [];
   for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
     const url = new URL(link.href, doc.baseURI);
-    if (!paths.has(url.pathname) || url.origin !== new URL(doc.baseURI).origin) continue;
-    if (url.searchParams.get('v') === '20261020a') continue;
-    url.searchParams.set('v', '20261020a');
+    const version = versions.get(url.pathname);
+    if (!version || url.origin !== new URL(doc.baseURI).origin) continue;
+    if (url.searchParams.get('v') === version) continue;
+    url.searchParams.set('v', version);
     pending.push(new Promise(resolve => {
       link.addEventListener('load', resolve, { once: true });
       link.addEventListener('error', resolve, { once: true });
@@ -111,6 +112,7 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
   const art = make('div', 'post-art');
   if (['EXC', 'FP'].includes(item.type)) {
     frame.classList.add('post-text-preview');
+    if (item.type === 'FP') frame.classList.add('post-full-poem');
     art.append(poem(item));
   } else if (isVideo(item)) {
     if (!videoEmbedUrl(item.mediaUrl)) {
@@ -178,8 +180,10 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
   trigger.addEventListener('click', () => {
     related.load();
     const modal = getDialog();
+    const infoSheet = document.body.dataset.feedMode === 'swipe';
+    modal.classList.toggle('post-info-sheet', infoSheet);
     const toolbar = make('div', 'post-dialog-toolbar');
-    const title = make('span', '', 'Poetry, Please');
+    const title = make('span', '', infoSheet ? 'Info' : 'Poetry, Please');
     title.id = 'post-dialog-title';
     const close = make('button', 'post-close', '×');
     close.type = 'button'; close.setAttribute('aria-label', 'Close post');
@@ -187,7 +191,11 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
     toolbar.append(title, close);
     const body = make('div', 'post-dialog-body');
     const content = make('div', 'post-expanded');
-    if (['EXC', 'FP'].includes(item.type)) content.append(poem(item));
+    if (['EXC', 'FP'].includes(item.type)) {
+      // Swipe keeps the original poem in its frame. Info adds metadata and
+      // links without rebuilding the text at a different width/alignment.
+      if (!infoSheet) content.append(poem(item));
+    }
     else if (isVideo(item)) {
       const embed = videoEmbedUrl(item.mediaUrl);
       if (embed) {
@@ -205,18 +213,19 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
         }, { once: true });
         content.append(video);
       }
-    } else if (item.mediaUrl) {
+    } else if (item.mediaUrl && !infoSheet) {
       const enlarge = make('button', 'post-enlarge');
       enlarge.type = 'button'; enlarge.setAttribute('aria-label', 'Enlarge image');
       enlarge.append(image(item));
       enlarge.addEventListener('click', () => openImage(item, enlarge));
       content.append(enlarge);
-    } else {
+    } else if (!infoSheet) {
       const original = make('a', '', 'Open in single-item view');
       original.href = viewerUrl; content.append(original);
     }
     info.hidden = false;
-    body.append(content, info);
+    if (content.childElementCount) body.append(content);
+    body.append(info);
     modal.replaceChildren(toolbar, body);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
