@@ -1,10 +1,12 @@
 import { ScrollFeedPager, originalViewerUrl, safeMediaUrl } from './scroll-feed-core.js';
 import { renderPostCard, closePostDetails } from './post-cards.js';
+import { renderSwipeCard, resetSwipeReview } from './posts-swipe.js';
 
 const $ = (id) => document.getElementById(id);
 const auth = firebase.auth();
 const initial = new URLSearchParams(location.search);
 const postVariant = document.body.dataset.feedVariant === 'posts';
+const swipeVariant = document.body.dataset.feedMode === 'swipe';
 const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Don’t use']];
 let account = null;
 let ownAuthor = '';
@@ -98,7 +100,7 @@ const pager = new ScrollFeedPager({
   fetchPage: (context, signal) => api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12 }, signal),
   append: (items) => items.forEach(renderCard),
   changed: updateFooter,
-  clear: () => { if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
+  clear: () => { if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
 });
 function restartFeed() {
   automaticPages = true;
@@ -150,7 +152,7 @@ const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserve
 
 function renderCard(item) {
   if (postVariant) {
-    $('feed').append(renderPostCard(item, {
+    $('feed').append((swipeVariant ? renderSwipeCard : renderPostCard)(item, {
       createVotes: createVoteControls,
       openImage,
       viewerUrl: originalViewerUrl(item, routeFilters()),

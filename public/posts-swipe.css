@@ -1,0 +1,20 @@
+html:has(body.posts-swipe) { background:#000; scroll-padding-top:0; }
+html:has(body.posts-swipe .post-card) { scroll-snap-type:y mandatory; }
+body.posts-swipe { background:#000; padding:0; --paper:#000; --ink:#fff; }
+.posts-swipe .site-header { position:fixed; top:0; left:0; width:100%; height:calc(64px + env(safe-area-inset-top)); padding-top:calc(10px + env(safe-area-inset-top)); background:#000; }
+.posts-swipe .account-menu { position:absolute; top:100%; left:12px; right:12px; margin-top:0; background:#000; }
+.posts-swipe main { max-width:480px; padding:0; }
+.posts-swipe .post-card { height:100vh; height:100dvh; margin:0; padding:calc(64px + env(safe-area-inset-top)) 0 calc(116px + env(safe-area-inset-bottom)); scroll-snap-align:start; scroll-snap-stop:always; }
+.posts-swipe .post-open { height:100%; touch-action:pan-y pinch-zoom; }
+.posts-swipe .post-frame { height:100%; aspect-ratio:auto; background:#000; padding-bottom:24px; }
+.posts-swipe .post-art,.posts-swipe .post-poem,.posts-swipe .post-attribution { background:#000; }
+.posts-swipe .post-attribution { padding-top:8px; padding-bottom:12px; }
+.posts-swipe .post-open-hint { bottom:4px; }
+.swipe-review-dock { position:fixed; bottom:0; left:50%; transform:translateX(-50%); width:min(100%,480px); z-index:11; background:#000; color:#fff; }
+.swipe-review { height:calc(116px + env(safe-area-inset-bottom)); padding:8px 12px calc(8px + env(safe-area-inset-bottom)); }
+.posts-swipe .swipe-review .votes { padding:0; gap:8px; }
+.posts-swipe .swipe-review .vote-button { min-height:60px; background:#000; border:1px solid #555; color:#fff; border-radius:14px; }
+.posts-swipe .swipe-review .vote-button[aria-pressed="true"] { border:2px solid #fff; background:#202020; }
+.posts-swipe .swipe-review .card-status { color:#ddd; font-size:11px; padding:5px 0 0; min-height:24px; text-align:center; }
+.posts-swipe .feed-footer { min-height:100vh; min-height:100dvh; scroll-snap-align:start; padding:100px 20px 140px; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#000; }
+@media(max-height:500px) { .posts-swipe .site-header { height:48px; padding-top:2px; } .posts-swipe .post-card { padding-top:48px; padding-bottom:88px; } .swipe-review { height:88px; padding-top:2px; } .posts-swipe .swipe-review .vote-button { min-height:48px; } .posts-swipe .post-attribution { padding:4px 18px; } }

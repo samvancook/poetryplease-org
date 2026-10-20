@@ -9,7 +9,7 @@
     ],
     "headers": [
       {
-        "source": "/posts{,-continuous,-moon,-bright-moon}",
+        "source": "/posts{,-continuous,-moon,-bright-moon,-swipe}",
         "headers": [
           {
             "key": "Cache-Control",
@@ -145,6 +145,10 @@
       {
         "source": "/posts-continuous",
         "destination": "/posts-continuous.html"
+      },
+      {
+        "source": "/posts-swipe",
+        "destination": "/posts-swipe.html"
       },
       {
         "source": "/posts-moon",
