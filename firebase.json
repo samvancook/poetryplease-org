@@ -142,6 +142,10 @@
         "destination": "/posts-moon.html"
       },
       {
+        "source": "/posts-bright-moon",
+        "destination": "/posts-bright-moon.html"
+      },
+      {
         "source": "/m",
         "destination": "/mobile.html"
       },
