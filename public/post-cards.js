@@ -1,4 +1,5 @@
 import { safeMediaUrl } from './scroll-feed-core.js';
+import { createPoemLinks } from './poem-links.js';
 
 // The renderer can be newer than a cached HTML shell. Keep its layout CSS in
 // step with the .post-art markup, including on already-cached continuous pages.
@@ -170,10 +171,12 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
     } finally { share.disabled = false; }
   });
   actions.append(share);
-  info.append(actions, shareStatus, link);
+  const related = createPoemLinks(item.id);
+  info.append(actions, related.element, shareStatus, link);
   card.append(info);
 
   trigger.addEventListener('click', () => {
+    related.load();
     const modal = getDialog();
     const toolbar = make('div', 'post-dialog-toolbar');
     const title = make('span', '', 'Poetry, Please');
