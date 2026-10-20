@@ -7,9 +7,10 @@
   <title>Poetry, Please — Swipe Posts</title>
   <link rel="icon" href="/pp-loader-logo.png">
   <link rel="stylesheet" href="/scroll.css?v=20261019c">
-  <link rel="stylesheet" href="/posts.css?v=20261020a">
+  <link rel="stylesheet" href="/posts.css?v=20261020c">
   <link rel="stylesheet" href="/posts-continuous.css?v=20261020a">
   <link rel="stylesheet" href="/posts-swipe.css?v=20261020c">
+  <link rel="stylesheet" href="/posts-swipe-outline.css?v=20261020a">
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <script>
@@ -22,7 +23,7 @@
     else import('/scroll.js');
   </script>
 </head>
-<body data-feed-variant="posts" data-feed-mode="swipe" class="posts-continuous posts-swipe">
+<body data-feed-variant="posts" data-feed-mode="swipe" data-review-icons="outline" class="posts-continuous posts-swipe posts-swipe-outline">
   <a class="skip-link" href="#feed">Skip to posts</a>
   <header class="site-header">
     <div class="topline"><a class="brand" href="/m">Poetry, Please</a><span class="variant">Swipe</span><button id="account-toggle" type="button" aria-expanded="false" aria-controls="account-menu">Account</button></div>
