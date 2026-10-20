@@ -8,11 +8,17 @@ body[data-feed-variant="posts"] { --paper:#f8f7f4; --ink:#242424; --teal:#303e3b
 [data-feed-variant="posts"] .intro { margin:14px 0; font-size:11px; color:#898981; }
 .post-card { margin:0 0 20px; }
 .post-open { display:block; width:100%; padding:0; border:0; border-radius:0; background:transparent; text-align:left; }
-.post-frame { position:relative; display:grid; place-items:center; width:100%; aspect-ratio:4/5; overflow:hidden; background:#090909; color:#f8f7f4; border-radius:3px; }
-.post-frame > img,.post-frame > video { position:absolute; width:100%; height:100%; inset:0; object-fit:contain; }
+.post-frame { position:relative; display:flex; flex-direction:column; width:100%; aspect-ratio:4/5; overflow:hidden; background:#090909; color:#f8f7f4; border-radius:3px; }
+.post-art { position:relative; display:grid; place-items:center; flex:1; min-height:0; width:100%; overflow:hidden; }
+.post-art > img,.post-art > video { position:absolute; width:100%; height:100%; inset:0; object-fit:contain; }
+.post-attribution { flex:none; width:100%; padding:14px 22px 20px; text-align:center; overflow-wrap:anywhere; }
+.post-attribution span { display:block; }
+.post-credit-kind { margin-bottom:4px; font:italic 12px/1.4 Georgia,serif; color:#d0d0ca; }
+.post-credit-title { font:16px/1.4 Georgia,serif; }
+.post-credit-author { margin-top:5px; font:12px/1.4 system-ui,sans-serif; color:#e3e3dc; }
 .post-video-preview { pointer-events:none; }
 .post-open-hint { display:block; padding:8px 0 0; color:#92928b; font-size:10px; line-height:1.4; text-align:right; }
-.post-text-preview .post-poem { width:100%; max-height:calc(100% - 90px); overflow:hidden; mask-image:linear-gradient(#000 90%,transparent); }
+.post-text-preview .post-poem { width:100%; max-height:100%; overflow:hidden; mask-image:linear-gradient(#000 90%,transparent); }
 .post-poem { padding:28px 22px; color:#f8f7f4; text-align:left; }
 .post-poem .poem-lines { font-size:clamp(16px,4.3vw,21px); line-height:1.65; }
 .post-excerpt-label { position:absolute; top:17px; left:22px; font:italic 12px Georgia,serif; color:#aaa9a4; }
