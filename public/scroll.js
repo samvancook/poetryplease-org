@@ -13,6 +13,8 @@ let ownAuthor = '';
 let activeIdentity = null;
 let sessionGeneration = 0;
 let automaticPages = true;
+let sessionVotes = 0;
+let welcomeCalibrated = (() => { try { return localStorage.getItem('pp_welcome_calibrated') === '1'; } catch { return false; } })();
 // The scroll view has one mixed feed. URL lane/book filters are intentionally ignored.
 let filters = { type: 'PROMO', author: '' };
 const anonymousId = (() => {
@@ -97,7 +99,9 @@ function updateFooter(state) {
     state.hasMore ? 'More below' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.';
 }
 const pager = new ScrollFeedPager({
-  fetchPage: (context, signal) => api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12 }, signal),
+  fetchPage: (context, signal) => api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12,
+    ...(swipeVariant ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
+  }, signal),
   append: (items) => items.forEach(renderCard),
   changed: updateFooter,
   clear: () => { if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
@@ -229,6 +233,13 @@ function createVoteControls(item, card) {
         if (identity !== activeIdentity) throw new Error('Your account changed. Please review the refreshed feed.');
         await api('vote', { imageId: item.id, voteType: value, userId: auth.currentUser?.email || anonymousId });
         if (identity !== activeIdentity || !card.isConnected) return;
+        if (swipeVariant) {
+          sessionVotes++;
+          if (!auth.currentUser?.email && sessionVotes >= 8) {
+            welcomeCalibrated = true;
+            try { localStorage.setItem('pp_welcome_calibrated', '1'); } catch { /* Continue for this session. */ }
+          }
+        }
         button.setAttribute('aria-pressed', 'true');
         status.textContent = 'Saved: ' + label + '.';
       } catch (error) {
@@ -262,6 +273,7 @@ auth.onAuthStateChanged(async (user) => {
   const identity = user?.email || anonymousId;
   if (identity === activeIdentity) return;
   activeIdentity = identity;
+  sessionVotes = 0;
   const generation = ++sessionGeneration;
   pager.reset(null);
   $('feed-status').textContent = 'Loading your queue…';
