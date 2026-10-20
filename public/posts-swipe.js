@@ -1,11 +1,14 @@
 import { renderPostCard } from './post-cards.js';
+import { attachGraphicZoom } from './graphic-zoom.js';
 
 let observer;
 let current;
 let dock;
 const visible = new Map();
+const zooms = new WeakMap();
 
 function parkResponse() {
+  if (current) zooms.get(current)?.reset();
   const response = dock?.firstElementChild;
   if (response) {
     response.hidden = true;
@@ -64,6 +67,8 @@ export function renderSwipeCard(item, options) {
       return [];
     },
   });
+  const zoom = attachGraphicZoom(card);
+  if (zoom) zooms.set(card, zoom);
   // Observe after the shared feed appends this card. The majority-visible post
   // owns the fixed controls; scrolling never submits a response.
   queueMicrotask(() => {
