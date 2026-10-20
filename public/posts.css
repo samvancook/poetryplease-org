@@ -6,7 +6,7 @@ body[data-feed-variant="posts"] { --paper:#f8f7f4; --ink:#242424; --teal:#303e3b
 [data-feed-variant="posts"] #account-toggle { border:0; background:transparent; color:#666760; font-size:12px; }
 [data-feed-variant="posts"] main { max-width:512px; padding:0 16px 28px; }
 [data-feed-variant="posts"] .intro { margin:14px 0; font-size:11px; color:#898981; }
-.post-card { margin:0 0 20px; }
+.post-card { position:relative; margin:0 0 20px; }
 .post-open { display:block; width:100%; padding:0; border:0; border-radius:0; background:transparent; text-align:left; }
 .post-frame { position:relative; display:flex; flex-direction:column; width:100%; aspect-ratio:4/5; overflow:hidden; background:#090909; color:#f8f7f4; border-radius:3px; }
 .post-art { position:relative; display:grid; place-items:center; flex:1; min-height:0; width:100%; overflow:hidden; }
@@ -26,6 +26,8 @@ body[data-feed-variant="posts"] { --paper:#f8f7f4; --ink:#242424; --teal:#303e3b
 .post-video-hint small { font:12px/1.5 system-ui,sans-serif; color:#aaa9a4; }
 .post-play { display:grid; place-items:center; border:1px solid #6c6c68; border-radius:50%; width:56px; height:56px; padding-left:3px; font-size:19px; background:#0005; }
 .post-unavailable { padding:24px; color:#aaa9a4; font-size:13px; }
+.post-card[data-graphic-state="loading"] .post-art > img { opacity:0; }
+.post-media-retry { position:absolute; z-index:3; top:calc(50% + 32px); left:50%; transform:translateX(-50%); min-height:44px; background:#000; color:#fff; border:1px solid #777; border-radius:8px; font-size:14px; }
 .post-dialog { position:fixed; inset:0; margin:auto; width:100%; max-width:600px; height:100dvh; max-height:100dvh; padding:0; border:0; border-radius:0; background:var(--paper); color:var(--ink); overflow:auto; overscroll-behavior:contain; }
 .post-dialog::backdrop { background:#1119; }
 .post-dialog-toolbar { position:sticky; top:0; z-index:1; display:flex; align-items:center; justify-content:space-between; min-height:56px; padding:calc(6px + env(safe-area-inset-top)) 16px 6px; background:var(--paper); border-bottom:1px solid #e9e7e1; }

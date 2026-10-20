@@ -50,7 +50,9 @@ export function attachGraphicZoom(card) {
     minus.hidden = fit.hidden = !zoomed;
     plus.disabled = state.scale >= 4;
     status.textContent = zoomed ? Math.round(state.scale * 100) + '%' : '';
-    hint.textContent = zoomed ? 'Drag to move · Fit to swipe' : 'Pinch or + to zoom · Tap for details';
+    const ready = image.complete && image.naturalWidth > 0;
+    tools.hidden = !ready;
+    hint.textContent = ready ? (zoomed ? 'Drag to move · Fit to swipe' : 'Pinch or + to zoom · Tap for details') : 'Tap for details';
   }
   const reset = () => { gesture = null; set({ scale: 1, x: 0, y: 0 }); };
   plus.addEventListener('click', () => set(zoomAround(state, state.scale + .5, { x: 0, y: 0 })));
@@ -116,7 +118,7 @@ export function attachGraphicZoom(card) {
     if (state.scale > 1 || performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); }
   }, true);
   image.addEventListener('load', () => set(state));
-  image.addEventListener('error', () => { tools.hidden = true; });
+  image.addEventListener('error', () => { tools.hidden = true; hint.textContent = 'Tap for details'; });
   reset();
   return { reset };
 }
