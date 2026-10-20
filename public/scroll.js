@@ -1,6 +1,7 @@
 import { ScrollFeedPager, originalViewerUrl, safeMediaUrl } from './scroll-feed-core.js';
 import { renderPostCard, closePostDetails } from './post-cards.js';
 import { renderSwipeCard, resetSwipeReview } from './posts-swipe.js';
+import { linkedItemPage } from './mobile-entry.js';
 
 const $ = (id) => document.getElementById(id);
 const auth = firebase.auth();
@@ -8,6 +9,7 @@ const initial = new URLSearchParams(location.search);
 $('original-view').href = '/m-classic';
 const postVariant = document.body.dataset.feedVariant === 'posts';
 const swipeVariant = document.body.dataset.feedMode === 'swipe';
+const linkedItemId = swipeVariant ? String(initial.get('item') || '').trim() : '';
 const outlineReviewIcon = document.body.dataset.reviewIcons === 'outline'
   ? (await import('./review-icons.js')).createReviewIcon : null;
 const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Dislike']];
@@ -55,6 +57,7 @@ function routeFilters() {
 }
 function updateRoute() {
   const params = new URLSearchParams();
+  if (linkedItemId) params.set('item', linkedItemId);
   for (const [key, value] of Object.entries(routeFilters())) if (value) params.set(key, value);
   history.replaceState(null, '', location.pathname + (params.size ? '?' + params.toString() : ''));
   $('original-view').href = '/m-classic' + (params.size ? '?' + params.toString() : '');
@@ -99,10 +102,12 @@ function updateFooter(state) {
   $('load-more').disabled = state.loading;
   $('load-more').textContent = state.error ? 'Retry loading' : 'Load more';
   $('feed-status').textContent = state.loading ? 'Loading more…' : state.error ? state.error.message :
-    state.hasMore ? 'More below' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.';
+    state.hasMore ? 'More below' : linkedItemId && state.seen.size ? 'You’re viewing a linked item.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.';
 }
 const pager = new ScrollFeedPager({
-  fetchPage: (context, signal) => api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12,
+  fetchPage: (context, signal) => context.linkedItemId
+    ? linkedItemPage(context.linkedItemId, id => api('contentById?' + new URLSearchParams({id}), null, signal))
+    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12,
     ...(swipeVariant ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
   }, signal),
   append: (items) => items.forEach(renderCard),
@@ -112,7 +117,7 @@ const pager = new ScrollFeedPager({
 function restartFeed() {
   automaticPages = true;
   updateRoute();
-  return pager.reset({ ...filters, scrollSeed: crypto.randomUUID() });
+  return pager.reset({ ...filters, ...(linkedItemId ? {linkedItemId} : {}), scrollSeed: crypto.randomUUID() });
 }
 
 function renderCaption(item) {

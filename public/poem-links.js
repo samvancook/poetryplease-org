@@ -1,6 +1,6 @@
 import { normalizeScrollItem } from './scroll-feed-core.js';
 
-export const readingUrl = id => '/app?' + new URLSearchParams({item:id});
+export const readingUrl = id => '/m?' + new URLSearchParams({item:id});
 export function appendPoemLinks(container, data) {
   const poem = normalizeScrollItem(data.fullPoem);
   const videos = (data.videos || []).map(normalizeScrollItem).filter(Boolean);
