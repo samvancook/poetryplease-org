@@ -1,0 +1,3 @@
+/* Separate small, bright moon treatment; the original faint moon is preserved. */
+.post-moon { left:54%; width:clamp(88px,24vw,116px); opacity:.86; filter:brightness(0) invert(1) drop-shadow(0 0 5px #ffffff20); }
+@media(prefers-reduced-motion:reduce) { .post-moon { opacity:.86; } }
