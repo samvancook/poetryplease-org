@@ -10,7 +10,7 @@ const postVariant = document.body.dataset.feedVariant === 'posts';
 const swipeVariant = document.body.dataset.feedMode === 'swipe';
 const outlineReviewIcon = document.body.dataset.reviewIcons === 'outline'
   ? (await import('./review-icons.js')).createReviewIcon : null;
-const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Don’t use']];
+const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Dislike']];
 let account = null;
 let ownAuthor = '';
 let activeIdentity = null;
