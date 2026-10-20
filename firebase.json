@@ -138,6 +138,10 @@
         "destination": "/posts-continuous.html"
       },
       {
+        "source": "/posts-moon",
+        "destination": "/posts-moon.html"
+      },
+      {
         "source": "/m",
         "destination": "/mobile.html"
       },
