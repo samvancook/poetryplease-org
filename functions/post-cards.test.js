@@ -1,10 +1,49 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { postPermalink, sharePost, videoEmbedUrl } from '../public/post-cards.js';
+import { postPermalink, sharePost, videoEmbedUrl, bindGraphicLoad } from '../public/post-cards.js';
 import { readingUrl } from '../public/poem-links.js';
 import { classicMobileTarget } from '../public/mobile-entry.js';
 
 const item = { id: 'graphic & one', title: 'A poem', author: 'A poet' };
+function graphicFixture() {
+  const image = new EventTarget();
+  const states = [], requests = [];
+  let pending;
+  image.removeAttribute = () => {};
+  Object.defineProperty(image, 'src', { set: value => requests.push(value) });
+  const loader = bindGraphicLoad(image, 'https://storage.googleapis.com/bucket/graphic.jpg', state => states.push(state), {
+    schedule: callback => { pending = callback; return 1; },
+    cancel: () => { pending = undefined; }
+  });
+  return { image, states, requests, loader, tick: () => { const callback = pending; pending = undefined; callback?.(); } };
+}
+test('a transient graphic failure retries the same asset and recovers without replacing the image', () => {
+  const f = graphicFixture();
+  f.image.dispatchEvent(new Event('error'));
+  f.tick();
+  f.image.dispatchEvent(new Event('load'));
+  assert.deepEqual(f.states, ['loading', 'loading', 'loading', 'ready']);
+  assert.equal(f.requests.length, 2);
+  assert.equal(f.requests[0], f.requests[1]);
+});
+test('persistent graphic failures stop automatic retries and allow an explicit retry to recover', () => {
+  const f = graphicFixture();
+  f.image.dispatchEvent(new Event('error')); f.tick();
+  f.image.dispatchEvent(new Event('error')); f.tick();
+  assert.equal(f.states.at(-1), 'error');
+  assert.equal(f.requests.length, 2);
+  f.loader.retry();
+  f.image.dispatchEvent(new Event('load'));
+  assert.equal(f.requests.length, 3);
+  assert.equal(f.states.at(-1), 'ready');
+});
+test('a graphic removed during an account/feed change is not fetched again', () => {
+  const f = graphicFixture();
+  f.image.dispatchEvent(new Event('error'));
+  f.image.isConnected = false;
+  f.tick();
+  assert.equal(f.requests.length, 1);
+});
 test('poem and video buttons open existing canonical items in the current Swipe viewer', () => {
   for (const id of ['ETSA-FP-FOR-KORAH', 'YT-sIYLcc2Bva8', 'item & one']) {
     const url = new URL(readingUrl(id), 'https://poetryplease.org');

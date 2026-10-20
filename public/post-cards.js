@@ -4,7 +4,7 @@ import { createPoemLinks } from './poem-links.js';
 // The renderer can be newer than a cached HTML shell. Keep its layout CSS in
 // step with the .post-art markup, including on already-cached continuous pages.
 export async function syncPostStyles(doc) {
-  const versions = new Map([['/posts.css', '20261020a'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
+  const versions = new Map([['/posts.css', '20261020b'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
   const pending = [];
   for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
     const url = new URL(link.href, doc.baseURI);
@@ -72,13 +72,37 @@ function poem(item) {
   text.append(p);
   return text;
 }
-function image(item) {
+export function bindGraphicLoad(img, source, onState, { schedule = setTimeout, cancel = clearTimeout } = {}) {
+  let retried = false;
+  let pending;
+  const clear = () => { if (pending !== undefined) cancel(pending); pending = undefined; };
+  const retry = () => {
+    clear();
+    onState('loading');
+    img.removeAttribute('src');
+    img.src = source;
+  };
+  img.addEventListener('load', () => { clear(); onState('ready'); });
+  img.addEventListener('error', () => {
+    clear();
+    if (!retried) {
+      retried = true;
+      onState('loading');
+      pending = schedule(() => { pending = undefined; if (img.isConnected !== false) retry(); }, 400);
+    } else onState('error');
+  });
+  onState('loading');
+  img.src = source;
+  return { retry };
+}
+function image(item, deferLoad = false) {
   const img = make('img');
-  img.src = item.mediaUrl;
   img.alt = [item.title || 'Graphic', item.author].filter(Boolean).join(' · ');
   img.loading = 'lazy';
   img.decoding = 'async';
-  img.addEventListener('error', () => img.replaceWith(make('span', 'post-unavailable', 'Preview unavailable')), { once: true });
+  if (!deferLoad) bindGraphicLoad(img, item.mediaUrl, state => {
+    img.alt = state === 'error' ? 'Graphic could not load' : [item.title || 'Graphic', item.author].filter(Boolean).join(' · ');
+  });
   return img;
 }
 let dialog;
@@ -126,7 +150,7 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
     play.setAttribute('aria-hidden', 'true');
     hint.append(play);
     art.append(hint);
-  } else if (item.mediaUrl) art.append(image(item));
+  } else if (item.mediaUrl) art.append(image(item, true));
   else art.append(make('span', 'post-unavailable', 'Preview unavailable'));
   frame.append(art);
   const credit = make('div', 'post-attribution');
@@ -137,6 +161,25 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
   if (credit.childElementCount) frame.append(credit);
   trigger.append(frame, make('span', 'post-open-hint', isVideo(item) ? 'Tap to watch' : 'Tap to open'));
   card.append(trigger);
+  const graphic = art.querySelector('img');
+  if (graphic) {
+    const message = make('span', 'post-unavailable', 'Loading graphic…');
+    message.setAttribute('role', 'status');
+    art.append(message);
+    const retry = make('button', 'post-media-retry', 'Retry graphic');
+    retry.type = 'button';
+    retry.hidden = true;
+    card.append(retry);
+    const loader = bindGraphicLoad(graphic, item.mediaUrl, state => {
+      card.dataset.graphicState = state;
+      // Keep lazy images in layout while loading so the browser fetches them.
+      graphic.hidden = state === 'error';
+      message.hidden = state === 'ready';
+      message.textContent = state === 'error' ? 'Graphic could not load' : 'Loading graphic…';
+      retry.hidden = state !== 'error';
+    });
+    retry.addEventListener('click', () => loader.retry());
+  }
 
   const info = make('section', 'post-info');
   info.hidden = true;
