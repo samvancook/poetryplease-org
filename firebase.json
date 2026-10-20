@@ -18,7 +18,7 @@
         ]
       },
       {
-        "source": "/posts{,-continuous,-moon,-bright-moon,-swipe}",
+        "source": "/posts{,-continuous,-moon,-bright-moon,-swipe,-swipe-outline}",
         "headers": [
           {
             "key": "Cache-Control",
@@ -154,6 +154,10 @@
       {
         "source": "/posts-continuous",
         "destination": "/posts-continuous.html"
+      },
+      {
+        "source": "/posts-swipe-outline",
+        "destination": "/posts-swipe-outline.html"
       },
       {
         "source": "/posts-swipe",

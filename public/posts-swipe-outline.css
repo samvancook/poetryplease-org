@@ -1,0 +1,2 @@
+.posts-swipe-outline .vote-button .emoji { display:grid; place-items:center; width:32px; height:32px; margin-inline:auto; line-height:1; }
+.posts-swipe-outline .review-icon { display:block; width:30px; height:30px; flex-shrink:0; }

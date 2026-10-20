@@ -8,6 +8,8 @@ const initial = new URLSearchParams(location.search);
 $('original-view').href = '/m-classic';
 const postVariant = document.body.dataset.feedVariant === 'posts';
 const swipeVariant = document.body.dataset.feedMode === 'swipe';
+const outlineReviewIcon = document.body.dataset.reviewIcons === 'outline'
+  ? (await import('./review-icons.js')).createReviewIcon : null;
 const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Don’t use']];
 let account = null;
 let ownAuthor = '';
@@ -221,7 +223,9 @@ function createVoteControls(item, card) {
     button.type = 'button';
     button.setAttribute('aria-label', label);
     button.setAttribute('aria-pressed', 'false');
-    button.append(node('span', 'emoji', emoji), node('span', '', label));
+    const icon = node('span', 'emoji', outlineReviewIcon ? undefined : emoji);
+    if (outlineReviewIcon) icon.append(outlineReviewIcon(value));
+    button.append(icon, node('span', '', label));
     button.firstChild.setAttribute('aria-hidden', 'true');
     button.addEventListener('click', async () => {
       const identity = activeIdentity;
