@@ -85,24 +85,31 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
   trigger.setAttribute('aria-label', 'Open ' + ([item.title, item.author].filter(Boolean).join(' by ') || 'this post'));
   trigger.setAttribute('aria-haspopup', 'dialog');
   const frame = make('div', 'post-frame');
+  const art = make('div', 'post-art');
   if (['EXC', 'FP'].includes(item.type)) {
     frame.classList.add('post-text-preview');
-    if (item.type === 'EXC') frame.append(make('span', 'post-excerpt-label', 'Excerpt'));
-    frame.append(poem(item));
+    art.append(poem(item));
   } else if (isVideo(item)) {
     if (!videoEmbedUrl(item.mediaUrl)) {
       const preview = make('video', 'post-video-preview');
       preview.src = item.mediaUrl; preview.preload = 'metadata'; preview.muted = true; preview.playsInline = true;
       preview.tabIndex = -1; preview.setAttribute('aria-hidden', 'true');
-      frame.append(preview);
+      art.append(preview);
     }
     const hint = make('span', 'post-video-hint');
     const play = make('span', 'post-play', '▶');
     play.setAttribute('aria-hidden', 'true');
-    hint.append(play, make('span', '', item.title || 'Video'), make('small', '', item.author));
-    frame.append(hint);
-  } else if (item.mediaUrl) frame.append(image(item));
-  else frame.append(make('span', 'post-unavailable', 'Preview unavailable'));
+    hint.append(play);
+    art.append(hint);
+  } else if (item.mediaUrl) art.append(image(item));
+  else art.append(make('span', 'post-unavailable', 'Preview unavailable'));
+  frame.append(art);
+  const credit = make('div', 'post-attribution');
+  if (item.type === 'EXC') credit.append(make('span', 'post-credit-kind', 'Excerpt from'));
+  if (item.type === 'FP') credit.append(make('span', 'post-credit-kind', 'Full poem'));
+  if (item.title) credit.append(make('span', 'post-credit-title', item.title));
+  if (item.author) credit.append(make('span', 'post-credit-author', item.author));
+  if (credit.childElementCount) frame.append(credit);
   trigger.append(frame, make('span', 'post-open-hint', isVideo(item) ? 'Tap to watch' : 'Tap to open'));
   card.append(trigger);
 
