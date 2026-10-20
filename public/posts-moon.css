@@ -1,0 +1,6 @@
+/* An opt-in background layer; text, credits, and opened posts stay opaque. */
+.post-moon { position:fixed; top:0; left:50%; width:min(125vw,600px); height:auto; pointer-events:none; user-select:none; z-index:0; opacity:.12; filter:brightness(0) invert(1); transform:translate3d(-42%,110vh,0); will-change:transform; }
+.posts-moon main { position:relative; z-index:1; }
+.posts-moon .post-frame { background:transparent; }
+.posts-moon .post-poem,.posts-moon .post-attribution { background:#090909; }
+@media(prefers-reduced-motion:reduce) { .post-moon { will-change:auto; opacity:.06; } }
