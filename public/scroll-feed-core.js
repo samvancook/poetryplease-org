@@ -17,7 +17,7 @@ export function originalViewerUrl(item, filters = {}) {
   for (const key of ['author', 'book', 'type', 'catalog', 'authorPreview', 'locked']) {
     if (filters[key]) params.set(key, filters[key]);
   }
-  return '/m?' + params.toString();
+  return '/m-classic?' + params.toString();
 }
 
 export class ScrollFeedPager {

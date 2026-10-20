@@ -3,6 +3,16 @@
 // ================================
 
 // ===== Constants =====
+(function migrateCachedMobilePage() {
+  const pathname = location.pathname;
+  if (pathname.replace(/\/+$/, '') !== '/m') return;
+  const search = location.search, hash = location.hash;
+  import('/mobile-entry.js').then(({ cachedMobileTarget }) => {
+    const target = cachedMobileTarget(pathname, search);
+    if (target) location.replace(target + hash);
+  }).catch(error => console.warn('Mobile routing could not be refreshed', error));
+})();
+
 const CONSTANTS = { API_BASE: '/api' };
 
 // --- Mobile mode detection (robust + testable) ---

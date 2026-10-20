@@ -5,6 +5,7 @@ import { renderSwipeCard, resetSwipeReview } from './posts-swipe.js';
 const $ = (id) => document.getElementById(id);
 const auth = firebase.auth();
 const initial = new URLSearchParams(location.search);
+$('original-view').href = '/m-classic';
 const postVariant = document.body.dataset.feedVariant === 'posts';
 const swipeVariant = document.body.dataset.feedMode === 'swipe';
 const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Don’t use']];
@@ -54,7 +55,7 @@ function updateRoute() {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(routeFilters())) if (value) params.set(key, value);
   history.replaceState(null, '', location.pathname + (params.size ? '?' + params.toString() : ''));
-  $('original-view').href = '/m' + (params.size ? '?' + params.toString() : '');
+  $('original-view').href = '/m-classic' + (params.size ? '?' + params.toString() : '');
 }
 let imageZoom = 1;
 let imageReturnFocus = null;
