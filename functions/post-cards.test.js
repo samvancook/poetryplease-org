@@ -1,8 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { postPermalink, sharePost, videoEmbedUrl } from '../public/post-cards.js';
+import { readingUrl } from '../public/poem-links.js';
+import { classicMobileTarget } from '../public/mobile-entry.js';
 
 const item = { id: 'graphic & one', title: 'A poem', author: 'A poet' };
+test('poem and video buttons open existing canonical items in the normal viewer', () => {
+  for (const id of ['ETSA-FP-FOR-KORAH', 'YT-sIYLcc2Bva8', 'item & one']) {
+    const url = new URL(readingUrl(id), 'https://poetryplease.org');
+    assert.equal(url.pathname, '/app');
+    assert.deepEqual([...url.searchParams], [['item', id]]);
+    assert.equal(classicMobileTarget('/m', url.search), '/m-classic' + url.search);
+  }
+});
 test('sharing uses the canonical item identity without private feed or account parameters', () => {
   const url = new URL(postPermalink({ ...item, authorPreview: '1', book: 'Private scope' }));
   assert.equal(url.origin, 'https://poetryplease.org');
