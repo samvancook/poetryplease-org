@@ -7,6 +7,8 @@ body[data-feed-variant="posts"] { --paper:#f8f7f4; --ink:#242424; --teal:#303e3b
 [data-feed-variant="posts"] main { max-width:512px; padding:0 16px 28px; }
 [data-feed-variant="posts"] .intro { margin:14px 0; font-size:11px; color:#898981; }
 .post-card { position:relative; margin:0 0 20px; }
+/* Critical poem/frame rules must survive a missing or stale scroll.css. */
+.post-card,.post-card * { box-sizing:border-box; }
 .post-open { display:block; width:100%; padding:0; border:0; border-radius:0; background:transparent; text-align:left; }
 .post-frame { position:relative; display:flex; flex-direction:column; width:100%; aspect-ratio:4/5; overflow:hidden; background:#090909; color:#f8f7f4; border-radius:3px; }
 .post-art { position:relative; display:grid; place-items:center; flex:1; min-height:0; width:100%; overflow:hidden; }
@@ -20,7 +22,8 @@ body[data-feed-variant="posts"] { --paper:#f8f7f4; --ink:#242424; --teal:#303e3b
 .post-open-hint { display:block; padding:8px 0 0; color:#92928b; font-size:10px; line-height:1.4; text-align:right; }
 .post-text-preview .post-poem { width:100%; max-height:100%; overflow:hidden; mask-image:linear-gradient(#000 90%,transparent); }
 .post-poem { padding:28px 22px; color:#f8f7f4; text-align:left; }
-.post-poem .poem-lines { font-size:clamp(16px,4.3vw,21px); line-height:1.65; }
+.post-poem .poem-lines { margin:0; font:clamp(16px,4.3vw,21px)/1.65 Georgia,"Times New Roman",serif; }
+.post-poem .poem-line { display:block; white-space:pre-wrap; overflow-wrap:anywhere; padding-left:1.15em; text-indent:-1.15em; }
 .post-excerpt-label { position:absolute; top:17px; left:22px; font:italic 12px Georgia,serif; color:#aaa9a4; }
 .post-video-hint { position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; gap:16px; max-width:85%; padding:24px; font:20px/1.5 Georgia,serif; overflow-wrap:anywhere; text-shadow:0 1px 8px #000; }
 .post-video-hint small { font:12px/1.5 system-ui,sans-serif; color:#aaa9a4; }
