@@ -12,7 +12,7 @@ const swipeVariant = document.body.dataset.feedMode === 'swipe';
 const linkedItemId = swipeVariant ? String(initial.get('item') || '').trim() : '';
 const outlineReviewIcon = document.body.dataset.reviewIcons === 'outline'
   ? (await import('./review-icons.js')).createReviewIcon : null;
-const votes = [['moved me', '❤️', 'Love it'], ['meh', '😐', 'Neutral'], ['like', '👍', 'Like it'], ['dislike', '👎', 'Dislike']];
+const votes = [['moved me', '❤️', 'Love'], ['meh', '😐', 'Meh'], ['like', '👍', 'Like'], ['dislike', '👎', 'Dislike']];
 let account = null;
 let ownAuthor = '';
 let activeIdentity = null;
