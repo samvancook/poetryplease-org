@@ -2540,6 +2540,7 @@ updateFilterControlsVisibility();
       flagBtn.hidden = !canFlag;
       flagBtn.disabled = !canFlag;
     }
+    renderRelatedItemLinks(item);
   }
 
 
@@ -3590,10 +3591,36 @@ function placeRowsAroundMedia(mediaWrap, box){
   const voteRow = $('#vote-row'); if (voteRow) mediaWrap.insertBefore(voteRow, box);
   const under   = $('#under-controls'); if (under) mediaWrap.appendChild(under);
 }
+function renderRelatedItemLinks(item) {
+  const existing = document.getElementById('related-item-links');
+  if (existing?.dataset.itemId === item?.id) return;
+  existing?.remove();
+  if (!item?.id || IS_EMBED_UI) return;
+  const host = IS_MOBILE_UI
+    ? document.querySelector('#pp-info .pp-info__actions')
+    : document.getElementById('under-controls');
+  if (!host) return;
+  import('/poem-links.js').then(({ createPoemLinks }) => {
+    if (currentItem?.id !== item.id || !host.isConnected) return;
+    if (document.getElementById('related-item-links')?.dataset.itemId === item.id) return;
+    const related = createPoemLinks(item.id);
+    related.element.id = 'related-item-links';
+    related.element.dataset.itemId = item.id;
+    related.element.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;width:100%;padding:8px 0;';
+    host.append(related.element);
+    related.load().then(() => {
+      related.element.querySelectorAll('a').forEach(link => {
+        link.style.cssText = 'display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border:1px solid currentColor;border-radius:12px;color:inherit;text-decoration:none;font:inherit;';
+      });
+      requestAnimationFrame(adjustViewportFit);
+    });
+  }).catch(error => console.warn('Related item links could not load', error));
+}
+
 function renderMetaRows(item) {
   const mediaWrap = ensureMediaWrap();
   mediaWrap.querySelectorAll('.meta-row').forEach(n=>n.remove());
-  if (!item) return;
+  if (!item) { document.getElementById('related-item-links')?.remove(); return; }
 
   const row = (text, checkboxId, checked, label, onToggle) => {
     const r = document.createElement('div'); r.className='meta-row';
@@ -3942,6 +3969,7 @@ function renderCurrent(item) {
   servedCounter = (servedCounter || 0) + 1;
   renderMetaRows(item);
   renderItemMedia(item);
+  renderRelatedItemLinks(item);
   const nextLabel = eventReadingMode ? 'Next graphic' : 'Poetry, Please';
   const loadButton = $('#load-button');
   if (loadButton) { loadButton.textContent = nextLabel; loadButton.disabled = false; }
