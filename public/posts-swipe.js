@@ -36,6 +36,17 @@ export function resetSwipeReview() {
   parkResponse();
 }
 
+export function observeSwipeCards(cards) {
+  observer ??= new IntersectionObserver(entries => {
+    for (const entry of entries) visible.set(entry.target, entry.intersectionRatio);
+    const next = [...visible].filter(([card]) => card.isConnected && !card.hidden)
+      .sort((a, b) => b[1] - a[1])[0];
+    if (next?.[1] >= .55) activate(next[0]);
+    else parkResponse();
+  }, { threshold: [0, .55, 1] });
+  for (const card of cards) if (card.isConnected && !card.hidden) observer.observe(card);
+}
+
 export function renderSwipeCard(item, options) {
   if (!dock) {
     dock = document.createElement('div');
@@ -73,14 +84,7 @@ export function renderSwipeCard(item, options) {
   // owns the fixed controls; scrolling never submits a response.
   queueMicrotask(() => {
     if (!card.isConnected) return;
-    observer ??= new IntersectionObserver(entries => {
-      for (const entry of entries) visible.set(entry.target, entry.intersectionRatio);
-      const next = [...visible].filter(([card]) => card.isConnected)
-        .sort((a, b) => b[1] - a[1])[0];
-      if (next?.[1] >= .55) activate(next[0]);
-      else parkResponse();
-    }, { threshold: [0, .55, 1] });
-    observer.observe(card);
+    observeSwipeCards([card]);
   });
   return card;
 }

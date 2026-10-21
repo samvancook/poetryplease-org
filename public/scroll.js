@@ -1,7 +1,8 @@
 import { ScrollFeedPager, originalViewerUrl, safeMediaUrl } from './scroll-feed-core.js';
 import { renderPostCard, closePostDetails } from './post-cards.js';
-import { renderSwipeCard, resetSwipeReview } from './posts-swipe.js';
+import { renderSwipeCard, resetSwipeReview, observeSwipeCards } from './posts-swipe.js';
 import { linkedItemPage } from './mobile-entry.js';
+import { createReadingReturn } from './swipe-reading.js';
 
 const $ = (id) => document.getElementById(id);
 const auth = firebase.auth();
@@ -112,13 +113,84 @@ const pager = new ScrollFeedPager({
   }, signal),
   append: (items) => items.forEach(renderCard),
   changed: updateFooter,
-  clear: () => { if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
+  clear: () => { discardReading(); if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
 });
 function restartFeed() {
   automaticPages = true;
   updateRoute();
   return pager.reset({ ...filters, ...(linkedItemId ? {linkedItemId} : {}), scrollSeed: crypto.randomUUID() });
 }
+
+let readingCard, readingFooter, readingClose, readingOrigin;
+const reading = createReadingReturn({
+  capture: () => {
+    const origin = { y: window.scrollY, url: location.href, state: history.state,
+      automaticPages, footerHidden: $('feed-footer').hidden, accountHidden: $('account-toggle').hidden };
+    readingOrigin = origin;
+    automaticPages = false;
+    return origin;
+  },
+  show: (item, first) => {
+    closePostDetails();
+    resetSwipeReview();
+    readingCard?.remove();
+    for (const card of $('feed').children) card.hidden = true;
+    $('feed-footer').hidden = true;
+    $('account-toggle').hidden = true;
+    readingCard = makePostCard(item);
+    $('feed').append(readingCard);
+    if (first) {
+      readingClose = node('button', 'post-close', '×');
+      readingClose.type = 'button';
+      readingClose.setAttribute('aria-label', 'Return to where you were');
+      readingClose.addEventListener('click', () => history.back());
+      $('account-toggle').after(readingClose);
+      readingFooter = node('section', 'feed-footer');
+      const resume = node('button', '', 'Continue browsing');
+      resume.type = 'button';
+      resume.addEventListener('click', () => history.back());
+      readingFooter.append(resume);
+      $('feed').after(readingFooter);
+    }
+    const params = new URLSearchParams(location.search);
+    params.set('item', item.id);
+    history[first ? 'pushState' : 'replaceState']({ ppReading: true }, '', location.pathname + '?' + params);
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    readingClose.focus({ preventScroll: true });
+  },
+  restore: origin => {
+    closePostDetails();
+    resetSwipeReview();
+    readingCard?.remove();
+    readingFooter?.remove();
+    readingClose?.remove();
+    readingCard = readingFooter = readingClose = readingOrigin = null;
+    for (const card of $('feed').children) card.hidden = false;
+    $('feed-footer').hidden = origin.footerHidden;
+    $('account-toggle').hidden = origin.accountHidden;
+    automaticPages = origin.automaticPages;
+    window.scrollTo({ top: origin.y, behavior: 'instant' });
+    observeSwipeCards($('feed').children);
+    const source = [...$('feed').children].find(card => card.getBoundingClientRect().top >= -1);
+    source?.querySelector('.post-open')?.focus({ preventScroll: true });
+  },
+});
+function discardReading() {
+  if (!reading.active) return;
+  history.replaceState(readingOrigin.state, '', readingOrigin.url);
+  $('account-toggle').hidden = readingOrigin.accountHidden;
+  $('feed-footer').hidden = readingOrigin.footerHidden;
+  reading.discard();
+  readingFooter?.remove();
+  readingClose?.remove();
+  readingCard = readingFooter = readingClose = readingOrigin = null;
+}
+window.addEventListener('popstate', event => {
+  if (reading.active) reading.close();
+  // Forward navigation to a discarded reading visit remains a canonical deep
+  // link; never revive a retained queue after an account change.
+  else if (event.state?.ppReading) location.reload();
+});
 
 function renderCaption(item) {
   const caption = node('div', 'card-caption');
@@ -162,13 +234,20 @@ const videoObserver = 'IntersectionObserver' in window ? new IntersectionObserve
   for (const entry of entries) if (!entry.isIntersecting) entry.target.pause();
 }, { threshold: 0.05 }) : null;
 
+function makePostCard(item) {
+  return (swipeVariant ? renderSwipeCard : renderPostCard)(item, {
+    createVotes: createVoteControls,
+    openImage,
+    viewerUrl: originalViewerUrl(item, routeFilters()),
+    openRelated: swipeVariant ? item => reading.open(item) : undefined,
+  });
+}
 function renderCard(item) {
   if (postVariant) {
-    $('feed').append((swipeVariant ? renderSwipeCard : renderPostCard)(item, {
-      createVotes: createVoteControls,
-      openImage,
-      viewerUrl: originalViewerUrl(item, routeFilters()),
-    }));
+    const card = makePostCard(item);
+    // A page already in flight may finish while a related version is open.
+    card.hidden = reading.active;
+    $('feed').append(card);
     return;
   }
   const card = node('article', 'scroll-card');
