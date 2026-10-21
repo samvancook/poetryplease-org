@@ -125,7 +125,7 @@ function getDialog() {
   return dialog;
 }
 
-export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
+export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRelated }) {
   const card = make('article', 'post-card');
   card.dataset.itemId = item.id;
   const trigger = make('button', 'post-open');
@@ -216,7 +216,7 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl }) {
     } finally { share.disabled = false; }
   });
   actions.append(share);
-  const related = createPoemLinks(item.id);
+  const related = createPoemLinks(item.id, openRelated);
   info.append(actions, related.element, shareStatus, link);
   card.append(info);
 

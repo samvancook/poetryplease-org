@@ -197,7 +197,7 @@ test('only Swipe requests mobile ranking and sends all already-shown IDs on the 
   for (const swipeVariant of [false, true]) {
     const requests = [];
     const context = vm.createContext({ ScrollFeedPager, swipeVariant, anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false,
-      renderCard() {}, updateFooter() {}, closePostDetails() {}, resetSwipeReview() {}, postVariant: true, $: () => ({ replaceChildren() {} }),
+      renderCard() {}, updateFooter() {}, discardReading() {}, closePostDetails() {}, resetSwipeReview() {}, postVariant: true, $: () => ({ replaceChildren() {} }),
       api: async (path, body) => { requests.push({ path, body }); return { newGraphics: requests.length === 1 ? [row('A'), row('B')] : [row('C')], hasMore: requests.length === 1, nextCursor: requests.length === 1 ? 'next' : null }; },
     });
     vm.runInContext(block + '\nglobalThis.testPager = pager;', context);
