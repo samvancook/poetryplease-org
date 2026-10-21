@@ -1355,13 +1355,20 @@ function showWelcomeChoice() {
     </div>
   `;
   document.body.appendChild(el);
+  window.ppTrack?.('welcome_prompt_shown');
   document.getElementById('pp-welcome-continue')?.addEventListener('click', () => {
+    window.ppTrack?.('welcome_prompt_choice', { choice: 'continue' });
     hideWelcomeChoice();
     if (!currentItem) ppAutoloadFirstItem();
   });
-  document.getElementById('pp-welcome-login')?.addEventListener('click', showLoginScreen);
+  document.getElementById('pp-welcome-login')?.addEventListener('click', () => {
+    window.ppTrack?.('welcome_prompt_choice', { choice: 'login' });
+    showLoginScreen();
+  });
   el.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') hideWelcomeChoice();
+    if (event.key !== 'Escape') return;
+    window.ppTrack?.('welcome_prompt_choice', { choice: 'dismiss' });
+    hideWelcomeChoice();
   });
   document.getElementById('pp-welcome-continue')?.focus();
 }
