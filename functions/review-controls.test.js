@@ -26,12 +26,22 @@ test('each review icon retains a black fill and its colored edge', () => {
     setAttribute(name, value) { this.attributes[name] = value; },
     append(child) { this.children.push(child); } }) };
   try {
-    for (const [value, color] of [['moved me', '#ff5365'], ['meh', '#f5ce48'], ['like', '#f5c45b'], ['dislike', '#f5c45b']]) {
+    for (const [value, color] of [['meh', '#f5ce48'], ['like', '#54d887'], ['dislike', '#ff5365']]) {
       const icon = createReviewIcon(value);
       assert.equal(icon.attributes.fill, '#000');
       assert.equal(icon.attributes.stroke, color);
       assert.equal(icon.attributes['aria-hidden'], 'true');
       assert.ok(icon.children.length);
+    }
+    const hearts = [createReviewIcon('moved me'), createReviewIcon('moved me')];
+    assert.notEqual(hearts[0].attributes.stroke, hearts[1].attributes.stroke);
+    for (const heart of hearts) {
+      const gradient = heart.children[0].children[0];
+      assert.equal(heart.attributes.fill, '#000');
+      assert.equal(heart.attributes.stroke, `url(#${gradient.attributes.id})`);
+      assert.deepEqual(gradient.children.map(stop => stop.attributes['stop-color']),
+        ['#ff5365', '#ffad42', '#f5ce48', '#54d887', '#55b7ff', '#bd83ff']);
+      assert.deepEqual(gradient.children.map(stop => stop.attributes.offset), ['0%', '20%', '40%', '60%', '80%', '100%']);
     }
   } finally {
     if (previous === undefined) delete globalThis.document;
