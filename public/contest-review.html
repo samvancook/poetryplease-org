@@ -70,6 +70,7 @@
       <a href="/contest-builder.html">Build contests</a>
       <a id="contest-submissions-link" href="/admin.html" hidden>Contest submissions</a>
       <a id="final-selection-nav" href="#final-selection" hidden>Final selection</a>
+      <a id="graphics-results-nav" href="#contest-graphics-panel" hidden>Winning graphics</a>
       <a id="entrant-preview" target="_blank" rel="noopener" hidden>See entrant page</a>
       <span aria-current="page">Review submissions</span>
     </nav>
@@ -97,6 +98,12 @@
       <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
       <div id="final-selection-status" class="status" aria-live="polite"></div>
       <div id="final-selection-content"></div>
+      <details id="contest-graphics-panel" style="margin-top:18px;">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Winning graphics and links</summary>
+        <p>Review each imported graphic and the full contest collection before sending either link. An import receipt does not confirm public visibility.</p>
+        <div id="contest-graphics-content"></div>
+        <div id="contest-graphics-status" class="status" aria-live="polite"></div>
+      </details>
       <details id="finalize-remaining" style="margin-top:24px;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalize remaining outcomes</summary>
         <p>After choosing the winner and winners circle, preview the undecided entries before marking them not selected. Winner and circle decisions stay unchanged. This sends no email.</p>
@@ -693,6 +700,48 @@
       }
     }
 
+    function renderGraphicsResults() {
+      const report = state.adminProgress;
+      const container = document.getElementById("contest-graphics-content");
+      if (!report) { container.textContent = ""; return; }
+      const rows = report.selectedGraphics || [];
+      if (!rows.length) {
+        container.innerHTML = "<p>No winner or winners-circle pieces selected yet.</p>";
+        return;
+      }
+      const imported = rows.filter((row) => row.graphicsStatus === "imported" && row.graphicsContentId);
+      const collection = new URL("/app", location.origin);
+      collection.search = new URLSearchParams({
+        catalog: "Contest", event: report.sourceEvent || "", locked: "1", type: "QI", reading: "1", browse: "1"
+      }).toString();
+      const collectionUrl = collection.href;
+      container.innerHTML =
+        '<p><strong>' + imported.length + ' of ' + rows.length + ' selected graphics have import receipts.</strong>' +
+        (imported.length < rows.length ? ' The collection is incomplete; do not announce it yet.' : ' Check the public collection before announcing it.') + '</p>' +
+        '<p><a href="' + escapeHtml(collectionUrl) + '" target="_blank" rel="noopener">Review full contest collection</a></p>' +
+        '<div class="compare-toolbar"><input aria-label="Full contest collection link" readonly value="' +
+          escapeHtml(collectionUrl) + '" style="flex:1;min-width:200px;">' +
+          '<button type="button" data-copy-result-link="' + escapeHtml(collectionUrl) + '">Copy collection link</button></div>' +
+        '<div class="table-wrap"><table class="progress-table"><thead><tr><th>Selected piece</th><th>Graphic status</th><th>Poetry Please link</th></tr></thead><tbody>' +
+        rows.map((row) => {
+          const ready = row.graphicsStatus === "imported" && row.graphicsContentId;
+          const item = new URL("/app", location.origin);
+          if (ready) item.searchParams.set("item", row.graphicsContentId);
+          const itemUrl = item.href;
+          return '<tr><td><strong>' + escapeHtml(row.outcomeStatus === "winner" ? "Winner" : "Winners circle") +
+            '</strong><br>' + escapeHtml(row.title || "Untitled submission") +
+            (row.authorName ? '<br><small>' + escapeHtml(row.authorName) + '</small>' : "") +
+            '</td><td>' + escapeHtml(ready ? "Imported — review before sharing" : row.graphicsStatus || "Awaiting graphics") +
+            (row.graphicsRequestId ? '<br><small>Request: ' + escapeHtml(row.graphicsRequestId) + '</small>' : "") +
+            '</td><td>' + (ready
+              ? '<a href="' + escapeHtml(itemUrl) + '" target="_blank" rel="noopener">Open graphic</a>' +
+                '<div class="compare-toolbar"><input aria-label="Link for ' + escapeHtml(row.title || row.authorName || row.submissionId) +
+                '" readonly value="' + escapeHtml(itemUrl) + '" style="min-width:180px;max-width:100%;">' +
+                '<button type="button" data-copy-result-link="' + escapeHtml(itemUrl) + '">Copy link</button></div>'
+              : 'No graphic link yet') + '</td></tr>';
+        }).join("") + '</tbody></table></div>';
+    }
+
     let remainingOutcomePreview = null;
     function clearRemainingPreview() {
       remainingOutcomePreview = null;
@@ -1144,6 +1193,7 @@
       const panel = document.getElementById("admin-progress");
       const selection = document.getElementById("final-selection");
       const selectionNav = document.getElementById("final-selection-nav");
+      const graphicsNav = document.getElementById("graphics-results-nav");
       const programId = document.getElementById("program").value;
       const mailFields = document.getElementById('contest-mail-settings-fields');
       mailFields.disabled = true;
@@ -1160,6 +1210,7 @@
         panel.hidden = true;
         selection.hidden = true;
         selectionNav.hidden = true;
+        graphicsNav.hidden = true;
         document.getElementById("contest-submissions-link").hidden = true;
         state.adminProgress = null;
         return;
@@ -1172,12 +1223,15 @@
         panel.hidden = false;
         selection.hidden = false;
         selectionNav.hidden = false;
+        graphicsNav.hidden = false;
         document.getElementById("contest-submissions-link").hidden = false;
         renderProgress();
         renderFinalSelection();
+        renderGraphicsResults();
         const targetId = location.hash.slice(1);
-        if (targetId === "final-selection" || targetId === "contest-email-panel") {
+        if (["final-selection", "contest-graphics-panel", "contest-email-panel"].includes(targetId)) {
           selection.open = true;
+          if (targetId === "contest-graphics-panel") document.getElementById("contest-graphics-panel").open = true;
           if (targetId === "contest-email-panel") document.getElementById("contest-email-panel").open = true;
           requestAnimationFrame(() => document.getElementById(targetId).scrollIntoView({ block: "start" }));
         } else if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
@@ -1190,8 +1244,9 @@
         panel.hidden = true;
         selection.hidden = true;
         selectionNav.hidden = true;
+        graphicsNav.hidden = true;
         document.getElementById("contest-submissions-link").hidden = true;
-        if (error.message !== "forbidden") setStatus("Progress report: " + error.message, true);
+        setStatus("Contest management unavailable: " + error.message, true);
       }
     }
 
@@ -1309,6 +1364,18 @@
       } catch (error) {
         button.disabled = false;
         status.textContent = "Could not save: " + error.message;
+      }
+    });
+
+    document.getElementById("contest-graphics-panel").addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-copy-result-link]");
+      if (!button) return;
+      const status = document.getElementById("contest-graphics-status");
+      try {
+        await navigator.clipboard.writeText(button.dataset.copyResultLink);
+        status.textContent = "Link copied. Open it and check the graphic before sharing.";
+      } catch (_) {
+        status.textContent = "Copy was blocked. Select the link shown beside the button instead.";
       }
     });
 

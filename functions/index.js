@@ -11113,7 +11113,8 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     db.collection(COLLECTIONS.contestSpotChecks).where("programId", "==", programId).get(),
     db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get(),
   ]);
-  const instagramBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, normalizeText(doc.data()?.instagramHandle || "")]));
+  const entrantsBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, doc.data() || {}]));
+  const instagramBySubmission = new Map([...entrantsBySubmission].map(([id, entrant]) => [id, normalizeText(entrant.instagramHandle || "")]));
   const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
   const submissionIds = new Set(submissions.map((row) => row.id));
   const archivedIds = new Set(submissions.filter((row) => row.contestArchived === true).map((row) => row.id));
@@ -11183,6 +11184,18 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       assignedTo,
     };
   }).sort((a, b) => a.title.localeCompare(b.title));
+  const selectedGraphics = submissions.filter((row) => ["winner", "circle"].includes(row.contestOutcomeStatus)).map((row) => {
+    const entrant = entrantsBySubmission.get(row.id) || {};
+    return {
+      submissionId: row.id,
+      title: row.title,
+      authorName: normalizeText([entrant.firstName, entrant.lastName].filter(Boolean).join(" ") || row.submitterDisplayName || ""),
+      outcomeStatus: row.contestOutcomeStatus,
+      graphicsStatus: row.contestGraphicsStatus,
+      graphicsRequestId: row.contestGraphicsRequestId,
+      graphicsContentId: row.contestGraphicsContentId,
+    };
+  }).sort((a, b) => (b.outcomeStatus === "winner") - (a.outcomeStatus === "winner") || a.title.localeCompare(b.title));
   const spotChecks = spotCheckSnap.docs.map((doc) => {
     const batch = doc.data() || {};
     const reviewerEmail = normalizeText(batch.reviewerEmail || "").toLowerCase();
@@ -11202,6 +11215,8 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     ok: true,
     programId,
     winnerSubmissionId: normalizeText(programSnap.data()?.contestWinnerSubmissionId || ""),
+    sourceEvent: normalizeText(programSnap.data()?.sourceEvent || programSnap.data()?.name || programId),
+    selectedGraphics,
     spotChecks,
     totalSubmissions: rows.length,
     reviewedAtLeastOnce: rows.filter((row) => row.reviewCount > 0).length,
