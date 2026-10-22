@@ -917,3 +917,14 @@ test("The verified Political Theatre key is accepted without opening other auto-
   assert.deepEqual(Array.from(await load("Tooth Gaps in the Archives"), row=>row.poem_key), ["BPP-00155"]);
   assert.equal((await load("Another book")).length, 0);
 });
+
+test("Canonical FP reading tolerates only a same-key FP/FPI legacy ID collision", () => {
+  const select = catalogSyncFunction("canonicalReadingMatch");
+  const fp = { imageId:"same-id", imageType:"FP", poemKey:"BPP-00091", author:"Poet", book:"Book" };
+  const graphic = {...fp,imageType:"FPI",imageUrl:"https://example.test/graphic.png"};
+  assert.equal(select([graphic,fp]), fp);
+  for (const other of [{...graphic,poemKey:"BPP-99999"},{...graphic,book:"Other book"},{...graphic,author:"Other poet"},{...graphic,imageType:"QI"}]) assert.equal(select([other,fp]),null);
+  assert.equal(select([fp,{...fp}]),null);
+  assert.equal(select([{...fp,poemKey:""},{...graphic,poemKey:""}]),null);
+  assert.equal(select([graphic]),graphic);
+});
