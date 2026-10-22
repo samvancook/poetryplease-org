@@ -844,3 +844,59 @@ test("Catalog text correction rejects a concurrent edit or a wrong book before w
     assert.equal(fixture.writes.length, 0);
   }
 });
+
+test("Spacing-only Catalog sync preserves every flag, repair and author vote", async () => {
+  const fixture = catalogSyncTransactionFixture();
+  const result = await fixture.apply({ id: "stable", book: "Book", title: "Poem", expectedExcerpt: "old text", excerpt: "old\ntext", poemKey: "BPP-00001" }, new Set(["author-uid", "author@example.com"]), { preserveReviews: true });
+  assert.equal(result.resolvedFlagCount, 0);
+  assert.equal(result.supersededVoteCount, 0);
+  assert.equal(result.resolvedRepairIds.length, 0);
+  assert.equal(fixture.rows.get("contentFlags/pending").status, "pending");
+  assert.equal(fixture.rows.get("contentRepairRequests/source").status, "in_progress");
+  assert.equal(fixture.rows.get("votes/uid").supersededAt, undefined);
+  assert.equal(fixture.rows.get("fullPoems/stable").excerpt, "old\ntext");
+});
+
+test("Catalog sync resolves only explicitly selected flags while corrected text reopens author review", async () => {
+  const fixture = catalogSyncTransactionFixture();
+  const result = await fixture.apply({ id: "stable", book: "Book", title: "Poem", expectedExcerpt: "old text", excerpt: "new text", poemKey: "BPP-00001" }, new Set(["author-uid"]), { resolveFlagIds: [] });
+  assert.equal(result.resolvedFlagCount, 0);
+  assert.equal(result.supersededVoteCount, 1);
+  assert.equal(fixture.rows.get("contentFlags/pending").status, "pending");
+  assert.equal(fixture.rows.get("contentRepairRequests/source").status, "resolved");
+});
+
+test("Catalog text planning and updates cannot revive retired records", async () => {
+  const plan = catalogSyncFunction("planExistingCatalogFullPoemUpdates");
+  const planned = plan([{ id: "retired", title: "Poem", catalogRetired: true, excerpt: "old" }, { id: "live", title: "Poem", excerpt: "old" }],
+    [{ title: "Poem", poem_key: "BPP-00001", text: "new" }]);
+  assert.deepEqual(Array.from(planned.updates, row => row.id), ["live"]);
+  const fixture = catalogSyncTransactionFixture();
+  fixture.rows.get("fullPoems/stable").catalogRetired = true;
+  await assert.rejects(fixture.apply({ id: "stable", book: "Book", title: "Poem", expectedExcerpt: "old text", excerpt: "new", poemKey: "BPP-00001" }, new Set()), /content_changed_refresh_first/);
+  assert.equal(fixture.writes.length, 0);
+});
+
+test("Import refuses a retired existing identity before uploading or overwriting anything", async () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function upsertContentLibraryItem(");
+  const end = source.indexOf("\n}\n", start) + 2;
+  const retired = { exists: true, data: () => ({ catalogRetired: true }) };
+  const upsert = runInNewContext(source.slice(start, end) + "; upsertContentLibraryItem", {
+    collectionForContentType: () => "graphics", deriveContentDocId: () => "same-id",
+    sanitizeDocIdSegment: value => value,
+    db: { collection: () => ({ doc: () => ({ get: async () => retired }) }) },
+  });
+  await assert.rejects(upsert("graphics", { imageUrl: "https://example.test/reimport.jpg" }), /catalog_retired_content/);
+});
+
+test("Retired Catalog items stay out of both feed and direct-reading visibility even after flags close", () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("function excludeFlaggedContent(");
+  const end = source.indexOf("\n}\n", start) + 2;
+  const visible = runInNewContext(source.slice(start, end) + "; excludeFlaggedContent", {
+    normalizeKey: value => String(value).toLowerCase(),
+  });
+  const rows = visible([{ imageId: "retired", catalogRetired: true }, { imageId: "live" }], new Set());
+  assert.deepEqual(Array.from(rows, row => row.imageId), ["live"]);
+});
