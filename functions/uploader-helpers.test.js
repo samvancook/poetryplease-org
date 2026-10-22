@@ -900,3 +900,20 @@ test("Retired Catalog items stay out of both feed and direct-reading visibility 
   const rows = visible([{ imageId: "retired", catalogRetired: true }, { imageId: "live" }], new Set());
   assert.deepEqual(Array.from(rows, row => row.imageId), ["live"]);
 });
+
+test("The verified Political Theatre key is accepted without opening other auto-classified essays", async () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function fetchCanonicalPoems(");
+  const end = source.indexOf("\n}\n", start) + 2;
+  const load = runInNewContext(source.slice(start, end) + "; fetchCanonicalPoems", {
+    CANONICAL_CATALOG_API: "https://catalog.test", AbortSignal,
+    normalizeKey: value => String(value).toLowerCase(), normalizeText: value => String(value || '').trim(),
+    normalizeCatalogLookupKey: value => String(value).toLowerCase(),
+    fetch: async () => ({ok:true,json:async()=>[
+      {title:"Political Theatre",poem_key:"BPP-00155",content_kind:"essay_or_interview",is_likely_poem:0,text:"verified poem"},
+      {title:"Unreviewed essay",poem_key:"BPP-99999",content_kind:"essay_or_interview",is_likely_poem:0,text:"unreviewed"},
+    ]}),
+  });
+  assert.deepEqual(Array.from(await load("Tooth Gaps in the Archives"), row=>row.poem_key), ["BPP-00155"]);
+  assert.equal((await load("Another book")).length, 0);
+});

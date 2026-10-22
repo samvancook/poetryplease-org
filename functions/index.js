@@ -246,6 +246,10 @@ async function fetchCanonicalPoems(bookTitle) {
       (Number(row?.is_likely_poem) === 1 && normalizeKey(row?.content_kind) === "poem")
       || (normalizeCatalogLookupKey(bookTitle) === "roads"
         && normalizeCatalogLookupKey(row?.title) === "notes from the pandemic office")
+      // Source-verified final-book handoff, Catalog PR #68. The Catalog's
+      // automatic essay classification must not strand this existing FP.
+      || (normalizeCatalogLookupKey(bookTitle) === "tooth gaps in the archives"
+        && row?.poem_key === "BPP-00155")
     )
     && normalizeText(row?.title)
     && normalizeText(row?.served_text || row?.cleaned_text || row?.text)
