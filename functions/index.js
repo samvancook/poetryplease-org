@@ -5255,6 +5255,19 @@ app.get(getBoth("/poemContent"), async (req, res) => {
   }
 });
 
+export function canonicalReadingMatch(matches = []) {
+  if (matches.length <= 1) return matches[0] || null;
+  const poems = matches.filter(row => normalizeKey(row.imageType) === "fp");
+  if (poems.length !== 1 || !poems[0].poemKey) return null;
+  const poem = poems[0];
+  // Legacy FP and FPI may share an imageId. Canonical text reading can select
+  // the single FP only when all versions prove the same poem; retain the FPI
+  // in its collection/feed, and keep genuinely conflicting IDs ambiguous.
+  return matches.every(row => ["fp", "fpi"].includes(normalizeKey(row.imageType))
+    && row.poemKey === poem.poemKey && normalizeKey(row.author) === normalizeKey(poem.author)
+    && normalizeKey(row.book) === normalizeKey(poem.book)) ? poem : null;
+}
+
 app.get(getBoth("/contentById"), async (req, res) => {
   const targetId = normalizeText(req.query?.id);
   if (!targetId) return res.status(400).json({ error: "missing_id" });
@@ -5272,8 +5285,8 @@ app.get(getBoth("/contentById"), async (req, res) => {
     return contentKey === normalizedTarget && (!imageKey || imageKey === contentKey);
   });
   const matches = imageMatches.length ? imageMatches : contentMatches;
-  if (matches.length > 1) return res.status(409).json({ error: "ambiguous_content_id" });
-  const item = matches[0];
+  const item = canonicalReadingMatch(matches);
+  if (matches.length > 1 && !item) return res.status(409).json({ error: "ambiguous_content_id" });
 
   if (!item) return res.status(404).json({ error: "not_found" });
   res.json({
