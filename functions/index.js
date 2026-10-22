@@ -473,6 +473,7 @@ export function parseDoc(snap) {
     poemKey: d.poemKey || "",
     poemKeySource: d.poemKeySource || "",
     poemKeyConfidence: d.poemKeyConfidence ?? null,
+    catalogRetired: d.catalogRetired === true,
     youtubeId: d.youtubeId || "",
     uploadTime: d.uploadTime || "",
     socialViews: Number(d.socialViews || 0) || 0,
@@ -509,6 +510,7 @@ function sampleItems(items, limit) {
 
 function excludeBrokenContent(items = []) {
   return items.filter((item) => {
+    if (item?.catalogRetired === true) return false;
     const imageId = normalizeKey(item?.imageId || "");
     if (!imageId) return true;
     return !BROKEN_QI_IDS.has(imageId) || item?.quarantineReleased === true;
@@ -4298,6 +4300,11 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
   }
   const sourceSnap = isRename && originalSnap?.exists ? originalSnap : snap;
   const existing = sourceSnap.exists ? (sourceSnap.data() || {}) : {};
+  if (existing.catalogRetired === true) {
+    const err = new Error("catalog_retired_content");
+    err.status = 409;
+    throw err;
+  }
 
   let uploadImageUrl = "";
   if (normalizeKey(type) === "graphics" && normalizeText(body?.base64Data)) {
@@ -4817,7 +4824,7 @@ function invalidateFlaggedContentCache() {
 }
 
 function excludeFlaggedContent(items, flaggedIds) {
-  return (items || []).filter((item) => !flaggedIds.has(normalizeKey(item.imageId || item.id || "")));
+  return (items || []).filter((item) => item.catalogRetired !== true && !flaggedIds.has(normalizeKey(item.imageId || item.id || "")));
 }
 
 async function canSeeFullPoemsInReview(decoded) {
@@ -8254,12 +8261,14 @@ export function planExistingCatalogFullPoemUpdates(existing = [], poems = []) {
   const updates = [];
   const skipped = [];
   for (const [key, rows] of existingByTitle) {
+    const activeRows = rows.filter(row => row.catalogRetired !== true);
+    if (!activeRows.length) continue;
     const matches = poemsByTitle.get(key) || [];
-    if (rows.length !== 1 || matches.length !== 1) {
-      skipped.push(...rows.map((row) => ({ id: row.id, reason: matches.length ? "ambiguous_title" : "unmatched_title" })));
+    if (activeRows.length !== 1 || matches.length !== 1) {
+      skipped.push(...activeRows.map((row) => ({ id: row.id, reason: matches.length ? "ambiguous_title" : "unmatched_title" })));
       continue;
     }
-    const row = rows[0];
+    const row = activeRows[0];
     const poem = matches[0];
     const excerpt = normalizeText(poem.served_text || poem.cleaned_text || poem.text);
     if (!excerpt || !normalizeText(poem.poem_key)
@@ -8280,7 +8289,7 @@ export function planExistingCatalogFullPoemUpdates(existing = [], poems = []) {
   return { updates, skipped };
 }
 
-export async function applyCatalogFullPoemTextUpdate(update, authorVoteUserIds) {
+export async function applyCatalogFullPoemTextUpdate(update, authorVoteUserIds, options = {}) {
   const contentRef = db.collection(COLLECTIONS.fullPoems).doc(update.id);
   return db.runTransaction(async (tx) => {
     const [content, flags, votes, repairs] = await Promise.all([
@@ -8290,14 +8299,15 @@ export async function applyCatalogFullPoemTextUpdate(update, authorVoteUserIds) 
       tx.get(db.collection(COLLECTIONS.contentRepairRequests).where("imageId", "==", update.id)),
     ]);
     const current = content.data() || {};
-    if (!content.exists || current.book !== update.book || current.title !== update.title
+    if (!content.exists || current.catalogRetired === true || current.book !== update.book || current.title !== update.title
       || String(current.excerpt || "") !== update.expectedExcerpt
       || (current.poemKey && current.poemKey !== update.poemKey)) {
       throw new Error("content_changed_refresh_first");
     }
-    const pendingFlags = flags.docs.filter((doc) => doc.data()?.status === "pending");
-    const authorVotes = votes.docs.filter((doc) => isActiveAuthorVote(doc.data(), authorVoteUserIds));
-    const sourceRepairs = repairs.docs.filter((doc) => {
+    const pendingFlags = options.preserveReviews ? [] : flags.docs.filter((doc) => doc.data()?.status === "pending"
+      && (!options.resolveFlagIds || options.resolveFlagIds.includes(doc.id)));
+    const authorVotes = options.preserveReviews ? [] : votes.docs.filter((doc) => isActiveAuthorVote(doc.data(), authorVoteUserIds));
+    const sourceRepairs = options.preserveReviews ? [] : repairs.docs.filter((doc) => {
       const row = doc.data() || {};
       return row.contentType === "FP" && row.originalCollection === COLLECTIONS.fullPoems
         && row.status !== "resolved" && !row.replacementAssetId && !row.replacementAssetLink;
@@ -8357,6 +8367,14 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
     const apply = req.body?.apply === true;
     const updateExisting = req.body?.updateExisting === true;
     const addMissing = req.body?.addMissing !== false;
+    const reviewOptions = { preserveReviews: req.body?.preserveReviews === true };
+    if (req.body?.resolveFlagIds !== undefined) {
+      if (!Array.isArray(req.body.resolveFlagIds) || req.body.resolveFlagIds.length > 1000
+        || req.body.resolveFlagIds.some(id => typeof id !== "string" || !id || id.includes("/"))) {
+        return res.status(400).json({ error: "invalid_resolve_flag_ids" });
+      }
+      reviewOptions.resolveFlagIds = [...new Set(req.body.resolveFlagIds)].sort();
+    }
     const catalogRecord = resolveCatalogBookRecord({ book: requestedBook });
     if (!catalogRecord || normalizeText(catalogRecord.entityType || "book") !== "book") {
       return res.status(404).json({ error: "canonical_book_not_found" });
@@ -8399,7 +8417,7 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
     });
 
     const planned = updateExisting ? planExistingCatalogFullPoemUpdates(existing, poems) : { updates: [], skipped: [] };
-    const planHash = sha256(JSON.stringify(planned.updates));
+    const planHash = sha256(JSON.stringify({ updates: planned.updates, reviewOptions }));
     if (apply && updateExisting && req.body?.planHash !== planHash) {
       return res.status(409).json({ error: "catalog_update_plan_changed", planHash });
     }
@@ -8408,7 +8426,7 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
       const authorVoteUserIds = planned.updates.length ? await getAuthorVoteUserIds() : new Set();
       for (const update of planned.updates) {
         try {
-          const reopened = await applyCatalogFullPoemTextUpdate(update, authorVoteUserIds);
+          const reopened = await applyCatalogFullPoemTextUpdate(update, authorVoteUserIds, reviewOptions);
           results.push({ id: update.id, ok: true, created: false, ...reopened });
         } catch (err) {
           results.push({ id: update.id, ok: false, error: err.message || "catalog_update_failed" });
@@ -8443,6 +8461,7 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
       missingFpCount: missing.length,
       plannedUpdateCount: planned.updates.length,
       planHash,
+      reviewOptions,
       updates: planned.updates.map((row) => ({ id: row.id, title: row.title, poemKey: row.poemKey,
         beforeCharacters: row.expectedExcerpt.length, afterCharacters: row.excerpt.length })),
       skippedUpdates: planned.skipped,
