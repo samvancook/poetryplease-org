@@ -78,3 +78,13 @@ test('newcomer showcase does not replace an author ownership review queue', () =
   assert.equal(page.feedMode, 'author-review');
   assert.equal(page.items[0].imageId, 'author-int');
 });
+
+test('newcomer top rated means positive response quality, not accumulated exposure', () => {
+  const items = ['popular-meh', 'proven-love', 'one-vote'].map(imageId => ({ imageId, imageType: 'QI' }));
+  const page = paginateMobileFeed(items, { newcomer: true, ratingsSummary: {
+    'popular-meh': { score: 157, total: 314, likes: 60, dislikes: 12, meh: 192, movedMe: 50 },
+    'proven-love': { score: 20, total: 10, movedMe: 10 },
+    'one-vote': { score: 2, total: 1, movedMe: 1 },
+  } });
+  assert.deepEqual(page.items.map(item => item.imageId), ['proven-love', 'popular-meh', 'one-vote']);
+});

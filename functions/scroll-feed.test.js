@@ -173,7 +173,8 @@ test('Swipe leads with top QI and continues without serving the same IDs', async
   const request = { scroll: true, feedPolicy: 'mobile', welcome: false, anonId: 'reader', type: 'PROMO', scrollSeed: 'session', limit: 3 };
   const first = (await call(request)).data;
   assert.equal(first.feedMode, 'mobile-welcome');
-  assert.deepEqual(first.newGraphics.map(row => row[3]), ['item-1', 'item-2', 'item-3']);
+  // Equal vote quality uses a stable identity tie-break, not accumulated score.
+  assert.deepEqual(first.newGraphics.map(row => row[3]), ['item-1', 'item-10', 'item-11']);
   const servedIds = first.newGraphics.map(row => row[3]);
   const second = (await call({ ...request, cursor: first.nextCursor, servedIds })).data;
   assert.ok(second.newGraphics.every(row => !servedIds.includes(row[3])));
