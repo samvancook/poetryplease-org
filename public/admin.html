@@ -757,6 +757,14 @@
           Release Catalog
           <input id="content-release-catalog" type="text" placeholder="Catalog code" />
         </label>
+        <label data-content-field="graphics">
+          Contest lane event
+          <input id="content-source-event" type="text" placeholder="Exact contest event name" />
+        </label>
+        <label data-content-field="graphics">
+          Contest lane label
+          <input id="content-source-event-label" type="text" placeholder="Display name for the contest lane" />
+        </label>
         <label data-content-field="excerpts fullpoems videos youtube">
           Page Number
           <input id="content-page-number" type="text" placeholder="Page #" />
@@ -3921,6 +3929,8 @@
         'content-drive-link',
         'content-book-link',
         'content-release-catalog',
+        'content-source-event',
+        'content-source-event-label',
         'content-page-number',
         'content-book-shortener',
         'content-release-year',
@@ -3962,6 +3972,8 @@
       document.getElementById('content-drive-link').value = item.driveLink || '';
       document.getElementById('content-book-link').value = item.bookLink || '';
       document.getElementById('content-release-catalog').value = item.releaseCatalog || '';
+      document.getElementById('content-source-event').value = item.sourceEvent || '';
+      document.getElementById('content-source-event-label').value = item.sourceEventLabel || '';
       document.getElementById('content-page-number').value = item.pageNumber || '';
       document.getElementById('content-book-shortener').value = item.bookShortener || '';
       document.getElementById('content-release-year').value = item.releaseYear || '';
@@ -4301,6 +4313,8 @@
           driveLink: document.getElementById('content-drive-link').value.trim(),
           bookLink: document.getElementById('content-book-link').value.trim(),
           releaseCatalog: document.getElementById('content-release-catalog').value.trim(),
+          sourceEvent: document.getElementById('content-source-event').value.trim(),
+          sourceEventLabel: document.getElementById('content-source-event-label').value.trim(),
           pageNumber: document.getElementById('content-page-number').value.trim(),
           bookShortener: document.getElementById('content-book-shortener').value.trim(),
           releaseYear: document.getElementById('content-release-year').value.trim(),
