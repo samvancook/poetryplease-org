@@ -4267,6 +4267,10 @@ async function resolveInitialDeepLink() {
     }
   } catch (err) {
     console.warn('[PP] deep link item lookup failed', err);
+    if (!String(err?.message || '').includes('failed: 404')) {
+      renderEmptyFilterState('This graphic could not load. Please try again.');
+      return false;
+    }
   }
 
   routeItemUnavailable = true;
