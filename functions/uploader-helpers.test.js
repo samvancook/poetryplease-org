@@ -807,6 +807,7 @@ test("duplicate permanent keys and unkeyed legacy copies cannot steal another ex
 
 function catalogSyncRouteFixture(existing, poems, record = { title: "Book", author: "Author", bookShortener: "B" }) {
   let handler, writes = 0;
+  const imported = [];
   const normalize = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const context = {
     app: { post: (_path, fn) => { handler = fn; } }, getBoth: p => p, hasValidPoetryPleaseApiKey: () => true,
@@ -819,13 +820,13 @@ function catalogSyncRouteFixture(existing, poems, record = { title: "Book", auth
     sha256: value => createHash("sha256").update(value).digest("hex"),
     canonicalPoemCountCache: new Map(), getAuthorVoteUserIds: async () => new Set(),
     applyCatalogFullPoemTextUpdate: async () => { writes++; return {}; },
-    upsertContentLibraryItem: async () => { writes++; return { created: true }; },
+    upsertContentLibraryItem: async (_type, item) => { writes++; imported.push(item); return { created: true }; },
     invalidateContentCache: async () => {}, invalidateFlaggedContentCache() {}, invalidateRatingsSnapshot() {}, invalidateScoreboardSnapshot: async () => {}, console,
   };
   const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   const start = source.indexOf('app.post(getBoth("/internal/catalogFullPoemSync")');
   runInNewContext(source.slice(start, source.indexOf('app.post(getBoth("/admin/contentLibrary/weaverImport")', start)), context);
-  return { get writes() { return writes; }, call: async body => {
+  return { imported, get writes() { return writes; }, call: async body => {
     let status = 200, data;
     await handler({ body: { book: record.title, updateExisting: true, addMissing: false, preserveReviews: true, ...body } },
       { status(code) { status = code; return this; }, json(result) { data = JSON.parse(JSON.stringify(result)); } });
@@ -1034,4 +1035,38 @@ test("Canonical FP reading tolerates only a same-key FP/FPI legacy ID collision"
   assert.equal(select([fp,{...fp}]),null);
   assert.equal(select([{...fp,poemKey:""},{...graphic,poemKey:""}]),null);
   assert.equal(select([graphic]),graphic);
+});
+
+
+test("new Catalog FPs retain distinct permanent keys through the actual payload builder and a repeated-title rerun", async () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("function buildContentDocPayload(");
+  const build = runInNewContext(source.slice(start, source.indexOf("\nfunction collectionForContentType", start)) + "; buildContentDocPayload", {
+    FieldValue: { serverTimestamp: () => "now" }, normalizeText: v => String(v || "").trim(),
+    deriveContentDocId: (_type, body) => body.docId,
+  });
+  const poems = [
+    { id: 1, title: "Same title", poem_key: "BPP-1", served_text: "first\n\npoem" },
+    { id: 2, title: "Same title", poem_key: "BPP-2", served_text: "second\npoem" },
+  ];
+  const record = { title: "Book", author: "Author", bookShortener: "WG", releaseCatalog: "Spring 2027" };
+  const f = catalogSyncRouteFixture([], poems, record);
+  const dry = await f.call({ addMissing: true });
+  assert.equal(dry.data.missingFpCount, 2);
+  assert.equal(f.writes, 0);
+  const applied = await f.call({ addMissing: true, apply: true, planHash: dry.data.planHash });
+  assert.equal(applied.data.appliedCount, 2);
+  const saved = f.imported.map(item => ({ id: item.docId, ...build("fullpoems", item).payload }));
+  assert.notEqual(saved[0].id, saved[1].id);
+  assert.deepEqual(saved.map(p => p.poemKey), ["BPP-1", "BPP-2"]);
+  for (const [i, row] of saved.entries()) {
+    assert.equal(row.excerpt, poems[i].served_text);
+    assert.equal(row.poemKeySource, "catalog_full_poem_sync");
+    assert.equal(row.poemKeyConfidence, 1);
+    assert.equal(row.releaseCatalog, "Spring 2027");
+  }
+  const rerun = await catalogSyncRouteFixture(saved, poems.slice().reverse(), record).call({ addMissing: true });
+  assert.equal(rerun.data.missingFpCount, 0);
+  assert.equal(rerun.data.plannedUpdateCount, 0);
+  assert.equal(rerun.data.skippedUpdates.length, 0);
 });

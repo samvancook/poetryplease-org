@@ -4174,6 +4174,12 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   } else if (type === "full-poems" || type === "fullpoems") {
     payload.title = normalizeText(body.title);
     payload.excerpt = normalizeText(body.excerpt);
+    // Keep Catalog identity when creating an FP, including repeated titles.
+    if (normalizeText(body.poemKey)) {
+      payload.poemKey = normalizeText(body.poemKey);
+      payload.poemKeySource = normalizeText(body.poemKeySource);
+      payload.poemKeyConfidence = body.poemKeyConfidence ?? null;
+    }
     payload.pageNumber = normalizeText(body.pageNumber);
     payload.bookShortener = normalizeText(body.bookShortener);
     payload.releaseYear = normalizeText(body.releaseYear);
@@ -8472,6 +8478,9 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
         imageType: "FP",
         sourceSystem: "button_poetry_catalog",
         sourceRecordId: `catalog-poem:${poem.id}`,
+        poemKey: normalizeText(poem.poem_key),
+        poemKeySource: "catalog_full_poem_sync",
+        poemKeyConfidence: 1,
         author: catalogRecord.author,
         book: catalogRecord.title,
         title,
