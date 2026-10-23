@@ -120,13 +120,13 @@ test('metadata and text remain plain strings and media URLs require HTTPS', () =
 });
 
 const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-function routeHarness(customContent, ratings = {}) {
+function routeHarness(customContent, ratings = {}, votedIds = ['item-0']) {
   let handler;
   const all = customContent || [...content(30), { imageId: 'flagged', imageType: 'EXC', book: 'Roads' }, { imageId: 'broken', broken: true, imageType: 'EXC', book: 'Roads' }, { imageId: 'private', imageType: 'FP', book: 'Roads' }];
   const context = vm.createContext({ app: { post: (_p, fn) => { handler = fn; } }, getBoth: (p) => p,
     verifyIdTokenFromHeader: async (req) => req.decoded, normalizeText: (v) => String(v || '').trim(), normalizeKey: (v) => String(v || '').trim().toLowerCase(),
     getAllContentCached: async () => all, getFlaggedContentIds: async () => new Set(['flagged']), getRatingsSummaryCached: async () => ratings,
-    getUniqueVotedImageIdsByUser: async () => new Set(['item-0']), canSeeFullPoemsInReview: async (decoded) => decoded?.staff === true,
+    getUniqueVotedImageIdsByUser: async () => new Set(votedIds), canSeeFullPoemsInReview: async (decoded) => decoded?.staff === true,
     excludeBrokenContent: (items) => items.filter((i) => !i.broken), excludeFlaggedContent: (items, ids) => items.filter((i) => !ids.has(i.imageId)),
     reviewVisibleContent: (items, full) => items.filter((i) => full || i.imageType !== 'FP'),
     parseOptionalCount: (value) => value == null ? null : Number(value), parseBoolean: (value) => value === true,
@@ -166,18 +166,28 @@ test('legacy filtered-feed callers retain the same response shape and metadata',
   assert.equal(data.nextCursor, undefined);
 });
 
-test('Swipe requests curated welcome favorites and continues without serving the same IDs', async () => {
+test('Swipe leads with top QI and continues without serving the same IDs', async () => {
   const all = content(36).map((item, i) => ({ ...item, imageType: i < 18 ? 'QI' : i < 27 ? 'INT' : 'EXC', book: 'Book ' + i }));
   const ratings = Object.fromEntries(all.map((item, i) => [item.imageId, { total: 4, movedMe: 4, score: 100 - i }]));
   const call = routeHarness(all, ratings);
-  const request = { scroll: true, feedPolicy: 'mobile', welcome: true, anonId: 'reader', type: 'PROMO', scrollSeed: 'session' };
+  const request = { scroll: true, feedPolicy: 'mobile', welcome: false, anonId: 'reader', type: 'PROMO', scrollSeed: 'session', limit: 3 };
   const first = (await call(request)).data;
   assert.equal(first.feedMode, 'mobile-welcome');
-  assert.deepEqual(first.newGraphics.slice(0, 3).map(row => row[3]), ['item-1', 'item-2', 'item-27']);
+  assert.deepEqual(first.newGraphics.map(row => row[3]), ['item-1', 'item-2', 'item-3']);
   const servedIds = first.newGraphics.map(row => row[3]);
   const second = (await call({ ...request, cursor: first.nextCursor, servedIds })).data;
   assert.ok(second.newGraphics.every(row => !servedIds.includes(row[3])));
   assert.ok(!second.newGraphics.some(row => row[3] === 'item-0'), 'existing votes stay excluded');
+});
+
+test('saved review history controls signed-in newcomer eligibility; anonymous readers retain the showcase', async () => {
+  const request = { scroll: true, feedPolicy: 'mobile', anonId: 'reader', type: 'PROMO', limit: 3 };
+  const signedIn = { email: 'new@example.com' };
+  const few = routeHarness(undefined, {}, ['item-0']);
+  assert.equal((await few(request, signedIn)).data.feedMode, 'mobile-welcome');
+  const experienced = routeHarness(undefined, {}, Array.from({ length: 8 }, (_, i) => 'past-' + i));
+  assert.equal((await experienced(request, signedIn)).data.feedMode, 'mobile-community');
+  assert.equal((await experienced(request)).data.feedMode, 'mobile-welcome');
 });
 
 test('Swipe ranking keeps existing exclusions and author graphics-first review scope', async () => {

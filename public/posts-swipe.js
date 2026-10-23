@@ -6,6 +6,13 @@ let current;
 let dock;
 const visible = new Map();
 const zooms = new WeakMap();
+const graphicStarts = new WeakMap();
+
+function loadNearbyGraphics(card) {
+  for (const nearby of [card, card?.nextElementSibling]) {
+    if (nearby && !nearby.hidden) graphicStarts.get(nearby)?.();
+  }
+}
 
 function parkResponse() {
   if (current) zooms.get(current)?.reset();
@@ -23,6 +30,7 @@ function activate(card) {
   if (card === current || !card.isConnected) return;
   parkResponse();
   current = card;
+  loadNearbyGraphics(card);
   current.classList.add('swipe-current');
   const response = card.querySelector('.swipe-review');
   response.hidden = false;
@@ -68,6 +76,7 @@ export function renderSwipeCard(item, options) {
   }
   const card = renderPostCard(item, {
     ...options,
+    deferGraphicLoad: (card, start) => graphicStarts.set(card, start),
     createVotes: (item, card) => {
       const response = document.createElement('section');
       response.className = 'swipe-review';
@@ -84,6 +93,8 @@ export function renderSwipeCard(item, options) {
   // owns the fixed controls; scrolling never submits a response.
   queueMicrotask(() => {
     if (!card.isConnected) return;
+    // Newly appended batches can supply the active card's next graphic.
+    if (current) loadNearbyGraphics(current);
     observeSwipeCards([card]);
   });
   return card;

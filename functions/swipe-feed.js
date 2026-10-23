@@ -155,7 +155,7 @@ function orderByCommunityPreference(list, options = {}) {
 
 // Each page chooses from all eligible, not-yet-served IDs. Live score changes
 // and votes on earlier cards cannot shift an offset and skip unseen content.
-export function paginateMobileFeed(items, { ratingsSummary = {}, servedIds = [], limit = 12, seed = '', welcomeItems = [], authorReview = false, preferVisual = false, includeMuted = false } = {}) {
+export function paginateMobileFeed(items, { ratingsSummary = {}, servedIds = [], limit = 12, seed = '', welcomeItems = [], newcomer = false, authorReview = false, preferVisual = false, includeMuted = false } = {}) {
   const seen = new Set((Array.isArray(servedIds) ? servedIds : []).filter(id => typeof id === 'string').map(keyOf));
   const unique = new Map();
   for (const item of items) {
@@ -170,6 +170,21 @@ export function paginateMobileFeed(items, { ratingsSummary = {}, servedIds = [],
     const visualRank = item => ['QI', 'INT'].includes(String(item.imageType).toUpperCase()) ? 0 : 1;
     ordered = [...unique.values()].sort((a, b) => visualRank(a) - visualRank(b) || stableRandom(seed, a) - stableRandom(seed, b));
     feedMode = 'author-review';
+  } else if (newcomer) {
+    const rating = item => ratingsSummary[keyOf(item.imageId)] || ratingsSummary[item.imageId] || {};
+    const provenQI = item => String(item.imageType).toUpperCase() === 'QI' && Number(rating(item).total || 0) >= 3;
+    // Welcome browsing is a showcase, without discovery slots or random jitter.
+    // Exhaust proven QI first, then other rated work, then unrated fallbacks.
+    ordered = [...unique.values()].sort((a, b) => {
+      const ar = rating(a), br = rating(b);
+      return Number(provenQI(b)) - Number(provenQI(a))
+        || Number(Number(br.total || 0) >= 3) - Number(Number(ar.total || 0) >= 3)
+        || Number(br.score || 0) - Number(ar.score || 0)
+        || Number(br.movedMe || 0) - Number(ar.movedMe || 0)
+        || Number(br.total || 0) - Number(ar.total || 0)
+        || keyOf(a.imageId).localeCompare(keyOf(b.imageId));
+    });
+    feedMode = 'mobile-welcome';
   } else {
     ordered = mobilePreference([...unique.values()], ratingsSummary, { seed, preferVisual, includeMuted });
     const welcome = [...new Map(welcomeItems.filter(item => unique.has(keyOf(item.imageId))).map(item => [keyOf(item.imageId), item])).values()];

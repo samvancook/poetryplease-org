@@ -108,7 +108,7 @@ function updateFooter(state) {
 const pager = new ScrollFeedPager({
   fetchPage: (context, signal) => context.linkedItemId
     ? linkedItemPage(context.linkedItemId, id => api('contentById?' + new URLSearchParams({id}), null, signal))
-    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: 12,
+    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: swipeVariant ? 3 : 12,
     ...(swipeVariant ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
   }, signal),
   append: (items) => items.forEach(renderCard),
@@ -346,7 +346,7 @@ $('load-more').addEventListener('click', () => { automaticPages = true; pager.lo
 if ('IntersectionObserver' in window) {
   new IntersectionObserver((entries) => {
     if (entries.some((entry) => entry.isIntersecting) && automaticPages && !pager.error) pager.loadMore();
-  }, { rootMargin: '650px 0px' }).observe($('feed-footer'));
+  }, { rootMargin: swipeVariant ? '100px 0px' : '650px 0px' }).observe($('feed-footer'));
 }
 $('account-toggle').addEventListener('click', () => {
   $('account-menu').hidden = !$('account-menu').hidden;

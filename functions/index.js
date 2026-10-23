@@ -5104,12 +5104,9 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     ? filteredAll.slice().sort((a, b) => normalizeText(a.imageId).localeCompare(normalizeText(b.imageId)))
     : null;
   const servedIds = mobileFeed && Array.isArray(req.body?.servedIds) ? req.body.servedIds : [];
-  const servedKeys = new Set(servedIds.filter(id => typeof id === "string").map(normalizeKey));
-  const welcomeItems = mobileFeed && req.body?.welcome === true && !decoded?.email && !filters.author
-    ? buildWelcomeBatch(filteredNew.filter(item => !servedKeys.has(normalizeKey(item.imageId))), ratingsSummary, 12)
-    : [];
   const scrollPage = mobileFeed ? paginateMobileFeed(filteredNew, {
-    ratingsSummary, servedIds, welcomeItems, authorReview: !!filters.author,
+    ratingsSummary, servedIds, authorReview: !!filters.author,
+    newcomer: !decoded?.email || votedIds.size < 8,
     preferVisual: !decoded?.email, includeMuted: Number(req.body?.sessionVotes || 0) >= 5,
     seed: normalizeText(req.body?.scrollSeed), limit: req.body?.limit || 12,
   }) : req.body?.scroll === true ? paginateScrollFeed(filteredNew, {

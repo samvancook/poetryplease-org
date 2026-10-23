@@ -1,10 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
 import { postPermalink, sharePost, videoEmbedUrl, bindGraphicLoad } from '../public/post-cards.js';
 import { readingUrl } from '../public/poem-links.js';
 import { classicMobileTarget } from '../public/mobile-entry.js';
 
 const item = { id: 'graphic & one', title: 'A poem', author: 'A poet' };
+test('Swipe starts graphics for the visible card and its next neighbor, not the whole queue', () => {
+  const source = readFileSync(new URL('../public/posts-swipe.js', import.meta.url), 'utf8');
+  const cards = [{}, {}, {}];
+  cards[0].nextElementSibling = cards[1]; cards[1].nextElementSibling = cards[2];
+  const started = [];
+  const graphicStarts = new WeakMap(cards.map((card, i) => [card, () => started.push(i)]));
+  const load = vm.runInNewContext(source.slice(source.indexOf('function loadNearbyGraphics('), source.indexOf('\nfunction parkResponse(')) + '; loadNearbyGraphics', { graphicStarts });
+  load(cards[0]);
+  assert.deepEqual(started, [0, 1]);
+  started.length = 0;
+  load(cards[1]);
+  assert.deepEqual(started, [1, 2]);
+  cards[1].hidden = true;
+  started.length = 0;
+  load(cards[1]);
+  assert.deepEqual(started, [2]);
+});
 function graphicFixture() {
   const image = new EventTarget();
   const states = [], requests = [];
