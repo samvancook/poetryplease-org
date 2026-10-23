@@ -71,6 +71,7 @@
       <a id="contest-submissions-link" href="/admin.html" hidden>Contest submissions</a>
       <a id="final-selection-nav" href="#final-selection" hidden>Final selection</a>
       <a id="graphics-results-nav" href="#contest-graphics-panel" hidden>Winning graphics</a>
+      <a id="contest-lane-nav" target="_blank" rel="noopener" hidden>Open contest graphics lane ↗</a>
       <a id="entrant-preview" target="_blank" rel="noopener" hidden>See entrant page</a>
       <span aria-current="page">Review submissions</span>
     </nav>
@@ -705,6 +706,8 @@
       const container = document.getElementById("contest-graphics-content");
       if (!report) { container.textContent = ""; return; }
       const rows = report.selectedGraphics || [];
+      const laneNav = document.getElementById("contest-lane-nav");
+      laneNav.hidden = true;
       if (!rows.length) {
         container.innerHTML = "<p>No winner or winners-circle pieces selected yet.</p>";
         return;
@@ -715,13 +718,18 @@
         catalog: "Contest", event: report.sourceEvent || "", locked: "1", type: "QI", reading: "1", browse: "1"
       }).toString();
       const collectionUrl = collection.href;
+      if (imported.length && report.sourceEvent) {
+        laneNav.href = collectionUrl;
+        laneNav.hidden = false;
+      }
       container.innerHTML =
         '<p><strong>' + imported.length + ' of ' + rows.length + ' selected graphics have import receipts.</strong>' +
         (imported.length < rows.length ? ' The collection is incomplete; do not announce it yet.' : ' Check the public collection before announcing it.') + '</p>' +
-        '<p><a href="' + escapeHtml(collectionUrl) + '" target="_blank" rel="noopener">Review full contest collection</a></p>' +
-        '<div class="compare-toolbar"><input aria-label="Full contest collection link" readonly value="' +
+        '<p><strong>Contest graphics lane:</strong> <a href="' + escapeHtml(collectionUrl) + '" target="_blank" rel="noopener">Open all imported contest graphics in Poetry Please ↗</a></p>' +
+        '<p>Staff check: confirm each selected graphic appears in the lane before sharing this link publicly.</p>' +
+        '<div class="compare-toolbar"><input aria-label="Contest graphics lane link" readonly value="' +
           escapeHtml(collectionUrl) + '" style="flex:1;min-width:200px;">' +
-          '<button type="button" data-copy-result-link="' + escapeHtml(collectionUrl) + '">Copy collection link</button></div>' +
+          '<button type="button" data-copy-result-link="' + escapeHtml(collectionUrl) + '">Copy lane link</button></div>' +
         '<div class="table-wrap"><table class="progress-table"><thead><tr><th>Selected piece</th><th>Graphic status</th><th>Poetry Please link</th></tr></thead><tbody>' +
         rows.map((row) => {
           const ready = row.graphicsStatus === "imported" && row.graphicsContentId;
@@ -1195,6 +1203,7 @@
       const selection = document.getElementById("final-selection");
       const selectionNav = document.getElementById("final-selection-nav");
       const graphicsNav = document.getElementById("graphics-results-nav");
+      const laneNav = document.getElementById("contest-lane-nav");
       const programId = document.getElementById("program").value;
       const mailFields = document.getElementById('contest-mail-settings-fields');
       mailFields.disabled = true;
@@ -1212,6 +1221,7 @@
         selection.hidden = true;
         selectionNav.hidden = true;
         graphicsNav.hidden = true;
+        laneNav.hidden = true;
         document.getElementById("contest-submissions-link").hidden = true;
         state.adminProgress = null;
         return;
@@ -1246,6 +1256,7 @@
         selection.hidden = true;
         selectionNav.hidden = true;
         graphicsNav.hidden = true;
+        laneNav.hidden = true;
         document.getElementById("contest-submissions-link").hidden = true;
         setStatus("Contest management unavailable: " + error.message, true);
       }
