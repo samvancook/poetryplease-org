@@ -43,3 +43,38 @@ test('ranked pages do not skip or repeat when earlier votes disappear and rating
   }
   assert.equal(servedIds.length, all.length);
 });
+
+test('newcomers see proven top QI without discovery slots, minimum pool size or seed jitter', () => {
+  const items = [
+    { imageId: 'best-video', imageType: 'YT' },
+    { imageId: 'qi-second', imageType: 'QI' },
+    { imageId: 'unrated', imageType: 'QI' },
+    { imageId: 'qi-first', imageType: 'QI' },
+    { imageId: 'blocked', imageType: 'QI' },
+  ];
+  const ratingsSummary = {
+    'best-video': { score: 100, total: 50, movedMe: 50 },
+    'qi-first': { score: 20, total: 10, movedMe: 10 },
+    'qi-second': { score: 15, total: 10, movedMe: 5 },
+    blocked: { score: 200, total: 100, authorExcluded: true },
+  };
+  for (const seed of ['one', 'two']) {
+    const first = paginateMobileFeed(items, { ratingsSummary, newcomer: true, limit: 3, seed });
+    assert.equal(first.feedMode, 'mobile-welcome');
+    assert.deepEqual(first.items.map(item => item.imageId), ['qi-first', 'qi-second', 'best-video']);
+    assert.equal(first.hasMore, true);
+    const next = paginateMobileFeed(items, { ratingsSummary, newcomer: true, limit: 3,
+      servedIds: first.items.map(item => item.imageId) });
+    assert.deepEqual(next.items.map(item => item.imageId), ['unrated']);
+    assert.equal(next.hasMore, false);
+  }
+});
+
+test('newcomer showcase does not replace an author ownership review queue', () => {
+  const page = paginateMobileFeed([
+    { imageId: 'author-int', imageType: 'INT' },
+    { imageId: 'author-excerpt', imageType: 'EXC' },
+  ], { newcomer: true, authorReview: true, limit: 3 });
+  assert.equal(page.feedMode, 'author-review');
+  assert.equal(page.items[0].imageId, 'author-int');
+});

@@ -125,7 +125,7 @@ function getDialog() {
   return dialog;
 }
 
-export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRelated }) {
+export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRelated, deferGraphicLoad }) {
   const card = make('article', 'post-card');
   card.dataset.itemId = item.id;
   const trigger = make('button', 'post-open');
@@ -170,7 +170,8 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
     retry.type = 'button';
     retry.hidden = true;
     card.append(retry);
-    const loader = bindGraphicLoad(graphic, item.mediaUrl, state => {
+    let loader;
+    const start = () => loader ||= bindGraphicLoad(graphic, item.mediaUrl, state => {
       card.dataset.graphicState = state;
       // Keep lazy images in layout while loading so the browser fetches them.
       graphic.hidden = state === 'error';
@@ -178,7 +179,9 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
       message.textContent = state === 'error' ? 'Graphic could not load' : 'Loading graphic…';
       retry.hidden = state !== 'error';
     });
-    retry.addEventListener('click', () => loader.retry());
+    if (deferGraphicLoad) deferGraphicLoad(card, start);
+    else start();
+    retry.addEventListener('click', () => { start().retry(); });
   }
 
   const info = make('section', 'post-info');
