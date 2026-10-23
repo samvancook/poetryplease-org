@@ -11289,6 +11289,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       submissionId: row.id,
       title: row.title,
       authorName: normalizeText([entrant.firstName, entrant.lastName].filter(Boolean).join(" ") || row.submitterDisplayName || ""),
+      instagramHandle: normalizeText(entrant.instagramHandle || ""),
       outcomeStatus: row.contestOutcomeStatus,
       graphicsStatus: row.contestGraphicsStatus,
       graphicsRequestId: row.contestGraphicsRequestId,
