@@ -1,5 +1,29 @@
 [
   {
+    "title": "BLACK BOX FLIGHT RECORDER",
+    "author": "Aishatu Ado",
+    "releaseCatalog": "Spring 2027",
+    "bookLink": "",
+    "bookShortener": "BBFR",
+    "pubDate": "2/2/2027",
+    "titleKeys": [
+      "black box flight recorder"
+    ],
+    "authorKey": "aishatu ado"
+  },
+  {
+    "title": "Worm Girl",
+    "author": "Bleah Patterson",
+    "releaseCatalog": "Spring 2027",
+    "bookLink": "",
+    "bookShortener": "WG",
+    "pubDate": "4/6/2027",
+    "titleKeys": [
+      "worm girl"
+    ],
+    "authorKey": "bleah patterson"
+  },
+  {
     "title": "Roads",
     "author": "Matt Mason",
     "releaseCatalog": "Fall 2026",
