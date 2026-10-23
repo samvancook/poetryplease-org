@@ -455,6 +455,7 @@ export function parseDoc(snap) {
     author: d.author || "",
     title: d.title || d.poem || "",
     book: d.book || "",
+    bookShortener: d.bookShortener || "",
     imageId,
     contentId,
     imageUrl,

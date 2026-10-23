@@ -866,7 +866,11 @@ test("Future sync resolves distinct editions and blocks legacy TFLE identity col
   const limited = resolve("The Future: Limited Edition");
   assert.equal(limited.title, "The Future: Limited Edition");
   assert.equal(rows.find(r => r.bookShortener === "TFLE").title, "The Future", "global legacy metadata is unchanged");
-  const f = catalogSyncRouteFixture([{ id: "legacy", book: "The Future", bookShortener: "TFLE", poemKey: "ORIGINAL-KEY" }], [], limited);
+  const parse = catalogSyncFunction("parseDoc");
+  const stored = { book: "The Future", bookShortener: "TFLE", poemKey: "ORIGINAL-KEY" };
+  const normalized = { id: "legacy", ...parse({ id: "legacy", data: () => stored }) };
+  assert.equal(normalized.bookShortener, "TFLE", "edition evidence survives the real read boundary");
+  const f = catalogSyncRouteFixture([normalized], [], limited);
   const result = await f.call({ apply: true });
   assert.equal(result.status, 409);
   assert.equal(result.data.error, "catalog_edition_identity_conflict");
