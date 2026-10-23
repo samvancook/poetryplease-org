@@ -771,6 +771,109 @@ test("Catalog text planning leaves repeated titles, unmatched titles, and confli
   assert.equal(duplicates.skipped.length, 2);
 });
 
+test("permanent keys match retitled text and distinguish two same-title poems without changing PP titles or IDs", () => {
+  const plan = catalogSyncFunction("planExistingCatalogFullPoemUpdates");
+  const result = plan([
+    { id: "renamed", book: "Book", title: "Earlier title", poemKey: "BPP-1", excerpt: "old" },
+    { id: "first", book: "Book", title: "Sonnet", poemKey: "BPP-2", excerpt: "old" },
+    { id: "second", book: "Book", title: "Sonnet", poemKey: "BPP-3", excerpt: "old" },
+  ], [
+    { title: "New title", poem_key: "BPP-1", text: "corrected" },
+    { title: "Sonnet", poem_key: "BPP-2", text: "first corrected" },
+    { title: "Sonnet", poem_key: "BPP-3", text: "second corrected" },
+  ]);
+  assert.equal(result.skipped.length, 0);
+  assert.deepEqual(Array.from(result.updates, u => [u.id, u.title, u.excerpt]), [
+    ["renamed", "Earlier title", "corrected"], ["first", "Sonnet", "first corrected"], ["second", "Sonnet", "second corrected"],
+  ]);
+});
+
+test("duplicate permanent keys and unkeyed legacy copies cannot steal another existing identity", () => {
+  const plan = catalogSyncFunction("planExistingCatalogFullPoemUpdates");
+  const duplicate = plan([{ id: "a", title: "A", poemKey: "BPP-1" }, { id: "b", title: "B", poemKey: "BPP-1" }],
+    [{ title: "Canonical", poem_key: "BPP-1", text: "text" }]);
+  assert.equal(duplicate.updates.length, 0);
+  assert.ok(duplicate.skipped.every(r => r.reason === "ambiguous_poem_key"));
+  const legacy = plan([{ id: "keyed", title: "Old", poemKey: "BPP-1", excerpt: "same" }, { id: "legacy", title: "New", excerpt: "old" }],
+    [{ title: "New", poem_key: "BPP-1", text: "same" }]);
+  assert.equal(legacy.updates.length, 0);
+  assert.equal(legacy.skipped[0].id, "legacy");
+  assert.equal(legacy.skipped[0].reason, "missing_or_conflicting_catalog_key");
+  const duplicateSource = plan([{ id: "keyed", title: "Old", poemKey: "BPP-1" }],
+    [{ title: "A", poem_key: "BPP-1", text: "one" }, { title: "B", poem_key: "BPP-1", text: "two" }]);
+  assert.equal(duplicateSource.updates.length, 0);
+  assert.equal(duplicateSource.skipped[0].reason, "ambiguous_poem_key");
+});
+
+function catalogSyncRouteFixture(existing, poems, record = { title: "Book", author: "Author", bookShortener: "B" }) {
+  let handler, writes = 0;
+  const normalize = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const context = {
+    app: { post: (_path, fn) => { handler = fn; } }, getBoth: p => p, hasValidPoetryPleaseApiKey: () => true,
+    normalizeText: value => String(value || "").trim(), normalizeCatalogLookupKey: normalize,
+    resolveCatalogSyncBookRecord: () => record,
+    catalogSyncEditionConflicts: catalogSyncFunction("catalogSyncEditionConflicts"),
+    getAllFrom: async () => existing, COLLECTIONS: { fullPoems: "fullPoems" }, fetchCanonicalPoems: async () => poems,
+    planExistingCatalogFullPoemUpdates: catalogSyncFunction("planExistingCatalogFullPoemUpdates"),
+    sanitizeDocIdSegment: value => value, slugify: value => value.toLowerCase().replace(/\W+/g, "-"),
+    sha256: value => createHash("sha256").update(value).digest("hex"),
+    canonicalPoemCountCache: new Map(), getAuthorVoteUserIds: async () => new Set(),
+    applyCatalogFullPoemTextUpdate: async () => { writes++; return {}; },
+    upsertContentLibraryItem: async () => { writes++; return { created: true }; },
+    invalidateContentCache: async () => {}, invalidateFlaggedContentCache() {}, invalidateRatingsSnapshot() {}, invalidateScoreboardSnapshot: async () => {}, console,
+  };
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf('app.post(getBoth("/internal/catalogFullPoemSync")');
+  runInNewContext(source.slice(start, source.indexOf('app.post(getBoth("/admin/contentLibrary/weaverImport")', start)), context);
+  return { get writes() { return writes; }, call: async body => {
+    let status = 200, data;
+    await handler({ body: { book: record.title, updateExisting: true, addMissing: false, preserveReviews: true, ...body } },
+      { status(code) { status = code; return this; }, json(result) { data = JSON.parse(JSON.stringify(result)); } });
+    return { status, data };
+  } };
+}
+
+test("keyed retitles are not missing creations and review policy is bound to the apply hash", async () => {
+  const f = catalogSyncRouteFixture([{ id: "stable", book: "Book", title: "Old", poemKey: "BPP-1", excerpt: "old" }],
+    [{ title: "New", poem_key: "BPP-1", text: "new" }]);
+  const dry = await f.call({});
+  assert.equal(dry.data.missingFpCount, 0);
+  assert.equal(dry.data.plannedUpdateCount, 1);
+  const changedPolicy = await f.call({ preserveReviews: false, apply: true, planHash: dry.data.planHash });
+  assert.equal(changedPolicy.status, 409);
+  assert.equal(f.writes, 0);
+  const applied = await f.call({ apply: true, planHash: dry.data.planHash });
+  assert.equal(applied.data.appliedCount, 1);
+  assert.equal(f.writes, 1);
+});
+
+test("ambiguous matches and missing records stop the book before any write", async () => {
+  for (const existing of [[{ id: "unknown", book: "Book", title: "Unknown", excerpt: "old" }], []]) {
+    const f = catalogSyncRouteFixture(existing, [{ title: "Known", poem_key: "BPP-1", text: "new" }]);
+    const dry = await f.call({});
+    const applied = await f.call({ apply: true, planHash: dry.data.planHash });
+    assert.equal(applied.status, 409);
+    assert.equal(applied.data.error, "catalog_matches_require_review");
+    assert.equal(f.writes, 0);
+  }
+});
+
+test("Future sync resolves distinct editions and blocks legacy TFLE identity collisions", async () => {
+  const rows = JSON.parse(readFileSync(new URL("./book-catalog-lookup.json", import.meta.url), "utf8"));
+  const resolve = catalogSyncFunction("resolveCatalogSyncBookRecord", { BOOK_CATALOG_LOOKUP_ROWS: rows,
+    resolveCatalogBookRecord: ({ book }) => ({ title: book }) });
+  assert.equal(resolve("The Future").bookShortener, "TF");
+  const limited = resolve("The Future: Limited Edition");
+  assert.equal(limited.title, "The Future: Limited Edition");
+  assert.equal(rows.find(r => r.bookShortener === "TFLE").title, "The Future", "global legacy metadata is unchanged");
+  const f = catalogSyncRouteFixture([{ id: "legacy", book: "The Future", bookShortener: "TFLE", poemKey: "ORIGINAL-KEY" }], [], limited);
+  const result = await f.call({ apply: true });
+  assert.equal(result.status, 409);
+  assert.equal(result.data.error, "catalog_edition_identity_conflict");
+  assert.equal(result.data.resolvedBook, "The Future: Limited Edition");
+  assert.equal(f.writes, 0);
+});
+
 function catalogSyncTransactionFixture({ excerpt = "old text", book = "Book" } = {}) {
   const rows = new Map([
     ["fullPoems/stable", { imageId: "stable", book, title: "Poem", excerpt, driveLink: "keep", releaseYear: "2026", sourceRecordId: "original-source" }],
