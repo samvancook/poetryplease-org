@@ -731,6 +731,7 @@
           return '<tr><td><strong>' + escapeHtml(row.outcomeStatus === "winner" ? "Winner" : "Winners circle") +
             '</strong><br>' + escapeHtml(row.title || "Untitled submission") +
             (row.authorName ? '<br><small>' + escapeHtml(row.authorName) + '</small>' : "") +
+            '<br><small>Submitted Instagram: ' + escapeHtml(row.instagramHandle || "not provided") + '</small>' +
             '</td><td>' + escapeHtml(ready ? "Imported — review before sharing" : row.graphicsStatus || "Awaiting graphics") +
             (row.graphicsRequestId ? '<br><small>Request: ' + escapeHtml(row.graphicsRequestId) + '</small>' : "") +
             '</td><td>' + (ready
