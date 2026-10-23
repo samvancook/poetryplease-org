@@ -175,11 +175,11 @@ export function paginateMobileFeed(items, { ratingsSummary = {}, servedIds = [],
     const provenQI = item => String(item.imageType).toUpperCase() === 'QI' && Number(rating(item).total || 0) >= 3;
     // Welcome browsing is a showcase, without discovery slots or random jitter.
     // Exhaust proven QI first, then other rated work, then unrated fallbacks.
-    ordered = [...unique.values()].sort((a, b) => {
+    ordered = mobilePreference([...unique.values()], ratingsSummary, { seed, random: () => .5 }).sort((a, b) => {
       const ar = rating(a), br = rating(b);
       return Number(provenQI(b)) - Number(provenQI(a))
         || Number(Number(br.total || 0) >= 3) - Number(Number(ar.total || 0) >= 3)
-        || Number(br.score || 0) - Number(ar.score || 0)
+        || b.__feedSignals.feedScore - a.__feedSignals.feedScore
         || Number(br.movedMe || 0) - Number(ar.movedMe || 0)
         || Number(br.total || 0) - Number(ar.total || 0)
         || keyOf(a.imageId).localeCompare(keyOf(b.imageId));
