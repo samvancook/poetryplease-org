@@ -11,6 +11,11 @@
   <link rel="stylesheet" href="/posts-continuous.css?v=20261020a">
   <link rel="stylesheet" href="/posts-swipe.css?v=20261020c">
   <link rel="stylesheet" href="/posts-swipe-outline.css?v=20261020a">
+  <style>
+    .contest-winners-promo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 12px 10px;padding:10px 12px;border:1px solid #b9c9c9;border-radius:12px;background:#e4eff0;color:#234c52;text-decoration:none;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+    .contest-winners-promo strong{display:block;font-size:14px}
+    .contest-winners-promo .arrow{font-size:20px;line-height:1}
+  </style>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <script>
@@ -27,6 +32,7 @@
   <a class="skip-link" href="#feed">Skip to posts</a>
   <header class="site-header">
     <div class="topline"><a class="brand" href="/m">Poetry, Please</a><span class="variant">Swipe</span><button id="account-toggle" type="button" aria-expanded="false" aria-controls="account-menu">Account</button></div>
+    <a class="contest-winners-promo" href="/m?catalog=Contest&amp;event=Button+Poetry%27s+Fall+2026+Short+Form+Contest&amp;locked=1&amp;type=QI&amp;reading=1&amp;browse=1"><span><strong>Meet the short-form contest winners</strong>Swipe through the winning poems</span><span class="arrow" aria-hidden="true">→</span></a>
     <div id="account-menu" class="account-menu" hidden><p id="account-status">Checking account…</p><button id="sign-in" type="button">Sign in with Google</button><button id="sign-out" type="button" hidden>Sign out</button><a id="original-view" href="/m-classic">Single-item view</a><a href="/posts-continuous">Continuous posts</a></div>
   </header>
   <dialog id="image-viewer" aria-labelledby="image-viewer-title">
