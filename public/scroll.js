@@ -11,6 +11,10 @@ $('original-view').href = '/m-classic';
 const postVariant = document.body.dataset.feedVariant === 'posts';
 const swipeVariant = document.body.dataset.feedMode === 'swipe';
 const linkedItemId = swipeVariant ? String(initial.get('item') || '').trim() : '';
+const contestEvent = swipeVariant && initial.get('catalog') === 'Contest' && initial.get('type')?.toUpperCase() === 'QI'
+  && initial.get('locked') === '1' && initial.get('reading') === '1'
+  ? String(initial.get('event') || '').trim() : '';
+const contestReading = !!contestEvent && !linkedItemId;
 const outlineReviewIcon = document.body.dataset.reviewIcons === 'outline'
   ? (await import('./review-icons.js')).createReviewIcon : null;
 const votes = [['moved me', '❤️', 'Love'], ['meh', '😐', 'Meh'], ['like', '👍', 'Like'], ['dislike', '👎', 'Dislike']];
@@ -23,6 +27,11 @@ let sessionVotes = 0;
 let welcomeCalibrated = (() => { try { return localStorage.getItem('pp_welcome_calibrated') === '1'; } catch { return false; } })();
 // The scroll view has one mixed feed. URL lane/book filters are intentionally ignored.
 let filters = { type: 'PROMO', author: '' };
+if (contestReading) {
+  document.querySelector('.site-header .variant').textContent = 'Short-form winners';
+  const promo = document.querySelector('.contest-winners-promo');
+  if (promo) { promo.href = '/m'; promo.textContent = '← Back to Poetry Please Swipe'; }
+}
 const anonymousId = (() => {
   try {
     const saved = localStorage.getItem('pp_anon');
@@ -54,6 +63,7 @@ function node(tag, className, text) {
 function isStaff() { return account?.roles?.some((role) => role === 'team' || role === 'admin'); }
 function isAuthorOnly() { return account?.roles?.includes('author') && !isStaff(); }
 function routeFilters() {
+  if (contestReading) return { catalog: 'Contest', event: contestEvent, type: 'QI', locked: '1', reading: '1' };
   return { author: filters.author, ...(initial.get('authorPreview') === '1' && isStaff() ? { authorPreview: '1', locked: '1' } : {}) };
 }
 function updateRoute() {
@@ -103,13 +113,13 @@ function updateFooter(state) {
   $('load-more').disabled = state.loading;
   $('load-more').textContent = state.error ? 'Retry loading' : 'Load more';
   $('feed-status').textContent = state.loading ? 'Loading more…' : state.error ? state.error.message :
-    state.hasMore ? 'More below' : linkedItemId && state.seen.size ? 'You’re viewing a linked item.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.';
+    state.hasMore ? 'More below' : contestReading && state.seen.size ? 'You’ve reached the end of the winners collection.' : linkedItemId && state.seen.size ? 'You’re viewing a linked item.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.';
 }
 const pager = new ScrollFeedPager({
   fetchPage: (context, signal) => context.linkedItemId
     ? linkedItemPage(context.linkedItemId, id => api('contentById?' + new URLSearchParams({id}), null, signal))
-    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: swipeVariant ? 3 : 12,
-    ...(swipeVariant ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
+    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: swipeVariant && !contestReading ? 3 : 12,
+    ...(swipeVariant && !contestReading ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
   }, signal),
   append: (items) => items.forEach(renderCard),
   changed: updateFooter,
@@ -382,8 +392,10 @@ auth.onAuthStateChanged(async (user) => {
       if (!ownAuthor) throw new Error('Your author profile could not be resolved. Please use the single-item view for now.');
     }
     // Author ownership and explicit staff preview are access scopes, not browsing filters.
-    filters = { type: 'PROMO', author: ownAuthor };
-    if (isStaff() && initial.get('authorPreview') === '1') {
+    filters = contestReading
+      ? { type: 'QI', catalog: 'Contest', event: contestEvent, eventReading: true, author: '' }
+      : { type: 'PROMO', author: ownAuthor };
+    if (!contestReading && isStaff() && initial.get('authorPreview') === '1') {
       const previewAuthor = String(initial.get('author') || '').trim();
       if (!previewAuthor) throw new Error('An author is required for author preview. Please use the single-item view.');
       filters.author = previewAuthor;
