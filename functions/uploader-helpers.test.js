@@ -1,3 +1,5 @@
+import './graphic-asset-set.test.js';
+import { normalizeGraphicAssetSet } from './graphic-asset-set.js';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -1042,7 +1044,7 @@ test("new Catalog FPs retain distinct permanent keys through the actual payload 
   const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
   const start = source.indexOf("function buildContentDocPayload(");
   const build = runInNewContext(source.slice(start, source.indexOf("\nfunction collectionForContentType", start)) + "; buildContentDocPayload", {
-    FieldValue: { serverTimestamp: () => "now" }, normalizeText: v => String(v || "").trim(),
+    normalizeGraphicAssetSet, FieldValue: { serverTimestamp: () => "now" }, normalizeText: v => String(v || "").trim(),
     deriveContentDocId: (_type, body) => body.docId,
   });
   const poems = [

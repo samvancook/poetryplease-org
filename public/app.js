@@ -1,3 +1,4 @@
+import { graphicCards, mountGraphicCardControls } from './graphic-asset-set.js';
 // ================================
 // Poetry, Please — APP.JS (Desktop + Mobile split ready)
 // ================================
@@ -2588,6 +2589,7 @@ function mapGraphic(g){
       socialDislikes: Number(g[14] || 0) || 0,
       sourceEvent: g[15] || '',
       sourceEventLabel: g[16] || '',
+      assetSet: g[17] || null,
       author: g[0] || '',
       title: g[1] || '',
       book: g[2] || '',
@@ -2603,6 +2605,7 @@ function mapGraphic(g){
     releaseCatalog: g?.releaseCatalog ?? '',
     sourceEvent: g?.sourceEvent ?? '',
     sourceEventLabel: g?.sourceEventLabel ?? '',
+    assetSet: g?.assetSet || null,
     imageType: g?.imageType ?? '',
     excerpt: g?.excerpt ?? '',
     author: g?.author ?? '',
@@ -3906,6 +3909,11 @@ function renderItemMedia(item) {
   }
 
   attachPinchZoomToImage_(img);
+  mountGraphicCardControls(box, graphicCards(item.assetSet), (asset, index) => {
+    img.style.transform = '';
+    img.src = asset.assetPreviewUrl || asset.assetUrl;
+    img.alt = `${item.title || 'Graphic'} — card ${index + 1}`;
+  });
 }
  else { const p=document.createElement('p'); p.textContent='No media available for this item.'; box.appendChild(p); }
 

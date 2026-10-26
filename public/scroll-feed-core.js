@@ -4,7 +4,7 @@ export function normalizeScrollItem(row) {
   if (!id) return null;
   return { author: String(author || ''), title: String(title || ''), book: String(book || ''),
     id: String(id), mediaUrl: safeMediaUrl(mediaUrl), bookUrl: safeMediaUrl(bookUrl),
-    catalog: String(catalog || ''), type: String(type || '').toUpperCase(), text: String(text || '') };
+    catalog: String(catalog || ''), type: String(type || '').toUpperCase(), text: String(text || ''), assetSet: row[17] || null };
 }
 
 export function safeMediaUrl(value) {

@@ -4996,6 +4996,14 @@
       }
     }
 
+    function graphicSetPreview(cards, label) {
+      if (!Array.isArray(cards) || !cards.length) return '';
+      return `<details><summary>${escapeHtml(label)} · ${cards.length} cards</summary>` + cards.map(card => {
+        const url = card.assetPreviewUrl || card.assetUrl || '';
+        return /^https:\/\//i.test(url) ? `<figure style="margin:8px 0"><figcaption>Card ${Number(card.index)}</figcaption><img src="${escapeHtml(url)}" alt="Card ${Number(card.index)}" loading="lazy" style="max-width:100%;max-height:420px;object-fit:contain" /></figure>` : '';
+      }).join('') + '</details>';
+    }
+
     function renderFlags() {
       const container = document.getElementById('flag-review-list');
       const statusEl = document.getElementById('flag-review-status');
@@ -5043,10 +5051,10 @@
               const expanded = state.expandedFlagId === flag.id;
               const imageType = String(flag.imageType || '').toUpperCase();
               const isVideo = ['VV', 'YT', 'VIDEO', 'HV'].includes(imageType);
-              const canReplace = !['EXC', 'FP', 'VV', 'YT', 'VIDEO', 'HV'].includes(imageType);
+              const canReplace = !flag.assetSet?.length && !['EXC', 'FP', 'VV', 'YT', 'VIDEO', 'HV'].includes(imageType);
               const canEditText = ['EXC', 'FP'].includes(imageType) && flag.status === 'pending'
                 && !['requested', 'in_progress'].includes(flag.repairStatus);
-              const imagePreview = flag.currentImageUrl && !isVideo
+              const imagePreview = flag.assetSet?.length ? graphicSetPreview(flag.assetSet, 'Current cards') : flag.currentImageUrl && !isVideo
                 ? `<img src="${escapeHtml(flag.currentImageUrl)}" alt="Current asset for ${escapeHtml(flag.title || flag.imageId || 'content')}" loading="lazy" />`
                 : '';
               const textPreview = String(flag.currentExcerpt || '').trim()
@@ -5148,6 +5156,9 @@
                 <strong>${escapeHtml(row.acceptedCorrectedTitle || row.title || row.imageId || 'Untitled content')}</strong>
                 <div class="meta">${escapeHtml(row.author || '—')} · ${escapeHtml(row.book || '—')} · ${escapeHtml(row.contentType || '—')}</div>
                 ${row.replacementAssetLink ? `<div class="meta"><a href="${escapeHtml(row.replacementAssetLink)}" target="_blank" rel="noopener noreferrer">Open returned asset</a></div>` : ''}
+                ${graphicSetPreview(row.assetSet, 'Original cards')}
+                ${graphicSetPreview(row.replacementAssetSet, 'Returned cards')}
+                ${row.affectedCardIndex ? `<div class="meta">Repair targets card ${Number(row.affectedCardIndex)}</div>` : ''}
                 ${row.replacementAssetSource === 'status_note' ? '<div class="status error" style="margin-top:8px;">Replacement metadata recovered from a legacy status note; Weaver should send structured asset fields.</div>' : ''}
                 ${['returned', 'resolved'].includes(row.status) && row.replacementAssetSource === 'missing' ? '<div class="status error" style="margin-top:8px;">Returned repair is missing replacement asset metadata.</div>' : ''}
               </td>
@@ -5655,7 +5666,17 @@
       statusEl.textContent = `${decision === 'approved' ? 'Keeping content' : (decision === 'recreate' ? 'Creating repair request' : (decision === 'delete' ? 'Deleting content' : 'Marking updated'))}…`;
       statusEl.className = 'status';
       try {
-        await api(`admin/contentFlags/${flagId}/review`, { method: 'POST', body: { decision, note } });
+        const body = { decision, note };
+        const flag = state.flags.find(row => row.id === flagId);
+        if (decision === 'recreate' && flag?.assetSet?.length > 1) {
+          const card = window.prompt(`Which card needs repair (1–${flag.assetSet.length})? Leave empty to repair the whole set.`, '');
+          if (card === null) return;
+          if (card.trim()) {
+            body.affectedCardIndex = Number(card);
+            if (!Number.isInteger(body.affectedCardIndex) || body.affectedCardIndex < 1 || body.affectedCardIndex > flag.assetSet.length) throw new Error('Enter a valid card number.');
+          }
+        }
+        await api(`admin/contentFlags/${flagId}/review`, { method: 'POST', body });
         await loadFlags();
       } catch (err) {
         console.error(err);
