@@ -4,7 +4,10 @@ export function classicMobileTarget(pathname, search = '') {
   if (pathname.replace(/\/+$/, '') !== '/m') return '';
   const params = new URLSearchParams(search);
   const authorPreview = params.get('authorPreview') === '1' && !!params.get('author')?.trim();
-  const swipeScope = new Set(authorPreview ? ['author', 'authorPreview', 'locked'] : []);
+  const contestReading = params.get('catalog') === 'Contest' && params.get('type')?.toUpperCase() === 'QI'
+    && !!params.get('event')?.trim() && params.get('locked') === '1' && params.get('reading') === '1';
+  const swipeScope = new Set(authorPreview ? ['author', 'authorPreview', 'locked']
+    : contestReading ? ['catalog', 'event', 'type', 'locked', 'reading', 'browse'] : []);
   if (params.get('item')?.trim()) swipeScope.add('item');
   const tracking = new Set(['fbclid', 'gclid', 'msclkid']);
   for (const key of params.keys()) {
