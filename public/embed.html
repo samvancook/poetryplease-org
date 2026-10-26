@@ -155,6 +155,7 @@
       const book = (params.get("book") || "").trim();
       const catalog = (params.get("catalog") || "").trim();
       const type = (params.get("type") || "").trim();
+      const contestEvent = (params.get("event") || "").trim();
       const prefer = (params.get("prefer") || "").trim();
       const month = new Date().toISOString().slice(0, 7);
       const stage = document.getElementById("stage");
@@ -169,6 +170,15 @@
       const text = (value) => String(value || "").trim();
       const typeKey = (item) => text(item && item.imageType).toUpperCase();
       const deepLink = (item) => {
+        if (catalog === "Contest" && type.toUpperCase() === "QI" && contestEvent) {
+          const winners = new URL("/posts-swipe", location.origin);
+          winners.searchParams.set("catalog", catalog);
+          winners.searchParams.set("event", contestEvent);
+          winners.searchParams.set("type", type);
+          winners.searchParams.set("locked", "1");
+          winners.searchParams.set("reading", "1");
+          return winners.pathname + winners.search;
+        }
         const targetBook = text(item && item.book) || book;
         const targetCatalog = text(item && item.releaseCatalog) || catalog;
         const target = new URL("/app", location.origin);
@@ -306,6 +316,7 @@
       endpoint.searchParams.set("embedVersion", "3");
       if (catalog) endpoint.searchParams.set("catalog", catalog);
       if (type) endpoint.searchParams.set("type", type);
+      if (contestEvent) endpoint.searchParams.set("event", contestEvent);
       if (prefer) endpoint.searchParams.set("prefer", prefer);
 
       fetch(endpoint, { headers: { Accept: "application/json" } })
