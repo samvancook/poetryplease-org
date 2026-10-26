@@ -278,15 +278,17 @@
         const title = text(item.title) || "Untitled";
         const author = text(item.author);
         const itemBook = text(item.book) || book;
+        const contestName = catalog.toLowerCase() === "contest" ? contestEvent : "";
+        const sourceLabel = contestName || (itemBook ? "from " + itemBook : "");
         metaTitle.textContent = title;
         metaByline.textContent = [
           author ? "by " + author : "",
-          itemBook ? "from " + itemBook : ""
+          sourceLabel
         ].filter(Boolean).join(" · ");
         metadata.dataset.visible = "true";
         stage.dataset.state = "ready";
-        stage.setAttribute("aria-label", ["Open", title, author ? "by " + author : "", itemBook ? "from " + itemBook : "", "in Poetry Please"].filter(Boolean).join(" "));
-        stage.title = [title, author, itemBook].filter(Boolean).join(" — ");
+        stage.setAttribute("aria-label", ["Open", title, author ? "by " + author : "", sourceLabel, "in Poetry Please"].filter(Boolean).join(" "));
+        stage.title = [title, author, contestName || itemBook].filter(Boolean).join(" — ");
       }
 
       function openCurrent() {
