@@ -22,17 +22,17 @@
     firebase.initializeApp({apiKey:'AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8',authDomain:'poetry-please.firebaseapp.com',projectId:'poetry-please',appId:'1:609992589187:web:ea8aed51a08c3716b880b6'});
   </script>
   <script type="module">
-    import { classicMobileTarget } from '/mobile-entry.js';
+    import { classicMobileTarget } from '/mobile-entry.js?v=20261026-native-winners';
     const target = classicMobileTarget(location.pathname, location.search);
     if (target) location.replace(target + location.hash);
-    else import('/scroll.js?v=20261022a');
+    else import('/scroll.js?v=20261026-native-winners');
   </script>
 </head>
 <body data-feed-variant="posts" data-feed-mode="swipe" data-review-icons="outline" class="posts-continuous posts-swipe posts-swipe-outline">
   <a class="skip-link" href="#feed">Skip to posts</a>
   <header class="site-header">
     <div class="topline"><a class="brand" href="/m">Poetry, Please</a><span class="variant">Swipe</span><button id="account-toggle" type="button" aria-expanded="false" aria-controls="account-menu">Account</button></div>
-    <a class="contest-winners-promo" href="/m?catalog=Contest&amp;event=Button+Poetry%27s+Fall+2026+Short+Form+Contest&amp;locked=1&amp;type=QI&amp;reading=1&amp;browse=1"><span><strong>Meet the short-form contest winners</strong>Swipe through the winning poems</span><span class="arrow" aria-hidden="true">→</span></a>
+    <a class="contest-winners-promo" href="/posts-swipe?catalog=Contest&amp;event=Button+Poetry%27s+Fall+2026+Short+Form+Contest&amp;locked=1&amp;type=QI&amp;reading=1&amp;browse=1"><span><strong>Meet the short-form contest winners</strong>Swipe through the winning poems</span><span class="arrow" aria-hidden="true">→</span></a>
     <div id="account-menu" class="account-menu" hidden><p id="account-status">Checking account…</p><button id="sign-in" type="button">Sign in with Google</button><button id="sign-out" type="button" hidden>Sign out</button><a id="original-view" href="/m-classic">Single-item view</a><a href="/posts-continuous">Continuous posts</a></div>
   </header>
   <dialog id="image-viewer" aria-labelledby="image-viewer-title">
