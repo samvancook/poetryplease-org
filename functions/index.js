@@ -1,3 +1,4 @@
+import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate } from "./graphic-asset-set.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -459,6 +460,7 @@ export function parseDoc(snap) {
     imageId,
     contentId,
     imageUrl,
+    assetSet: d.assetSet || null,
     videoUrl: d.videoUrl || "",
     youtubeUrl: d.youtubeUrl || "",
     thumbnailUrl: d.thumbnailUrl || "",
@@ -1566,6 +1568,7 @@ function mapToArr(o) {
     Number(o.socialDislikes || 0) || 0,
     o.sourceEvent || "",
     o.sourceEventLabel || "",
+    o.assetSet || null,
   ];
 }
 
@@ -2117,6 +2120,9 @@ function mapWeaverGraphicRecord(record, options = {}) {
     sourceTool: firstNonEmpty(record.sourceTool, parent.sourceTool),
     sourceRecordId: firstNonEmpty(record.sourceRecordId, parent.sourceRecordId, record.id, parent.id),
     sourceSystem: firstNonEmpty(record.sourceSystem, parent.sourceSystem, "weaver"),
+    pigProjectId: normalizeText(record.pigProjectId),
+    editableProjectFileId: normalizeText(record.editableProjectFileId),
+    editableProjectUrl: normalizeText(record.editableProjectUrl),
     bookShortener: sanitizeDocIdSegment(firstNonEmpty(
       record.bookShortener,
       parent.bookShortener,
@@ -2140,6 +2146,7 @@ function mapWeaverGraphicRecord(record, options = {}) {
       firstExcerpt.poem
     ),
     imageUrl,
+    assetSet: normalizeGraphicAssetSet(record.assetSet),
     driveLink: firstNonEmpty(
       record.assetLinkUrl,
       record.driveLink,
@@ -4018,6 +4025,7 @@ function mapAdminContentDoc(collection, doc) {
     thumbnailUrl: data.thumbnailUrl || "",
     duration: data.duration || "",
     channel: data.channel || "",
+    assetSet: data.assetSet || null,
     imageUrl: data.imageUrl || data.thumbnailUrl || data.url || "",
     driveLink: data.driveLink || "",
     bookLink: data.bookLink || "",
@@ -4141,6 +4149,9 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   const sourceDriveFileId = normalizeText(body.sourceDriveFileId);
   if (sourceSystem) payload.sourceSystem = sourceSystem;
   if (sourceRecordId) payload.sourceRecordId = sourceRecordId;
+  for (const field of ["sourceRequestId", "sourceCompletionId", "pigProjectId", "editableProjectFileId", "editableProjectUrl"]) {
+    if (normalizeText(body[field])) payload[field] = normalizeText(body[field]);
+  }
   if (normalizeText(body.sourceSubmissionId)) payload.sourceSubmissionId = normalizeText(body.sourceSubmissionId);
   if (normalizeText(body.sourceProgramId)) payload.sourceProgramId = normalizeText(body.sourceProgramId);
   if (sourceDriveFileId) payload.sourceDriveFileId = sourceDriveFileId;
@@ -4158,6 +4169,7 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.title = normalizeText(body.title);
     payload.imageId = docId;
     payload.imageUrl = normalizeText(options.imageUrl || body.imageUrl);
+    if (body.assetSet != null) payload.assetSet = normalizeGraphicAssetSet(body.assetSet);
     payload.misc = normalizeText(body.misc);
     if (normalizeText(body.pageNumber)) payload.pageNumber = normalizeText(body.pageNumber);
     if (normalizeText(body.bookShortener)) payload.bookShortener = normalizeText(body.bookShortener);
@@ -4283,6 +4295,23 @@ async function resolveContentRefForDelete(collection, requestedId, type) {
   return null;
 }
 
+async function hostGraphicAssetSet(cards, previous = [], id = "") {
+  const hosted = [];
+  for (const card of cards) {
+    const prior = previous.find(row => row.index === card.index && row.assetUrl === card.assetUrl && row.assetFileId === card.assetFileId);
+    let preview = prior?.assetPreviewUrl;
+    if (!preview) {
+      const remote = await fetchRemoteMediaResponse(card.assetUrl, UPLOAD_RULES.libraryGraphic, {});
+      const storagePath = `content-library/graphics/${normalizeKey(id)}/${Date.now()}-card-${card.index}.${remote.extension}`;
+      const stored = await streamRemoteMediaToStorage({ sourceUrl: card.assetUrl, storagePath,
+        rules: UPLOAD_RULES.libraryGraphic, body: {}, remoteMedia: remote });
+      preview = stored.publicUrl;
+    }
+    hosted.push({ ...card, assetPreviewUrl: preview });
+  }
+  return hosted;
+}
+
 async function upsertContentLibraryItem(type, body = {}, actor = {}) {
   const collection = collectionForContentType(type);
   if (!collection) {
@@ -4317,8 +4346,17 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
     throw err;
   }
 
+  const incomingAssetSet = normalizeKey(type) === "graphics" ? normalizeGraphicAssetSet(body.assetSet) : null;
+  if (!incomingAssetSet && existing.assetSet?.length > 1 && body.sourceSystem === "weaver") {
+    const error = new Error("asset_set_required_for_existing_multicard"); error.status = 409; throw error;
+  }
+  if (incomingAssetSet && !["QI", "FPI"].includes(normalizeText(body.imageType).toUpperCase())) {
+    const error = new Error("asset_set_content_type_not_supported"); error.status = 400; throw error;
+  }
+  const preparedAssetSet = incomingAssetSet
+    ? await hostGraphicAssetSet(incomingAssetSet, existing.assetSet || [], pendingDocId) : null;
   let uploadImageUrl = "";
-  if (normalizeKey(type) === "graphics" && normalizeText(body?.base64Data)) {
+  if (!incomingAssetSet && normalizeKey(type) === "graphics" && normalizeText(body?.base64Data)) {
     const upload = parseBase64Upload(body, UPLOAD_RULES.replacementImage);
     const storagePath = `content-library/graphics/${normalizeKey(pendingDocId)}/${Date.now()}.${upload.extension}`;
     const { publicUrl } = await saveImageUpload({
@@ -4346,7 +4384,7 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
       createdAt: FieldValue.serverTimestamp(),
     });
   }
-  if (normalizeKey(type) === "graphics" && !uploadImageUrl) {
+  if (!incomingAssetSet && normalizeKey(type) === "graphics" && !uploadImageUrl) {
     const sourceUrl = normalizeText(body?.driveLink || body?.assetLinkUrl || body?.imageUrl || body?.url);
     const currentImageUrl = normalizeText(existing.imageUrl || "");
     const preserveProvidedImageUrl = normalizeKey(body?.remoteIngestMode) === "preserve_image_url"
@@ -4485,6 +4523,8 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
   if (normalizeKey(type) === "excerpts") {
     Object.assign(built.payload, await lookupExcerptPoemKey(built.payload, existing, fetchExcerptPoemKeyRows));
   }
+  if (preparedAssetSet) Object.assign(built.payload, { assetSet: preparedAssetSet,
+    imageUrl: preparedAssetSet[0].assetPreviewUrl, driveLink: preparedAssetSet[0].assetUrl });
   await ref.set({
     ...existing,
     ...built.payload,
@@ -7047,6 +7087,7 @@ app.get(getBoth("/admin/contentFlags"), async (req, res) => {
       return {
         id: doc.id,
         ...(data || {}),
+        assetSet: current?.assetSet || null,
         currentImageUrl: current?.imageUrl || data.currentImageUrl || "",
         currentExcerpt: current?.excerpt || data.currentExcerpt || data.excerpt || "",
         currentTitle: current?.poem || current?.title || data.title || "",
@@ -7814,6 +7855,7 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
         ok: true,
         id: result.item?.id || "",
         created: !!result.created,
+        ...(result.item?.assetSet ? { assetCount: result.item.assetSet.length, assetSet: result.item.assetSet } : {}),
         promotedDuplicate: promotedDuplicateItems.includes(item),
         duplicateOfImageId: item.primaryImageId || "",
       });
@@ -9012,7 +9054,28 @@ app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res)
     update.returnReviewNote = "";
     update.returnedAt = FieldValue.serverTimestamp();
   }
+  let replacementAssetSet;
+  try {
+    const original = snap.data() || {};
+    if (req.body?.affectedCardIndex != null && req.body.affectedCardIndex !== original.affectedCardIndex) {
+      return res.status(409).json({ error: "affected_card_index_changed" });
+    }
+    replacementAssetSet = status === "returned" ? repairAssetSetUpdate(original.assetSet, req.body?.assetSet, original.affectedCardIndex) : null;
+  } catch (error) { return res.status(error.status || 400).json({ error: error.message }); }
+  if (replacementAssetSet) {
+    try {
+      replacementAssetSet = await hostGraphicAssetSet(replacementAssetSet, snap.data()?.assetSet || [], snap.data()?.imageId || requestId);
+    } catch (error) { return res.status(error.status || 502).json({ error: error.message || "replacement_asset_ingest_failed" }); }
+    if (!["QI", "FPI"].includes(normalizeText(snap.data()?.contentType).toUpperCase())) {
+      return res.status(400).json({ error: "asset_set_content_type_not_supported" });
+    }
+    update.replacementAssetSet = replacementAssetSet;
+  }
   const returnedAssets = extractReturnedRepairAssetFields(req.body || {}, note);
+  if (replacementAssetSet) {
+    returnedAssets.replacementAssetLink = replacementAssetSet[0].assetPreviewUrl || replacementAssetSet[0].assetUrl;
+    returnedAssets.replacementAssetId = replacementAssetSet[0].assetFileId;
+  }
   if (returnedAssets.replacementAssetId) update.replacementAssetId = returnedAssets.replacementAssetId;
   if (returnedAssets.replacementAssetLink) update.replacementAssetLink = returnedAssets.replacementAssetLink;
   ["weaverJobId", "pigJobId"].forEach((field) => {
@@ -9159,6 +9222,13 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
         return { error: "too_many_reviews_to_reopen", status: 409 };
       }
       const original = currentContent.data() || {};
+      let nextAssetSet;
+      try {
+        if (request.assetSet && JSON.stringify(original.assetSet) !== JSON.stringify(request.assetSet)) {
+          return { error: "repair_asset_set_changed", status: 409 };
+        }
+        nextAssetSet = repairAssetSetUpdate(request.assetSet, request.replacementAssetSet, request.affectedCardIndex);
+      } catch (error) { return { error: error.message, status: error.status || 400 }; }
       const previousAssetLink = normalizeText(
         original.imageUrl
         || original.driveLink
@@ -9169,8 +9239,9 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
       );
       transaction.set(contentRef, {
         ...(correctedTitle ? { title: correctedTitle } : {}),
-        imageUrl: currentReturnedAssets.replacementAssetLink,
-        driveLink: currentReturnedAssets.replacementAssetLink,
+        ...(nextAssetSet ? { assetSet: nextAssetSet, previousAssetSet: original.assetSet || null } : {}),
+        imageUrl: nextAssetSet ? (nextAssetSet[0].assetPreviewUrl || nextAssetSet[0].assetUrl) : currentReturnedAssets.replacementAssetLink,
+        driveLink: nextAssetSet ? nextAssetSet[0].assetUrl : currentReturnedAssets.replacementAssetLink,
         replacementAssetId: currentReturnedAssets.replacementAssetId || "",
         previousAssetLink,
         activeRepairRequestId: requestId,
@@ -9868,6 +9939,11 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
   if (decision === "recreate") {
     const repairRef = db.collection(COLLECTIONS.contentRepairRequests).doc();
     const content = contentRecord?.data || {};
+    let assetSet, affectedCardIndex;
+    try {
+      assetSet = normalizeGraphicAssetSet(content.assetSet);
+      affectedCardIndex = validateAffectedCardIndex(req.body?.affectedCardIndex, assetSet);
+    } catch (error) { return res.status(400).json({ error: error.message }); }
     const repairResult = await db.runTransaction(async (tx) => {
       const currentFlag = await tx.get(flagRef);
       if (!currentFlag.exists) return { error: "flag_not_found", status: 404 };
@@ -9894,6 +9970,12 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
         originalCollection: contentRecord?.collection || "",
         originalDocId: contentRecord?.docId || "",
         originalContent: content,
+        assetSet,
+        previousAssetSet: assetSet,
+        affectedCardIndex,
+        pigProjectId: content.pigProjectId || "",
+        editableProjectFileId: content.editableProjectFileId || "",
+        editableProjectUrl: content.editableProjectUrl || "",
         requestedBy: ctx.decoded.uid,
         requestedByEmail: ctx.decoded.email || "",
         createdAt: FieldValue.serverTimestamp(),
@@ -9977,6 +10059,9 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
   if (!contentRecord) return res.status(404).json({ error: "content_not_found" });
   if (contentRecord.collection !== COLLECTIONS.graphics) {
     return res.status(400).json({ error: "replacement_supported_for_graphics_only" });
+  }
+  if (contentRecord.data?.assetSet?.length) {
+    return res.status(409).json({ error: "multi_card_replacement_requires_repair" });
   }
 
   const authorVoteUserIds = await getAuthorVoteUserIds();

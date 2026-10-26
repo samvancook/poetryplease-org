@@ -55,6 +55,7 @@ export function attachGraphicZoom(card) {
     hint.textContent = ready ? (zoomed ? 'Drag to move · Fit to swipe' : 'Pinch or + to zoom · Tap for details') : 'Tap for details';
   }
   const reset = () => { gesture = null; set({ scale: 1, x: 0, y: 0 }); };
+  card.addEventListener('graphiccardchange', reset);
   plus.addEventListener('click', () => set(zoomAround(state, state.scale + .5, { x: 0, y: 0 })));
   minus.addEventListener('click', () => set(zoomAround(state, state.scale - .5, { x: 0, y: 0 })));
   fit.addEventListener('click', reset);

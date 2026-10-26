@@ -61,3 +61,7 @@ body[data-feed-variant="posts"] { --paper:#f8f7f4; --ink:#242424; --teal:#303e3b
 .post-share-status { margin:5px 0 0; font-size:12px; color:#71726a; }
 .post-share-link { width:100%; min-width:0; font-size:12px; margin-top:8px; }
 @media(min-width:760px) { .post-dialog { height:calc(100dvh - 40px); max-height:calc(100dvh - 40px); border-radius:10px; } }
+
+.post-card > .graphic-card-controls { position:absolute !important; top:4px; left:8px; border-radius:10px; }
+.posts-swipe .post-card > .graphic-card-controls { top:calc(66px + env(safe-area-inset-top)); }
+.graphic-card-controls button { min-width:44px; min-height:44px; color:#fff; background:#111; border:1px solid #666; border-radius:8px; }

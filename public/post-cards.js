@@ -1,10 +1,11 @@
+import { graphicCards, mountGraphicCardControls } from './graphic-asset-set.js';
 import { safeMediaUrl } from './scroll-feed-core.js';
 import { createPoemLinks } from './poem-links.js';
 
 // The renderer can be newer than a cached HTML shell. Keep its layout CSS in
 // step with the .post-art markup, including on already-cached continuous pages.
 export async function syncPostStyles(doc) {
-  const versions = new Map([['/posts.css', '20261020c'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
+  const versions = new Map([['/posts.css', '20261026a'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
   const pending = [];
   for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
     const url = new URL(link.href, doc.baseURI);
@@ -93,7 +94,7 @@ export function bindGraphicLoad(img, source, onState, { schedule = setTimeout, c
   });
   onState('loading');
   img.src = source;
-  return { retry };
+  return { retry, changeSource(next) { clear(); source = next; retried = false; retry(); } };
 }
 function image(item, deferLoad = false) {
   const img = make('img');
@@ -128,6 +129,7 @@ function getDialog() {
 export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRelated, deferGraphicLoad }) {
   const card = make('article', 'post-card');
   card.dataset.itemId = item.id;
+  let activeGraphic = item.mediaUrl;
   const trigger = make('button', 'post-open');
   trigger.type = 'button';
   trigger.setAttribute('aria-label', 'Open ' + ([item.title, item.author].filter(Boolean).join(' by ') || 'this post'));
@@ -182,6 +184,15 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
     if (deferGraphicLoad) deferGraphicLoad(card, start);
     else start();
     retry.addEventListener('click', () => { start().retry(); });
+    const cards = graphicCards(item.assetSet);
+    mountGraphicCardControls(card, cards, (asset, index) => {
+      const url = asset.assetPreviewUrl || asset.assetUrl;
+      activeGraphic = url;
+      card.dataset.assetCardIndex = String(index + 1);
+      if (loader) loader.changeSource(url);
+      else item = { ...item, mediaUrl: url };
+      card.dispatchEvent(new Event('graphiccardchange'));
+    });
   }
 
   const info = make('section', 'post-info');
@@ -262,8 +273,8 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
     } else if (item.mediaUrl && !infoSheet) {
       const enlarge = make('button', 'post-enlarge');
       enlarge.type = 'button'; enlarge.setAttribute('aria-label', 'Enlarge image');
-      enlarge.append(image(item));
-      enlarge.addEventListener('click', () => openImage(item, enlarge));
+      enlarge.append(image({ ...item, mediaUrl: activeGraphic }));
+      enlarge.addEventListener('click', () => openImage({ ...item, mediaUrl: activeGraphic }, enlarge));
       content.append(enlarge);
     } else if (!infoSheet) {
       const original = make('a', '', 'Open in single-item view');
