@@ -118,7 +118,7 @@ function updateFooter(state) {
 const pager = new ScrollFeedPager({
   fetchPage: (context, signal) => context.linkedItemId
     ? linkedItemPage(context.linkedItemId, id => api('contentById?' + new URLSearchParams({id}), null, signal))
-    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: true, limit: swipeVariant && !contestReading ? 3 : 12,
+    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: !contestReading, limit: swipeVariant && !contestReading ? 3 : 12,
     ...(swipeVariant && !contestReading ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
   }, signal),
   append: (items) => items.forEach(renderCard),
