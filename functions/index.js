@@ -5141,6 +5141,7 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   const book = normalizeText(req.query?.book);
   const catalog = normalizeText(req.query?.catalog);
   const type = normalizeText(req.query?.type);
+  const event = normalizeText(req.query?.event);
   const requestedPreferredTypes = new Set(normalizeText(req.query?.prefer).split(",")
     .map((value) => value.trim().toUpperCase())
     .filter((value) => value === "QI" || value === "INT"));
@@ -5154,7 +5155,7 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   const selectionMonth = /^\d{4}-\d{2}$/.test(normalizeText(req.query?.month))
     ? normalizeText(req.query.month)
     : new Date().toISOString().slice(0, 7);
-  const filters = { book, catalog, type };
+  const filters = { book, catalog, type, event };
 
   const [allContent, flaggedIds, ratingsSummary] = await Promise.all([
     getAllContentCached(),
@@ -5216,6 +5217,7 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
     book,
     catalog,
     type,
+    event,
     selectionMonth,
     lead: pool[0] || null,
     pool,
