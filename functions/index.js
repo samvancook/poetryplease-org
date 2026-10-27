@@ -2146,6 +2146,7 @@ function mapWeaverGraphicRecord(record, options = {}) {
       firstExcerpt.poemTitle,
       firstExcerpt.poem
     ),
+    sourceText: excerptText,
     imageUrl,
     assetSet: normalizeGraphicAssetSet(record.assetSet),
     syntheticTest: record.syntheticTest === true,
@@ -4172,6 +4173,7 @@ function buildContentDocPayload(type, body = {}, options = {}) {
 
   if (type === "graphics") {
     payload.title = normalizeText(body.title);
+    if (normalizeText(body.sourceText)) payload.sourceText = normalizeText(body.sourceText);
     payload.imageId = docId;
     payload.imageUrl = normalizeText(options.imageUrl || body.imageUrl);
     if (body.assetSet != null) payload.assetSet = normalizeGraphicAssetSet(body.assetSet);
