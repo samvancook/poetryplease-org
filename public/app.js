@@ -1374,8 +1374,31 @@ function showWelcomeChoice() {
   document.getElementById('pp-welcome-continue')?.focus();
 }
 
+// Of 17 real email readers who saw the login prompt (Oct 22-25), 3 answered
+// and none voted. Skip it for email arrivals and record the skip so the effect
+// on votes can be measured.
+const EMAIL_REFERRER_HOSTS = /(^|\.)(mail\.google\.com|outlook\.live\.com|outlook\.office\.com|mail\.yahoo\.com|mail\.aol\.com)$/;
+function isEmailArrival() {
+  try {
+    if (sessionStorage.getItem('pp_email_arrival') === '1') return true;
+    const params = new URLSearchParams(location.search);
+    let referrerHost = '';
+    try { referrerHost = document.referrer ? new URL(document.referrer).hostname : ''; } catch (_) {}
+    const email = params.get('utm_medium')?.toLowerCase() === 'email' || params.has('mc_cid')
+      || EMAIL_REFERRER_HOSTS.test(referrerHost);
+    if (email) sessionStorage.setItem('pp_email_arrival', '1');
+    return email;
+  } catch (_) {
+    return false;
+  }
+}
+
 function scheduleWelcomeChoice() {
   if (IS_EMBED_UI) return;
+  if (isEmailArrival()) {
+    window.ppTrack?.('welcome_prompt_skipped', { reason: 'email' });
+    return;
+  }
   window.setTimeout(() => {
     if (!window.__pp_authResolved) return;
     if (currentItem || getVisibleUser()) return;
