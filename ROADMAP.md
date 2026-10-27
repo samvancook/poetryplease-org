@@ -2,6 +2,35 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Current status and blocker register — 27 October 2026
+
+This section supersedes conflicting status and next-step claims in older entries below. Dated release notes are historical evidence, not current operating instructions. The only approved production route is branch → PR with passing checks → merge → existing `.github/workflows/firebase.yml` on main. Do not use the retired `scripts/deploy-production.sh`, create another workflow, request new scopes, or switch methods after failure.
+
+### Completed releases
+- **Startup hotfix:** PR #284 removed the classic-script ESM import regression and reset-state UI; desktop and classic mobile opened with no script errors. Startup regression protection is next, not yet complete. [Incident and release receipt](https://drive.google.com/file/d/1UThGeQbTaEHr8fCLnNyxLBzodSZxpjHL/view).
+- **Spring 2027:** WG has 52 and BBFR 26 imported FPs with permanent keys; 78 created, zero errors, no existing content changed. [Import/readback receipt](https://drive.google.com/file/d/1EmityTk1cHh8Gvf1oWK66ei4kqn_qLwc/view).
+- **Catalog full text:** 510 existing FPs across 17 books updated; 135 backed-up votes retained. Cottonmouth's 39 updates are complete; its earlier spacing-only hold is superseded. [Execution and held-record receipt](https://drive.google.com/file/d/1JbrYeqJHcLSvIirjHCA8PLCgWV3h0W6B/view).
+- **Contest graphics:** the Contest owning task reports all nine winner graphics and the event-only embed live; the previous 8/1 CONFLUENCE hold is historical. [Current link guide](https://docs.google.com/document/d/1hiY1oB500Ly8FW9RY-m5GF_LVXcEfz0VOPGrMdXyE1I/edit). The proposed admin gallery remains unimplemented and must derive counts from current receipts, never hardcode 8/1.
+- **Explorer product links:** owning task reports 107 products and 82 existing short links live, preserving editions. [Live Product links view](https://poetryplease.org/explorer/?view=products). Retain the old lookup until redirect checks and two metadata gaps are resolved.
+
+### Remaining blockers: one accountable owner per item
+| Blocker | Owner | Next action and evidence |
+| --- | --- | --- |
+| Startup regression coverage | Poetry Please | Add checks for scripts in the mode declared by real desktop, Swipe and classic HTML, then verify actual startup through the existing test/release path. Preserve startup, session, routing and wording. [Incident](https://drive.google.com/file/d/1UThGeQbTaEHr8fCLnNyxLBzodSZxpjHL/view). |
+| Multi-card repair canary | P.I.G. coordinating task | Own the single resumed repair `zCuaPxBQ4O2qVE28ZmGL` targeting card 2. Latest report: Weaver blocked missing `sourceText`; P.I.G. owns the targeted PP quoteText/sourceText fix and guarded synthetic backfill. No duplicate repair. Require returned full set, unchanged siblings, same canonical ID, acceptance and private-visibility readback before closing. [Original import/stopping receipt — historical paused state](https://drive.google.com/file/d/17BShza7pZIB6RrkG8PisZDN37yuZA8yJ/view); add the new completion receipt when available. |
+| 194 unmatched/ambiguous unkeyed FPs | Poetry Please | Use the saved per-record exception list to propose source-backed permanent-key mappings; preserve IDs/votes and hold ties. The count is the Oct 23 snapshot, not a fresh production recount. [Receipt](https://drive.google.com/file/d/1JbrYeqJHcLSvIirjHCA8PLCgWV3h0W6B/view). |
+| 43 TFLE-labeled records with original-edition identity | Catalog | Supply an explicit edition mapping before PP changes anything; 41 keys belong to the original edition and two are unkeyed. No blanket relabeling or inferred new records. [Receipt](https://drive.google.com/file/d/1JbrYeqJHcLSvIirjHCA8PLCgWV3h0W6B/view). |
+| DBAT lookup conflict | Catalog | Resolve the authoritative book identity behind HTTP 409, then PP reruns a read-only preview. [Receipt](https://drive.google.com/file/d/1JbrYeqJHcLSvIirjHCA8PLCgWV3h0W6B/view). |
+| Two missing Choir FPs and two unmatched entries | Poetry Please | Verify exact keys/source coverage and prepare an explicit disposition; do not create records from title guesses. [Receipt](https://drive.google.com/file/d/1JbrYeqJHcLSvIirjHCA8PLCgWV3h0W6B/view). |
+| Catalog book-list/status and consumer revision contract | Catalog | Define supported pagination, book/edition identity, revisions and retirement semantics; Weaver then replaces its wildcard-search workaround. Automatic Catalog → PP intake is not live. [Catalog blocker register](https://docs.google.com/document/d/1Yibvh-YYGQRKpwN8ZidpEtM-QxnHgnq-Ro29QKk6MrQ/edit). |
+| Black Chakra video handoff | Weaver | Reconcile the existing gate/source identity and current PP state before retrying. Handoff requests an approximately 1.6 GB 4K final; PP code currently configures 600 MB. Verify the actual asset size and agree the supported import route; do not silently substitute/transcode or make another identity. [Oct 27 handoff](https://docs.google.com/document/d/1nr_wamTTUrLWmAAgFH3adO7yJ9f36e_ko8hZY75IewI/edit). |
+| Old dirty PP checkout | Poetry Please | Preserve and reconcile local changes in `/Users/buttonpublishingone/Desktop/CODEX/Poetry Please/poetry-please`; it reports hundreds of commits behind. Do not reset, delete or deploy it. Canonical checkout: `poetryplease-org-roads112`. Evidence: Oct 27 read-only workspace audit; no preservation/reconciliation receipt exists yet. |
+| Explorer retirement checks | Explorer | Verify existing short-link destinations and fill the two missing author/catalog fields before retiring the old lookup. [Live view](https://poetryplease.org/explorer/?view=products); release task: “Build Poetry Please Content Explorer…”. |
+| Author invitation/help alignment | Poetry Please | Use the refreshed drafts below, QI/INT first then EXC, with Love / Meh / Like / Dislike. Verify claim/help links and controlled recipient before any authorized Mandrill send; broader sends still require approval. Public help/tour wording is not changed by this documentation edit. |
+
+**Order:** reconcile documentation → startup regression protection → bounded Catalog identity exceptions. Keep the independently resumed P.I.G. canary under its one owner. Catalog's 76-book / 1,101-row spacing file is historical triage, not a current unfinished-work count; Roads, Stunt Water and Keep This To Yourself have later source-backed checks in the Catalog register.
+
+
 ## Active Focus
 - **Hardening and module isolation (high priority; planned, 2026-10-27):** normal content-type updates should touch their own adapter/renderer and focused tests, with stable contracts protecting startup/loading, authentication/session/roles, routing/deep links, the shared viewer frame, feed ranking/pagination and vote submission/history.
   - **First slice — protect startup:** test scripts in the mode their real HTML declares (classic versus module), then open desktop, Swipe and preserved classic-mobile/special-link routes in a real browser. The October 27 outage was an ESM-only import added to the classic `app.js`; Node syntax checks and API health did not catch it. [Incident and verified hotfix](https://drive.google.com/file/d/1UThGeQbTaEHr8fCLnNyxLBzodSZxpjHL/view).
@@ -9,12 +38,12 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - **Failure isolation:** optional type modules load after the core can start. A failed module/media request must affect its item, with a clear fallback/error, rather than leave the whole app loading. Do not introduce reset/sign-out controls as an incidental recovery measure.
   - **Explicit scope:** identify and agree any necessary change to protected core behavior before including it in content-type work. Do not silently change script mode, loaders, session state, navigation or approved wording.
   - **Delivery:** stabilize startup first, then extract one renderer/adapter at a time with behavior-parity checks; isolate viewer/feed/voting and backend import/repair responsibilities in subsequent small slices. Keep the existing approved deployment workflow and verify the actual app opens after each release. No broad rewrite is started by this roadmap entry.
-  - **Acceptance:** a new content capability can ship without editing the protected core; a deliberately failing type module cannot block startup; anonymous/author/staff paths, existing content, IDs, votes and navigation remain correct. [Shared roadmap](https://docs.google.com/document/d/1J8EwXSR4SqVmeATQDHUjAbvTkrJ7RbzzODftEjk4Pps/edit). The synthetic repair canary remains paused.
+  - **Acceptance:** a new content capability can ship without editing the protected core; a deliberately failing type module cannot block startup; anonymous/author/staff paths, existing content, IDs, votes and navigation remain correct. [Shared roadmap](https://docs.google.com/document/d/1J8EwXSR4SqVmeATQDHUjAbvTkrJ7RbzzODftEjk4Pps/edit). The synthetic repair canary has resumed under P.I.G.; see the current blocker register above.
 - Catalog full-text sync (2026-10-23): **510 existing FPs updated across 17 books**, three books already current, 26 books held. All 510 source checks and ten public checks passed; 135 existing votes were unchanged. No new content, asset replacement or review reopening. [Execution, exceptions and safeguards](docs/CATALOG_FULLTEXT_SYNC_2026-10-23.md). Follow-up code uses permanent keys before titles, prevents keyed renames becoming creations, binds scope/review policy into the plan hash, stops ambiguous/missing-record books before writes, and separates Future edition requests with an explicit legacy-identity conflict. Existing IDs and stored titles remain unchanged. 58 focused tests pass. Remaining: map 194 unkeyed held FPs; resolve Catalog DBAT HTTP 409; resolve 43 mislabeled TFLE records (41 keys belong to original edition, none to Limited Edition); review the two missing Choir FPs. The previous 29-book spacing hold is superseded by this 46-book full-text pass. [Shared results](https://drive.google.com/file/d/1JbrYeqJHcLSvIirjHCA8PLCgWV3h0W6B/view) · [Private backups](https://drive.google.com/file/d/1t0TIqhlbZcY9ldh_zoVfJyM0HOKbg9Zg/view).
 - Newcomer Swipe showcase (2026-10-22; PRs #267 and #268 deployed): anonymous readers and signed-in users with fewer than eight saved reviewed item IDs receive proven QI (at least three community votes) first, ordered by the existing mobile vote-quality/confidence score, Love count and vote count, without jitter/discovery interleaving; aggregate score alone must not reward exposure when most responses are Meh. Other rated content follows if that pool runs out; voted, flagged, broken and author-excluded content stays excluded. Author ownership queues remain separate. Swipe requests three cards per page and refills near the end without requiring a vote; image requests start only for the active card and its next neighbor. Thirty-two focused tests cover this change, including positive response quality versus accumulated exposure. This reduces payload/image downloading, not the existing cached full-catalog/rating reads. Existing GitHub Actions deployment workflow retained; health and anonymous bootstrap pass. Live checks verified three cards per page, no ID overlap in the next batch, and only the first two graphic sources assigned initially. Final live readback matched the highest-ranked six among 560 eligible rated QI; two three-card batches had no overlap. Observe first-review conversion and bandwidth before changing the eight-review threshold or expanding the optimization.
 - Catalog permanent-key update process (historical plan, superseded in part by the October 23 safeguards above): [implementation plan and Catalog handoff](docs/CATALOG_KEY_SYNC_PLAN_2026-10-22.md). Verified gaps: existing planner matches titles before keys; missing-FP detection counts titles; TFLE and TF lookup records both resolve to the base title. Next PP slice: exact-key/edition-scoped dry run with retitles and key-only changes, explicit review policy, no new records, and unchanged public IDs. Catalog must confirm TF/TFLE edition identities and key sets, adjudicate Cottonmouth's 24 non-spacing changes, and report existing revision/retirement delivery capabilities. Durable intake, replay protection and explicit retirement follow a verified canary; no automatic follower is live. This pass changed documentation only; handoff prepared, not sent to another thread.
 - Catalog handoffs executed (2026-10-22): **123 verified spacing-only updates across four books**, preserving review state; three-book reconciliation applied to **400 distinct existing records**: 22 FP retitles, 39 source-text updates, 57 reversible retirements, 316 keys, 71 other title corrections, five markup fixes. Combined: 523 intended content changes, zero unexpected paths or deletions; graphic assets retained. Resolved 25 proven flags and one source-only repair; 14 author votes reopened with history retained. Keep design/epigraph/strikethrough notes open. See [execution record](docs/CATALOG_HANDOFF_2026-10-22.md) for held work, undo order and private receipt locations.
-  - **Held:** 29 spacing books / 449 requested keys. Initial broad dry runs would update 1,017 FPs rather than only the 572 authorized keys. Cottonmouth also adds body text beyond blank lines; The Future: Limited Edition routes to the wrong book. Do not broaden this batch or choose ambiguous repeated titles.
+  - **Historical hold — superseded by the October 23 full-text pass:** 29 spacing books / 449 requested keys. Initial broad dry runs would update 1,017 FPs rather than only the 572 authorized keys. Cottonmouth also adds body text beyond blank lines; The Future: Limited Edition routes to the wrong book. Do not broaden this batch or choose ambiguous repeated titles.
   - **Human review:** 88 wording/image/unmatched rows remain; no automatic passage rewrite or graphic recreation. Missing FP coverage remains five LABC and 16 TGIT records; no new poems were added.
   - **Next bounded work:** automatic Catalog updates/retirements by key; legacy FP/FPI shared-ID audit; Themes beta UI after targeted file-scope approval (public themes only, filter on desktop, no filters in Swipe). Performance-only keys require verified performer/title matching and manual review of ties.
 - Swipe / previous-mobile migration decisions (2026-10-20):
@@ -41,7 +70,7 @@ Completed work is recorded in `ROADMAP_ARCHIVE.md`.
   - corrected the admin lazy-loader role precedence: staff with both `team` and `contest_admin` must load Flags/Recreation requests, while contest-only users remain excluded. Emory's saved roles confirm this exact combination. Added **Refresh flags and repairs**, retry after failure, and separate loading/error messages for the two subpanels; six role/collapse cases and failed-load retry are covered by regression tests.
   - Weaver repair book/count controls: `loadGraphicsBooks` uses general graphics summaries while repair rows come from `/api/repair-requests` without applying the selected book. Sent the verified code finding to the Weaver chat to compare with production and fix using repair-specific counts/filters or a clearly labeled all-repairs view. Do not use general graphics counts as repair counts. PP currently has 30 requests: 23 in progress, 5 returned, 2 resolved; preserve those request/job IDs.
     - Weaver reports the fix live in PR #18, revision `weaver-00469-kj2` at 100% traffic: **All repairs** replaces misleading book counts; a live load returned all 30 repair rows. No jobs, requests, or catalog metadata changed.
-  - production verification for PP PR #216: deployed through `./scripts/deploy-production.sh hosting`; health and anonymous bootstrap passed. Sam's admin session loaded 1,165 flags including system quarantine and opened the existing LABC title/text editor. Emory's exact roles passed the regression test; her fresh browser session remains unobserved. No editorial correction or deletion was submitted during this check.
+  - historical production verification for PP PR #216 (retired deployment method; use the current workflow above): deployed through `./scripts/deploy-production.sh hosting`; health and anonymous bootstrap passed. Sam's admin session loaded 1,165 flags including system quarantine and opened the existing LABC title/text editor. Emory's exact roles passed the regression test; her fresh browser session remains unobserved. No editorial correction or deletion was submitted during this check.
   - LABC removed/renamed poems: identify the exact cut poems and confirmed new titles against the updated manuscript; apply source corrections in Catalog, preserve the permanent poem identity on renames, retire removed works deliberately, then update existing PP content and prevent removed items from reappearing on import. Do not infer a deletion list. Current PP has 48 full poems; all 48 match current Catalog text after whitespace normalization, so a PP refresh alone cannot supply the editorial update.
     - existing pending flags identify **About living at Baggage Claim** (`6alYwM0lfrsxWauzmr5l`, incorrect title), **How to survive the apocalypse** (`fzGePyKb6BpkZG9Bnpi0`, asks to confirm whether cut), and **the boy remembers he is a dehu(e)manized God?** (`mfcX6tRviRWCy6nBB2UX`, conditional removal only if required strikethrough cannot be preserved). These are not three confirmed deletions. Killmonger's QI rename is already resolved on its existing repair; carry the verified new title through the source/full-poem relationship separately.
   - TGIT appended/floating text: current PP's 23 full poems all match current Catalog text after whitespace normalization. Repair source poem boundaries in Catalog first, then update those same PP IDs. Existing repair requests already identify Communal will from the last dry-born, John McPhee, Lazarus (fragments of persistent joy), Living Autopsy Report: New Orleans, Louisiana, Maybe You Should Write a Poem, Novel Ecosystem, Political Theatre, Out Past the Levee Districts, Records of Bienvenue, Tooth Gaps in the Archives, and Visiting Hours. Keep those requests; do not create duplicates or send plain-text source cleanup blindly through graphic recreation.
@@ -367,47 +396,50 @@ Why this is parked:
 
 ## Author email copy — draft, not sent
 
-Use the placeholders for each author and book. The personalized help page should point to that book’s `/poetryplease/author-help/?book=...` URL. These are copy drafts for review, not permission to send. The 2026-09-28 invitation has already been sent; the follow-up below is for those recipients.
+Updated 27 October 2026. These drafts replace the older three-part invitation copy; they do not change the live mail template or authorize a send. Preserve personal invitation and book-specific help resources, and verify their exact URLs and recipient before sending through Mandrill. Do not use Gmail drafts or sends. The September 29 staff walkthrough below is a historical sent-message record, not current author instructions.
 
 ### Revised invitation for future authors
 
-**Subject:** Help shape how we share your work in Poetry Please
+**Subject:** Help shape how we share [Book Title]
 
 Hi [First Name],
 
-We’re inviting you to try **Poetry Please**, a new way to review the graphics, photos, poems, and excerpts we may use to promote **[Book Title]**. Your choices help us make three decisions:
+We'd love your help choosing how we share your work from **[Book Title]**.
 
-1. **Which graphics should we use?** Mark the ones you like, feel neutral about, or don’t want us to run. **Moved Me** marks a favorite for more prominent use; **Dislike** tells our team to stop using that piece in future posts.
-2. **Would you change anything?** If the formatting feels off or we used an early version of a piece, reply with the title and your notes. We can adjust or recreate it. If a piece needs to be pulled while we review it, use Flag issue under Info in Poetry Please.
-3. **What should we make more of?** Vote for the poems and excerpts you’d most like us to use in marketing your book. Those choices help us decide what to feature and what to make new graphics from.
+The easiest place to start is your graphics: the quote images (QI) and interior photos (INT). Choose **Love**, **Meh**, **Like**, or **Dislike**. Love tells us which pieces you'd most like us to feature and use in more places. Meh means you don't have a strong preference; Like tells us you'd be happy for us to use it. Dislike tells our team you don't want that graphic used.
 
-Start with [your author help page]([Personalized Help URL]) for instructions and an example. Then [open Poetry Please](https://poetryplease.org/) and sign in or create an account with the email address that received this invitation.
+Then review the excerpts you'd most like us to share when promoting your book. Those choices help guide what we feature and which excerpts we make more graphics from. You don't need to review everything at once.
 
-There’s no need for a formal review. Your reactions and any corrections are exactly what we need. You can reply to this message with questions or ideas.
+[Open your personal invitation]([Personal Invitation URL]) and sign in with the same email address that received this message. [Your book's help page]([Verified Book Help URL]) has a short explanation; the guided tour in Poetry Please can help you get started.
 
-Best,  
-Button Poetry Team
+If you'd prefer different formatting or we're using an early version of a piece, reply with the title and your notes so we can adjust or recreate it. This is a chance to tell us your preferences, with room for more specific notes when you want to give them.
 
-### Follow-up to authors who received the 2026-09-28 invitation
+Would you be interested in reviewing or ranking full poems in the future? We'd like to hear what would be useful to you.
 
-**Subject:** A quick follow-up on your Poetry Please review
+Questions or thoughts? Reply to this email.
+
+Button Poetry
+
+### Follow-up for previously invited authors
+
+**Subject:** Your Poetry Please invitation for [Book Title]
 
 Hi [First Name],
 
-A quick follow-up to yesterday’s Poetry Please invitation: we’d love your help with three decisions about **[Book Title]**.
+We'd love your thoughts on the graphics and excerpts we share from **[Book Title]**. Start with the quote images (QI) and interior photos (INT), using **Love**, **Meh**, **Like**, or **Dislike** to tell us which you'd most like us to use. Your favorites help guide what we feature; Dislike tells our team you don't want that graphic used.
 
-1. **Which graphics should we use?** Like the ones you’d share, mark favorites with **Moved Me**, choose **Meh** if you have no strong preference, and **Dislike** anything you don’t want us to run again. We treat Dislike as a stop signal for future posts.
-2. **Would you change anything?** If you would prefer different formatting or we used an early version, reply with the title and a note. We can adjust or recreate it. Use Flag issue under Info if a piece needs to be pulled while we review it.
-3. **What should we make more of?** Vote for the poems and excerpts you most want featured in your book’s marketing. Your choices guide what we feature and what we make new graphics from.
+Then, if you'd like, review the excerpts you'd most like us to share. A few reactions are useful—you don't have to work through everything.
 
-[Your author help page]([Personalized Help URL]) has the instructions and an example. You can [open Poetry Please here](https://poetryplease.org/) using the same email address that received your invitation. There’s no need to review everything at once.
+[Open your personal invitation]([Personal Invitation URL]) using the email address that received this message. [Your book's help page]([Verified Book Help URL]) and the in-app tour explain how to get started.
 
-Thank you for helping us get this right. You can reply directly with questions or ideas.
+If you'd prefer different formatting or we're using an early version, reply with the title and your notes so we can adjust or recreate it. We'd also like to know whether reviewing or ranking full poems would interest you in the future.
 
-Best,  
-Button Poetry Team
+Thank you,
+Button Poetry
 
-## Eric and Madison author walkthrough — sent 2026-09-29
+**Recipient check before preparing a follow-up:** confirm the current invite/claim state and delivery evidence for each person. Use an existing invitation or an explicitly prepared replacement; do not infer that an unclaimed account means the earlier email was delivered. Bring the message, working links and recipient plan back for approval before any broader send.
+
+## Eric and Madison author walkthrough — historical sent record, 2026-09-29
 
 Sent from sam@buttonpoetry.com to Eric Tu and Madison Melby. Gmail message ID: `1a0ee7b2a6a6e1d7`. Both recipients and the desktop/mobile links were verified in Sent.
 
