@@ -1,12 +1,12 @@
 # Multi-card graphics: Poetry Please contract
 
-Receiver released through PR #282; private synthetic visibility through PR #283; classic-script startup regression fixed through PR #284. Import is proven; the complete repair-and-acceptance round trip is not yet proven.
+Receiver released through PR #282; private synthetic visibility through PR #283; classic-script startup regression fixed through PR #284. P.I.G.'s final readback now reports the private import and repair-and-acceptance round trip complete.
 
 ## Current status — 27 October 2026
 
-P.I.G. owns the resumed synthetic canary and its single card-2 repair `zCuaPxBQ4O2qVE28ZmGL`, on canonical PP item `pig-canary-completion-4144bc4eea79`. The latest coordination report says Weaver blocked it for missing `sourceText`; P.I.G. is handling the targeted PP mapping fix and guarded synthetic backfill. This is reported work in progress, not a completed release or acceptance receipt. Do not create another flag or repair. Closure requires the returned full set, unchanged cards 1 and 3, changed card 2, the same canonical ID, resolved flag, and public exclusion after acceptance.
+P.I.G.'s final readback reports the private synthetic canary complete: card-2 repair `zCuaPxBQ4O2qVE28ZmGL` was accepted in PP and resolved in Weaver on canonical item `pig-canary-completion-4144bc4eea79`. Only card 2 changed; cards 1 and 3 kept their original file IDs; canonical identity and `syntheticTest: true` remained intact. The missing-source-text and affected-card metadata blockers were fixed through PP PRs #286/#287 and Weaver's return fix. [PP #287](https://github.com/samvancook/poetryplease-org/pull/287) · [Weaver return fix](https://github.com/samvancook/weaver/commit/defa378). This documentation pass reviewed the owning task's result; it did not independently repeat the production canary. Do not create another flag or repair. Next owner: P.I.G., for a staff-created real multi-page FPI creation/reorder/preview/export test.
 
-[Verified initial import and historical pause receipt](https://drive.google.com/file/d/17BShza7pZIB6RrkG8PisZDN37yuZA8yJ/view). Its zero-repair/paused state is superseded by the resumed request above. Add the final returned/accepted readback here when available.
+[Verified initial import and historical pause receipt](https://drive.google.com/file/d/17BShza7pZIB6RrkG8PisZDN37yuZA8yJ/view). Its zero-repair/paused state is superseded by the completed request and owning-task readback above.
 
 Current production route: merge a PR with passing checks and use the existing `.github/workflows/firebase.yml` workflow on main. Older direct deployment-script instructions are historical and retired. [Startup incident and hotfix receipt](https://drive.google.com/file/d/1UThGeQbTaEHr8fCLnNyxLBzodSZxpjHL/view).
 
