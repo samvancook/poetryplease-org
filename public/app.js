@@ -1,4 +1,3 @@
-import { graphicCards, mountGraphicCardControls } from './graphic-asset-set.js';
 // ================================
 // Poetry, Please — APP.JS (Desktop + Mobile split ready)
 // ================================
@@ -181,31 +180,6 @@ function sanitizeStoredAppState() {
   }
 }
 
-async function resetLocalAppState({ reload = true } = {}) {
-  try {
-    const keys = [];
-    for (let i = 0; i < localStorage.length; i += 1) {
-      const key = localStorage.key(i);
-      if (!key) continue;
-      if (
-        key === 'pp_view' ||
-        key === 'pp_anon' ||
-        key === 'pp_force_mobile' ||
-        key === 'pp_force_desktop' ||
-        key.startsWith('pp_anon_merged_')
-      ) {
-        keys.push(key);
-      }
-    }
-    keys.forEach((key) => safeLocalStorageRemove(key));
-  } catch (_) {}
-
-  try {
-    await firebase.auth().signOut();
-  } catch (_) {}
-
-  if (reload) window.location.replace(window.location.pathname + window.location.search + window.location.hash);
-}
 
 sanitizeStoredAppState();
 
@@ -269,14 +243,10 @@ const LoaderController = (() => {
             <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.18em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
               Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
             </div>
-            ${currentUserIsTeamOrAdmin() ? '<button type="button" class="pp-reset-state-button" style="pointer-events:auto;border:1px solid #dad0c1;background:#fff;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:600;color:#6c6558;cursor:pointer;">Reset app state</button>' : ''}
           </div>
         </div>
       `;
       document.body.appendChild(overlayEl);
-      overlayEl.querySelector('.pp-reset-state-button')?.addEventListener('click', () => {
-        resetLocalAppState();
-      });
     } else {
       overlayEl.style.opacity = '1';
     }
@@ -640,14 +610,6 @@ function resetFeedForIdentityChange() {
   __pp_initialLoad = false;
 }
 
-function updateResetControlsVisibility() {
-  const canReset = currentUserIsTeamOrAdmin();
-  const loaderReset = document.getElementById('pp-loader-reset');
-  if (loaderReset) loaderReset.style.display = canReset ? '' : 'none';
-  document.querySelectorAll('.pp-reset-state-button').forEach((button) => {
-    button.style.display = canReset ? '' : 'none';
-  });
-}
 
 function getCurrentBuildLabel() {
   const currentScript = Array.from(document.scripts).find((script) => /\/app\.js(\?|$)/.test(script.src || ''));
@@ -865,7 +827,6 @@ function updateUserStatusUI() {
     if (div) div.innerHTML = '';
     if (loadBtn) loadBtn.style.display = 'none';
     updateFilterControlsVisibility();
-    updateResetControlsVisibility();
     return;
   }
   if (user) {
@@ -918,9 +879,6 @@ function updateUserStatusUI() {
       const scrubMehBadge = canAccessScoreboard
         ? ' <button id="scrub-meh-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#f8f2e8;color:#7a5c38;font-size:12px;font-weight:600;cursor:pointer;">Scrub recent meh</button>'
         : '';
-      const resetBadge = canAccessScoreboard
-        ? ' <button id="reset-app-state-badge" type="button" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;border:1px solid #dad0c1;background:#fff;color:#6c6558;font-size:12px;font-weight:600;cursor:pointer;">Reset app state</button>'
-        : '';
       const buildBadge = canAccessScoreboard
         ? ` <span id="build-badge" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#6c6558;font-size:12px;font-weight:600;">Build ${getCurrentBuildLabel()}</span>`
         : '';
@@ -933,7 +891,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      const staffTools = `${roleBadge}${teamBadge}${ownContentBadge}${graphicsStartBadges}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${resetBadge}${buildBadge}${viewToggle}`;
+      const staffTools = `${roleBadge}${teamBadge}${ownContentBadge}${graphicsStartBadges}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${buildBadge}${viewToggle}`;
       if (canAccessScoreboard && !document.getElementById('staff-menu-styles')) {
         const style = document.createElement('style');
         style.id = 'staff-menu-styles';
@@ -962,7 +920,6 @@ function updateUserStatusUI() {
       on($('#feed-signals-badge'), 'click', openFeedSignalsModal);
       on($('#counts-badge'), 'click', openCountsModal);
       on($('#scrub-meh-badge'), 'click', () => scrubRecentMehVotes(24));
-      on($('#reset-app-state-badge'), 'click', () => resetLocalAppState());
       on($('#admin-view-toggle'), 'change', (event) => {
         navigateToPreferredView(event.target.checked ? 'mobile' : 'desktop');
       });
@@ -978,7 +935,6 @@ function updateUserStatusUI() {
     syncAdminViewToggle(false);
   }
   updateFilterControlsVisibility();
-  updateResetControlsVisibility();
   renderAuthorReviewGuide();
 }
 
@@ -1707,7 +1663,6 @@ async function getOrCreateAnonId() {
     padding:0;
     margin:0;
   }
-  body[data-ui="embed"] #pp-loader-reset,
   body[data-ui="embed"] #user-status,
   body[data-ui="embed"] #type-filter-container,
   body[data-ui="embed"] #catalog-filter-container,
@@ -1719,8 +1674,7 @@ async function getOrCreateAnonId() {
   body[data-ui="embed"] #vote-row,
   body[data-ui="embed"] #counters-bar,
   body[data-ui="embed"] #error,
-  body[data-ui="embed"] #message,
-  body[data-ui="embed"] .pp-reset-state-button{
+  body[data-ui="embed"] #message{
     display:none !important;
   }
   body[data-ui="embed"] #poetry-screen{
@@ -3909,11 +3863,16 @@ function renderItemMedia(item) {
   }
 
   attachPinchZoomToImage_(img);
-  mountGraphicCardControls(box, graphicCards(item.assetSet), (asset, index) => {
-    img.style.transform = '';
-    img.src = asset.assetPreviewUrl || asset.assetUrl;
-    img.alt = `${item.title || 'Graphic'} — card ${index + 1}`;
-  });
+  if (item.assetSet?.length > 1) {
+    import('./graphic-asset-set.js').then(({ graphicCards, mountGraphicCardControls }) => {
+      if (!box.isConnected) return;
+      mountGraphicCardControls(box, graphicCards(item.assetSet), (asset, index) => {
+        img.style.transform = '';
+        img.src = asset.assetPreviewUrl || asset.assetUrl;
+        img.alt = `${item.title || 'Graphic'} — card ${index + 1}`;
+      });
+    }).catch(error => console.warn('Graphic card controls could not load', error));
+  }
 }
  else { const p=document.createElement('p'); p.textContent='No media available for this item.'; box.appendChild(p); }
 
@@ -4597,8 +4556,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (typeof ppAutoloadFirstItem === 'function' && !currentItem) ppAutoloadFirstItem();
     scheduleWelcomeChoice();
   }, 3500);
-  on(document.getElementById('pp-loader-reset'), 'click', () => resetLocalAppState());
-  updateResetControlsVisibility();
 
   // Default to the app shell immediately; auth should never gate reading.
   show(document.getElementById('login-screen'), false);
