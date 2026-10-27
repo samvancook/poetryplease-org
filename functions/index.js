@@ -1,4 +1,4 @@
-import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate } from "./graphic-asset-set.js";
+import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate, repairReplacementCard } from "./graphic-asset-set.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { onSchedule } from "firebase-functions/v2/scheduler";
@@ -9080,8 +9080,9 @@ app.post(getBoth("/internal/repairRequests/:requestId/status"), async (req, res)
   }
   const returnedAssets = extractReturnedRepairAssetFields(req.body || {}, note);
   if (replacementAssetSet) {
-    returnedAssets.replacementAssetLink = replacementAssetSet[0].assetPreviewUrl || replacementAssetSet[0].assetUrl;
-    returnedAssets.replacementAssetId = replacementAssetSet[0].assetFileId;
+    const replacementCard = repairReplacementCard(replacementAssetSet, snap.data()?.affectedCardIndex);
+    returnedAssets.replacementAssetLink = replacementCard.assetPreviewUrl || replacementCard.assetUrl;
+    returnedAssets.replacementAssetId = replacementCard.assetFileId;
   }
   if (returnedAssets.replacementAssetId) update.replacementAssetId = returnedAssets.replacementAssetId;
   if (returnedAssets.replacementAssetLink) update.replacementAssetLink = returnedAssets.replacementAssetLink;

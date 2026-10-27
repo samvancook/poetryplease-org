@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate } from './graphic-asset-set.js';
+import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate, repairReplacementCard } from './graphic-asset-set.js';
 const card = index => ({ index, role: 'content', assetUrl: `https://example.test/card-${index}.png`, assetPreviewUrl: `https://example.test/preview-${index}.png`, assetFileId: `file-${index}`, fileName: `${index}.png` });
 test('ordered 2–20 cards and explicit one-card sets preserve identity; absent is legacy', () => {
   assert.equal(normalizeGraphicAssetSet(undefined), null);
@@ -17,6 +17,8 @@ test('synthetic three-card repair changes card 2 only and preserves ordered sibl
   const before=[card(1),card(2),card(3)];
   const after=before.map(c=>c.index===2?{...c,assetUrl:'https://example.test/repaired.png',assetPreviewUrl:'https://example.test/repaired-preview.png',assetFileId:'repaired'}:c);
   assert.deepEqual(repairAssetSetUpdate(before,after,2),after);
+  assert.equal(repairReplacementCard(after,2).assetFileId,'repaired');
+  assert.equal(repairReplacementCard(after).assetFileId,'file-1');
   assert.throws(()=>repairAssetSetUpdate(before,undefined,2), /replacement_asset_set_required/);
   assert.throws(()=>repairAssetSetUpdate(before,[after[0],after[1]],2), /unaffected_cards_changed/);
   assert.throws(()=>repairAssetSetUpdate(before,after.map(c=>({...c,assetFileId:'reuploaded'})),2), /unaffected_cards_changed/);
