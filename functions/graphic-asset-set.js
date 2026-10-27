@@ -34,3 +34,8 @@ export function repairAssetSetUpdate(original, returned, affectedCardIndex = nul
     i !== index - 1 && JSON.stringify(card) !== JSON.stringify(after[i])))) fail('unaffected_cards_changed');
   return after;
 }
+
+export function repairReplacementCard(assetSet, affectedCardIndex = null) {
+  const index = validateAffectedCardIndex(affectedCardIndex, assetSet);
+  return assetSet[(index || 1) - 1];
+}
