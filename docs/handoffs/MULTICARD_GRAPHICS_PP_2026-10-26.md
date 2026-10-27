@@ -27,3 +27,7 @@ Swipe and desktop provide previous/next card controls and Card N of M. Voting re
 ## Boundaries
 
 No real author/staff content is used as a canary. No email. The P.I.G. task coordinates the cross-system synthetic canary after each side is deployed. This PP change does not by itself prove Weaver's outgoing payload includes every card.
+
+## Synthetic canary visibility — 27 October
+
+For the one authorized live canary, Weaver must send `syntheticTest: true` on the outgoing QI/FPI record. PP persists it as a sticky marker: public discovery, book/catalog lists, related-content reads and `/api/contentById` exclude the item even after its repair is accepted. Admin content, flag and repair views retain the record and all cards; use those authenticated views and import receipts for test readback. An ordinary edit or repair does not clear the marker. Do not substitute a real item or rely on briefly flagging an otherwise public test graphic.
