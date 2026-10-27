@@ -481,6 +481,7 @@ export function parseDoc(snap) {
     poemKeySource: d.poemKeySource || "",
     poemKeyConfidence: d.poemKeyConfidence ?? null,
     catalogRetired: d.catalogRetired === true,
+    syntheticTest: d.syntheticTest === true,
     youtubeId: d.youtubeId || "",
     uploadTime: d.uploadTime || "",
     socialViews: Number(d.socialViews || 0) || 0,
@@ -517,7 +518,7 @@ function sampleItems(items, limit) {
 
 function excludeBrokenContent(items = []) {
   return items.filter((item) => {
-    if (item?.catalogRetired === true) return false;
+    if (item?.catalogRetired === true || item?.syntheticTest === true) return false;
     const imageId = normalizeKey(item?.imageId || "");
     if (!imageId) return true;
     return !BROKEN_QI_IDS.has(imageId) || item?.quarantineReleased === true;
@@ -2147,6 +2148,7 @@ function mapWeaverGraphicRecord(record, options = {}) {
     ),
     imageUrl,
     assetSet: normalizeGraphicAssetSet(record.assetSet),
+    syntheticTest: record.syntheticTest === true,
     driveLink: firstNonEmpty(
       record.assetLinkUrl,
       record.driveLink,
@@ -4026,6 +4028,7 @@ function mapAdminContentDoc(collection, doc) {
     duration: data.duration || "",
     channel: data.channel || "",
     assetSet: data.assetSet || null,
+    syntheticTest: data.syntheticTest === true,
     imageUrl: data.imageUrl || data.thumbnailUrl || data.url || "",
     driveLink: data.driveLink || "",
     bookLink: data.bookLink || "",
@@ -4149,6 +4152,8 @@ function buildContentDocPayload(type, body = {}, options = {}) {
   const sourceDriveFileId = normalizeText(body.sourceDriveFileId);
   if (sourceSystem) payload.sourceSystem = sourceSystem;
   if (sourceRecordId) payload.sourceRecordId = sourceRecordId;
+  // Sticky: an ordinary edit or repair acceptance must not publish a test item.
+  if (body.syntheticTest === true) payload.syntheticTest = true;
   for (const field of ["sourceRequestId", "sourceCompletionId", "pigProjectId", "editableProjectFileId", "editableProjectUrl"]) {
     if (normalizeText(body[field])) payload[field] = normalizeText(body[field]);
   }
@@ -4875,7 +4880,7 @@ function invalidateFlaggedContentCache() {
 }
 
 function excludeFlaggedContent(items, flaggedIds) {
-  return (items || []).filter((item) => item.catalogRetired !== true && !flaggedIds.has(normalizeKey(item.imageId || item.id || "")));
+  return (items || []).filter((item) => item.catalogRetired !== true && item.syntheticTest !== true && !flaggedIds.has(normalizeKey(item.imageId || item.id || "")));
 }
 
 async function canSeeFullPoemsInReview(decoded) {

@@ -1072,3 +1072,16 @@ test("new Catalog FPs retain distinct permanent keys through the actual payload 
   assert.equal(rerun.data.plannedUpdateCount, 0);
   assert.equal(rerun.data.skippedUpdates.length, 0);
 });
+
+
+test("synthetic canaries remain hidden from discovery and direct public reads after repair flags resolve", () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("function excludeFlaggedContent(");
+  const end = source.indexOf("\n}\n", start) + 2;
+  const visible = runInNewContext(source.slice(start, end) + "; excludeFlaggedContent", {
+    normalizeKey: value => String(value).toLowerCase(),
+  });
+  const synthetic = { imageId: "SYNTHETIC-CANARY", syntheticTest: true, activeRepairRequestId: "synthetic-repair" };
+  const rows = visible([synthetic, {imageId:"real-content"}], new Set());
+  assert.deepEqual(Array.from(rows,row=>row.imageId),["real-content"]);
+});
