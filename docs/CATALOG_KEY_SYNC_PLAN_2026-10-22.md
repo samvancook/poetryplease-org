@@ -1,6 +1,6 @@
 # Catalog → Poetry Please: matching exceptions and update plan
 
-Status: researched plan and Catalog handoff, October 22, 2026. No code, production data or deployment changes in this pass. This document proposes a contract; Catalog has not agreed to it yet.
+Historical plan and Catalog handoff, October 22, 2026. Its title-first/edition-routing gaps and Cottonmouth hold were superseded by the October 23 safeguards and verified full-text batch; the 29-book hold below is not the current queue. See [completed sync](CATALOG_FULLTEXT_SYNC_2026-10-23.md) and [October 27 identity assessment](CATALOG_IDENTITY_NEXT_SLICE_2026-10-27.md) for current next actions. Durable source-change delivery and explicit retirement/review policy remain proposals; no unattended follower is live. Preserve the following as historical reasoning, not instructions to repeat completed work.
 
 ## Verified implementation gaps
 
