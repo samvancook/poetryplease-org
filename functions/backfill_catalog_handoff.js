@@ -20,7 +20,7 @@ const decode = value => value?.__timestamp ? new Timestamp(...value.__timestamp)
 const equal = (a,b) => JSON.stringify(encode(a)) === JSON.stringify(encode(b));
 const db = getFirestore(initializeApp({ projectId:'poetry-please' }), 'poetrypleasedatabase');
 const allowed = new Set(['title','poem','poemKey','poemKeySource','poemKeyConfidence','excerpt','excerptFingerprint',
-  'bookShortener','bookLink','releaseCatalog',
+  'bookShortener','bookLink','releaseCatalog','author',
   'catalogRetired','catalogRetiredReason','catalogRetiredKey','catalogRetiredAt','updatedAt','updatedBy']);
 const rows = arg('--rows') ? read(arg('--rows')) : [];
 const report = { stage:arg('--stage') || (arg('--apply-plan') ? 'apply-plan' : arg('--undo') ? 'undo' : 'snapshot'), planned:0, written:0, held:[] };
