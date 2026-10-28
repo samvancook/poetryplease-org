@@ -20,6 +20,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake, weaverVideoDocId } from "./weaver-video-intake.js";
+import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
@@ -139,6 +140,14 @@ const UPLOAD_RULES = {
     allowedMimeTypes: new Set(["video/mp4", "video/quicktime", "video/webm", "video/ogg"]),
     maxBytes: 600 * FILE_SIZE_MB,
   },
+  weaverVideoDurableCopy: {
+    allowedMimeTypes: new Set(["video/mp4", "video/quicktime", "video/webm", "video/ogg"]),
+    maxBytes: 8 * 1024 * FILE_SIZE_MB,
+    downloadTimeoutMs: 25 * 60 * 1000,
+    resumable: true,
+    chunkSize: 8 * FILE_SIZE_MB,
+    verifyStoredByteCount: true,
+  },
   userSubmissionImage: {
     allowedMimeTypes: new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]),
     maxBytes: 10 * FILE_SIZE_MB,
@@ -163,6 +172,8 @@ const auth = getAuth(appAdmin);
 const storage = getStorage(appAdmin);
 const qiLibraryYearQueue = getFunctions(appAdmin)
   .taskQueue("locations/us-central1/functions/qilibraryyearworker");
+const weaverVideoDurableCopyQueue = getFunctions(appAdmin)
+  .taskQueue("locations/us-central1/functions/weavervideodurablecopyworker");
 const DRIVE_READ_SCOPE = "https://www.googleapis.com/auth/drive.readonly";
 const runtimeCloudAuth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/cloud-platform"],
@@ -873,10 +884,12 @@ async function fetchCatalogReconciliation(reconciliationId, catalogBase) {
 async function fetchAuthenticatedGoogleDriveMedia(fileId, sourceUrl, rules, body = {}) {
   const token = await getDriveReadAccessToken();
   const headers = { Authorization: `Bearer ${token}` };
+  const metadataTimeoutMs = Number(rules?.metadataTimeoutMs || 30000) || 30000;
+  const downloadTimeoutMs = Number(rules?.downloadTimeoutMs || 30000) || 30000;
   const encodedId = encodeURIComponent(fileId);
   const metadataResponse = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodedId}?supportsAllDrives=true&fields=id,name,mimeType,size`,
-    { headers, signal: AbortSignal.timeout(30000) },
+    { headers, signal: AbortSignal.timeout(metadataTimeoutMs) },
   );
   if (!metadataResponse.ok) {
     const err = new Error(`drive_service_fetch_${metadataResponse.status}`);
@@ -890,11 +903,17 @@ async function fetchAuthenticatedGoogleDriveMedia(fileId, sourceUrl, rules, body
     err.status = 415;
     throw err;
   }
+  const fileSize = Number(metadata.size || 0) || 0;
+  if (fileSize && fileSize > rules.maxBytes) {
+    const err = new Error("remote_media_too_large");
+    err.status = 413;
+    throw err;
+  }
   const mediaUrl = `https://www.googleapis.com/drive/v3/files/${encodedId}?alt=media&supportsAllDrives=true`;
   const response = await fetch(mediaUrl, {
     headers,
     redirect: "follow",
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(downloadTimeoutMs),
   });
   if (!response.ok) {
     const err = new Error(`drive_service_fetch_${response.status}`);
@@ -906,7 +925,7 @@ async function fetchAuthenticatedGoogleDriveMedia(fileId, sourceUrl, rules, body
     finalUrl: response.url || mediaUrl,
     fileName: normalizeText(metadata.name) || preferredRemoteMediaName(body, sourceUrl),
     mimeType,
-    fileSize: Number(metadata.size || response.headers.get("content-length") || 0) || null,
+    fileSize: fileSize || Number(response.headers.get("content-length") || 0) || null,
     response,
     extension: extensionForUpload(metadata.name, mimeType),
   };
@@ -941,7 +960,10 @@ async function fetchRemoteMediaResponse(sourceUrl, rules, body = {}) {
     : [sourceUrl];
   for (const candidate of candidates) {
     try {
-      const response = await fetch(candidate, { redirect: "follow" });
+      const response = await fetch(candidate, {
+        redirect: "follow",
+        signal: AbortSignal.timeout(Number(rules?.downloadTimeoutMs || 30000) || 30000),
+      });
       if (!response.ok) {
         lastError = new Error(`remote_fetch_${response.status}`);
         continue;
@@ -1010,19 +1032,28 @@ async function streamRemoteMediaToStorage({ sourceUrl, storagePath, rules, body 
         contentType: remote.mimeType,
         cacheControl: "public,max-age=3600",
       },
-      resumable: false,
+      resumable: rules.resumable === true,
+      ...(rules.resumable === true && Number(rules.chunkSize || 0) > 0 ? { chunkSize: Number(rules.chunkSize) } : {}),
     });
     readStream.on("error", reject);
     writeStream.on("error", reject);
     writeStream.on("finish", resolve);
     readStream.pipe(writeStream);
   });
+  const [metadata] = await file.getMetadata();
+  const storedByteCount = Number(metadata.size || 0) || 0;
+  if (rules.verifyStoredByteCount === true && (!storedByteCount || (remote.fileSize && storedByteCount !== remote.fileSize))) {
+    const err = new Error("durable_copy_byte_count_mismatch");
+    err.status = 502;
+    throw err;
+  }
   const publicUrl = await getDownloadURL(file);
   return {
     ...remote,
     publicUrl,
     storagePath,
-    fileSize: remote.fileSize,
+    fileSize: storedByteCount,
+    checksum: normalizeText(metadata.md5Hash || metadata.crc32c),
   };
 }
 
@@ -4500,6 +4531,39 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
     mediaUrl: uploadMediaUrl,
     updatedBy: actor.uid || "",
   });
+  // A repeat of the same Weaver handoff must not replace a verified durable
+  // copy with the review-only Drive URL. A changed final Drive URL is a new
+  // asset and intentionally starts the durable-copy lifecycle again.
+  if (
+    normalizeKey(type) === "videos"
+    && normalizeKey(body.sourceSystem) === "weaver"
+    && normalizeText(existing.sourceRecordId) === normalizeText(body.sourceRecordId)
+    && normalizeText(existing.driveLink) === normalizeText(body.driveLink)
+    && normalizeKey(existing.durableCopyStatus) === "verified"
+    && normalizeText(existing.videoUrl || existing.url)
+  ) {
+    built.payload.videoUrl = normalizeText(existing.videoUrl || existing.url);
+    built.payload.url = normalizeText(existing.url || existing.videoUrl);
+    built.payload.storageMode = normalizeText(existing.storageMode || "durable");
+    built.payload.mediaStatus = normalizeText(existing.mediaStatus || "verified");
+    built.payload.durableCopyStatus = "verified";
+    built.payload.durableCopyAttemptId = normalizeText(existing.durableCopyAttemptId);
+    built.payload.durableStoragePath = normalizeText(existing.durableStoragePath);
+    built.payload.durableByteCount = Number(existing.durableByteCount || 0) || 0;
+    built.payload.durableChecksum = normalizeText(existing.durableChecksum);
+  }
+  if (
+    normalizeKey(type) === "videos"
+    && normalizeKey(body.sourceSystem) === "weaver"
+    && normalizeText(existing.sourceRecordId) === normalizeText(body.sourceRecordId)
+    && normalizeText(existing.driveLink)
+    && normalizeText(existing.driveLink) !== normalizeText(body.driveLink)
+  ) {
+    built.payload.durableCopyAttemptId = "";
+    built.payload.durableStoragePath = "";
+    built.payload.durableByteCount = 0;
+    built.payload.durableChecksum = "";
+  }
   if (normalizeKey(type) === "excerpts" && built.payload.excerptFingerprint) {
     const allowedExistingIds = new Set([pendingDocId, originalDocId].filter(Boolean));
     let duplicateSnap = await db.collection(COLLECTIONS.excerpts)
@@ -8865,6 +8929,18 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const receivedSelectedExcerptIdCount = Array.isArray(result.item?.weaverSelectedExcerptRecordIds)
       ? result.item.weaverSelectedExcerptRecordIds.length
       : 0;
+    let durableCopy = { status: normalizeText(result.item?.durableCopyStatus || "pending"), queued: false };
+    try {
+      durableCopy = await queueWeaverVideoDurableCopy({
+        canonicalVideoId,
+        sourceRecordId: intake.item.sourceRecordId,
+      });
+    } catch (copyError) {
+      // The review-only receipt is still valid if task enqueue is unavailable.
+      // Persist the error for the receipt; do not turn this into an untracked
+      // retry or pretend the durable copy completed.
+      durableCopy = { status: "queue_failed", queued: false, error: copyError.message || "durable_copy_queue_failed" };
+    }
 
     await invalidateContentCache();
     await invalidateScoreboardSnapshot("content_weaver_import:video");
@@ -8882,7 +8958,9 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       receivedSelectedExcerptIdCount,
       storageMode: normalizeText(result.item?.storageMode),
       mediaStatus: normalizeText(result.item?.mediaStatus),
-      durableCopyStatus: normalizeText(result.item?.durableCopyStatus),
+      durableCopyStatus: normalizeText(durableCopy.status),
+      durableCopyQueued: durableCopy.queued === true,
+      durableCopyError: normalizeText(durableCopy.error),
       reviewOnly: result.item?.reviewOnly === true,
       outcomes: [{
         contentId: canonicalVideoId,
@@ -8909,7 +8987,9 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         receivedSelectedExcerptIdCount,
         storageMode: normalizeText(result.item?.storageMode),
         mediaStatus: normalizeText(result.item?.mediaStatus),
-        durableCopyStatus: normalizeText(result.item?.durableCopyStatus),
+        durableCopyStatus: normalizeText(durableCopy.status),
+        durableCopyQueued: durableCopy.queued === true,
+        durableCopyError: normalizeText(durableCopy.error),
         reviewOnly: result.item?.reviewOnly === true,
       }],
     });
@@ -8929,6 +9009,154 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     });
   }
 });
+
+async function queueWeaverVideoDurableCopy({ canonicalVideoId, sourceRecordId }) {
+  const videoRef = db.collection(COLLECTIONS.videos).doc(canonicalVideoId);
+  const nowMs = Date.now();
+  const reservation = await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(videoRef);
+    if (!snap.exists) throw new Error("weaver_video_copy_target_missing");
+    const video = snap.data() || {};
+    if (normalizeText(video.sourceRecordId) !== sourceRecordId || normalizeKey(video.sourceSystem) !== "weaver") {
+      throw new Error("weaver_video_copy_source_identity_mismatch");
+    }
+    const attemptId = weaverVideoCopyAttemptId({
+      sourceRecordId,
+      canonicalVideoId,
+      driveLink: extractGoogleDriveFileId(video.driveLink) || video.driveLink,
+    });
+    if (normalizeKey(video.durableCopyStatus) === "verified") {
+      return { status: "verified", queued: false, attemptId };
+    }
+    if (!canClaimWeaverVideoCopy(video, attemptId, nowMs)) {
+      return { status: normalizeText(video.durableCopyStatus || "copying"), queued: false, attemptId };
+    }
+    transaction.set(videoRef, {
+      durableCopyStatus: "queued",
+      durableCopyAttemptId: attemptId,
+      durableCopyQueuedAt: FieldValue.serverTimestamp(),
+      durableCopyLeaseExpiresAtMs: 0,
+      durableCopyError: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { status: "queued", queued: true, attemptId };
+  });
+  if (!reservation.queued) return reservation;
+  try {
+    await weaverVideoDurableCopyQueue.enqueue({
+      canonicalVideoId,
+      sourceRecordId,
+      attemptId: reservation.attemptId,
+    }, { dispatchDeadlineSeconds: 30 * 60 });
+    return reservation;
+  } catch (err) {
+    await videoRef.set({
+      durableCopyStatus: "queue_failed",
+      durableCopyError: normalizeText(err.message || "durable_copy_queue_failed").slice(0, 500),
+      durableCopyFailedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { status: "queue_failed", queued: false, attemptId: reservation.attemptId, error: err.message || "durable_copy_queue_failed" };
+  }
+}
+
+async function runWeaverVideoDurableCopyTask(data = {}) {
+  const canonicalVideoId = normalizeText(data.canonicalVideoId);
+  const sourceRecordId = normalizeText(data.sourceRecordId);
+  const attemptId = normalizeText(data.attemptId);
+  if (!canonicalVideoId || !sourceRecordId || !attemptId) throw new Error("invalid_weaver_video_copy_task");
+  const videoRef = db.collection(COLLECTIONS.videos).doc(canonicalVideoId);
+  const claim = await db.runTransaction(async (transaction) => {
+    const snap = await transaction.get(videoRef);
+    if (!snap.exists) throw new Error("weaver_video_copy_target_missing");
+    const video = snap.data() || {};
+    if (normalizeText(video.sourceRecordId) !== sourceRecordId || normalizeKey(video.sourceSystem) !== "weaver") {
+      throw new Error("weaver_video_copy_source_identity_mismatch");
+    }
+    if (!canClaimWeaverVideoCopy(video, attemptId, Date.now())) {
+      return { claimed: false, reason: normalizeText(video.durableCopyStatus || "not_claimable") };
+    }
+    transaction.set(videoRef, {
+      durableCopyStatus: "copying",
+      durableCopyAttemptId: attemptId,
+      durableCopyStartedAt: FieldValue.serverTimestamp(),
+      durableCopyLeaseExpiresAtMs: Date.now() + (29 * 60 * 1000),
+      durableCopyError: FieldValue.delete(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    return { claimed: true, driveLink: normalizeText(video.driveLink), updatedFileName: normalizeText(video.updatedFileName) };
+  });
+  if (!claim.claimed) return { ok: true, skipped: true, reason: claim.reason };
+
+  try {
+    const remote = await fetchRemoteMediaResponse(claim.driveLink, UPLOAD_RULES.weaverVideoDurableCopy, {
+      updatedFileName: claim.updatedFileName,
+    });
+    const storagePath = `content-library/videos/${normalizeKey(canonicalVideoId)}/weaver-${attemptId}.${remote.extension}`;
+    const copied = await streamRemoteMediaToStorage({
+      sourceUrl: claim.driveLink,
+      storagePath,
+      rules: UPLOAD_RULES.weaverVideoDurableCopy,
+      body: { updatedFileName: claim.updatedFileName },
+      remoteMedia: remote,
+    });
+    if (!copied.checksum) throw new Error("durable_copy_checksum_missing");
+    const assetRef = db.collection(COLLECTIONS.contentAssets).doc(`weaver-video-${sha256(`${canonicalVideoId}:${attemptId}`).slice(0, 32)}`);
+    await db.runTransaction(async (transaction) => {
+      const snap = await transaction.get(videoRef);
+      const video = snap.data() || {};
+      if (!snap.exists || normalizeText(video.durableCopyAttemptId) !== attemptId || normalizeText(video.sourceRecordId) !== sourceRecordId) {
+        throw new Error("weaver_video_copy_target_changed");
+      }
+      transaction.set(videoRef, {
+        videoUrl: copied.publicUrl,
+        url: copied.publicUrl,
+        storageMode: "durable",
+        mediaStatus: "verified",
+        durableCopyStatus: "verified",
+        durableStoragePath: copied.storagePath,
+        durableByteCount: copied.fileSize,
+        durableChecksum: copied.checksum,
+        durableCopyVerifiedAt: FieldValue.serverTimestamp(),
+        durableCopyLeaseExpiresAtMs: 0,
+        durableCopyError: FieldValue.delete(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      transaction.set(assetRef, {
+        assetType: "library_video",
+        imageId: canonicalVideoId,
+        contentCollection: COLLECTIONS.videos,
+        contentDocId: canonicalVideoId,
+        storagePath: copied.storagePath,
+        publicUrl: copied.publicUrl,
+        fileSize: copied.fileSize,
+        checksum: copied.checksum,
+        mimeType: copied.mimeType,
+        originalFileName: copied.fileName,
+        sourceUrl: claim.driveLink,
+        sourceFinalUrl: copied.finalUrl,
+        sourceSystem: "weaver",
+        sourceRecordId,
+        durableCopyAttemptId: attemptId,
+        status: "verified",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+    });
+    await invalidateContentCache();
+    await invalidateScoreboardSnapshot(`weaver_video_durable_copy:${canonicalVideoId}`);
+    return { ok: true, canonicalVideoId, storagePath: copied.storagePath, byteCount: copied.fileSize, checksum: copied.checksum };
+  } catch (err) {
+    await videoRef.set({
+      durableCopyStatus: "failed",
+      durableCopyError: normalizeText(err.message || "durable_copy_failed").slice(0, 500),
+      durableCopyFailedAt: FieldValue.serverTimestamp(),
+      durableCopyLeaseExpiresAtMs: 0,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+    throw err;
+  }
+}
 
 function weaverVideoReceiptLedgerRow(doc) {
   const data = doc.data() || {};
@@ -8980,6 +9208,10 @@ async function readWeaverVideoReceipt(sourceRecordId) {
       storageMode: normalizeText(video?.storageMode),
       mediaStatus: normalizeText(video?.mediaStatus),
       durableCopyStatus: normalizeText(video?.durableCopyStatus),
+      durableStoragePath: normalizeText(video?.durableStoragePath),
+      durableByteCount: Number(video?.durableByteCount || 0) || 0,
+      durableChecksum: normalizeText(video?.durableChecksum),
+      durableCopyError: normalizeText(video?.durableCopyError),
       reviewOnly: video?.reviewOnly === true,
     },
     review: { reviewCount, selectedExcerptIdCount },
@@ -13248,6 +13480,16 @@ export const qilibraryyearworker = onTaskDispatched({
   secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET],
 }, async (request) => {
   await importJobController.runQiLibraryYearTask(request.data || {});
+});
+
+export const weavervideodurablecopyworker = onTaskDispatched({
+  region: "us-central1",
+  memory: "2GiB",
+  timeoutSeconds: 1800,
+  retryConfig: { maxAttempts: 3 },
+  rateLimits: { maxConcurrentDispatches: 1 },
+}, async (request) => {
+  await runWeaverVideoDurableCopyTask(request.data || {});
 });
 
 export const manuscriptreconciliationpreview = onRequest({
