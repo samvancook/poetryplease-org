@@ -1,5 +1,9 @@
 # Catalog identity exceptions: next bounded slice
 
+## Completed canary — 28 October 2026
+
+Both reviewed keys below are now attached to their existing PP IDs: Stay-Okay → `BPP-00263`, then Bliss → `BPP-00221`. PR #291 added the guarded key-only mode to the existing sync route and deployed through [the existing workflow](https://github.com/samvancook/poetryplease-org/actions/runs/40718037476). All 68 focused tests passed. Two updated, zero created, zero errors. Independent before/after Firestore readback confirmed exact text, titles, assets and all four existing votes unchanged; no linked flags/repairs existed. Post-apply previews each plan zero writes with the original plan hash. This completes the two identity mappings only; it does not apply a whole-book text sync or resolve other Catalog exceptions. [Shared completion receipt](https://drive.google.com/file/d/1DF6iREO5GpydmJczXTG3lBmHiC5MHjGf/view) · [Private backup and verification archive](https://drive.google.com/file/d/1EGcbyaCuHxJT1KWNVZ2eHFJbWQsSRBNe/view). The original read-only assessment below is retained as evidence.
+
 Read-only assessment, 27 October 2026. No production content, keys, titles, votes, flags or repairs changed. The 194-row exception CSV is the October 23 snapshot, not a fresh count of open exceptions.
 
 ## Recommended canary: two existing Choir records
