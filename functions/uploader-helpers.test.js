@@ -807,6 +807,64 @@ test("duplicate permanent keys and unkeyed legacy copies cannot steal another ex
   assert.equal(duplicateSource.skipped[0].reason, "ambiguous_poem_key");
 });
 
+function catalogKeyMappingFixture() {
+  const hash = value => createHash("sha256").update(value).digest("hex");
+  const row = { id: "stable", book: "Book", author: "Author", title: "Old title", excerpt: "unchanged text" };
+  const poem = { poem_key: "BPP-00263", title: "Canonical title", served_text: row.excerpt };
+  const mapping = { id: row.id, poemKey: poem.poem_key, expectedPoemKey: "", expectedTitle: row.title,
+    catalogTitle: poem.title, expectedTextHash: hash(row.excerpt), sourceTextHash: hash(poem.served_text) };
+  return { row, poem, mapping, hash, plan: catalogSyncFunction("planCatalogKeyMappings", { sha256: hash }) };
+}
+
+test("reviewed key mapping handles retitles and identical bodies without rewriting them", () => {
+  const { row, poem, mapping, plan } = catalogKeyMappingFixture();
+  const updates = plan([row], [poem], [mapping], { title: "Book", author: "Author" });
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].id, "stable");
+  assert.equal(updates[0].alreadyCurrent, false);
+  assert.equal(Object.hasOwn(updates[0], "excerpt"), false);
+  assert.equal(plan([{ ...row, poemKey: mapping.poemKey }], [poem], [mapping], { title: "Book", author: "Author" })[0].alreadyCurrent, true);
+});
+
+test("reviewed key mapping refuses duplicates, changed targets/sources, wrong author and broader scope", () => {
+  const { row, poem, mapping, plan } = catalogKeyMappingFixture();
+  const record = { title: "Book", author: "Author" };
+  for (const [rows, sources, mappings] of [
+    [[{ ...row, excerpt: "edited" }], [poem], [mapping]],
+    [[{ ...row, author: "Other" }], [poem], [mapping]],
+    [[{ ...row, catalogRetired: true }], [poem], [mapping]],
+    [[row, { ...row, id: "other", poemKey: mapping.poemKey }], [poem], [mapping]],
+    [[row], [poem, poem], [mapping]],
+    [[row], [{ ...poem, served_text: "changed source" }], [mapping]],
+    [[row], [poem], [mapping, mapping]],
+    [[row], [poem], [mapping, mapping, mapping]],
+  ]) assert.throws(() => plan(rows, sources, mappings, record), /mapping/);
+});
+
+test("key-only transaction writes only identity metadata and leaves reviews untouched on replay", async () => {
+  const { row, poem, mapping, plan, hash } = catalogKeyMappingFixture();
+  const state = { ...row }, patches = [];
+  const ref = { id: row.id };
+  const query = {};
+  const apply = catalogSyncFunction("applyCatalogKeyMapping", {
+    sha256: hash, COLLECTIONS: { fullPoems: "fullPoems" }, FieldValue: { serverTimestamp: () => "now" },
+    db: { collection: name => { assert.equal(name, "fullPoems"); return { doc: () => ref, where: () => query }; },
+      runTransaction: async callback => callback({
+        get: async target => target === ref ? { exists: true, data: () => ({ ...state }) } : { docs: [] },
+        update: (target, patch) => { assert.equal(target, ref); patches.push(patch); Object.assign(state, patch); },
+      }) },
+  });
+  const update = plan([row], [poem], [mapping], { title: "Book", author: "Author" })[0];
+  assert.equal((await apply(update)).alreadyCurrent, false);
+  assert.deepEqual(Object.keys(patches[0]).sort(), ["poemKey", "poemKeyConfidence", "poemKeySource", "updatedAt", "updatedBy"]);
+  assert.equal(state.excerpt, row.excerpt);
+  assert.equal(state.title, row.title);
+  assert.equal((await apply(update)).alreadyCurrent, true);
+  assert.equal(patches.length, 1);
+  state.excerpt = "concurrent edit";
+  await assert.rejects(apply(update), /content_changed/);
+});
+
 function catalogSyncRouteFixture(existing, poems, record = { title: "Book", author: "Author", bookShortener: "B" }) {
   let handler, writes = 0;
   const imported = [];
@@ -818,6 +876,8 @@ function catalogSyncRouteFixture(existing, poems, record = { title: "Book", auth
     catalogSyncEditionConflicts: catalogSyncFunction("catalogSyncEditionConflicts"),
     getAllFrom: async () => existing, COLLECTIONS: { fullPoems: "fullPoems" }, fetchCanonicalPoems: async () => poems,
     planExistingCatalogFullPoemUpdates: catalogSyncFunction("planExistingCatalogFullPoemUpdates"),
+    planCatalogKeyMappings: catalogSyncFunction("planCatalogKeyMappings", { sha256: value => createHash("sha256").update(value).digest("hex") }),
+    applyCatalogKeyMapping: async () => { writes++; return { alreadyCurrent: false }; },
     sanitizeDocIdSegment: value => value, slugify: value => value.toLowerCase().replace(/\W+/g, "-"),
     sha256: value => createHash("sha256").update(value).digest("hex"),
     canonicalPoemCountCache: new Map(), getAuthorVoteUserIds: async () => new Set(),
@@ -835,6 +895,21 @@ function catalogSyncRouteFixture(existing, poems, record = { title: "Book", auth
     return { status, data };
   } };
 }
+
+test("key mapping route binds the reviewed scope, refuses review changes and never creates FPs", async () => {
+  const { row, poem, mapping } = catalogKeyMappingFixture();
+  const f = catalogSyncRouteFixture([row], [poem]);
+  const dry = await f.call({ keyMappings: [mapping] });
+  assert.equal(dry.data.mode, "key_only");
+  assert.equal(f.writes, 0);
+  assert.equal((await f.call({ keyMappings: [mapping], preserveReviews: false })).status, 400);
+  assert.equal((await f.call({ keyMappings: [mapping], addMissing: true })).status, 400);
+  assert.equal((await f.call({ keyMappings: [mapping], apply: true, planHash: "wrong" })).status, 409);
+  const result = await f.call({ keyMappings: [mapping], apply: true, planHash: dry.data.planHash });
+  assert.equal(result.data.appliedCount, 1);
+  assert.equal(f.writes, 1);
+  assert.equal(f.imported.length, 0);
+});
 
 test("keyed retitles are not missing creations and review policy is bound to the apply hash", async () => {
   const f = catalogSyncRouteFixture([{ id: "stable", book: "Book", title: "Old", poemKey: "BPP-1", excerpt: "old" }],
