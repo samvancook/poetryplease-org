@@ -8339,6 +8339,55 @@ export function catalogSyncEditionConflicts(existing = [], record = {}) {
     && normalizeCatalogLookupKey(row.book) !== normalizeCatalogLookupKey(record.title));
 }
 
+export function planCatalogKeyMappings(existing, poems, mappings, record) {
+  if (!Array.isArray(mappings) || !mappings.length || mappings.length > 2) throw new Error("invalid_key_mappings");
+  const ids = new Set(), keys = new Set();
+  return mappings.map(mapping => {
+    if (!mapping || typeof mapping.id !== "string" || !mapping.id || mapping.id.includes("/")
+      || typeof mapping.poemKey !== "string" || !/^BPP-\d{5}$/.test(mapping.poemKey)
+      || mapping.expectedPoemKey !== "" || typeof mapping.expectedTitle !== "string"
+      || typeof mapping.catalogTitle !== "string"
+      || !/^[a-f0-9]{64}$/.test(mapping.expectedTextHash || "")
+      || !/^[a-f0-9]{64}$/.test(mapping.sourceTextHash || "")
+      || ids.has(mapping.id) || keys.has(mapping.poemKey)) throw new Error("invalid_key_mappings");
+    ids.add(mapping.id); keys.add(mapping.poemKey);
+    const rows = existing.filter(row => row.id === mapping.id);
+    const sources = poems.filter(poem => poem.poem_key === mapping.poemKey);
+    const row = rows[0], poem = sources[0];
+    if (rows.length !== 1 || sources.length !== 1 || row.catalogRetired === true
+      || row.book !== record.title || row.author !== record.author
+      || row.title !== mapping.expectedTitle
+      || sha256(String(row.excerpt || "")) !== mapping.expectedTextHash
+      || (normalizeText(row.poemKey) && row.poemKey !== mapping.poemKey)
+      || poem.title !== mapping.catalogTitle
+      || sha256(String(poem.served_text || poem.cleaned_text || poem.text || "")) !== mapping.sourceTextHash
+      || existing.some(other => other.id !== row.id && other.catalogRetired !== true && other.poemKey === mapping.poemKey)) {
+      throw new Error("catalog_key_mapping_conflict");
+    }
+    return { ...mapping, book: row.book, author: row.author, alreadyCurrent: row.poemKey === mapping.poemKey };
+  });
+}
+
+export async function applyCatalogKeyMapping(update) {
+  const ref = db.collection(COLLECTIONS.fullPoems).doc(update.id);
+  return db.runTransaction(async tx => {
+    const [doc, owners] = await Promise.all([
+      tx.get(ref), tx.get(db.collection(COLLECTIONS.fullPoems).where("poemKey", "==", update.poemKey)),
+    ]);
+    const row = doc.data() || {};
+    if (!doc.exists || row.catalogRetired === true || row.book !== update.book || row.author !== update.author
+      || row.title !== update.expectedTitle || sha256(String(row.excerpt || "")) !== update.expectedTextHash
+      || (normalizeText(row.poemKey) && row.poemKey !== update.poemKey)
+      || owners.docs.some(owner => owner.id !== update.id && owner.data()?.catalogRetired !== true)) {
+      throw new Error("content_changed_refresh_first");
+    }
+    if (row.poemKey === update.poemKey) return { alreadyCurrent: true };
+    tx.update(ref, { poemKey: update.poemKey, poemKeySource: "catalog_reviewed_identity_mapping",
+      poemKeyConfidence: 1, updatedAt: FieldValue.serverTimestamp(), updatedBy: "catalog-sync" });
+    return { alreadyCurrent: false };
+  });
+}
+
 export function planExistingCatalogFullPoemUpdates(existing = [], poems = []) {
   const existingByTitle = new Map();
   const poemsByTitle = new Map();
@@ -8494,6 +8543,33 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
         requestedBook, resolvedBook: catalogRecord.title, conflictingExistingCount: editionConflicts.length });
     }
     const poems = await fetchCanonicalPoems(catalogRecord.title);
+    if (req.body?.keyMappings !== undefined) {
+      if (!updateExisting || addMissing || !reviewOptions.preserveReviews || req.body?.resolveFlagIds !== undefined) {
+        return res.status(400).json({ error: "key_mapping_requires_preserved_reviews_and_no_creations" });
+      }
+      let mappings;
+      try { mappings = planCatalogKeyMappings(allExisting, poems, req.body.keyMappings, catalogRecord); }
+      catch (err) { return res.status(409).json({ error: err.message }); }
+      const planHash = sha256(JSON.stringify({ book: catalogRecord.title, mode: "key_only",
+        mappings: mappings.map(({ alreadyCurrent, ...mapping }) => mapping) }));
+      if (apply && req.body?.planHash !== planHash) return res.status(409).json({ error: "catalog_update_plan_changed", planHash });
+      const results = [];
+      if (apply) {
+        for (const mapping of mappings) {
+          try { results.push({ id: mapping.id, ok: true, ...await applyCatalogKeyMapping(mapping) }); }
+          catch (err) { results.push({ id: mapping.id, ok: false, error: err.message }); break; }
+        }
+        if (results.some(result => result.ok && !result.alreadyCurrent)) {
+          await invalidateContentCache();
+          await invalidateScoreboardSnapshot("catalog_key_mapping");
+        }
+      }
+      return res.json({ ok: !results.some(result => !result.ok), book: catalogRecord.title,
+        mode: "key_only", planHash, mappings, results,
+        plannedUpdateCount: mappings.filter(mapping => !mapping.alreadyCurrent).length,
+        appliedCount: results.filter(result => result.ok && !result.alreadyCurrent).length,
+        errorCount: results.filter(result => !result.ok).length });
+    }
     const existing = allExisting
       .filter((row) => normalizeCatalogLookupKey(row.book) === normalizeCatalogLookupKey(catalogRecord.title));
     const existingTitleCounts = new Map();
