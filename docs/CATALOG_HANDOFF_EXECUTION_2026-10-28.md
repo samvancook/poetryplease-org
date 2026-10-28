@@ -57,3 +57,18 @@ Weaver owns tracing the actual endpoint/request/response and deploying its attem
 - Local working evidence: `/tmp/pp-handoff-execution-20261028/` (temporary; use the shared archive for durable recovery).
 - `source-undo.json`, `future-undo.json`, `retire-undo.json`, `dbat-canary-undo.json`, and `dbat-remainder-undo.json` work with the existing helper's guarded `--undo ... --apply` route. Do not run undo or replay batches without inspecting current state; guards refuse intervening changes.
 - Historical helper attribution is `updatedBy: catalog_handoff_2026-10-22`; this date is inherited from the existing helper, not the execution date. Dated receipts establish the October 28 run.
+
+## Follow-up: duplicate pairs resolved; Siaara split prepared
+
+The prior four-record/two-key collision hold is resolved on October 28:
+
+- **Chicago high school love letters:** `BP-FP-CHICAGO-HIGH-SCHOOL-LOVE-LETTERS` now owns BPP-04593. Byte-identical `...-3` is retired reversibly. Both had zero votes, flags or repair requests.
+- **Once:** `TRAN-FP-ONCE` now owns BPP-04494 and retains its seven votes. Sam explicitly approved reversible retirement of byte-identical `TRAN-FP-ONCE-2`, with its one vote retained on that archived ID, not transferred. Independent verification confirms all eight votes and all unplanned content fields unchanged.
+- Both keys have exactly one active owner. Four existing records changed; no deletion or new content. The existing backup/update helper was used with update-time guards and exact counterpart proofs; no code or deployment change.
+- **Siaara:** Sam approved preparing two standalone poems with fresh voting while preserving the combined record's vote as archived history. Prepared BPP-00384 / `DBAT-FP-NECROMANCY-EXPLAINS-THE-AUTHOR`, and BPP-07569 / `DBAT-FP-THE-AUTHOR-EXPLAINS-NECROMANCY`, both credited to Siaara Freeman. Exact ID/key preflight passed. Preparation only: no records created and the combined record remains active. Publication approval is pending. Use the existing admin content-library route with explicit contributor attribution; the book-wide missing-poem route defaults to the anthology editor.
+- **Pink Elephant:** no change. Current BPP-00653 is classified `partial_extraction` / `is_likely_poem: 0`; do not adopt it as a complete repaired body. BPP-00714 is active, but the author conflict and year moved from body into title still require source-backed correction authority. Catalog has the exact questions.
+
+[Prepared Siaara poems and release checks](https://drive.google.com/file/d/1nJX3n8cS243T1H8hwpl6PlHBlnMaox-m/view).
+[Private backup, guarded undo plans, source evidence and independent verification](https://drive.google.com/file/d/1zJHpa1DGyfF10KvMk-OQCiqmOqTBLceO/view).
+
+The earlier collision/Siaara rows above record the initial hold; this dated follow-up supersedes their current status. Trees remains held upstream, and no video retry occurred.
