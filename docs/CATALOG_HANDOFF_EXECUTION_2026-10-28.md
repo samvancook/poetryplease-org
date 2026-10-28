@@ -76,3 +76,18 @@ The earlier collision/Siaara rows above record the initial hold; this dated foll
 ### Later Catalog readback: Trees hold expanded
 
 Catalog now reports its extractor stopped at the first EPUB HTML file, omitting continuation pages: **79 poems were short by 5,720 words**. This supersedes the earlier 19-poem/33-spacing-gap description as the full defect scope. Catalog's prepared [PR #87](https://github.com/samvancook/button-poetry-catalog/pull/87) restores complete bodies for all 87, with no additions, removals or retitles; focused local tests and repeat-import checks reportedly pass. These are the owning task's results, not a new independent PP source audit. Production remains unchanged. Automatic approval review blocked its production-triggering merge because GitHub shows no PR checks; explicit human merge/rollout approval was requested. Keep PP Trees held until Catalog's named rollout and live verification receipt succeed.
+
+### Siaara split published after explicit approval
+
+Sam approved publication after reviewing the prepared split. Both poems were created through the existing signed-in admin Full Poems JSON importer, with explicit Siaara Freeman attribution. The preview reported two creates, zero updates and zero errors; independent Firestore readback verified both exact texts and book metadata. The import path omitted submitted permanent-key/source-provenance fields. The existing guarded helper then attached BPP-00384 / BPP-07569 with provenance and confidence; both keys have one active owner and both poems start with zero votes. The absent sourceSystem/sourceRecordId fields are recorded as an importer follow-up; neither is claimed as stored. No runtime code or deployment method was changed.
+
+Only after both poems passed verification, the old composite was retired reversibly. Its entire original body and one vote remain unchanged on DBAT-FP-SIAARA-FREEMAN. No vote was assigned or transferred to either new poem. Existing Urbanshee content was untouched.
+
+- [Necromancy Explains the Author](https://poetryplease.org/?item=DBAT-FP-NECROMANCY-EXPLAINS-THE-AUTHOR)
+- [The Author Explains Necromancy](https://poetryplease.org/?item=DBAT-FP-THE-AUTHOR-EXPLAINS-NECROMANCY)
+
+**Roadmap — admin JSON identity metadata preservation; owner Poetry Please:** trace the existing full-poem JSON normalization/upsert path and retain supplied permanent keys and source provenance. Add a narrow round-trip regression test before changing runtime. The two Siaara keys are already corrected; do not recreate or reimport the poems to fix this class of omission.
+
+This completion supersedes preparation/publication-pending statements above. [Final private post-import, key attachment, archival backup/undo and independent verification receipts](https://drive.google.com/file/d/1x-0SSBLXwKaIRPvZRJCPCRNbJpgizP4L/view).
+
+Final authenticated DBAT preview after the split: **69 stored records / 67 canonical source poems; zero updates, missing poems, skipped records or errors.** The stored count includes archived BONUS PROMPTS and the combined Siaara entry; the 67 active keyed poems match the source.
