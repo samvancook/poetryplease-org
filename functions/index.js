@@ -19,7 +19,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
-import { buildWeaverVideoIntake } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoDocId } from "./weaver-video-intake.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
@@ -475,6 +475,10 @@ export function parseDoc(snap) {
     releaseCatalog: d.releaseCatalog || "",
     sourceEvent: d.sourceEvent || "",
     sourceEventLabel: d.sourceEventLabel || "",
+    reviewOnly: d.reviewOnly === true,
+    storageMode: d.storageMode || "",
+    mediaStatus: d.mediaStatus || "",
+    durableCopyStatus: d.durableCopyStatus || "",
     imageType: d.imageType || "",
     excerpt: d.excerpt || "",
     poemKey: d.poemKey || "",
@@ -518,7 +522,7 @@ function sampleItems(items, limit) {
 
 function excludeBrokenContent(items = []) {
   return items.filter((item) => {
-    if (item?.catalogRetired === true || item?.syntheticTest === true) return false;
+    if (item?.catalogRetired === true || item?.syntheticTest === true || item?.reviewOnly === true) return false;
     const imageId = normalizeKey(item?.imageId || "");
     if (!imageId) return true;
     return !BROKEN_QI_IDS.has(imageId) || item?.quarantineReleased === true;
@@ -4037,6 +4041,10 @@ function mapAdminContentDoc(collection, doc) {
     sourceDriveFileId: data.sourceDriveFileId || "",
     sourceEvent: data.sourceEvent || "",
     sourceEventLabel: data.sourceEventLabel || "",
+    reviewOnly: data.reviewOnly === true,
+    storageMode: data.storageMode || "",
+    mediaStatus: data.mediaStatus || "",
+    durableCopyStatus: data.durableCopyStatus || "",
     releaseYear: data.releaseYear || "",
     bookShortener: data.bookShortener || "",
     updatedFileName: data.updatedFileName || "",
@@ -4225,6 +4233,12 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.weaverGateId = normalizeText(body.weaverGateId);
     payload.weaverReleaseStatus = normalizeText(body.weaverReleaseStatus);
     payload.weaverPublicationRestricted = !!body.weaverPublicationRestricted;
+    if (Object.prototype.hasOwnProperty.call(body, "reviewOnly")) {
+      payload.reviewOnly = body.reviewOnly === true;
+    }
+    if (normalizeText(body.storageMode)) payload.storageMode = normalizeText(body.storageMode);
+    if (normalizeText(body.mediaStatus)) payload.mediaStatus = normalizeText(body.mediaStatus);
+    if (normalizeText(body.durableCopyStatus)) payload.durableCopyStatus = normalizeText(body.durableCopyStatus);
     if (Object.prototype.hasOwnProperty.call(body, "weaverSelectedExcerptRecordIds")) {
       payload.weaverSelectedExcerptRecordIds = Array.isArray(body.weaverSelectedExcerptRecordIds)
         ? body.weaverSelectedExcerptRecordIds.map(normalizeText).filter(Boolean)
@@ -8866,6 +8880,10 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       errorCount: 0,
       receivedReviewCount,
       receivedSelectedExcerptIdCount,
+      storageMode: normalizeText(result.item?.storageMode),
+      mediaStatus: normalizeText(result.item?.mediaStatus),
+      durableCopyStatus: normalizeText(result.item?.durableCopyStatus),
+      reviewOnly: result.item?.reviewOnly === true,
       outcomes: [{
         contentId: canonicalVideoId,
         sourceRecordId: intake.item.sourceRecordId,
@@ -8889,6 +8907,10 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         finalAssetUrl,
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
+        storageMode: normalizeText(result.item?.storageMode),
+        mediaStatus: normalizeText(result.item?.mediaStatus),
+        durableCopyStatus: normalizeText(result.item?.durableCopyStatus),
+        reviewOnly: result.item?.reviewOnly === true,
       }],
     });
   } catch (err) {
@@ -8905,6 +8927,76 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       importLedgerId: ledgerRef.id,
       schemaVersion: "1",
     });
+  }
+});
+
+function weaverVideoReceiptLedgerRow(doc) {
+  const data = doc.data() || {};
+  const completedAt = normalizeTimestamp(data.completedAt || data.startedAt);
+  return {
+    importLedgerId: doc.id,
+    status: normalizeText(data.status),
+    error: normalizeText(data.error),
+    canonicalVideoId: normalizeText(data.outcomes?.[0]?.contentId),
+    receivedReviewCount: Number(data.receivedReviewCount || data.outcomes?.[0]?.receivedReviewCount || 0) || 0,
+    receivedSelectedExcerptIdCount: Number(data.receivedSelectedExcerptIdCount || data.outcomes?.[0]?.receivedSelectedExcerptIdCount || 0) || 0,
+    completedAt: completedAt ? completedAt.toISOString() : "",
+  };
+}
+
+async function readWeaverVideoReceipt(sourceRecordId) {
+  const expectedCanonicalVideoId = weaverVideoDocId(sourceRecordId);
+  const [expectedSnap, sourceMatches, ledgerSnap] = await Promise.all([
+    db.collection(COLLECTIONS.videos).doc(expectedCanonicalVideoId).get(),
+    db.collection(COLLECTIONS.videos).where("sourceRecordId", "==", sourceRecordId).limit(3).get(),
+    db.collection(COLLECTIONS.weaverImportLedger).where("sourceRecordId", "==", sourceRecordId).limit(25).get(),
+  ]);
+  const matchingVideos = sourceMatches.docs.filter((doc) => normalizeText(doc.data()?.sourceSystem).toLowerCase() === "weaver");
+  const expectedMatches = expectedSnap.exists
+    && normalizeText(expectedSnap.data()?.sourceSystem).toLowerCase() === "weaver"
+    && normalizeText(expectedSnap.data()?.sourceRecordId) === sourceRecordId;
+  const videoDoc = expectedMatches ? expectedSnap : (matchingVideos.length === 1 ? matchingVideos[0] : null);
+  const ledgers = ledgerSnap.docs.map(weaverVideoReceiptLedgerRow)
+    .sort((a, b) => Date.parse(b.completedAt || 0) - Date.parse(a.completedAt || 0));
+  const video = videoDoc ? (videoDoc.data() || {}) : null;
+  const reviewCount = Array.isArray(video?.weaverReviews) ? video.weaverReviews.length : 0;
+  const selectedExcerptIdCount = Array.isArray(video?.weaverSelectedExcerptRecordIds)
+    ? video.weaverSelectedExcerptRecordIds.length
+    : 0;
+  return {
+    ok: true,
+    sourceRecordId,
+    expectedCanonicalVideoId,
+    received: !!video,
+    ambiguousVideoMatch: !expectedMatches && matchingVideos.length > 1,
+    canonicalVideoId: videoDoc?.id || "",
+    event: {
+      sourceEvent: normalizeText(video?.sourceEvent),
+      sourceEventLabel: normalizeText(video?.sourceEventLabel),
+    },
+    media: {
+      driveLink: normalizeText(video?.driveLink),
+      videoUrl: normalizeText(video?.videoUrl || video?.url),
+      storageMode: normalizeText(video?.storageMode),
+      mediaStatus: normalizeText(video?.mediaStatus),
+      durableCopyStatus: normalizeText(video?.durableCopyStatus),
+      reviewOnly: video?.reviewOnly === true,
+    },
+    review: { reviewCount, selectedExcerptIdCount },
+    ledger: { count: ledgers.length, latest: ledgers[0] || null },
+  };
+}
+
+app.get(getBoth("/internal/weaverVideoReceipt"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const sourceRecordId = normalizeText(req.query?.sourceRecordId);
+  if (!sourceRecordId || sourceRecordId.length > 300) {
+    return res.status(400).json({ error: "invalid_source_record_id" });
+  }
+  try {
+    return res.json(await readWeaverVideoReceipt(sourceRecordId));
+  } catch (err) {
+    return res.status(500).json({ error: "weaver_video_receipt_failed", message: err.message || "unknown_error" });
   }
 });
 

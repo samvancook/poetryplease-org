@@ -26,6 +26,11 @@ test("Weaver video intake makes a deterministic VV record with a required event 
   assert.equal(result.item.sourceEvent, "national-poetry-slam-2026");
   assert.equal(result.item.sourceEventLabel, "National Poetry Slam 2026");
   assert.equal(result.item.driveLink, validVideo.finalAssetUrl);
+  assert.equal(result.item.videoUrl, validVideo.finalAssetUrl);
+  assert.equal(result.item.storageMode, "external");
+  assert.equal(result.item.mediaStatus, "review_ready");
+  assert.equal(result.item.durableCopyStatus, "pending");
+  assert.equal(result.item.reviewOnly, true);
   assert.equal(result.item.weaverCandidateId, validVideo.candidateId);
 });
 

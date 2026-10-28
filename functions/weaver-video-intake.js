@@ -102,6 +102,14 @@ export function buildWeaverVideoIntake(body = {}) {
       sourceRecordId,
       sourceDriveFileId: normalizeText(body.sourceDriveFileId || body.sourceFileId),
       driveLink: finalAssetUrl,
+      // A Weaver handoff is review-only until Poetry Please has made and
+      // verified its own durable copy. Keep the final Drive asset playable for
+      // reviewers, but never make it eligible for a public feed by accident.
+      videoUrl: finalAssetUrl,
+      storageMode: "external",
+      mediaStatus: "review_ready",
+      durableCopyStatus: "pending",
+      reviewOnly: true,
       updatedFileName: normalizeText(body.updatedFileName || body.finalAssetFileName),
       author: normalizeText(body.author),
       title: normalizeText(body.title || body.poemTitle),
