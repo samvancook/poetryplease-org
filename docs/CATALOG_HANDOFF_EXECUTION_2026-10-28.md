@@ -57,3 +57,41 @@ Weaver owns tracing the actual endpoint/request/response and deploying its attem
 - Local working evidence: `/tmp/pp-handoff-execution-20261028/` (temporary; use the shared archive for durable recovery).
 - `source-undo.json`, `future-undo.json`, `retire-undo.json`, `dbat-canary-undo.json`, and `dbat-remainder-undo.json` work with the existing helper's guarded `--undo ... --apply` route. Do not run undo or replay batches without inspecting current state; guards refuse intervening changes.
 - Historical helper attribution is `updatedBy: catalog_handoff_2026-10-22`; this date is inherited from the existing helper, not the execution date. Dated receipts establish the October 28 run.
+
+## Follow-up: duplicate pairs resolved; Siaara split prepared
+
+The prior four-record/two-key collision hold is resolved on October 28:
+
+- **Chicago high school love letters:** `BP-FP-CHICAGO-HIGH-SCHOOL-LOVE-LETTERS` now owns BPP-04593. Byte-identical `...-3` is retired reversibly. Both had zero votes, flags or repair requests.
+- **Once:** `TRAN-FP-ONCE` now owns BPP-04494 and retains its seven votes. Sam explicitly approved reversible retirement of byte-identical `TRAN-FP-ONCE-2`, with its one vote retained on that archived ID, not transferred. Independent verification confirms all eight votes and all unplanned content fields unchanged.
+- Both keys have exactly one active owner. Four existing records changed; no deletion or new content. The existing backup/update helper was used with update-time guards and exact counterpart proofs; no code or deployment change.
+- **Siaara:** Sam approved preparing two standalone poems with fresh voting while preserving the combined record's vote as archived history. Prepared BPP-00384 / `DBAT-FP-NECROMANCY-EXPLAINS-THE-AUTHOR`, and BPP-07569 / `DBAT-FP-THE-AUTHOR-EXPLAINS-NECROMANCY`, both credited to Siaara Freeman. Exact ID/key preflight passed. Preparation only: no records created and the combined record remains active. Publication approval is pending. Use the existing admin content-library route with explicit contributor attribution; the book-wide missing-poem route defaults to the anthology editor.
+- **Pink Elephant:** no change. Current BPP-00653 is classified `partial_extraction` / `is_likely_poem: 0`; do not adopt it as a complete repaired body. BPP-00714 is active, but the author conflict and year moved from body into title still require source-backed correction authority. Catalog has the exact questions.
+
+[Prepared Siaara poems and release checks](https://drive.google.com/file/d/1nJX3n8cS243T1H8hwpl6PlHBlnMaox-m/view).
+[Private backup, guarded undo plans, source evidence and independent verification](https://drive.google.com/file/d/1zJHpa1DGyfF10KvMk-OQCiqmOqTBLceO/view).
+
+The earlier collision/Siaara rows above record the initial hold; this dated follow-up supersedes their current status. Trees remains held upstream, and no video retry occurred.
+
+### Later Catalog readback: Trees hold expanded
+
+Catalog now reports its extractor stopped at the first EPUB HTML file, omitting continuation pages: **79 poems were short by 5,720 words**. This supersedes the earlier 19-poem/33-spacing-gap description as the full defect scope. Catalog's prepared [PR #87](https://github.com/samvancook/button-poetry-catalog/pull/87) restores complete bodies for all 87, with no additions, removals or retitles; focused local tests and repeat-import checks reportedly pass. These are the owning task's results, not a new independent PP source audit. Production remains unchanged. Automatic approval review blocked its production-triggering merge because GitHub shows no PR checks; explicit human merge/rollout approval was requested. Keep PP Trees held until Catalog's named rollout and live verification receipt succeed.
+
+### Siaara split published after explicit approval
+
+Sam approved publication after reviewing the prepared split. Both poems were created through the existing signed-in admin Full Poems JSON importer, with explicit Siaara Freeman attribution. The preview reported two creates, zero updates and zero errors; independent Firestore readback verified both exact texts and book metadata. The import path omitted submitted permanent-key/source-provenance fields. The existing guarded helper then attached BPP-00384 / BPP-07569 with provenance and confidence; both keys have one active owner and both poems start with zero votes. The absent sourceSystem/sourceRecordId fields are recorded as an importer follow-up; neither is claimed as stored. No runtime code or deployment method was changed.
+
+Only after both poems passed verification, the old composite was retired reversibly. Its entire original body and one vote remain unchanged on DBAT-FP-SIAARA-FREEMAN. No vote was assigned or transferred to either new poem. Existing Urbanshee content was untouched.
+
+- [Necromancy Explains the Author](https://poetryplease.org/?item=DBAT-FP-NECROMANCY-EXPLAINS-THE-AUTHOR)
+- [The Author Explains Necromancy](https://poetryplease.org/?item=DBAT-FP-THE-AUTHOR-EXPLAINS-NECROMANCY)
+
+**Roadmap — admin JSON identity metadata preservation; owner Poetry Please:** trace the existing full-poem JSON normalization/upsert path and retain supplied permanent keys and source provenance. Add a narrow round-trip regression test before changing runtime. The two Siaara keys are already corrected; do not recreate or reimport the poems to fix this class of omission.
+
+This completion supersedes preparation/publication-pending statements above. [Final private post-import, key attachment, archival backup/undo and independent verification receipts](https://drive.google.com/file/d/1x-0SSBLXwKaIRPvZRJCPCRNbJpgizP4L/view).
+
+Final authenticated DBAT preview after the split: **69 stored records / 67 canonical source poems; zero updates, missing poems, skipped records or errors.** The stored count includes archived BONUS PROMPTS and the combined Siaara entry; the 67 active keyed poems match the source.
+
+### Trees approval superseded
+
+A later direct read of the Catalog task confirmed Sam explicitly approved PR #87 merge and rollout there. It merged as `fd772b3`; the owning task reports the named rollout passed preflight/schema checks and was verifying its zero-traffic candidate at this readback. The duplicate approval prompt in the PP task is superseded; no further approval is needed for that already-authorized Catalog merge. PP refresh remains held until the live-source verification receipt. Earlier approval-pending statements above are historical.
