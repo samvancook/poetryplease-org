@@ -91,3 +91,7 @@ Only after both poems passed verification, the old composite was retired reversi
 This completion supersedes preparation/publication-pending statements above. [Final private post-import, key attachment, archival backup/undo and independent verification receipts](https://drive.google.com/file/d/1x-0SSBLXwKaIRPvZRJCPCRNbJpgizP4L/view).
 
 Final authenticated DBAT preview after the split: **69 stored records / 67 canonical source poems; zero updates, missing poems, skipped records or errors.** The stored count includes archived BONUS PROMPTS and the combined Siaara entry; the 67 active keyed poems match the source.
+
+### Trees approval superseded
+
+A later direct read of the Catalog task confirmed Sam explicitly approved PR #87 merge and rollout there. It merged as `fd772b3`; the owning task reports the named rollout passed preflight/schema checks and was verifying its zero-traffic candidate at this readback. The duplicate approval prompt in the PP task is superseded; no further approval is needed for that already-authorized Catalog merge. PP refresh remains held until the live-source verification receipt. Earlier approval-pending statements above are historical.
