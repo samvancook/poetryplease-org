@@ -72,3 +72,7 @@ The prior four-record/two-key collision hold is resolved on October 28:
 [Private backup, guarded undo plans, source evidence and independent verification](https://drive.google.com/file/d/1zJHpa1DGyfF10KvMk-OQCiqmOqTBLceO/view).
 
 The earlier collision/Siaara rows above record the initial hold; this dated follow-up supersedes their current status. Trees remains held upstream, and no video retry occurred.
+
+### Later Catalog readback: Trees hold expanded
+
+Catalog now reports its extractor stopped at the first EPUB HTML file, omitting continuation pages: **79 poems were short by 5,720 words**. This supersedes the earlier 19-poem/33-spacing-gap description as the full defect scope. Catalog's prepared [PR #87](https://github.com/samvancook/button-poetry-catalog/pull/87) restores complete bodies for all 87, with no additions, removals or retitles; focused local tests and repeat-import checks reportedly pass. These are the owning task's results, not a new independent PP source audit. Production remains unchanged. Automatic approval review blocked its production-triggering merge because GitHub shows no PR checks; explicit human merge/rollout approval was requested. Keep PP Trees held until Catalog's named rollout and live verification receipt succeed.
