@@ -1160,3 +1160,30 @@ test("synthetic canaries remain hidden from discovery and direct public reads af
   const rows = visible([synthetic, {imageId:"real-content"}], new Set());
   assert.deepEqual(Array.from(rows,row=>row.imageId),["real-content"]);
 });
+
+// Exercise the real admin reader and backend payload builder together: the
+// Siaara import previously lost identity before it reached the API.
+test("admin FP JSON import retains explicit IDs, keys, provenance and private-canary status", async () => {
+  const html = readFileSync(new URL('../public/admin.html', import.meta.url), 'utf8');
+  const start = html.indexOf('    async function readFullPoemsImportItems()');
+  const rows = [1, 2].map(n => ({ docId: `EXPLICIT-${n}`, title: 'Same title', author: 'Contributor', book: 'Anthology',
+    excerpt: `poem ${n}\n\nsecond stanza`, poemKey: `BPP-0000${n}`, poemKeySource: 'catalog', poemKeyConfidence: n === 1 ? 0 : 1,
+    sourceSystem: 'button_poetry_catalog', sourceRecordId: `catalog-poem:${n}`, sourceDriveFileId: `drive-${n}`, syntheticTest: true }));
+  const read = runInNewContext(html.slice(start, html.indexOf('    async function readYouTubeImportItems()', start)) + '; readFullPoemsImportItems', {
+    document: { getElementById: () => ({files: [{}]}) }, readJsonFile: async () => JSON.stringify(rows),
+  });
+  const parsed = await read();
+  const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
+  const buildStart = source.indexOf('function buildContentDocPayload(');
+  const build = runInNewContext(source.slice(buildStart, source.indexOf('\nfunction collectionForContentType', buildStart)) + '; buildContentDocPayload', {
+    FieldValue: {serverTimestamp: () => 'now'}, normalizeText: v => String(v || '').trim(), deriveContentDocId: (_type, body) => body.docId,
+  });
+  for (let i = 0; i < rows.length; i++) {
+    const payload = build('fullpoems', parsed[i]).payload;
+    assert.equal(payload.contentId, rows[i].docId);
+    for (const key of ['poemKey','poemKeySource','poemKeyConfidence','sourceSystem','sourceRecordId','sourceDriveFileId','syntheticTest','author','excerpt']) {
+      assert.equal(payload[key], rows[i][key], key);
+    }
+  }
+  assert.notEqual(parsed[0].docId, parsed[1].docId);
+});

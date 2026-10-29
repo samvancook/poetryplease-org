@@ -4369,10 +4369,17 @@
       }
       if (!Array.isArray(parsed) || !parsed.length) throw new Error('JSON import expects a non-empty array of poem objects.');
       return parsed.map((item) => ({
-        docId: item.contentId || item.imageId || '',
-        contentId: item.contentId || item.imageId || '',
-        imageId: item.imageId || item.contentId || '',
+        docId: item.docId || item.contentId || item.imageId || '',
+        contentId: item.contentId || item.docId || item.imageId || '',
+        imageId: item.imageId || item.docId || item.contentId || '',
         imageType: item.imageType || 'FP',
+        poemKey: item.poemKey || '',
+        poemKeySource: item.poemKeySource || '',
+        poemKeyConfidence: item.poemKeyConfidence ?? null,
+        sourceSystem: item.sourceSystem || '',
+        sourceRecordId: item.sourceRecordId || '',
+        sourceDriveFileId: item.sourceDriveFileId || '',
+        syntheticTest: item.syntheticTest === true,
         author: item.author || '',
         book: item.book || '',
         title: item.title || '',
