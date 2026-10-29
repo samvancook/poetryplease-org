@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildWeaverVideoIntake, weaverVideoDocId } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext } from "./weaver-video-intake.js";
 
 const validVideo = {
   contentType: "VV",
@@ -17,6 +17,51 @@ const validVideo = {
   prioritySetId: "priority-4",
   sourceFileId: "file-9",
 };
+
+test("a partial resend preserves historical reviews and excerpt links while acknowledging the submitted set", () => {
+  const existing = {
+    sourceSystem: "weaver", sourceRecordId: validVideo.sourceRecordId,
+    weaverReviews: [
+      { reviewId: "archived", notes: "Retain this review", excerptRecordIds: ["old-excerpt"] },
+      { reviewId: "current", rating: "like", excerptRecordIds: ["earlier-link"] },
+    ],
+    weaverSelectedExcerptRecordIds: ["old-excerpt", "earlier-link"],
+  };
+  const incoming = buildWeaverVideoIntake({ ...validVideo,
+    reviews: [{ reviewId: "current", rating: "love", excerptRecordIds: ["new-excerpt"] }],
+    selectedExcerptRecordIds: ["new-excerpt", "new-excerpt"],
+  }).item;
+  const merged = { ...existing, ...mergeWeaverVideoContext(existing, incoming) };
+  assert.deepEqual(merged.weaverReviews[0], existing.weaverReviews[0]);
+  assert.equal(merged.weaverReviews[1].rating, "love");
+  assert.deepEqual(merged.weaverReviews[1].excerptRecordIds, ["earlier-link", "new-excerpt"]);
+  assert.deepEqual(merged.weaverSelectedExcerptRecordIds, ["old-excerpt", "earlier-link", "new-excerpt"]);
+  assert.deepEqual(countReceivedWeaverVideoContext(merged, incoming), {
+    receivedReviewCount: 1, receivedSelectedExcerptIdCount: 1,
+    storedReviewCount: 2, storedSelectedExcerptIdCount: 3,
+  });
+  assert.deepEqual(mergeWeaverVideoContext(merged, incoming), {
+    weaverReviews: merged.weaverReviews,
+    weaverSelectedExcerptRecordIds: merged.weaverSelectedExcerptRecordIds,
+  });
+  assert.deepEqual(mergeWeaverVideoContext(merged, { ...incoming, weaverReviews: [], weaverSelectedExcerptRecordIds: [] }), {
+    weaverReviews: merged.weaverReviews,
+    weaverSelectedExcerptRecordIds: merged.weaverSelectedExcerptRecordIds,
+  });
+});
+
+test("video review context cannot cross canonical source identities", () => {
+  assert.throws(() => mergeWeaverVideoContext({ sourceSystem: "weaver", sourceRecordId: "other" }, validVideo), /identity_conflict/);
+  assert.throws(() => mergeWeaverVideoContext({ sourceSystem: "other", sourceRecordId: validVideo.sourceRecordId }, validVideo), /identity_conflict/);
+  assert.throws(() => mergeWeaverVideoContext({ sourceSystem: "weaver", sourceRecordId: validVideo.sourceRecordId,
+    weaverReviews: [{ notes: "Unidentified history must not be dropped" }],
+  }, { ...validVideo, weaverReviews: [] }), /review_identity_conflict/);
+  assert.deepEqual(mergeWeaverVideoContext({}, { sourceRecordId: validVideo.sourceRecordId }), {});
+  assert.deepEqual(countReceivedWeaverVideoContext({ weaverReviews: [{ reviewId: "earlier" }] }, {}), {
+    receivedReviewCount: 0, receivedSelectedExcerptIdCount: 0,
+    storedReviewCount: 1, storedSelectedExcerptIdCount: 0,
+  });
+});
 
 test("Weaver video intake makes a deterministic VV record with a required event lane", () => {
   const result = buildWeaverVideoIntake(validVideo);

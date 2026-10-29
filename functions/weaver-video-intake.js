@@ -63,6 +63,65 @@ export function weaverVideoDocId(sourceRecordId) {
   return `WEAVER-VV-${digest}`;
 }
 
+// A later handoff is an incremental snapshot, not permission to delete earlier
+// review history or excerpt associations from the same canonical video.
+export function mergeWeaverVideoContext(existing = {}, incoming = {}) {
+  if (Object.keys(existing).length && (
+    normalizeKey(existing.sourceSystem) !== "weaver"
+    || normalizeText(existing.sourceRecordId) !== normalizeText(incoming.sourceRecordId)
+  )) {
+    const error = new Error("weaver_video_identity_conflict");
+    error.status = 409;
+    throw error;
+  }
+  const patch = {};
+  if (Object.hasOwn(incoming, "weaverReviews")) {
+    const reviews = new Map();
+    for (const row of Array.isArray(existing.weaverReviews) ? existing.weaverReviews : []) {
+      const id = normalizeText(row.reviewId);
+      if (!id || reviews.has(id)) {
+        const error = new Error("weaver_video_review_identity_conflict");
+        error.status = 409;
+        throw error;
+      }
+      reviews.set(id, row);
+    }
+    for (const row of Array.isArray(incoming.weaverReviews) ? incoming.weaverReviews : []) {
+      const id = normalizeText(row.reviewId);
+      if (!id) continue;
+      const previous = reviews.get(id);
+      reviews.set(id, previous ? {
+        ...previous, ...row,
+        excerptRecordIds: [...new Set([
+          ...normalizeStringList(previous.excerptRecordIds),
+          ...normalizeStringList(row.excerptRecordIds),
+        ])],
+      } : row);
+    }
+    patch.weaverReviews = [...reviews.values()];
+  }
+  if (Object.hasOwn(incoming, "weaverSelectedExcerptRecordIds")) {
+    patch.weaverSelectedExcerptRecordIds = [...new Set([
+      ...normalizeStringList(existing.weaverSelectedExcerptRecordIds),
+      ...normalizeStringList(incoming.weaverSelectedExcerptRecordIds),
+    ])];
+  }
+  return patch;
+}
+
+export function countReceivedWeaverVideoContext(stored = {}, submitted = {}) {
+  const storedReviews = new Set((stored.weaverReviews || []).map(row => normalizeText(row.reviewId)).filter(Boolean));
+  const submittedReviews = new Set((submitted.weaverReviews || []).map(row => normalizeText(row.reviewId)).filter(Boolean));
+  const storedExcerpts = new Set(normalizeStringList(stored.weaverSelectedExcerptRecordIds));
+  const submittedExcerpts = new Set(normalizeStringList(submitted.weaverSelectedExcerptRecordIds));
+  return {
+    receivedReviewCount: [...submittedReviews].filter(id => storedReviews.has(id)).length,
+    receivedSelectedExcerptIdCount: [...submittedExcerpts].filter(id => storedExcerpts.has(id)).length,
+    storedReviewCount: storedReviews.size,
+    storedSelectedExcerptIdCount: storedExcerpts.size,
+  };
+}
+
 export function buildWeaverVideoIntake(body = {}) {
   const contentType = normalizeText(body.contentType).toUpperCase();
   if (contentType !== "VV") {
