@@ -1,5 +1,7 @@
 # Poetry Please handoff execution follow-up — 28 October 2026
 
+Later update: the My dear brother incomplete-source hold below is superseded by [verified final-PDF source adjudication and completed repair](PINK_ELEPHANT_BROTHER_REPAIR_2026-10-28.md). PR92 rollout-pin approval was subsequently granted, Catalog rollout passed and [Yearning is now imported and verified in PP](TREES_YEARNING_COMPLETION_2026-10-28.md); the earlier classification/import hold below is historical.
+
 ## Completed
 
 - Trees: 86 existing full poems refreshed and independently checked against current Catalog text and permanent keys. All 16 saved votes unchanged; no creations. Fresh preview: zero remaining updates/missing/skipped/errors for the 86 currently eligible Catalog poems. [Earlier execution receipt](https://drive.google.com/file/d/1GiS1Bq2NtW9aISmyA1K039Fu1l0GNg69/view).
