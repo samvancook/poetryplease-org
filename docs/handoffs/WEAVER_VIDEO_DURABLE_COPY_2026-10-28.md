@@ -1,5 +1,9 @@
 # Weaver video → Poetry Please: durable-copy receiver
 
+## Superseded readiness status — 29 October 2026
+
+The real Kenneth pilot is now verified in PP and its final receipt is saved in Weaver: same canonical video, 11 reviews / 8 excerpt links, 1,447,300,329 bytes, checksum verified, review-only. See the [completion receipt and remaining owners](WEAVER_VIDEO_PILOT_2026-10-29.md). The “no pilot” and readiness statements below describe the October 28 release only; Rachel and the five MPMU transfers remain held.
+
 ## Production status — 28 October 2026
 
 Poetry Please receiver changes were merged to `main` in [PR #297](https://github.com/samvancook/poetryplease-org/pull/297), merge commit `ca0057d52bd4db79ff21b83f797d555dc6f9de1d`.
