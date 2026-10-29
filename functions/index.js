@@ -19,7 +19,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
-import { buildWeaverVideoIntake, weaverVideoDocId } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext } from "./weaver-video-intake.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
@@ -4610,11 +4610,22 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
   }
   if (preparedAssetSet) Object.assign(built.payload, { assetSet: preparedAssetSet,
     imageUrl: preparedAssetSet[0].assetPreviewUrl, driveLink: preparedAssetSet[0].assetUrl });
-  await ref.set({
-    ...existing,
-    ...built.payload,
-    createdAt: existing.createdAt || FieldValue.serverTimestamp(),
-  }, { merge: true });
+  if (!isRename && normalizeKey(type) === "videos" && normalizeKey(body.sourceSystem) === "weaver") {
+    Object.assign(built.payload, mergeWeaverVideoContext(existing, built.payload));
+    // Do not overwrite a concurrent handoff or durable-copy completion using
+    // the older snapshot read at the start of this operation.
+    if (snap.exists) {
+      await ref.update(built.payload, { lastUpdateTime: snap.updateTime });
+    } else {
+      await ref.create({ ...built.payload, createdAt: FieldValue.serverTimestamp() });
+    }
+  } else {
+    await ref.set({
+      ...existing,
+      ...built.payload,
+      createdAt: existing.createdAt || FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
   if (isRename && originalSnap?.exists) {
     await originalRef.delete();
   }
@@ -8923,12 +8934,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const canonicalVideoUrl = `/app?item=${encodeURIComponent(canonicalVideoId)}&type=VV`;
     const finalAssetUrl = normalizeText(result.item?.videoUrl || result.item?.url);
     const status = result.created ? "created" : "updated";
-    const receivedReviewCount = Array.isArray(result.item?.weaverReviews)
-      ? result.item.weaverReviews.length
-      : 0;
-    const receivedSelectedExcerptIdCount = Array.isArray(result.item?.weaverSelectedExcerptRecordIds)
-      ? result.item.weaverSelectedExcerptRecordIds.length
-      : 0;
+    const { receivedReviewCount, receivedSelectedExcerptIdCount, storedReviewCount, storedSelectedExcerptIdCount }
+      = countReceivedWeaverVideoContext(result.item, intake.item);
     let durableCopy = { status: normalizeText(result.item?.durableCopyStatus || "pending"), queued: false };
     try {
       durableCopy = await queueWeaverVideoDurableCopy({
@@ -8956,6 +8963,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       errorCount: 0,
       receivedReviewCount,
       receivedSelectedExcerptIdCount,
+      storedReviewCount,
+      storedSelectedExcerptIdCount,
       storageMode: normalizeText(result.item?.storageMode),
       mediaStatus: normalizeText(result.item?.mediaStatus),
       durableCopyStatus: normalizeText(durableCopy.status),
@@ -8968,6 +8977,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         outcome: status,
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
+        storedReviewCount,
+        storedSelectedExcerptIdCount,
       }],
       durationMs: Date.now() - startedAt,
       completedAt: FieldValue.serverTimestamp(),
@@ -8985,6 +8996,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         finalAssetUrl,
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
+        storedReviewCount,
+        storedSelectedExcerptIdCount,
         storageMode: normalizeText(result.item?.storageMode),
         mediaStatus: normalizeText(result.item?.mediaStatus),
         durableCopyStatus: normalizeText(durableCopy.status),
