@@ -75,6 +75,11 @@ export function mergeWeaverVideoContext(existing = {}, incoming = {}) {
     throw error;
   }
   const patch = {};
+  // An omitted book in a video gate is not a request to erase metadata already
+  // verified on the canonical PP record. Never infer a new book here.
+  for (const key of ["author", "title", "book", "bookLink", "bookShortener"]) {
+    if (!normalizeText(incoming[key]) && normalizeText(existing[key])) patch[key] = existing[key];
+  }
   if (Object.hasOwn(incoming, "weaverReviews")) {
     const reviews = new Map();
     for (const row of Array.isArray(existing.weaverReviews) ? existing.weaverReviews : []) {

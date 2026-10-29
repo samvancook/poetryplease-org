@@ -63,6 +63,18 @@ test("video review context cannot cross canonical source identities", () => {
   });
 });
 
+test("an asset handoff without book metadata retains the canonical book without inventing one", () => {
+  const existing = { sourceSystem: "weaver", sourceRecordId: validVideo.sourceRecordId,
+    author: "Existing author", title: "Existing title", book: "Existing book",
+    bookLink: "https://example.com/book", bookShortener: "EB" };
+  assert.deepEqual(mergeWeaverVideoContext(existing, {
+    sourceSystem: "weaver", sourceRecordId: validVideo.sourceRecordId, author: "", title: "", book: "",
+  }), { author: existing.author, title: existing.title, book: existing.book,
+    bookLink: existing.bookLink, bookShortener: existing.bookShortener });
+  assert.equal(mergeWeaverVideoContext({}, validVideo).book, undefined);
+  assert.equal(mergeWeaverVideoContext(existing, { ...validVideo, book: "Explicitly updated book" }).book, undefined);
+});
+
 test("Weaver video intake makes a deterministic VV record with a required event lane", () => {
   const result = buildWeaverVideoIntake(validVideo);
   assert.equal(result.ok, true);
