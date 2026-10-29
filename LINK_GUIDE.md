@@ -155,12 +155,26 @@ Use `item` plus any other filters:
 
 Add UTM parameters to every link you post or email so Google Analytics can tell which post, email, or campaign sent the traffic. Without them, spikes from a social post or newsletter show up as Direct or Unassigned.
 
-- `utm_source`: where the link lives, e.g. `instagram`, `tiktok`, `newsletter`, `youtube`
-- `utm_medium`: the kind of channel, e.g. `social`, `email`, `video`
-- `utm_campaign`: a short name for the push, e.g. `2026-10-poem-drop`
+This follows Button Poetry's link tagging convention, approved 2026-10-29 and shared by buttonpoetry.com and the Social Warehouse:
+https://docs.google.com/document/d/1OUgIw8kLc6hGA7zGJZ69AVZM7ORHblglIT5deJCZYeg/edit
 
-Example:
+All values are lowercase, with words joined by hyphens and no spaces. GA treats `Facebook` and `facebook` as different sources.
 
-- `https://poetryplease.org/?type=EXC&utm_source=instagram&utm_medium=social&utm_campaign=2026-10-poem-drop`
+- `utm_source`: where the click happened. One of `facebook`, `instagram`, `tiktok`, `youtube`, `tumblr`, `threads`, `x`, `mailchimp`, `linkinbio`, or a partner name (for example `ibpa`).
+- `utm_medium`: the kind of placement. `social` (organic posts and bios), `paid_social` (paid ads), `email` (newsletters and e-blasts), or `referral` (partner and author sites).
+- `utm_campaign`: why the link exists, as `yyyy-mm_slug`, for example `2026-11_pages-launch`. Newsletter sends use the send date: `2026-10-19_great-poems-33`.
+- `utm_content`: which post, ad, or email block.
+  - Organic social and Tumblr: the calendar's link ID for that post, for example `ccc-7f3a9c21`.
+  - Paid Meta ads: `{{ad.id}}` in the ad's URL parameters field.
+  - Email: the block name, for example `hero`, `poem-1`, `shop-button`.
+  - Bio links: `bio`.
 
-The auto-detect entry keeps these parameters when it redirects to `/app` or `/m`.
+Google Ads links don't need UTMs; auto-tagging handles them.
+
+Examples:
+
+- Newsletter: `https://poetryplease.org/app?item=AEO-EXC-APOCRYPHA-1&utm_source=mailchimp&utm_medium=email&utm_campaign=2026-10-19_great-poems-33&utm_content=poem-1`
+- Facebook post: `https://poetryplease.org/?type=EXC&utm_source=facebook&utm_medium=social&utm_campaign=2026-11_pages-launch&utm_content=ccc-7f3a9c21`
+- Instagram bio: `https://poetryplease.org/?utm_source=instagram&utm_medium=social&utm_campaign=2026-11_pages-launch&utm_content=bio`
+
+The auto-detect entry keeps these parameters when it redirects to `/app` or `/m`. Links with `utm_medium=email` (or Mailchimp's `mc_cid`) skip the login prompt for email visitors.
