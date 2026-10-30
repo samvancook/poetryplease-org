@@ -4091,6 +4091,7 @@
                   ${item.imageUrl || item.url || item.youtubeUrl ? `<div class="meta"><a href="${escapeHtml(item.youtubeUrl || item.url || item.imageUrl)}" target="_blank" rel="noopener noreferrer">Open asset</a></div>` : ''}
                   ${item.contentId || item.imageId || item.id ? `<div class="meta"><a href="/?item=${encodeURIComponent(item.contentId || item.imageId || item.id)}" target="_blank" rel="noopener noreferrer">Open in Poetry Please</a></div>` : ''}
                   ${renderWeaverVideoReviewContext(item)}
+                  ${item.collection === 'videos' ? `<details data-video-versions="${escapeHtml(item.id)}"><summary>Video versions</summary><div class="meta">Expand to load available versions.</div></details>` : ''}
                 </td>
                 <td>${escapeHtml(item.author || '—')}</td>
                 <td>${escapeHtml(item.book || '—')}${item.releaseCatalog ? `<div class="meta">${escapeHtml(item.releaseCatalog)}</div>` : ''}</td>
@@ -4106,6 +4107,32 @@
           </tbody>
         </table>
       `;
+      container.querySelectorAll('[data-video-versions]').forEach(panel => {
+        panel.addEventListener('toggle', async () => {
+          if (!panel.open || panel.dataset.loaded === 'true') return;
+          const body = panel.querySelector('div'); body.textContent = 'Loading versions…';
+          try {
+            const data = await api('admin/videoRenditions?videoId=' + encodeURIComponent(panel.dataset.videoVersions));
+            body.replaceChildren();
+            const addLink = (label,url,note) => {
+              let parsed; try { parsed = new URL(url); } catch { return; }
+              if (parsed.protocol !== 'https:' || parsed.username || parsed.password) return;
+              const row = document.createElement('p'), link = document.createElement('a');
+              link.textContent = label; link.href = parsed.href; link.target = '_blank'; link.rel = 'noopener noreferrer';
+              row.append(link); if (note) { const detail = document.createElement('small'); detail.textContent = ' — ' + note; row.append(detail); }
+              body.append(row);
+            };
+            addLink('Primary playable video (unchanged)',data.primaryMediaUrl,'');
+            for (const version of data.renditions || []) {
+              const label = version.role === 'master' ? 'Master / high resolution' : 'Platform-ready / lower resolution';
+              const validation = version.validationState === 'verified_bytes' ? 'SHA-256 and byte count verified' : 'Source-reported metadata';
+              addLink(label,version.outputUrl,`${version.width} × ${version.height}; ${version.durationSeconds}s; ${version.byteCount.toLocaleString()} bytes; ${validation}`);
+            }
+            if (!data.renditions?.length) { const note = document.createElement('p'); note.textContent = 'No additional renditions registered.'; body.append(note); }
+            panel.dataset.loaded = 'true';
+          } catch { body.textContent = 'Could not load versions. Collapse and expand to retry.'; }
+        });
+      });
       container.querySelectorAll('[data-edit-content]').forEach((button) => {
         button.addEventListener('click', () => {
           const item = state.contentItems.find((entry) => entry.id === button.getAttribute('data-edit-content'));

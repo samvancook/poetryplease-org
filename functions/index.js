@@ -1,3 +1,4 @@
+import { registerVideoRendition, verifyRenditionBytes } from './video-renditions.js';
 import { bookReviewAttributes, matchesBookReviewGroup, bookReviewGroups } from './book-review-groups.js';
 import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate, repairReplacementCard } from "./graphic-asset-set.js";
 import { onRequest } from "firebase-functions/v2/https";
@@ -7468,6 +7469,60 @@ app.post(getBoth("/admin/storageAsset/delete"), async (req, res) => {
     });
   }
 });
+
+async function readVideoRenditions(req, res) {
+  const ctx = await requirePigReadAccess(req, res);
+  if (!ctx) return;
+  const videoId = normalizeText(req.query?.videoId);
+  if (!videoId || videoId.includes("/")) return res.status(400).json({ error:"invalid_video_id" });
+  const [videoSnap, assets] = await Promise.all([
+    db.collection(COLLECTIONS.videos).doc(videoId).get(),
+    db.collection(COLLECTIONS.contentAssets).where("contentDocId", "==", videoId).get(),
+  ]);
+  if (!videoSnap.exists) return res.status(404).json({error:"video_not_found"});
+  const video = videoSnap.data() || {};
+  const renditions = assets.docs.map(doc => ({...doc.data(),id:doc.id}))
+    .filter(asset => asset.contentCollection === COLLECTIONS.videos && asset.assetType === "video_rendition" && asset.status === "active");
+  const profileId = normalizeText(req.query?.profileId), profileVersion = normalizeText(req.query?.profileVersion);
+  const sourceVersionFileId = normalizeText(req.query?.sourceVersionFileId);
+  let selected = null;
+  if (profileId) {
+    const matches = renditions.filter(asset => asset.profileId === profileId && (!profileVersion || asset.profileVersion === profileVersion)
+      && (!sourceVersionFileId || asset.sourceVersionFileId === sourceVersionFileId));
+    if (matches.length !== 1) return res.status(matches.length ? 409 : 404).json({error:matches.length ? "ambiguous_video_rendition" : "video_rendition_not_found"});
+    selected = matches[0];
+    if (selected.role === "platform" && selected.validationState !== "verified_bytes") return res.status(409).json({error:"video_rendition_not_verified"});
+  }
+  res.set("Cache-Control", "private, no-store");
+  return res.json({ok:true,schemaVersion:"1",canonicalVideoId:videoId,sourceRecordId:video.sourceRecordId || "",poemKey:video.poemKey || "",
+    primaryMediaUrl:video.videoUrl || video.url || "",originalFinalFileId:extractGoogleDriveFileId(video.driveLink || ""),
+    reviewCount:Array.isArray(video.weaverReviews) ? video.weaverReviews.length : 0,
+    excerptLinkCount:Array.isArray(video.weaverSelectedExcerptRecordIds) ? video.weaverSelectedExcerptRecordIds.length : 0,
+    renditions,selected});
+}
+app.get(getBoth("/admin/videoRenditions"), readVideoRenditions);
+app.get(getBoth("/internal/videoRenditions"), readVideoRenditions);
+
+async function writeVideoRendition(req,res,internal = false) {
+  if (internal) {
+    if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({error:"invalid_api_key"});
+  } else if (!await requireRole(req,res,["admin"])) return;
+  const videoId = normalizeText(req.body?.videoId);
+  if (!videoId || videoId.includes("/")) return res.status(400).json({error:"invalid_video_id"});
+  try {
+    const rendition = await registerVideoRendition({db,videoId,input:req.body?.rendition,
+      timestamp:() => FieldValue.serverTimestamp(),
+      verify:async record => {
+        const remote = await fetchRemoteMediaResponse(record.outputUrl,UPLOAD_RULES.libraryVideo,{updatedFileName:record.outputFileId + ".mp4"});
+        if (remote.mimeType !== "video/mp4") { await remote.response.body?.cancel(); throw Object.assign(new Error("rendition_not_mp4"),{status:400}); }
+        return verifyRenditionBytes(remote.response.body,record);
+      }});
+    res.set("Cache-Control","private, no-store");
+    return res.json({ok:true,schemaVersion:"1",canonicalVideoId:videoId,rendition});
+  } catch(error) { return res.status(error.status || 500).json({error:error.message || "video_rendition_registration_failed"}); }
+}
+app.post(getBoth("/admin/videoRenditions"),(req,res) => writeVideoRendition(req,res));
+app.post(getBoth("/internal/videoRenditions"),(req,res) => writeVideoRendition(req,res,true));
 
 app.get(getBoth("/admin/contentLibrary"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
