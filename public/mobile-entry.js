@@ -34,3 +34,11 @@ export function cachedMobileTarget(pathname, search = '') {
   if (pathname.replace(/\/+$/, '') !== '/m') return '';
   return classicMobileTarget(pathname, search) ? '' : '/posts-swipe' + search;
 }
+
+// Explicit winner links can be public; an author's owned review scope stays intact.
+export function chapbookLaneFilters(search, { staff = false, authorOnly = false } = {}) {
+  const params = new URLSearchParams(search);
+  if (authorOnly || params.get('bookGroup') !== 'chapbook-winners') return null;
+  return { type: params.get('type') || (staff ? 'FP' : 'QI'), bookGroup: 'chapbook-winners',
+    contestYear: params.get('contestYear') || '', book: params.get('book') || '', author: '' };
+}

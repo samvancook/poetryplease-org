@@ -178,3 +178,22 @@ Examples:
 - Instagram bio: `https://poetryplease.org/?utm_source=instagram&utm_medium=social&utm_campaign=2026-11_pages-launch&utm_content=bio`
 
 The auto-detect entry keeps these parameters when it redirects to `/app` or `/m`. Links with `utm_medium=email` (or Mailchimp's `mc_cid`) skip the login prompt for email visitors.
+
+## Chapbook contest winners — deep links and public embed
+
+- Staff FP review: `https://poetryplease.org/app?bookGroup=chapbook-winners&type=FP`
+- Staff FP review in Swipe: `https://poetryplease.org/m?bookGroup=chapbook-winners&type=FP`
+- Public QI reading: `https://poetryplease.org/?bookGroup=chapbook-winners&type=QI`
+- Public embed: `https://poetryplease.org/embed?bookGroup=chapbook-winners&type=QI`
+- Optional `contestYear=2024` or `book=Glandscapes` narrows either link.
+
+The public embed ranks eligible content from confirmed winners only and rotates its pool. It excludes author-excluded, flagged/broken, review-only and FP records; it is not a staff voting queue. Click-through keeps the group/year/book selection and selected item in the normal desktop or primary mobile viewer. Author-only accounts retain their own review scope.
+
+```html
+<iframe src="https://poetryplease.org/embed?bookGroup=chapbook-winners&amp;type=QI"
+  title="Button Poetry chapbook contest winners" width="100%" height="700"
+  style="display:block;border:0;max-width:640px;margin:0 auto;"
+  loading="lazy" allow="fullscreen" allowfullscreen></iframe>
+```
+
+700px is an adjustable starting height, not automatic parent-page sizing. Existing individual-book and short-form contest embeds remain available.

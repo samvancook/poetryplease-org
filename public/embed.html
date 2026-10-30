@@ -154,7 +154,9 @@
       const params = new URLSearchParams(location.search);
       const book = (params.get("book") || "").trim();
       const catalog = (params.get("catalog") || "").trim();
-      const type = (params.get("type") || "").trim();
+      const bookGroup = (params.get("bookGroup") || "").trim();
+      const contestYear = (params.get("contestYear") || "").trim();
+      const type = (params.get("type") || (bookGroup ? "QI" : "")).trim();
       const contestEvent = (params.get("event") || "").trim();
       const prefer = (params.get("prefer") || "").trim();
       const month = new Date().toISOString().slice(0, 7);
@@ -178,6 +180,15 @@
           winners.searchParams.set("locked", "1");
           winners.searchParams.set("reading", "1");
           return winners.pathname + winners.search;
+        }
+        if (bookGroup === "chapbook-winners") {
+          const target = new URL("/", location.origin);
+          target.searchParams.set("bookGroup", bookGroup);
+          target.searchParams.set("type", type);
+          if (contestYear) target.searchParams.set("contestYear", contestYear);
+          if (book) target.searchParams.set("book", book);
+          if (item && item.id) target.searchParams.set("item", item.id);
+          return target.pathname + target.search;
         }
         const targetBook = text(item && item.book) || book;
         const targetCatalog = text(item && item.releaseCatalog) || catalog;
@@ -307,7 +318,7 @@
         }
       });
 
-      if (!book && !catalog && !type) {
+      if (!book && !catalog && !type && !bookGroup) {
         render(null);
         return;
       }
@@ -315,7 +326,9 @@
       const endpoint = new URL("/api/embedBookLead", location.origin);
       if (book) endpoint.searchParams.set("book", book);
       endpoint.searchParams.set("month", month);
-      endpoint.searchParams.set("embedVersion", "3");
+      endpoint.searchParams.set("embedVersion", "4");
+      if (bookGroup) endpoint.searchParams.set("bookGroup", bookGroup);
+      if (contestYear) endpoint.searchParams.set("contestYear", contestYear);
       if (catalog) endpoint.searchParams.set("catalog", catalog);
       if (type) endpoint.searchParams.set("type", type);
       if (contestEvent) endpoint.searchParams.set("event", contestEvent);
