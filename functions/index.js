@@ -5286,7 +5286,9 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
 app.get(getBoth("/embedBookLead"), async (req, res) => {
   const book = normalizeText(req.query?.book);
   const catalog = normalizeText(req.query?.catalog);
-  const type = normalizeText(req.query?.type);
+  const bookGroup = normalizeText(req.query?.bookGroup);
+  const contestYear = normalizeText(req.query?.contestYear);
+  const type = normalizeText(req.query?.type) || (bookGroup ? "QI" : "");
   const event = normalizeText(req.query?.event);
   const requestedPreferredTypes = new Set(normalizeText(req.query?.prefer).split(",")
     .map((value) => value.trim().toUpperCase())
@@ -5294,14 +5296,17 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
   const preferredTypes = requestedPreferredTypes.size
     ? requestedPreferredTypes
     : new Set(["QI", "INT"]);
-  if (!book && !catalog && !type) {
+  if ((bookGroup && bookGroup !== "chapbook-winners") || (contestYear && (!bookGroup || !/^\d{4}$/.test(contestYear)))) {
+    return res.status(400).json({ error: "invalid_embed_book_group" });
+  }
+  if (!book && !catalog && !type && !bookGroup) {
     return res.status(400).json({ error: "missing_embed_filter" });
   }
 
   const selectionMonth = /^\d{4}-\d{2}$/.test(normalizeText(req.query?.month))
     ? normalizeText(req.query.month)
     : new Date().toISOString().slice(0, 7);
-  const filters = { book, catalog, type, event };
+  const filters = { book, catalog, type, event, bookGroup, contestYear };
 
   const [allContent, flaggedIds, ratingsSummary] = await Promise.all([
     getAllContentCached(),
@@ -5318,6 +5323,7 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
     return { item, imageId, rating };
   }).filter(({ item, imageId, rating }) => {
     if (!imageId || rating.authorExcluded) return false;
+    if (bookGroup && (item.reviewOnly === true || normalizeText(item.imageType).toUpperCase() === "FP")) return false;
     return !!normalizeText(
       item.imageUrl || item.videoUrl || item.youtubeUrl || item.url ||
       item.driveLink || item.thumbnailUrl || item.excerpt || item.fullText || item.text
@@ -5364,6 +5370,8 @@ app.get(getBoth("/embedBookLead"), async (req, res) => {
     catalog,
     type,
     event,
+    bookGroup,
+    contestYear,
     selectionMonth,
     lead: pool[0] || null,
     pool,
