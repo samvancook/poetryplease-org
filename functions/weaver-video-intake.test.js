@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from 'node:fs';
+import {runInNewContext} from 'node:vm';
+import {normalizeFootageConnections,mergeFootageConnections} from './footage-provenance.js';
 import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext } from "./weaver-video-intake.js";
 
 const validVideo = {
@@ -17,6 +20,46 @@ const validVideo = {
   prioritySetId: "priority-4",
   sourceFileId: "file-9",
 };
+
+const footageRef={inventoryEventId:'inventory-39a607f0dd29e65a111e13892bf0b17b',inventoryEventName:'PAGES footage from Rudy Francisco 2026',
+ sourceSpreadsheetId:'1npv-dpP22MV-cRs-DRjOimjbWIxf-xvbun5SdP6dl7U',sourceRow:6871,
+ familyId:'footage-family-3e64fa77f2dd9229f0b1d6c41243324b',originalMediaFileId:'1pHdxNXRNgbdzRecfUYYsvNt1VyZS7Wws',
+ finishedVideoFileId:'1Te0zeh7tmd820BBoUw2HOcDCbkBMjGwH',curationFileId:'1Te0zeh7tmd820BBoUw2HOcDCbkBMjGwH'};
+test('footage references survive intake, payload mapping, retry and private readback without changing video identity',async()=>{
+ const intake=buildWeaverVideoIntake({...validVideo,footageContextVersion:1,footageConnections:[footageRef,footageRef]});
+ assert.equal(intake.ok,true);assert.equal(intake.item.docId,weaverVideoDocId(validVideo.sourceRecordId));
+ assert.deepEqual(intake.item.weaverFootageConnections,[footageRef]);
+ const source=readFileSync(new URL('./index.js',import.meta.url),'utf8');
+ const fn=source.slice(source.indexOf('function buildContentDocPayload('),source.indexOf('function collectionForContentType('));
+ const build=runInNewContext(fn+';buildContentDocPayload',{normalizeText:x=>String(x||'').trim(),FieldValue:{serverTimestamp:()=> 'now'},deriveContentDocId:(_type,body)=>body.docId,normalizeFootageConnections});
+ const payload=build('videos',intake.item).payload;
+ assert.deepEqual(payload.weaverFootageConnections,[footageRef]);
+ const existing={...intake.item,weaverReviews:[{reviewId:'review-a'}],weaverSelectedExcerptRecordIds:['excerpt-a']};
+ const merged={...existing,...mergeWeaverVideoContext(existing,{...intake.item,weaverFootageConnections:[]})};
+ assert.deepEqual(merged.weaverFootageConnections,[footageRef]);assert.deepEqual(merged.weaverReviews,existing.weaverReviews);
+ assert.equal(merged.videoUrl,existing.videoUrl);assert.equal(merged.reviewOnly,true);
+ const counts=countReceivedWeaverVideoContext(merged,intake.item);
+ assert.deepEqual(counts.receivedFootageConnections,[footageRef]);assert.equal(counts.receivedFootageConnectionCount,1);
+ const readSource=source.slice(source.indexOf('function weaverVideoReceiptLedgerRow('),source.indexOf('app.get(getBoth("/internal/weaverVideoReceipt")'));
+ const read=runInNewContext(readSource+';readWeaverVideoReceipt',{weaverVideoDocId,normalizeFootageConnections,normalizeText:x=>String(x||'').trim(),COLLECTIONS:{videos:'videos',weaverImportLedger:'ledger'},db:{collection:()=>({doc:()=>({get:async()=>({exists:true,id:intake.item.docId,data:()=>merged})}),where:()=>({limit:()=>({get:async()=>({docs:[]})})})})}});
+ const receipt=await read(validVideo.sourceRecordId);
+ assert.equal(receipt.received,true);assert.deepEqual(receipt.footage.connections,[footageRef]);assert.equal(receipt.media.videoUrl,validVideo.finalAssetUrl);
+});
+test('footage retries preserve earlier references and reject conflicting asset identities',()=>{
+ assert.deepEqual(mergeFootageConnections([footageRef],[]),[footageRef]);
+ assert.deepEqual(mergeFootageConnections([footageRef],[footageRef]),[footageRef]);
+ assert.throws(()=>mergeFootageConnections([footageRef],[{...footageRef,originalMediaFileId:'another_original_file_123456'}]),/identity_conflict/);
+ assert.equal(buildWeaverVideoIntake({...validVideo,footageContextVersion:1,footageConnections:[{...footageRef,sourceRow:0}]}).error,'invalid_footage_connection');
+ assert.equal(buildWeaverVideoIntake({...validVideo,footageConnections:[footageRef]}).error,'unsupported_footage_context_version');
+});
+test('footage UI remains collapsed and escapes source names',()=>{
+ const html=readFileSync(new URL('../public/admin.html',import.meta.url),'utf8');
+ const fn=html.slice(html.indexOf('    function renderWeaverFootageContext('),html.indexOf('    function renderWeaverVideoReviewContext('));
+ const render=runInNewContext(fn+';renderWeaverFootageContext',{escapeHtml:x=>String(x||'').replaceAll('<','&lt;').replaceAll('>','&gt;')});
+ const output=render({collection:'videos',weaverFootageConnections:[{...footageRef,inventoryEventName:'<script>event</script>'}]});
+ assert.match(output,/Footage sources \(1\)/);assert.match(output,/OM source/);assert.match(output,/Linked FV/);
+ assert.doesNotMatch(output,/<script>/);assert.equal(render({collection:'graphics',weaverFootageConnections:[footageRef]}),'');
+});
 
 test("a partial resend preserves historical reviews and excerpt links while acknowledging the submitted set", () => {
   const existing = {

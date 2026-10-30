@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import {normalizeFootageConnections,mergeFootageConnections,receivedFootageConnections} from './footage-provenance.js';
 
 function normalizeText(value) {
   return String(value || "").trim();
@@ -75,6 +76,10 @@ export function mergeWeaverVideoContext(existing = {}, incoming = {}) {
     throw error;
   }
   const patch = {};
+  if (Object.hasOwn(incoming,'weaverFootageConnections')) {
+    patch.weaverFootageConnections=mergeFootageConnections(existing.weaverFootageConnections || [],incoming.weaverFootageConnections);
+    patch.weaverFootageContextVersion=1;
+  }
   // An omitted book in a video gate is not a request to erase metadata already
   // verified on the canonical PP record. Never infer a new book here.
   for (const key of ["author", "title", "book", "bookLink", "bookShortener"]) {
@@ -120,6 +125,11 @@ export function countReceivedWeaverVideoContext(stored = {}, submitted = {}) {
   const storedExcerpts = new Set(normalizeStringList(stored.weaverSelectedExcerptRecordIds));
   const submittedExcerpts = new Set(normalizeStringList(submitted.weaverSelectedExcerptRecordIds));
   return {
+    ...(Object.hasOwn(submitted,'weaverFootageConnections') ? {
+      receivedFootageConnections:receivedFootageConnections(stored.weaverFootageConnections || [],submitted.weaverFootageConnections),
+      receivedFootageConnectionCount:receivedFootageConnections(stored.weaverFootageConnections || [],submitted.weaverFootageConnections).length,
+      storedFootageConnectionCount:normalizeFootageConnections(stored.weaverFootageConnections || []).length,
+    } : {}),
     receivedReviewCount: [...submittedReviews].filter(id => storedReviews.has(id)).length,
     receivedSelectedExcerptIdCount: [...submittedExcerpts].filter(id => storedExcerpts.has(id)).length,
     storedReviewCount: storedReviews.size,
@@ -128,6 +138,12 @@ export function countReceivedWeaverVideoContext(stored = {}, submitted = {}) {
 }
 
 export function buildWeaverVideoIntake(body = {}) {
+  let footageConnections;
+  if (Object.hasOwn(body,'footageConnections')) {
+    if (body.footageContextVersion !== 1) return {ok:false,status:400,error:'unsupported_footage_context_version'};
+    try { footageConnections=normalizeFootageConnections(body.footageConnections); }
+    catch(error) { return {ok:false,status:error.status || 400,error:error.message}; }
+  }
   const contentType = normalizeText(body.contentType).toUpperCase();
   if (contentType !== "VV") {
     return { ok: false, status: 400, error: "invalid_video_content_type" };
@@ -190,6 +206,7 @@ export function buildWeaverVideoIntake(body = {}) {
       weaverGateId: normalizeText(body.gateId),
       weaverReleaseStatus: normalizeText(body.releaseStatus),
       weaverPublicationRestricted: isTruthy(body.publicationRestricted),
+      ...(footageConnections ? {weaverFootageContextVersion:1,weaverFootageConnections:footageConnections} : {}),
       ...(Array.isArray(body.selectedExcerptRecordIds) ? {
         weaverSelectedExcerptRecordIds: body.selectedExcerptRecordIds.map(normalizeText).filter(Boolean),
       } : {}),

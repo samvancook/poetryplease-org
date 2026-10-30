@@ -1,4 +1,5 @@
 import { registerVideoRendition, verifyRenditionBytes } from './video-renditions.js';
+import { normalizeFootageConnections, mergeFootageConnections } from './footage-provenance.js';
 import { bookReviewAttributes, matchesBookReviewGroup, bookReviewGroups } from './book-review-groups.js';
 import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate, repairReplacementCard } from "./graphic-asset-set.js";
 import { onRequest } from "firebase-functions/v2/https";
@@ -4088,6 +4089,7 @@ function mapAdminContentDoc(collection, doc) {
     misc: data.misc || "",
     // Private Weaver review context is exposed only through admin Content Library.
     weaverReviews: Array.isArray(data.weaverReviews) ? data.weaverReviews : [],
+    weaverFootageConnections: Array.isArray(data.weaverFootageConnections) ? data.weaverFootageConnections : [],
     weaverSelectedExcerptRecordIds: Array.isArray(data.weaverSelectedExcerptRecordIds)
       ? data.weaverSelectedExcerptRecordIds
       : [],
@@ -4285,6 +4287,10 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     // older Weaver payload must not clear stored review context.
     if (Object.prototype.hasOwnProperty.call(body, "weaverReviews")) {
       payload.weaverReviews = Array.isArray(body.weaverReviews) ? body.weaverReviews : [];
+    }
+    if (Object.prototype.hasOwnProperty.call(body,'weaverFootageConnections')) {
+      payload.weaverFootageConnections=normalizeFootageConnections(body.weaverFootageConnections);
+      payload.weaverFootageContextVersion=1;
     }
     payload.weaverDiagnostics = body.weaverDiagnostics && typeof body.weaverDiagnostics === "object"
       ? body.weaverDiagnostics
@@ -4626,6 +4632,9 @@ async function upsertContentLibraryItem(type, body = {}, actor = {}) {
       await ref.create({ ...built.payload, createdAt: FieldValue.serverTimestamp() });
     }
   } else {
+    if (normalizeKey(type) === 'videos' && Object.hasOwn(built.payload,'weaverFootageConnections')) {
+      built.payload.weaverFootageConnections=mergeFootageConnections(existing.weaverFootageConnections || [],built.payload.weaverFootageConnections);
+    }
     await ref.set({
       ...existing,
       ...built.payload,
@@ -9007,8 +9016,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const canonicalVideoUrl = `/app?item=${encodeURIComponent(canonicalVideoId)}&type=VV`;
     const finalAssetUrl = normalizeText(result.item?.videoUrl || result.item?.url);
     const status = result.created ? "created" : "updated";
-    const { receivedReviewCount, receivedSelectedExcerptIdCount, storedReviewCount, storedSelectedExcerptIdCount }
-      = countReceivedWeaverVideoContext(result.item, intake.item);
+    const receivedContext = countReceivedWeaverVideoContext(result.item, intake.item);
+    const { receivedReviewCount, receivedSelectedExcerptIdCount, storedReviewCount, storedSelectedExcerptIdCount } = receivedContext;
     let durableCopy = { status: normalizeText(result.item?.durableCopyStatus || "pending"), queued: false };
     try {
       durableCopy = await queueWeaverVideoDurableCopy({
@@ -9038,6 +9047,10 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       receivedSelectedExcerptIdCount,
       storedReviewCount,
       storedSelectedExcerptIdCount,
+      ...(receivedContext.receivedFootageConnections ? {
+        receivedFootageConnectionCount:receivedContext.receivedFootageConnectionCount,
+        storedFootageConnectionCount:receivedContext.storedFootageConnectionCount,
+      } : {}),
       storageMode: normalizeText(result.item?.storageMode),
       mediaStatus: normalizeText(result.item?.mediaStatus),
       durableCopyStatus: normalizeText(durableCopy.status),
@@ -9067,6 +9080,11 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         canonicalVideoId,
         canonicalVideoUrl,
         finalAssetUrl,
+        ...(receivedContext.receivedFootageConnections ? {
+          receivedFootageConnections:receivedContext.receivedFootageConnections,
+          receivedFootageConnectionCount:receivedContext.receivedFootageConnectionCount,
+          storedFootageConnectionCount:receivedContext.storedFootageConnectionCount,
+        } : {}),
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
         storedReviewCount,
@@ -9301,6 +9319,7 @@ async function readWeaverVideoReceipt(sourceRecordId) {
       reviewOnly: video?.reviewOnly === true,
     },
     review: { reviewCount, selectedExcerptIdCount },
+    footage: {schemaVersion:1,connections:normalizeFootageConnections(video?.weaverFootageConnections || [])},
     ledger: { count: ledgers.length, latest: ledgers[0] || null },
   };
 }

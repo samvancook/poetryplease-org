@@ -4020,6 +4020,19 @@
       }
     }
 
+    function renderWeaverFootageContext(item = {}) {
+      const refs = Array.isArray(item.weaverFootageConnections) ? item.weaverFootageConnections : [];
+      if (item.collection !== 'videos' || !refs.length) return '';
+      const rows = refs.map(ref => {
+        const inventory = 'https://docs.google.com/spreadsheets/d/' + encodeURIComponent(ref.sourceSpreadsheetId) + '/edit';
+        const fileLink = (id, label) => id ? ' · <a href="https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view" target="_blank" rel="noopener noreferrer">' + label + '</a>' : '';
+        return '<p>' + escapeHtml(ref.inventoryEventName) + ' · inventory row ' + Number(ref.sourceRow) +
+          ' · <a href="' + inventory + '" target="_blank" rel="noopener noreferrer">Open inventory</a>' +
+          fileLink(ref.originalMediaFileId, 'OM source') + fileLink(ref.finishedVideoFileId, 'Linked FV') + '</p>';
+      }).join('');
+      return '<details><summary>Footage sources (' + refs.length + ')</summary>' + rows + '</details>';
+    }
+
     function renderWeaverVideoReviewContext(item = {}) {
       if (item.collection !== 'videos') return '';
       const reviews = Array.isArray(item.weaverReviews) ? item.weaverReviews : [];
@@ -4092,6 +4105,7 @@
                   ${item.contentId || item.imageId || item.id ? `<div class="meta"><a href="/?item=${encodeURIComponent(item.contentId || item.imageId || item.id)}" target="_blank" rel="noopener noreferrer">Open in Poetry Please</a></div>` : ''}
                   ${renderWeaverVideoReviewContext(item)}
                   ${item.collection === 'videos' ? `<details data-video-versions="${escapeHtml(item.id)}"><summary>Video versions</summary><div class="meta">Expand to load available versions.</div></details>` : ''}
+                  ${renderWeaverFootageContext(item)}
                 </td>
                 <td>${escapeHtml(item.author || '—')}</td>
                 <td>${escapeHtml(item.book || '—')}${item.releaseCatalog ? `<div class="meta">${escapeHtml(item.releaseCatalog)}</div>` : ''}</td>
