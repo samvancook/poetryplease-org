@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { bookReviewAttributes } from './book-review-groups.js';
 import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate, repairReplacementCard } from './graphic-asset-set.js';
 const card = index => ({ index, role: 'content', assetUrl: `https://example.test/card-${index}.png`, assetPreviewUrl: `https://example.test/preview-${index}.png`, assetFileId: `file-${index}`, fileName: `${index}.png` });
 test('ordered 2–20 cards and explicit one-card sets preserve identity; absent is legacy', () => {
@@ -38,7 +39,7 @@ test('actual QI and FPI import mapping, payload, storage and feed preserve all c
  for(const imageType of ['QI','FPI']) {
   const docs=new Map(); let uploads=0;
   const ref=id=>({id,get:async()=>({id,exists:docs.has(id),data:()=>docs.get(id)}),set:async value=>docs.set(id,{...(docs.get(id)||{}),...value})});
-  const context={ normalizeGraphicAssetSet, normalizeText:v=>String(v||'').trim(), normalizeKey:v=>String(v||'').trim().toLowerCase(),
+  const context={ bookReviewAttributes, normalizeGraphicAssetSet, normalizeText:v=>String(v||'').trim(), normalizeKey:v=>String(v||'').trim().toLowerCase(),
    canonicalizeAuthorName:v=>v, lookupCatalogBookMetadata:()=>null,
    sanitizeDocIdSegment:v=>String(v||'').replaceAll('/','-'), slugify:v=>v.toLowerCase().replaceAll(' ','-'),
    db:{collection:()=>({doc:ref})}, COLLECTIONS:{graphics:'graphics'},

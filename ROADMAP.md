@@ -2,6 +2,15 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Chapbook winner review lane — 29 October 2026
+
+Implemented book-level contest result/year attributes for 15 confirmed winning chapbooks (2012–2025; 2016 has two winners). Three published 2024 runners-up retain accurate metadata but are excluded from the winner lane. Sources and scope: [implementation receipt](docs/CHAPBOOK_WINNER_REVIEW_2026-10-29.md).
+
+- Team desktop: Content, Book group, Book and Contest year; secondary settings are under **More filters**. The winner shortcut starts with FP. Copy review link shares the current lane without invitation tokens or a selected item.
+- The same book attribute works for existing QI, INT, EXC and FPI. Existing ranking, account vote history and voted-item exclusions are retained. Shared lane links work in primary Swipe without general mobile filter controls.
+- Follow-up owner: Poetry Please. Audit legacy book/author label conflicts in Hated for the Gods, Sadness Workshop and Me, Aunt Jemima and the nailgun before correcting those assets. They are excluded when the author/book pair does not match; no identities, content or votes were changed for this release.
+- Reviewer emails/assignment notifications are not sent by this feature. Distribute the review link to the selected reviewers when ready.
+
 ## Current status and blocker register — 28 October 2026
 
 This section supersedes conflicting status and next-step claims in older entries below. Dated release notes are historical evidence, not current operating instructions. The only approved production route is branch → PR with passing checks → merge → existing `.github/workflows/firebase.yml` on main. Do not use the retired `scripts/deploy-production.sh`, create another workflow, request new scopes, or switch methods after failure.

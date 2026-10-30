@@ -64,6 +64,7 @@ function isStaff() { return account?.roles?.some((role) => role === 'team' || ro
 function isAuthorOnly() { return account?.roles?.includes('author') && !isStaff(); }
 function routeFilters() {
   if (contestReading) return { catalog: 'Contest', event: contestEvent, type: 'QI', locked: '1', reading: '1' };
+  if (isStaff() && filters.bookGroup) return { bookGroup: filters.bookGroup, contestYear: filters.contestYear, type: filters.type, book: filters.book };
   return { author: filters.author, ...(initial.get('authorPreview') === '1' && isStaff() ? { authorPreview: '1', locked: '1' } : {}) };
 }
 function updateRoute() {
@@ -395,6 +396,10 @@ auth.onAuthStateChanged(async (user) => {
     filters = contestReading
       ? { type: 'QI', catalog: 'Contest', event: contestEvent, eventReading: true, author: '' }
       : { type: 'PROMO', author: ownAuthor };
+    if (!contestReading && isStaff() && initial.get('bookGroup') === 'chapbook-winners') {
+      filters = { type: initial.get('type') || 'FP', bookGroup: 'chapbook-winners', contestYear: initial.get('contestYear') || '', book: initial.get('book') || '', author: '' };
+      document.querySelector('.site-header .variant').textContent = 'Chapbook winners';
+    }
     if (!contestReading && isStaff() && initial.get('authorPreview') === '1') {
       const previewAuthor = String(initial.get('author') || '').trim();
       if (!previewAuthor) throw new Error('An author is required for author preview. Please use the single-item view.');

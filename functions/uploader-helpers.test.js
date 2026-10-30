@@ -1,3 +1,4 @@
+import './book-review-groups.test.js';
 import './graphic-asset-set.test.js';
 import { normalizeGraphicAssetSet } from './graphic-asset-set.js';
 import test from "node:test";
