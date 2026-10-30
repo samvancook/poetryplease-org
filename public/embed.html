@@ -20,6 +20,10 @@
       overflow: hidden;
       background: transparent;
     }
+    body {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+    }
     button {
       font: inherit;
     }
@@ -29,7 +33,7 @@
       grid-template-rows: minmax(0, 1fr) auto;
       width: 100%;
       height: 100%;
-      min-height: 280px;
+      min-height: 0;
       overflow: hidden;
       background: #f7f1e5;
       border: 1px solid rgba(34, 28, 20, 0.22);
@@ -98,6 +102,31 @@
       color: #5d574e;
       font: 14px/1.35 Arial, sans-serif;
     }
+    #controls {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      padding: 8px;
+      border: 1px solid rgba(34, 28, 20, 0.22);
+      border-top: 0;
+      background: #f7f1e5;
+      font: 13px/1.2 Arial, sans-serif;
+    }
+    #controls[data-visible="true"] { display: flex; }
+    #controls button {
+      padding: 7px 9px;
+      border: 1px solid #c9c0b1;
+      border-radius: 4px;
+      background: #fff;
+      color: #284f54;
+      font: 600 13px/1.2 Arial, sans-serif;
+      cursor: pointer;
+    }
+    #controls button:focus-visible { outline: 2px solid #3f6b70; outline-offset: 2px; }
+    #controls button:disabled { opacity: 0.45; cursor: default; }
+    #position { min-width: 45px; text-align: center; white-space: nowrap; }
+    #collection { margin-left: auto; }
     .media-image,
     .media-video,
     .media-frame {
@@ -149,6 +178,13 @@
       <span id="meta-byline"></span>
     </div>
   </main>
+  <nav id="controls" aria-label="Embed controls">
+    <button id="previous" type="button" aria-label="Previous item">Previous</button>
+    <span id="position" aria-live="polite"></span>
+    <button id="next" type="button" aria-label="Next item">Next</button>
+    <button id="rotation" type="button">Pause</button>
+    <button id="collection" type="button">Explore collection</button>
+  </nav>
   <script>
     (() => {
       const params = new URLSearchParams(location.search);
@@ -165,6 +201,13 @@
       const metadata = document.getElementById("metadata");
       const metaTitle = document.getElementById("meta-title");
       const metaByline = document.getElementById("meta-byline");
+      const controls = document.getElementById("controls");
+      const previousButton = document.getElementById("previous");
+      const nextButton = document.getElementById("next");
+      const position = document.getElementById("position");
+      const rotationButton = document.getElementById("rotation");
+      const collectionButton = document.getElementById("collection");
+      let rotationPaused = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       let pool = [];
       let index = 0;
       let current = null;
@@ -211,6 +254,18 @@
         return match ? "https://drive.google.com/file/d/" + match[1] + "/preview" : "";
       }
 
+      function updateControls() {
+        controls.dataset.visible = current ? "true" : "false";
+        if (!current) return;
+        position.textContent = (index + 1) + " of " + pool.length;
+        previousButton.disabled = pool.length < 2;
+        nextButton.disabled = pool.length < 2;
+        rotationButton.disabled = pool.length < 2;
+        rotationButton.textContent = rotationPaused ? "Resume" : "Pause";
+        rotationButton.setAttribute("aria-label", rotationPaused ? "Resume automatic rotation" : "Pause automatic rotation");
+        collectionButton.textContent = catalog.toLowerCase() === "contest" && contestEvent ? "See all winners" : "Explore collection";
+      }
+
       function render(item) {
         current = item;
         content.replaceChildren();
@@ -222,6 +277,7 @@
           stage.removeAttribute("role");
           stage.removeAttribute("tabindex");
           content.innerHTML = '<div class="unavailable">No preview is available for this selection yet.</div>';
+          updateControls();
           return;
         }
 
@@ -300,12 +356,36 @@
         stage.dataset.state = "ready";
         stage.setAttribute("aria-label", ["Open", title, author ? "by " + author : "", sourceLabel, "in Poetry Please"].filter(Boolean).join(" "));
         stage.title = [title, author, contestName || itemBook].filter(Boolean).join(" — ");
+        updateControls();
       }
 
       function openCurrent() {
         if (!current) return;
         window.open(deepLink(current), "_blank", "noopener,noreferrer");
       }
+
+      function moveBy(delta) {
+        if (pool.length < 2) return;
+        rotationPaused = true;
+        index = (index + delta + pool.length) % pool.length;
+        render(pool[index]);
+      }
+      previousButton.addEventListener("click", () => moveBy(-1));
+      nextButton.addEventListener("click", () => moveBy(1));
+      rotationButton.addEventListener("click", () => {
+        rotationPaused = !rotationPaused;
+        updateControls();
+      });
+      collectionButton.addEventListener("click", () => {
+        if (!current) return;
+        const target = new URL(deepLink(current), location.origin);
+        target.searchParams.delete("item");
+        if (!bookGroup && !(catalog.toLowerCase() === "contest" && contestEvent)) {
+          if (!book) target.searchParams.delete("book");
+          if (!catalog) target.searchParams.delete("catalog");
+        }
+        window.open(target.pathname + target.search, "_blank", "noopener,noreferrer");
+      });
 
       stage.addEventListener("click", (event) => {
         if (event.target.closest("iframe")) return;
@@ -344,6 +424,7 @@
           render(payload.lead || pool[0] || null);
           if (pool.length > 1) {
             window.setInterval(() => {
+              if (rotationPaused || document.hidden) return;
               index = (index + 1) % pool.length;
               render(pool[index]);
             }, 45000);
