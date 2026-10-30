@@ -2,6 +2,14 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Closeout — 30 October 2026
+
+- **Chapbook embed live:** [PP #308](https://github.com/samvancook/poetryplease-org/pull/308), production workflow 41059477530 succeeded. Public embed and mobile click-through verified; LINK_GUIDE.md and the shared roadmap contain deep links and copyable iframe HTML. [Count audit](docs/CHAPBOOK_WINNER_QI_COUNTS_2026-10-30.md): 15 winning books, 228 eligible QI records across 12 books; 20 is the rotation-pool cap. Decision deferred: broader rotation or cross-book representation. No new dispatch for the three zero-QI books.
+- **Click rendition handoff complete:** [PP #309](https://github.com/samvancook/poetryplease-org/pull/309), production workflow 41060868621 succeeded. Master and verified platform version attached to the same canonical video; repeat registrations create nothing. Entire video data/primary/reviews/links retained. Signed-in version UI verified. [Contract and receipt](docs/VIDEO_RENDITIONS_2026-10-30.md) · [Shared handback](https://drive.google.com/file/d/1jZCIH3kkgI8Qq0Z9azs2l02q_paezeWx/view).
+- **Four backlist QIs complete:** created, approved in Weaver, imported once, exact Catalog keys linked, public PNG bodies verified at 1080×1080. [IDs, checks and remaining owners](docs/BACKLIST_PROBE_QI_COMPLETION_2026-10-30.md). Command Center owns unticked calendar placement. No scheduling/publication performed.
+- **Necessary P.I.G. queue fix live:** [P.I.G. #1](https://github.com/samvancook/PIG/pull/1), pig-00286-v2p via its existing named script, preserving production settings. Searches now reach the supported second page instead of silently stopping at 500.
+- **Follow-up: explicit poem-key propagation.** Owner: Poetry Please intake, coordinating P.I.G./Weaver. Preserve explicit Catalog key through request/completion/QC/PP mapping; do not infer from titles. Four completed new QIs already have verified keys and must not be resent. Existing Politics of Elegy and Mickey Mouse Gas Mask FPs remain unchanged/unkeyed pending source comparison. Weaver owns missing nextCursor metadata on full queue pages.
+
 ## Chapbook winner review lane — 29 October 2026
 
 Implemented book-level contest result/year attributes for 15 confirmed winning chapbooks (2012–2025; 2016 has two winners). Three published 2024 runners-up retain accurate metadata but are excluded from the winner lane. Sources and scope: [implementation receipt](docs/CHAPBOOK_WINNER_REVIEW_2026-10-29.md).

@@ -25,4 +25,20 @@ Admin → Content Library → find the video → expand **Video versions**. Load
 
 Target `videos/WEAVER-VV-53325937727C351D9471C7FE`; reviewed source `1L9ighgQVutO_omi3MF8kQUUwSSizI48i`. Preflight: 12 Weaver reviews, 12 selected excerpt links, one existing `library_video` asset. Hosted primary still returns 206 QuickTime bytes despite its original final Drive file being trashed. Master `1U_asBkgfiGzHjc67v4FVrLd7SmCKOOsZ` and derivative `14hFbu2jE-UYzsutS7cJcaJn72-c-aLDZ` independently return 206 media bytes with expected lengths. Do not restore or replace original final file `12INXPROJ_74JsW3g9kLL84ZSR7-78oqa`.
 
-Derivative expected SHA-256 `3097e55f6c3ef9c213268faafcf027b9ce972bd6c28cc2e64bd40998ccf13f26`, 85,549,562 bytes. Registration/readback/repeat results will be returned to the shared-drive handoff after production deployment. Unit tests verify repeat identity, source mismatch, byte/checksum failures and unchanged canonical video/review/link/primary data. Release via existing `.github/workflows/firebase.yml` only.
+Derivative expected SHA-256 `3097e55f6c3ef9c213268faafcf027b9ce972bd6c28cc2e64bd40998ccf13f26`, 85,549,562 bytes. Registration/readback/repeat results are recorded in the production completion below. Unit tests verify repeat identity, source mismatch, byte/checksum failures and unchanged canonical video/review/link/primary data. Release via existing `.github/workflows/firebase.yml` only.
+
+## Production completion
+
+PR #309 merged and production workflow 41060868621 succeeded. Health and anonymous bootstrap pass. Click was registered through the deployed internal API; both exact repeat registrations returned created=false. Full canonical video readback was byte-for-byte equivalent as structured data: 12 Weaver reviews, 12 selected excerpt links, primary URL, release state and all other fields unchanged.
+
+- master: `video-rendition-6f90637efb1f684fc557819961161c46`, profile `original-master` version `1`, 1,291,954,208 bytes, validation `source_reported`.
+- platform: `video-rendition-a9dc8c35364ed0e5d94fb131c12b51c7`, profile `platform-1080p-h264-aac` version `1`, 85,549,562 bytes, validation `verified_bytes`.
+
+The platform derivative’s actual SHA-256 matches the supplied 3097e55f6c3ef9c213268faafcf027b9ce972bd6c28cc2e64bd40998ccf13f26. Both source/output Drive revision IDs are retained. Master SHA-256 is unknown and stays null; master codec information was not independently measured. No restored Drive file, new video identity, calendar write, release change or publication.
+
+Signed-in Admin Content Library was visually verified as sam@buttonpoetry.com: expanding Video versions shows unchanged primary, Master / high resolution, and Platform-ready / lower resolution together with precise dimensions/byte-count/validation labels. Primary, master and platform files all returned bounded 206 media bytes. Full-master playback/codec verification and Meta ingestion are not claimed.
+
+Publisher resolver example (existing API-key header required):
+GET /api/internal/videoRenditions?videoId=WEAVER-VV-53325937727C351D9471C7FE&profileId=platform-1080p-h264-aac&profileVersion=1&sourceVersionFileId=1U_asBkgfiGzHjc67v4FVrLd7SmCKOOsZ
+
+The resolver selected the verified platform file 14hFbu2jE-UYzsutS7cJcaJn72-c-aLDZ. Publisher owns any later selection/ingestion/publication receipt; do not create another PP video or use the Drive /view page as an ingestable media URL.
