@@ -1047,6 +1047,7 @@ function updateFilterControlsVisibility() {
   const bookContainer = document.getElementById('book-filter-container');
   const queueModeContainer = document.getElementById('queue-mode-container');
   const lengthContainer = ensureFullPoemLengthControls();
+  ensureTeamReviewFilters(canSeeDropdownFilters && !eventReadingMode);
   if (eventReadingMode) {
     [typeContainer, catalogContainer, eventContainer, bookContainer, queueModeContainer, lengthContainer]
       .forEach((el) => { if (el) el.style.display = 'none'; });
@@ -2037,6 +2038,8 @@ let filterByAuthor = false;
 let filterByBook   = false;
 let selectedType   = '';
 let selectedCatalog= '';
+let selectedBookGroup = '';
+let selectedContestYear = '';
 let selectedMaxCharacters = '';
 let selectedMaxLines = '';
 let selectedLengthIncludesMetadata = false;
@@ -2175,6 +2178,8 @@ function readRouteState() {
     item: params.get('item') || '',
     type: params.get('type') || '',
     catalog: params.get('catalog') || '',
+    bookGroup: params.get('bookGroup') || '',
+    contestYear: params.get('contestYear') || '',
     author: params.get('author') || '',
     book: params.get('book') || '',
     event: params.get('event') || '',
@@ -2193,6 +2198,8 @@ function writeRouteState() {
     item: selectedItemId,
     type: selectedType,
     catalog: selectedCatalog,
+    bookGroup: selectedBookGroup,
+    contestYear: selectedContestYear,
     author: filterByAuthor ? selectedAuthor : '',
     book: filterByBook ? selectedBook : '',
     event: selectedEvent,
@@ -2229,12 +2236,16 @@ function syncFilterControls() {
   if (catalogSel) catalogSel.value = selectedCatalog;
   if (bookSel) bookSel.value = filterByBook ? selectedBook : '';
   if (eventSel) eventSel.value = selectedEvent;
+  const groupSel = document.getElementById('book-group-filter');
+  const yearSel = document.getElementById('contest-year-filter');
+  if (groupSel) groupSel.value = selectedBookGroup;
+  if (yearSel) { yearSel.value = selectedContestYear; yearSel.parentElement.hidden = !selectedBookGroup; }
   if (queueModeSel) queueModeSel.value = selectedQueueMode;
   if (maxCharactersInput) maxCharactersInput.value = selectedMaxCharacters;
   if (maxLinesInput) maxLinesInput.value = selectedMaxLines;
   if (includeMetadataInput) includeMetadataInput.checked = selectedLengthIncludesMetadata;
   updateAuthorPromoControls();
-  [typeSel, catalogSel, bookSel, eventSel, queueModeSel, maxCharactersInput, maxLinesInput, includeMetadataInput].forEach((control) => {
+  [typeSel, catalogSel, bookSel, eventSel, queueModeSel, maxCharactersInput, maxLinesInput, includeMetadataInput, groupSel, yearSel].forEach((control) => {
     if (control) control.disabled = !!lockedLane && !(control === typeSel && isAuthorPromoLane());
   });
 }
@@ -2247,6 +2258,9 @@ function initializeRouteState() {
   routeItemUnavailable = false;
   selectedType = route.type.trim();
   selectedCatalog = canonicalCatalogFilterValue(route.catalog);
+  selectedBookGroup = route.bookGroup === 'chapbook-winners' ? route.bookGroup : '';
+  selectedContestYear = selectedBookGroup && /^\d{4}$/.test(route.contestYear) ? route.contestYear : '';
+  if (selectedBookGroup && !selectedType) selectedType = 'FP';
   selectedAuthor = route.author.trim();
   selectedBook = route.book.trim();
   selectedEvent = route.event.trim();
@@ -2261,6 +2275,74 @@ function initializeRouteState() {
   eventReadingMode = route.reading === '1' && lockedLane && !selectedItemId
     && selectedCatalog === 'Contest' && selectedType.toUpperCase() === 'QI'
     && !!selectedEvent && !selectedBook && !selectedAuthor;
+}
+
+function setBookGroupFilter(value) {
+  if (lockedLane) return;
+  selectedBookGroup = value === 'chapbook-winners' ? value : '';
+  selectedContestYear = '';
+  selectedBook = ''; filterByBook = false;
+  selectedAuthor = ''; filterByAuthor = false;
+  selectedCatalog = ''; selectedEvent = '';
+  if (selectedBookGroup) selectedType = 'FP';
+  syncFilterControls(); updateFilterControlsVisibility(); writeRouteState();
+  fetchAndPopulateBooks(); ensureFilterReadyThenRebuild();
+}
+
+function setContestYearFilter(value) {
+  if (lockedLane) return;
+  selectedContestYear = selectedBookGroup && /^\d{4}$/.test(value) ? value : '';
+  selectedBook = ''; filterByBook = false;
+  syncFilterControls(); writeRouteState();
+  fetchAndPopulateBooks(); ensureFilterReadyThenRebuild();
+}
+
+function ensureTeamReviewFilters(visible) {
+  if (IS_MOBILE_UI || IS_EMBED_UI) return;
+  let panel = document.getElementById('team-review-filters');
+  const type = document.getElementById('type-filter-container');
+  if (!visible) {
+    if (panel) { panel.hidden = true; if (panel.contains(type)) panel.before(type); }
+    return;
+  }
+  if (!panel) {
+    panel = document.createElement('section'); panel.id = 'team-review-filters';
+    panel.setAttribute('aria-label', 'Review filters');
+    panel.innerHTML = '<div class="review-filter-primary"><label>Book group<select id="book-group-filter"><option value="">All books</option><option value="chapbook-winners">Chapbook contest winners</option></select></label><label hidden>Contest year<select id="contest-year-filter"><option value="">All contest years</option></select></label></div><details class="review-filter-more"><summary>More filters</summary><div class="review-filter-advanced"></div></details><div class="review-lane-actions"><a href="/app?bookGroup=chapbook-winners&type=FP">Review winning chapbooks</a><button type="button" id="copy-review-lane">Copy review link</button><span id="copy-review-status" role="status"></span></div>';
+    type.before(panel);
+    const style = document.createElement('style');
+    style.textContent = '#team-review-filters{box-sizing:border-box;max-width:1100px;margin:12px auto;padding:12px 16px;border:1px solid #dad0c1;border-radius:14px;background:#fffdf8;font:14px/1.4 system-ui}#team-review-filters[hidden],#team-review-filters [hidden]{display:none}#team-review-filters .review-filter-primary,#team-review-filters .review-filter-advanced{display:flex;flex-wrap:wrap;align-items:end;gap:12px}#team-review-filters label{display:flex;flex-direction:column;gap:4px}#team-review-filters select{box-sizing:border-box;max-width:100%;min-height:40px;padding:6px;border:1px solid #bfb5a6;border-radius:7px;background:white;font:inherit}#team-review-filters .review-filter-primary>div,#team-review-filters .review-filter-primary>label{flex:1 1 180px;min-width:0}#team-review-filters summary{cursor:pointer;padding:10px 0;font-weight:600}#team-review-filters .review-lane-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:8px}#team-review-filters button{min-height:36px}';
+    panel.append(style);
+    document.getElementById('book-group-filter').onchange = e => setBookGroupFilter(e.target.value);
+    document.getElementById('contest-year-filter').onchange = e => setContestYearFilter(e.target.value);
+    document.getElementById('copy-review-lane').onclick = async () => {
+      writeRouteState(); const current = new URL(location.href); const url = new URL('/app', location.origin);
+      for (const name of ['bookGroup', 'contestYear', 'type', 'book', 'author', 'catalog', 'event', 'maxChars', 'maxLines', 'includeLengthMetadata']) {
+        if (current.searchParams.has(name)) url.searchParams.set(name, current.searchParams.get(name));
+      }
+      try { await navigator.clipboard.writeText(url.href); document.getElementById('copy-review-status').textContent = 'Link copied'; }
+      catch { document.getElementById('copy-review-status').textContent = 'Copy the address from your browser.'; }
+    };
+    getJSONWrapped('bookReviewGroups').then(groups => {
+      const select = document.getElementById('contest-year-filter');
+      for (const year of groups.find(group => group.id === 'chapbook-winners')?.years || []) {
+        const option = document.createElement('option'); option.value = String(year); option.textContent = String(year); select.append(option);
+      }
+      select.value = selectedContestYear;
+    }).catch(error => console.warn('Book review groups unavailable', error));
+  }
+  panel.hidden = false;
+  const primary = panel.querySelector('.review-filter-primary');
+  const group = document.getElementById('book-group-filter'); const year = document.getElementById('contest-year-filter');
+  primary.prepend(type); primary.append(document.getElementById('book-filter-container'), year.parentElement);
+  const typeLabel = type.querySelector('label'); if (typeLabel) typeLabel.textContent = 'Content';
+  const bookLabel = document.querySelector('label[for="book-filter"]'); if (bookLabel) bookLabel.textContent = 'Book';
+  const advanced = panel.querySelector('.review-filter-advanced');
+  for (const id of ['catalog-filter-container', 'event-filter-container', 'queue-mode-container', 'fp-length-filter-container']) {
+    const element = document.getElementById(id); if (element) advanced.append(element);
+  }
+  group.value = selectedBookGroup; year.value = selectedContestYear; year.parentElement.hidden = !selectedBookGroup;
+  group.disabled = year.disabled = lockedLane;
 }
 
 function setTypeFilter(value) {
@@ -2360,7 +2442,7 @@ function exitLockedLane() {
   selectedCatalog = '';
   selectedAuthor = '';
   selectedBook = '';
-  selectedEvent = '';
+  selectedEvent = ''; selectedBookGroup = ''; selectedContestYear = '';
   document.getElementById('event-reading-context')?.remove();
   filterByAuthor = false;
   filterByBook = false;
@@ -2567,6 +2649,7 @@ function mapGraphic(g){
       sourceEvent: g[15] || '',
       sourceEventLabel: g[16] || '',
       assetSet: g[17] || null,
+      bookReviewAttributes: g[18] || null,
       author: g[0] || '',
       title: g[1] || '',
       book: g[2] || '',
@@ -2583,6 +2666,7 @@ function mapGraphic(g){
     sourceEvent: g?.sourceEvent ?? '',
     sourceEventLabel: g?.sourceEventLabel ?? '',
     assetSet: g?.assetSet || null,
+    bookReviewAttributes: g?.bookReviewAttributes || null,
     imageType: g?.imageType ?? '',
     excerpt: g?.excerpt ?? '',
     author: g?.author ?? '',
@@ -2896,7 +2980,7 @@ async function fetchLatestBatch() {
 }
 
 function hasActiveFeedFilters() {
-  return !!(selectedType || selectedCatalog || selectedEvent || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook) || (normalizeFilterValue(selectedType) === 'fp' && (selectedMaxCharacters || selectedMaxLines)));
+  return !!(selectedBookGroup || selectedType || selectedCatalog || selectedEvent || (filterByAuthor && selectedAuthor) || (filterByBook && selectedBook) || (normalizeFilterValue(selectedType) === 'fp' && (selectedMaxCharacters || selectedMaxLines)));
 }
 
 function getActiveFilterPayload(extra = {}) {
@@ -2906,6 +2990,8 @@ function getActiveFilterPayload(extra = {}) {
     author: filterByAuthor ? selectedAuthor : '',
     book: filterByBook ? selectedBook : '',
     event: selectedEvent,
+    bookGroup: selectedBookGroup,
+    contestYear: selectedContestYear,
     ...(eventReadingMode ? { eventReading: true } : {}),
     maxCharacters: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxCharacters : '',
     maxLines: normalizeFilterValue(selectedType) === 'fp' ? selectedMaxLines : '',
@@ -3109,7 +3195,11 @@ async function populateEventsSelect(events) {
 async function fetchAndPopulateBooks() {
   try {
     const catalog = canonicalCatalogFilterValue(selectedCatalog);
-    const path = catalog ? `books?catalog=${encodeURIComponent(catalog)}` : 'books';
+    const params = new URLSearchParams();
+    if (catalog) params.set('catalog', catalog);
+    if (selectedBookGroup) params.set('bookGroup', selectedBookGroup);
+    if (selectedContestYear) params.set('contestYear', selectedContestYear);
+    const path = 'books' + (params.size ? '?' + params : '');
     const books = await getJSONWrapped(path).catch(() => []);
     await populateBooksSelect(books);
   } catch(e) { console.warn('fetchAndPopulateBooks error', e); }
@@ -3141,6 +3231,7 @@ function buildFilteredList(data) {
   list = list.filter(g => {
     if (sessionFlaggedContentIds.has(normalizeFilterValue(g.id))) return false;
     if (!matchesSelectedType(g, selectedType)) return false;
+    if (selectedBookGroup && (!g.bookReviewAttributes?.chapbookContestWinner || (selectedContestYear && String(g.bookReviewAttributes.chapbookContestYear) !== selectedContestYear))) return false;
     if (selectedCatalog && canonicalCatalogFilterValue(g.releaseCatalog) !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
@@ -3251,7 +3342,8 @@ function setViewportVars() {
 }
 function adjustViewportFit() {
   const vh = window.innerHeight;
-  const ids = ['type-filter-container','fp-length-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
+  const teamPanel = document.getElementById('team-review-filters');
+  const ids = teamPanel && !teamPanel.hidden ? ['team-review-filters', 'page-title'] : ['type-filter-container','fp-length-filter-container','catalog-filter-container','book-filter-container','queue-mode-container','page-title'];
   const headerNodes = !IS_MOBILE_UI && !IS_EMBED_UI
     ? [document.querySelector('.top-bar')]
     : [document.getElementById('user-status'), document.getElementById('author-review-guide')];
@@ -3672,6 +3764,7 @@ function renderCounter() {
   const all = Array.isArray(lastData?.allGraphics) ? lastData.allGraphics.map(mapGraphic) : [];
   let domainAll = all.filter(g => {
     if (!matchesSelectedType(g, selectedType)) return false;
+    if (selectedBookGroup && (!g.bookReviewAttributes?.chapbookContestWinner || (selectedContestYear && String(g.bookReviewAttributes.chapbookContestYear) !== selectedContestYear))) return false;
     if (selectedCatalog && canonicalCatalogFilterValue(g.releaseCatalog) !== selectedCatalog) return false;
     if (filterByAuthor && selectedAuthor && !valuesMatch(g.author, selectedAuthor)) return false;
     if (filterByBook   && selectedBook && !valuesMatch(g.book, selectedBook)) return false;
@@ -4605,7 +4698,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!IS_EMBED_UI) {
       const filterSlot = document.getElementById('filters');
       const eventFilter = document.getElementById('event-filter-container');
-      if (filterSlot && eventFilter) filterSlot.appendChild(eventFilter);
+      if (filterSlot && eventFilter && !document.getElementById('team-review-filters')) filterSlot.appendChild(eventFilter);
     }
   }
 

@@ -1,3 +1,4 @@
+import { matchesBookReviewGroup } from './book-review-groups.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -123,7 +124,7 @@ const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
 function routeHarness(customContent, ratings = {}, votedIds = ['item-0']) {
   let handler;
   const all = customContent || [...content(30), { imageId: 'flagged', imageType: 'EXC', book: 'Roads' }, { imageId: 'broken', broken: true, imageType: 'EXC', book: 'Roads' }, { imageId: 'private', imageType: 'FP', book: 'Roads' }];
-  const context = vm.createContext({ app: { post: (_p, fn) => { handler = fn; } }, getBoth: (p) => p,
+  const context = vm.createContext({ app: { post: (_p, fn) => { handler = fn; } }, getBoth: (p) => p, matchesBookReviewGroup,
     verifyIdTokenFromHeader: async (req) => req.decoded, normalizeText: (v) => String(v || '').trim(), normalizeKey: (v) => String(v || '').trim().toLowerCase(),
     getAllContentCached: async () => all, getFlaggedContentIds: async () => new Set(['flagged']), getRatingsSummaryCached: async () => ratings,
     getUniqueVotedImageIdsByUser: async () => new Set(votedIds), canSeeFullPoemsInReview: async (decoded) => decoded?.staff === true,
@@ -207,7 +208,7 @@ test('only Swipe requests mobile ranking and sends all already-shown IDs on the 
   const block = client.slice(client.indexOf('const pager = new ScrollFeedPager('), client.indexOf('function restartFeed()'));
   for (const swipeVariant of [false, true]) {
     const requests = [];
-    const context = vm.createContext({ ScrollFeedPager, swipeVariant, anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false,
+    const context = vm.createContext({ ScrollFeedPager, swipeVariant, contestReading: false, linkedItemId: '', anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false,
       renderCard() {}, updateFooter() {}, discardReading() {}, closePostDetails() {}, resetSwipeReview() {}, postVariant: true, $: () => ({ replaceChildren() {} }),
       api: async (path, body) => { requests.push({ path, body }); return { newGraphics: requests.length === 1 ? [row('A'), row('B')] : [row('C')], hasMore: requests.length === 1, nextCursor: requests.length === 1 ? 'next' : null }; },
     });
@@ -273,4 +274,25 @@ test('reading navigation visits all eight once, ends without a refill, and recor
   assert.equal(context.ended, true);
   assert.equal(context.historyStack.length, 8);
   assert.equal(context.queue.length, 8, 'retain items for Back navigation');
+});
+
+
+test('winner lane intersects book/year/type and excludes existing votes through the normal API', async () => {
+  const base = { book: 'Glandscapes', author: 'Mickie Kennedy', imageType: 'FP' };
+  const call = routeHarness([
+    { ...base, imageId: 'already-voted' }, { ...base, imageId: 'unseen' },
+    { ...base, imageId: 'graphic', imageType: 'QI' },
+    { ...base, imageId: 'wrong-author', author: 'Another poet' },
+    { imageId: 'other-year', imageType: 'FP', book: 'Smut Psalm', author: 'Josh Tvrdy' },
+    { imageId: 'runner', imageType: 'FP', book: 'Both True', author: 'Kristina Percy' },
+    { ...base, imageId: 'flagged' }, { ...base, imageId: 'broken', broken: true },
+  ], {}, ['already-voted']);
+  const body = { anonId: 'test', type: 'FP', bookGroup: 'chapbook-winners', contestYear: '2024', book: 'Glandscapes' };
+  const result = (await call(body, { staff: true, email: 'staff@example.com' })).data;
+  assert.deepEqual(result.newGraphics.map(row => row[3]), ['unseen']);
+  assert.equal(result.domainTotalImages, 2);
+  assert.equal(result.domainVotedImagesCount, 1);
+  assert.equal((await call(body)).data.newGraphics.length, 0);
+  const graphic = (await call({ ...body, type: 'QI' }, {staff: true})).data;
+  assert.deepEqual(graphic.newGraphics.map(row => row[3]), ['graphic']);
 });

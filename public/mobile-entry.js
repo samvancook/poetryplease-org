@@ -6,7 +6,8 @@ export function classicMobileTarget(pathname, search = '') {
   const authorPreview = params.get('authorPreview') === '1' && !!params.get('author')?.trim();
   const contestReading = params.get('catalog') === 'Contest' && params.get('type')?.toUpperCase() === 'QI'
     && !!params.get('event')?.trim() && params.get('locked') === '1' && params.get('reading') === '1';
-  const swipeScope = new Set(authorPreview ? ['author', 'authorPreview', 'locked']
+  const chapbookReview = params.get('bookGroup') === 'chapbook-winners';
+  const swipeScope = new Set(chapbookReview ? ['bookGroup', 'contestYear', 'type', 'book'] : authorPreview ? ['author', 'authorPreview', 'locked']
     : contestReading ? ['catalog', 'event', 'type', 'locked', 'reading', 'browse'] : []);
   if (params.get('item')?.trim()) swipeScope.add('item');
   const tracking = new Set(['fbclid', 'gclid', 'msclkid']);

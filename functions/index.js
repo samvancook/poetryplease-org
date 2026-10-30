@@ -1,3 +1,4 @@
+import { bookReviewAttributes, matchesBookReviewGroup, bookReviewGroups } from './book-review-groups.js';
 import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpdate, repairReplacementCard } from "./graphic-asset-set.js";
 import { onRequest } from "firebase-functions/v2/https";
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
@@ -1605,6 +1606,7 @@ function mapToArr(o) {
     o.sourceEvent || "",
     o.sourceEventLabel || "",
     o.assetSet || null,
+    bookReviewAttributes(o),
   ];
 }
 
@@ -1677,6 +1679,8 @@ function mapToCounterArr(o) {
     "",
     o.sourceEvent || "",
     o.sourceEventLabel || "",
+    null,
+    bookReviewAttributes(o),
   ];
 }
 
@@ -1965,6 +1969,7 @@ function matchesRequestedType(item, requestedType) {
 function filterContentByFeedFilters(items, filters = {}, { includeEventCatalogs = false } = {}) {
   return (items || []).filter((item) => {
     if (!matchesRequestedType(item, filters.type)) return false;
+    if (!matchesBookReviewGroup(item, filters)) return false;
     const catalogs = includeEventCatalogs ? contentReleaseCatalogs(item) : [item?.releaseCatalog];
     if (normalizeText(filters.catalog) && !catalogs.some((catalog) => matchesCatalogFilterValue(catalog, filters.catalog))) return false;
     if (!matchesFilterValue(item?.author, filters.author)) return false;
@@ -5134,6 +5139,8 @@ app.get(getBoth("/releaseCatalogs"), async (_req, res) => {
   res.json(cats);
 });
 
+app.get(getBoth("/bookReviewGroups"), (_req, res) => res.json(bookReviewGroups()));
+
 app.get(getBoth("/books"), async (req, res) => {
   const [allContent, flaggedIds] = await Promise.all([
     getAllContentCached(),
@@ -5142,6 +5149,7 @@ app.get(getBoth("/books"), async (req, res) => {
   const all = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds));
   const catalogKey = normalizeCatalogLookupKey(req.query?.catalog);
   const books = [...new Set(all
+    .filter((item) => matchesBookReviewGroup(item, { bookGroup: normalizeText(req.query?.bookGroup), contestYear: normalizeText(req.query?.contestYear) }))
     .filter((item) => !catalogKey || normalizeCatalogLookupKey(item.releaseCatalog) === catalogKey)
     .map((item) => item.book)
     .filter(Boolean))].sort((a, b) => a.localeCompare(b));
@@ -5187,6 +5195,8 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
 
   const filters = {
     type: normalizeText(req.body?.type),
+    bookGroup: normalizeText(req.body?.bookGroup),
+    contestYear: normalizeText(req.body?.contestYear),
     catalog: normalizeText(req.body?.catalog),
     author: normalizeText(req.body?.author),
     book: normalizeText(req.body?.book),
