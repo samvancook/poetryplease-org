@@ -573,6 +573,17 @@ function createApp(root, initialData, auth) {
         <aside class="panel detail">${row ? `
           <h2>Decision</h2>
           ${manualInUse ? `<p class="notice"><b>This poem has hand-edited text.</b> It becomes the canonical text whichever decision you record below. Clear the editor in the text comparison to go back to the sources.</p>` : ""}
+          ${Number(row.resolutionId) === 20 ? `<section class="notice" aria-label="Editorial review context for BPP-00111">
+            <h3>Editorial review context · BPP-00111</h3>
+            <p><b>Held for editorial review.</b> Do not change this decision until the reviewer confirms the text and formatting against the final proof.</p>
+            <p>The September 9 interior proof shows sections I, II, III, and VI. As checked October 29, the public Catalog serves section I only. This is a dated finding; check the live record again before approving a correction. Do not infer sections IV or V.</p>
+            <ul>
+              <li><a href="https://drive.google.com/file/d/1XtoD6SITxq_3UEB-q2QGaT2ZkqCE0ack/view" target="_blank" rel="noopener noreferrer">Open September 9 interior proof (printed page 53)</a></li>
+              <li><a href="https://drive.google.com/file/d/1Ugbrj4K1T4W2f-Ge0jBrc5Rp7j41eoKK/view" target="_blank" rel="noopener noreferrer">Open source-linked editorial review packet</a></li>
+              <li><a href="https://button-poetry-catalog-svz4yyc7gq-uc.a.run.app/books/Living%20at%20Baggage%20Claim/poems?limit=1000" target="_blank" rel="noopener noreferrer">Check live Catalog book response (find BPP-00111)</a></li>
+            </ul>
+            <p class="help">These references are for review only. This panel does not save a decision or publish text.</p>
+          </section>` : ""}
           <h3>Visual PDF context</h3>
           ${visualHref
             ? `<p><a class="visual-link" href="${esc(visualHref)}">View available PDF context (${esc(visualSideLabel)})</a></p><p class="help">This opens the matching Catalog-bound PDF evidence for the ${esc(visualSideLabel.toLowerCase())} only, with a link back to this text-review record.</p>`
