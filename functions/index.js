@@ -4406,7 +4406,12 @@ async function hostGraphicAssetSet(cards, previous = [], id = "") {
         rules: UPLOAD_RULES.libraryGraphic, body: {}, remoteMedia: remote });
       preview = stored.publicUrl;
     }
-    hosted.push({ ...card, assetPreviewUrl: preview });
+    hosted.push({
+      ...(prior?.author ? { author: prior.author } : {}),
+      ...(prior?.title ? { title: prior.title } : {}),
+      ...card,
+      assetPreviewUrl: preview,
+    });
   }
   return hosted;
 }
