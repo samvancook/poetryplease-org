@@ -23,6 +23,8 @@
     button:disabled { opacity:.55; cursor:wait; }
     .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
     .status { min-height:24px; margin-top:12px; font-weight:700; }
+    .preference { display:flex; align-items:center; gap:10px; font-weight:700; }
+    .preference input { width:auto; margin:0; }
     .error { color:var(--error); }
     .success { color:var(--accent); }
     .list { display:grid; gap:12px; }
@@ -70,6 +72,12 @@
         <div class="meta">
           <strong id="account-label"></strong>
           <button id="sign-out-button" class="secondary" type="button">Sign out</button>
+        </div>
+        <div class="submission" id="contest-notification-settings">
+          <h2>Contest notifications</h2>
+          <label class="preference"><input id="notify-next-contest" type="checkbox" checked> Notify me when the next contest opens</label>
+          <p>You can turn this off at any time. Contest-result emails are separate.</p>
+          <div id="notification-status" class="status" role="status" aria-live="polite"></div>
         </div>
         <div id="claim-status" class="status"></div>
         <div id="submission-list" class="list"></div>
@@ -167,6 +175,47 @@
     }
 
 
+
+    const notificationCheckbox = document.getElementById("notify-next-contest");
+    const notificationStatus = document.getElementById("notification-status");
+
+    async function loadContestNotificationPreference() {
+      notificationStatus.textContent = "Loading contest notification setting...";
+      notificationCheckbox.disabled = true;
+      try {
+        const result = await api("my/contestNotifications");
+        notificationCheckbox.checked = result.notifyNextContest !== false;
+        notificationStatus.textContent = "";
+      } catch (error) {
+        notificationStatus.className = "status error";
+        notificationStatus.textContent = "Could not load this setting: " + error.message;
+      } finally {
+        notificationCheckbox.disabled = false;
+      }
+    }
+
+    notificationCheckbox.addEventListener("change", async () => {
+      const selected = notificationCheckbox.checked;
+      notificationCheckbox.disabled = true;
+      notificationStatus.className = "status";
+      notificationStatus.textContent = "Saving...";
+      try {
+        await api("my/contestNotifications", {
+          method: "POST", body: JSON.stringify({ notifyNextContest: selected }),
+        });
+        notificationStatus.className = "status success";
+        notificationStatus.textContent = selected
+          ? "You’ll get a notice when the next contest opens."
+          : "You won’t get new-contest notices.";
+      } catch (error) {
+        notificationCheckbox.checked = !selected;
+        notificationStatus.className = "status error";
+        notificationStatus.textContent = "Could not save: " + error.message;
+      } finally {
+        notificationCheckbox.disabled = false;
+      }
+    });
+
     async function sendEmailLink() {
       const email = emailInput.value.trim().toLowerCase();
       if (!email) {
@@ -261,6 +310,7 @@
       if (renderedUid === user.uid) return;
       renderedUid = user.uid;
       loadSubmissions();
+      loadContestNotificationPreference();
     }
 
 

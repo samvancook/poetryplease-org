@@ -6739,6 +6739,36 @@ app.get(getBoth("/my/submissions"), async (req, res) => {
   res.json({ submissions, newPositiveResponses, claimResult });
 });
 
+
+function contestNotificationPreferenceRef(email) {
+  const normalized = normalizeText(email || "").toLowerCase();
+  return db.collection("contestNotificationPreferences")
+    .doc(createHash("sha256").update(normalized).digest("hex").slice(0, 40));
+}
+
+app.get(getBoth("/my/contestNotifications"), async (req, res) => {
+  const ctx = await requireDecodedUser(req, res);
+  if (!ctx) return;
+  if (ctx.decoded.email_verified !== true) return res.status(403).json({ error: "verified_email_required" });
+  const snap = await contestNotificationPreferenceRef(ctx.decoded.email).get();
+  res.json({ ok: true, notifyNextContest: snap.data()?.notifyNextContest !== false });
+});
+
+app.post(getBoth("/my/contestNotifications"), async (req, res) => {
+  const ctx = await requireDecodedUser(req, res);
+  if (!ctx) return;
+  if (ctx.decoded.email_verified !== true) return res.status(403).json({ error: "verified_email_required" });
+  if (typeof req.body?.notifyNextContest !== "boolean") {
+    return res.status(400).json({ error: "invalid_notification_preference" });
+  }
+  const email = normalizeText(ctx.decoded.email).toLowerCase();
+  await contestNotificationPreferenceRef(email).set({
+    email, notifyNextContest: req.body.notifyNextContest,
+    updatedAt: FieldValue.serverTimestamp(),
+  }, { merge: true });
+  res.json({ ok: true, notifyNextContest: req.body.notifyNextContest });
+});
+
 app.post(getBoth("/my/submissions/markPositiveResponsesSeen"), async (req, res) => {
   const ctx = await requireDecodedUser(req, res);
   if (!ctx) return;
@@ -12154,6 +12184,118 @@ app.post(getBoth("/admin/contestOutcomeEmailTemplates"), async (req, res) => {
   res.json({ ok: true, programId, customized: true, templates, emailSent: false });
 });
 
+
+async function contestNotificationAudience(programId) {
+  const [entrants, optOuts] = await Promise.all([
+    db.collection(COLLECTIONS.submissionEntrants).get(),
+    db.collection("contestNotificationPreferences").where("notifyNextContest", "==", false).get(),
+  ]);
+  const optedOut = new Set(optOuts.docs.map((doc) => normalizeText(doc.data()?.email || "").toLowerCase()));
+  const byEmail = new Map();
+  for (const doc of entrants.docs) {
+    const row = doc.data() || {};
+    if (row.submissionProgramId === programId) continue;
+    const email = normalizeText(row.email || "").toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) continue;
+    if (!byEmail.has(email)) byEmail.set(email, {
+      email, firstName: normalizeText(row.firstName || "").slice(0, 80) || "there",
+    });
+  }
+  const recipients = [...byEmail.values()].filter((row) => !optedOut.has(row.email))
+    .sort((a, b) => a.email.localeCompare(b.email));
+  return { recipients, priorSubmitterCount: byEmail.size, optedOutCount: byEmail.size - recipients.length };
+}
+
+function validContestNotificationDraft(subject, body) {
+  return typeof subject === "string" && typeof body === "string" &&
+    subject.trim().length > 0 && subject.trim().length <= 200 && !/[\r\n]/.test(subject) &&
+    body.trim().length > 0 && body.length <= 12000;
+}
+
+app.get(getBoth("/admin/contestNotificationAudience"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  const program = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!program.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const audience = await contestNotificationAudience(programId);
+  res.json({ ok: true, programId, priorSubmitterCount: audience.priorSubmitterCount,
+    optedOutCount: audience.optedOutCount, recipientCount: audience.recipients.length,
+    sample: audience.recipients.slice(0, 5) });
+});
+
+app.get(getBoth("/admin/contestScheduledEmails"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.query.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const snap = await db.collection("contestScheduledEmails").where("programId", "==", programId).get();
+  const schedules = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+    .sort((a, b) => String(b.sendAt || "").localeCompare(String(a.sendAt || "")));
+  res.json({ ok: true, schedules });
+});
+
+app.post(getBoth("/admin/contestScheduledEmails"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const subject = req.body?.subject;
+  const body = req.body?.body;
+  const sendAt = normalizeText(req.body?.sendAt || "");
+  const when = Date.parse(sendAt);
+  if (!validContestNotificationDraft(subject, body) || !Number.isFinite(when) ||
+    when < Date.now() + 60 * 1000 || when > Date.now() + 31 * 86400000) {
+    return res.status(400).json({ error: "invalid_contest_notification_schedule" });
+  }
+  const program = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
+  if (!program.exists) return res.status(404).json({ error: "submission_program_not_found" });
+  const audience = await contestNotificationAudience(programId);
+  if (!audience.recipients.length || Number(req.body?.expectedRecipientCount) !== audience.recipients.length) {
+    return res.status(409).json({ error: "recipient_preview_changed", recipientCount: audience.recipients.length });
+  }
+  const existing = await db.collection("contestScheduledEmails").where("programId", "==", programId).get();
+  if (existing.docs.some((doc) => ["scheduled", "sending"].includes(doc.data()?.status))) {
+    return res.status(409).json({ error: "contest_notification_already_scheduled" });
+  }
+  const ref = db.collection("contestScheduledEmails").doc();
+  const schedule = {
+    programId, programName: normalizeText(program.data()?.name || programId),
+    subject: subject.trim(), body: body.trim(), sendAt: new Date(when).toISOString(),
+    status: "scheduled", recipientCount: audience.recipients.length,
+    priorSubmitterCount: audience.priorSubmitterCount, optedOutCount: audience.optedOutCount,
+    createdBy: ctx.decoded.uid, createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(), sentCount: 0, uncertainCount: 0,
+  };
+  await ref.set(schedule);
+  res.json({ ok: true, id: ref.id, ...schedule, emailSent: false });
+});
+
+app.post(getBoth("/admin/contestScheduledEmails/:id"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const ref = db.collection("contestScheduledEmails").doc(normalizeText(req.params.id || ""));
+  const snap = await ref.get();
+  if (!snap.exists) return res.status(404).json({ error: "schedule_not_found" });
+  const current = snap.data() || {};
+  if (current.status !== "scheduled") return res.status(409).json({ error: "schedule_no_longer_editable" });
+  if (req.body?.action === "cancel") {
+    await ref.set({ status: "canceled", updatedBy: ctx.decoded.uid,
+      updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return res.json({ ok: true, id: ref.id, status: "canceled" });
+  }
+  if (req.body?.action !== "update") return res.status(400).json({ error: "invalid_schedule_action" });
+  const subject = req.body?.subject;
+  const body = req.body?.body;
+  const when = Date.parse(normalizeText(req.body?.sendAt || ""));
+  if (!validContestNotificationDraft(subject, body) || !Number.isFinite(when) ||
+    when < Date.now() + 60 * 1000 || when > Date.now() + 31 * 86400000) {
+    return res.status(400).json({ error: "invalid_contest_notification_schedule" });
+  }
+  await ref.set({ subject: subject.trim(), body: body.trim(), sendAt: new Date(when).toISOString(),
+    updatedBy: ctx.decoded.uid, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  res.json({ ok: true, id: ref.id, status: "scheduled", emailSent: false });
+});
+
 app.get(getBoth("/admin/contestOutcomeEmailPreview"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
@@ -13660,6 +13802,94 @@ export const manuscriptreconciliationphase2preview = onRequest({
   invoker: "public",
   serviceAccount: "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com",
 }, manuscriptReconciliationPhase2App);
+
+
+export const contestscheduledemailsdispatch = onSchedule({
+  schedule: "* * * * *",
+  timeZone: "America/Chicago",
+  region: "us-central1",
+  memory: "1GiB",
+  timeoutSeconds: 540,
+  secrets: [MANDRILL_AUTHOR_INVITE_API_KEY_SECRET],
+}, async () => {
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) throw new Error("mandrill_mail_not_configured");
+  const schedules = await db.collection("contestScheduledEmails").get();
+  for (const scheduleDoc of schedules.docs) {
+    const schedule = scheduleDoc.data() || {};
+    if (!["scheduled", "sending"].includes(schedule.status) ||
+      Date.parse(schedule.sendAt || "") > Date.now()) continue;
+    const claimed = await db.runTransaction(async (transaction) => {
+      const fresh = await transaction.get(scheduleDoc.ref);
+      if (!fresh.exists || !["scheduled", "sending"].includes(fresh.data()?.status)) return false;
+      if (fresh.data().status === "scheduled") transaction.update(scheduleDoc.ref, {
+        status: "sending", startedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      return true;
+    });
+    if (!claimed) continue;
+    try {
+      const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(schedule.programId).get();
+      if (!programSnap.exists) throw new Error("submission_program_not_found");
+      const audience = await contestNotificationAudience(schedule.programId);
+      const noticesRef = db.collection("contestNotificationNotices");
+      const existingSnap = await noticesRef.where("scheduleId", "==", scheduleDoc.id).get();
+      const already = new Set(existingSnap.docs.map((doc) => doc.data()?.email));
+      const remaining = audience.recipients.filter((row) => !already.has(row.email)).slice(0, 75);
+      const identity = contestMailIdentity(programSnap.data());
+      for (let start = 0; start < remaining.length; start += 5) {
+        await Promise.all(remaining.slice(start, start + 5).map(async (recipient) => {
+          const id = createHash("sha256").update(scheduleDoc.id + "|" + recipient.email).digest("hex").slice(0, 40);
+          const noticeRef = noticesRef.doc(id);
+          try {
+            await noticeRef.create({
+              scheduleId: scheduleDoc.id, programId: schedule.programId, email: recipient.email,
+              deliveryStatus: "sending", createdAt: FieldValue.serverTimestamp(),
+            });
+          } catch (error) {
+            if (error.code === 6 || error.code === "already-exists") return;
+            throw error;
+          }
+          const subject = renderContestOutcomeTemplate(schedule.subject, {
+            firstName: recipient.firstName, programName: schedule.programName, titles: "",
+          });
+          const body = renderContestOutcomeTemplate(schedule.body, {
+            firstName: recipient.firstName, programName: schedule.programName, titles: "",
+          }) + "\n\nManage contest notifications: https://poetryplease.org/my-submissions.html";
+          try {
+            const delivery = await sendAuthorInviteWithMandrill({
+              apiKey, email: recipient.email, message: { subject, text: body },
+              tag: "poetry-please-contest-notification", ...identity,
+            });
+            await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
+              deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          } catch (error) {
+            await noticeRef.set({ deliveryStatus: "uncertain", error: String(error.message || error).slice(0, 200),
+              deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
+          }
+        }));
+      }
+      const updated = await noticesRef.where("scheduleId", "==", scheduleDoc.id).get();
+      const rows = updated.docs.map((doc) => doc.data() || {});
+      const sentCount = rows.filter((row) => row.deliveryStatus === "sent").length;
+      const uncertainCount = rows.filter((row) => row.deliveryStatus === "uncertain").length;
+      const pendingCount = rows.filter((row) => row.deliveryStatus === "sending").length;
+      const remainingCount = audience.recipients.length - rows.length;
+      const status = !remainingCount && !pendingCount
+        ? (uncertainCount ? "needs_review" : "sent") : "sending";
+      await scheduleDoc.ref.set({
+        status, sentCount, uncertainCount, recipientCount: audience.recipients.length,
+        updatedAt: FieldValue.serverTimestamp(),
+        ...(status === "sent" || status === "needs_review" ? { completedAt: FieldValue.serverTimestamp() } : {}),
+      }, { merge: true });
+    } catch (error) {
+      console.error("contest scheduled email dispatch failed", scheduleDoc.id, error);
+      await scheduleDoc.ref.set({ status: "needs_review", error: String(error.message || error).slice(0, 200),
+        updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+  }
+});
 
 export const ratingssummaryrefresh = onSchedule({
   schedule: "0 3 * * *",
