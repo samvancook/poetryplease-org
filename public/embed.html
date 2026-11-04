@@ -104,29 +104,32 @@
     }
     #controls {
       display: none;
+      grid-template-columns: repeat(5, minmax(0, 44px));
+      justify-content: center;
       align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      padding: 8px;
-      border: 1px solid rgba(34, 28, 20, 0.22);
-      border-top: 0;
+      border-top: 1px solid rgba(34, 28, 20, 0.16);
       background: #f7f1e5;
-      font: 13px/1.2 Arial, sans-serif;
+      font: 12px/1 Arial, sans-serif;
     }
-    #controls[data-visible="true"] { display: flex; }
+    #controls[data-visible="true"] { display: grid; }
     #controls button {
-      padding: 7px 9px;
-      border: 1px solid #c9c0b1;
-      border-radius: 4px;
-      background: #fff;
+      width: 100%;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      background: transparent;
       color: #284f54;
-      font: 600 13px/1.2 Arial, sans-serif;
       cursor: pointer;
     }
-    #controls button:focus-visible { outline: 2px solid #3f6b70; outline-offset: 2px; }
+    #controls button:hover:not(:disabled) { background: rgba(40, 79, 84, 0.08); }
+    #controls button:focus-visible { outline: 2px solid #3f6b70; outline-offset: -2px; }
     #controls button:disabled { opacity: 0.45; cursor: default; }
-    #position { min-width: 45px; text-align: center; white-space: nowrap; }
-    #collection { margin-left: auto; }
+    #controls svg { width: 18px; height: 18px; }
+    #position { text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    #rotation[data-paused="true"] .pause-icon,
+    #rotation:not([data-paused="true"]) .play-icon { display: none; }
     .media-image,
     .media-video,
     .media-frame {
@@ -179,11 +182,20 @@
     </div>
   </main>
   <nav id="controls" aria-label="Embed controls">
-    <button id="previous" type="button" aria-label="Previous item">Previous</button>
+    <button id="previous" type="button" aria-label="Previous item" title="Previous item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>
+    </button>
     <span id="position" aria-live="polite"></span>
-    <button id="next" type="button" aria-label="Next item">Next</button>
-    <button id="rotation" type="button">Pause</button>
-    <button id="collection" type="button">Explore collection</button>
+    <button id="next" type="button" aria-label="Next item" title="Next item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+    </button>
+    <button id="rotation" type="button" aria-label="Pause automatic rotation" title="Pause automatic rotation">
+      <svg class="pause-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 5v14m6-14v14"/></svg>
+      <svg class="play-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m8 5 12 7-12 7z"/></svg>
+    </button>
+    <button id="collection" type="button" aria-label="Explore collection" title="Explore collection">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h6v6H4zm10 0h6v6h-6zM4 14h6v6H4zm10 0h6v6h-6z"/></svg>
+    </button>
   </nav>
   <script>
     (() => {
@@ -257,13 +269,15 @@
       function updateControls() {
         controls.dataset.visible = current ? "true" : "false";
         if (!current) return;
-        position.textContent = (index + 1) + " of " + pool.length;
+        position.textContent = (index + 1) + "/" + pool.length;
         previousButton.disabled = pool.length < 2;
         nextButton.disabled = pool.length < 2;
         rotationButton.disabled = pool.length < 2;
-        rotationButton.textContent = rotationPaused ? "Resume" : "Pause";
-        rotationButton.setAttribute("aria-label", rotationPaused ? "Resume automatic rotation" : "Pause automatic rotation");
-        collectionButton.textContent = catalog.toLowerCase() === "contest" && contestEvent ? "See all winners" : "Explore collection";
+        rotationButton.dataset.paused = String(rotationPaused);
+        rotationButton.title = rotationPaused ? "Resume automatic rotation" : "Pause automatic rotation";
+        rotationButton.setAttribute("aria-label", rotationButton.title);
+        collectionButton.title = catalog.toLowerCase() === "contest" && contestEvent ? "See all winners" : "Explore collection";
+        collectionButton.setAttribute("aria-label", collectionButton.title);
       }
 
       function render(item) {
