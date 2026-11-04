@@ -3010,6 +3010,8 @@ async function buildRankedTextsPayload({
   minScore = 1,
   minVotes = 1,
   types = ["EXC", "FP"],
+  chapbookWinners = false,
+  withoutGraphics = false,
 } = {}) {
   const normalizedTypes = uniq(
     (Array.isArray(types) ? types : [types])
@@ -3146,6 +3148,8 @@ async function buildRankedTextsPayload({
   });
 
   const rows = Array.from(groupedByTextHash.values())
+    .filter((item) => !chapbookWinners || bookReviewAttributes(item)?.chapbookContestWinner === true)
+    .filter((item) => !withoutGraphics || !matchingGraphicsBySignature.has(item.signature))
     .sort((a, b) => (
       (b.score - a.score)
       || (b.movedMe - a.movedMe)
@@ -3168,6 +3172,11 @@ async function buildRankedTextsPayload({
         author: item.author,
         title: item.title,
         book: item.book,
+        ...(bookReviewAttributes(item) || {
+          chapbookContestWinner: false,
+          chapbookContestYear: null,
+          chapbookContestResult: null,
+        }),
         text: item.text,
         releaseCatalog: item.releaseCatalog || "",
         bookLink: item.bookLink || "",
@@ -3191,6 +3200,8 @@ async function buildRankedTextsPayload({
       minScore,
       minVotes,
       types: normalizedTypes,
+      ...(chapbookWinners ? { chapbookWinners } : {}),
+      ...(withoutGraphics ? { withoutGraphics } : {}),
     },
     snapshotMeta: scoreboardResult?.builtAtMs ? {
       source: scoreboardResult.source,
@@ -6165,7 +6176,9 @@ app.get(getBoth("/pig/ranked-texts"), async (req, res) => {
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
-  const payload = await buildRankedTextsPayload({ limit, minScore, minVotes, types });
+  const chapbookWinners = req.query?.chapbookWinners === "1";
+  const withoutGraphics = req.query?.withoutGraphics === "1";
+  const payload = await buildRankedTextsPayload({ limit, minScore, minVotes, types, chapbookWinners, withoutGraphics });
   res.json(payload);
 });
 
