@@ -2,6 +2,11 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Contest email enrollment — 4 November 2026
+
+- **Planned:** Make contest entry one form and one submit. The form should clearly ask for permission to receive Button Poetry emails; a successful entry should save that consent and add the entrant to the existing Mailchimp audience, while sending a submission confirmation and contest notices through the established transactional email path. Preserve existing unsubscribes and show staff any enrollment failures for retry.
+- **Current state:** Poetry Please stores entrant email but does not add it to Mailchimp or send a submission confirmation. The separate newsletter link is temporary; remove it only when the integrated flow, audience connection, and a controlled end-to-end test are verified. Do not tell entrants they have joined the list before then.
+
 ## Closeout — 30 October 2026
 
 - **Chapbook embed live:** [PP #308](https://github.com/samvancook/poetryplease-org/pull/308), production workflow 41059477530 succeeded. Public embed and mobile click-through verified; LINK_GUIDE.md and the shared roadmap contain deep links and copyable iframe HTML. [Count audit](docs/CHAPBOOK_WINNER_QI_COUNTS_2026-10-30.md): 15 winning books, 228 eligible QI records across 12 books; 20 is the rotation-pool cap. Decision deferred: broader rotation or cross-book representation. No new dispatch for the three zero-QI books.
