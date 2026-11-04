@@ -59,6 +59,7 @@
       <details id="description-more" hidden><summary>Read the rules</summary><p id="program-description-extra"></p></details>
       <p id="program-dates" hidden></p>
       <p id="program-rules" hidden><a id="program-rules-link" target="_blank" rel="noopener">Read the contest FAQ and rules</a></p>
+      <p id="newsletter-invite" hidden>Want Button Poetry emails too? <a href="https://buttonpoetry.com/email-subscribe/" target="_blank" rel="noopener noreferrer">Join the Button Poetry newsletter</a> (optional).</p>
     </section>
     <section id="loading"><p>Loading submission form...</p></section>
     <section id="unavailable" hidden>
@@ -247,6 +248,7 @@
         document.getElementById("program-name").textContent = program.name;
         showDescription(program.description);
         document.querySelectorAll(".winners-link").forEach((node) => { node.hidden = !program.shortFormRules; });
+        document.getElementById("newsletter-invite").hidden = !program.shortFormRules;
         showProgramDates();
         if (program.termsUrl) {
           document.getElementById("program-rules-link").href = program.termsUrl;
