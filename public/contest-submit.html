@@ -51,7 +51,7 @@
       <p>Submit your work for consideration.</p>
     </header>
 
-    <p class="winners-link" hidden><a href="/app?catalog=Contest&amp;book=Short%20Form%202026&amp;locked=1" target="_blank" rel="noopener noreferrer">See previous Short Form Contest winners in Poetry Please (opens in a new tab)</a></p>
+    <p class="winners-link" hidden><a href="/posts-swipe?catalog=Contest&amp;event=Button%20Poetry%27s%20Fall%202026%20Short%20Form%20Contest&amp;type=QI&amp;locked=1&amp;reading=1" target="_blank" rel="noopener noreferrer">See previous Short Form Contest winners in Poetry Please (opens in a new tab)</a></p>
     <img id="contest-banner" alt="" hidden>
     <section id="program-intro" hidden>
       <h2 id="program-name"></h2>
@@ -59,6 +59,7 @@
       <details id="description-more" hidden><summary>Read the rules</summary><p id="program-description-extra"></p></details>
       <p id="program-dates" hidden></p>
       <p id="program-rules" hidden><a id="program-rules-link" target="_blank" rel="noopener">Read the contest FAQ and rules</a></p>
+      <p id="newsletter-invite" hidden>Want Button Poetry emails too? <a href="https://buttonpoetry.com/email-subscribe/" target="_blank" rel="noopener noreferrer">Join the Button Poetry newsletter</a> (optional).</p>
     </section>
     <section id="loading"><p>Loading submission form...</p></section>
     <section id="unavailable" hidden>
@@ -111,7 +112,7 @@
         <p><a href="/my-submissions.html">Already have an account? View my submissions</a></p>
       </div>
     </section>
-    <p class="winners-link" hidden><a href="/app?catalog=Contest&amp;book=Short%20Form%202026&amp;locked=1" target="_blank" rel="noopener noreferrer">See previous Short Form Contest winners in Poetry Please (opens in a new tab)</a></p>
+    <p class="winners-link" hidden><a href="/posts-swipe?catalog=Contest&amp;event=Button%20Poetry%27s%20Fall%202026%20Short%20Form%20Contest&amp;type=QI&amp;locked=1&amp;reading=1" target="_blank" rel="noopener noreferrer">See previous Short Form Contest winners in Poetry Please (opens in a new tab)</a></p>
   </main>
   <script src="/__/firebase/8.10.1/firebase-app.js"></script>
   <script src="/__/firebase/8.10.1/firebase-auth.js"></script>
@@ -247,13 +248,21 @@
         document.getElementById("program-name").textContent = program.name;
         showDescription(program.description);
         document.querySelectorAll(".winners-link").forEach((node) => { node.hidden = !program.shortFormRules; });
+        document.getElementById("newsletter-invite").hidden = !program.shortFormRules;
         showProgramDates();
         if (program.termsUrl) {
           document.getElementById("program-rules-link").href = program.termsUrl;
           document.getElementById("program-rules").hidden = false;
         }
         document.getElementById("program-intro").hidden = false;
-        if (!program.acceptingSubmissions) return showUnavailable("This submission program is not currently accepting work.");
+        if (!program.acceptingSubmissions) {
+          const opening = program.opensAt ? new Date(program.opensAt) : null;
+          if (opening && !Number.isNaN(opening.getTime()) && opening.getTime() > Date.now()) {
+            const when = new Intl.DateTimeFormat(undefined, { dateStyle: "long", timeStyle: "short" }).format(opening);
+            return showUnavailable("Scheduled opening: " + when + " (your local time). Submissions are not open yet.");
+          }
+          return showUnavailable("This submission program is not currently accepting work.");
+        }
         title.required = !program.shortFormRules;
         document.getElementById("title-label").textContent = program.shortFormRules ? "Poem title (optional; counts toward the character limit)" : "Poem title";
         document.getElementById("required-summary").textContent = program.shortFormRules
