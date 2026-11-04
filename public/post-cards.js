@@ -127,6 +127,10 @@ function getDialog() {
 }
 
 export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRelated, deferGraphicLoad }) {
+  const cards = graphicCards(item.assetSet);
+  if (cards.some(card => card.role === 'prompt') && cards.some(card => card.role === 'poem')) {
+    item = { ...item, title: 'Prompt and poem', author: '' };
+  }
   const card = make('article', 'post-card');
   card.dataset.itemId = item.id;
   let activeGraphic = item.mediaUrl;
@@ -184,7 +188,6 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
     if (deferGraphicLoad) deferGraphicLoad(card, start);
     else start();
     retry.addEventListener('click', () => { start().retry(); });
-    const cards = graphicCards(item.assetSet);
     mountGraphicCardControls(card, cards, (asset, index) => {
       const url = asset.assetPreviewUrl || asset.assetUrl;
       activeGraphic = url;

@@ -3691,11 +3691,17 @@ function renderRelatedItemLinks(item) {
   }).catch(error => console.warn('Related item links could not load', error));
 }
 
+function isPromptPoemSet(item) {
+  return item.assetSet?.some(card => card.role === 'prompt')
+    && item.assetSet.some(card => card.role === 'poem');
+}
+
 function renderMetaRows(item) {
   const mediaWrap = ensureMediaWrap();
   mediaWrap.querySelectorAll('.meta-row').forEach(n=>n.remove());
   if (!item) { document.getElementById('related-item-links')?.remove(); return; }
 
+  const promptPoemSet = isPromptPoemSet(item);
   const row = (text, checkboxId, checked, label, onToggle) => {
     const r = document.createElement('div'); r.className='meta-row';
     const p = document.createElement('p'); p.textContent = text || ''; r.appendChild(p);
@@ -3726,29 +3732,30 @@ function renderMetaRows(item) {
     // --- MOBILE: do not render inline meta; update bottom sheet instead ---
   if (window.__PP_FORCE_MOBILE || (document.body && document.body.dataset.ui === 'mobile')) {
     if (window.PP && typeof window.PP.updateInfo === 'function') {
-      window.PP.updateInfo(item);
+      window.PP.updateInfo(promptPoemSet ? { ...item, title: 'Prompt and poem', author: '' } : item);
     }
     const badge = document.getElementById('mobile-counts');
     if (badge) badge.style.display = 'none';
     return; // prevent the three mediaWrap.prepend(...) lines from running
   }
   if (IS_EMBED_UI) {
-    mediaWrap.prepend(row(`Title: ${item.title || ''}`));
-    mediaWrap.prepend(row(`From their book: ${item.book || ''}`));
-    mediaWrap.prepend(row(`Author: ${item.author || ''}`));
+    mediaWrap.prepend(row(promptPoemSet ? 'Prompt and poem' : `Title: ${item.title || ''}`));
+    mediaWrap.prepend(row(`${promptPoemSet ? 'From the book' : 'From their book'}: ${item.book || ''}`));
+    if (!promptPoemSet) mediaWrap.prepend(row(`Author: ${item.author || ''}`));
     return;
   }
 
   // Excerpt titles appear with their source caption inside the card.
-  if (item.imageType !== 'EXC') mediaWrap.prepend(row(`Title: ${item.title || ''}`));
+  if (promptPoemSet) mediaWrap.prepend(row('Prompt and poem'));
+  else if (item.imageType !== 'EXC') mediaWrap.prepend(row(`Title: ${item.title || ''}`));
   if (item.book) mediaWrap.prepend(row(
-    `From their book: ${item.book || ''}`,
+    `${promptPoemSet ? 'From the book' : 'From their book'}: ${item.book || ''}`,
     'bookCheckbox',
     filterByBook && valuesMatch(selectedBook, item.book),
     'More from this book',
     () => setBookFilter(!(filterByBook && valuesMatch(selectedBook, item.book)), item.book)
   ));
-  mediaWrap.prepend(row(
+  if (!promptPoemSet) mediaWrap.prepend(row(
     `Author: ${item.author || ''}`,
     'authorCheckbox',
     filterByAuthor && valuesMatch(selectedAuthor, item.author),
@@ -3985,7 +3992,8 @@ function renderItemMedia(item) {
       mountGraphicCardControls(box, graphicCards(item.assetSet), (asset, index) => {
         img.style.transform = '';
         img.src = asset.assetPreviewUrl || asset.assetUrl;
-        img.alt = `${item.title || 'Graphic'} — card ${index + 1}`;
+        const label = isPromptPoemSet(item) ? 'Prompt and poem' : item.title || 'Graphic';
+        img.alt = `${label} — card ${index + 1}`;
       });
     }).catch(error => console.warn('Graphic card controls could not load', error));
   }
