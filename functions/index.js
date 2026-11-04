@@ -2236,6 +2236,30 @@ function shouldImportWeaverGraphicRecord(record, options = {}) {
   return storageTarget === "pig_sheet" && qcDecision === "approve" && !!assetLinkUrl;
 }
 
+async function resolveWeaverGraphicIdentity(item) {
+  if (normalizeText(item.imageType).toUpperCase() !== "FPI") return item;
+  const poem = await db.collection(COLLECTIONS.fullPoems).doc(item.docId).get();
+  if (!poem.exists) return item;
+
+  const completionId = sanitizeDocIdSegment(item.sourceCompletionId);
+  const conflict = () => Object.assign(new Error("fpi_poem_identity_collision"), { status: 409 });
+  if (!completionId || normalizeKey(completionId) === normalizeKey(item.docId)) throw conflict();
+
+  const [legacy, target, targetPoem] = await Promise.all([
+    db.collection(COLLECTIONS.graphics).doc(item.docId).get(),
+    db.collection(COLLECTIONS.graphics).doc(completionId).get(),
+    db.collection(COLLECTIONS.fullPoems).doc(completionId).get(),
+  ]);
+  if (legacy.exists || targetPoem.exists) throw conflict();
+  if (target.exists && (
+    normalizeText(target.data()?.sourceCompletionId) !== normalizeText(item.sourceCompletionId)
+    || normalizeText(target.data()?.sourceRequestId) !== normalizeText(item.sourceRequestId)
+    || normalizeText(target.data()?.imageType).toUpperCase() !== "FPI"
+  )) throw conflict();
+
+  return { ...item, docId: completionId, contentId: completionId, imageId: completionId };
+}
+
 async function buildWeaverGraphicsDuplicatePlan(mappedItems = []) {
   const existingGraphics = await getAllFrom(COLLECTIONS.graphics);
   const existingByDuplicateKey = new Map();
@@ -7646,7 +7670,9 @@ app.post(getBoth("/admin/contentLibrary/weaverPreview"), async (req, res) => {
     const rawPayload = await fetchRemoteJson(sourceUrl);
     const sourceRecords = flattenWeaverGraphicsRecords(rawPayload);
     const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record));
-    const mappedItems = buildWeaverGraphicsImportItems(rawPayload, { defaultImageType });
+    const mappedItems = await Promise.all(
+      buildWeaverGraphicsImportItems(rawPayload, { defaultImageType }).map(resolveWeaverGraphicIdentity)
+    );
     const { acceptedItems, duplicateItems } = await buildWeaverGraphicsDuplicatePlan(mappedItems);
 
     if (!mappedItems.length) {
@@ -7988,7 +8014,7 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
   const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record, { defaultImageType }));
   const mappedItems = [];
   for (const item of buildWeaverGraphicsImportItems(rawPayload, { defaultImageType })) {
-    mappedItems.push(await prepareContestGraphicReturn(item));
+    mappedItems.push(await prepareContestGraphicReturn(await resolveWeaverGraphicIdentity(item)));
   }
   const { acceptedItems, duplicateItems } = await buildWeaverGraphicsDuplicatePlan(mappedItems);
 
