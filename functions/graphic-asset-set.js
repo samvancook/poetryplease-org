@@ -10,10 +10,14 @@ export function normalizeGraphicAssetSet(value) {
   };
   return value.map((card, i) => {
     if (!card || card.index !== i + 1) fail();
+    const author = typeof card.author === 'string' ? card.author.trim().slice(0, 300) : '';
+    const title = typeof card.title === 'string' ? card.title.trim().slice(0, 500) : '';
     return { index: i + 1, role: String(card.role || 'content').trim().slice(0, 100),
       assetUrl: url(card.assetUrl, true), assetPreviewUrl: url(card.assetPreviewUrl),
       assetFileId: String(card.assetFileId || '').trim().slice(0, 300),
-      fileName: String(card.fileName || '').trim().slice(0, 500) };
+      fileName: String(card.fileName || '').trim().slice(0, 500),
+      ...(author ? { author } : {}),
+      ...(title ? { title } : {}) };
   });
 }
 export function validateAffectedCardIndex(value, assetSet) {

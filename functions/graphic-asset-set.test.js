@@ -51,6 +51,9 @@ test('actual QI and FPI import mapping, payload, storage and feed preserve all c
   const names=['firstNonEmpty','firstArray','normalizeWeaverGraphicsPayload','flattenWeaverGraphicsRecords','deriveWeaverGraphicsDocId','mapWeaverGraphicRecord','shouldImportWeaverGraphicRecord','buildWeaverGraphicsImportItems','deriveContentDocId','buildContentDocPayload','collectionForContentType','hostGraphicAssetSet','upsertContentLibraryItem','parseDoc','mapToArr'];
   const f=vm.runInNewContext(names.map(definition).join('\n')+'; ({buildWeaverGraphicsImportItems,upsertContentLibraryItem,parseDoc,mapToArr})',context);
   const record={docId:'SYNTHETIC-'+imageType,sourceRecordId:'synthetic:multi:'+imageType,sourceRequestId:'synthetic:request',sourceCompletionId:'synthetic:complete',author:'Synthetic Author',title:'Synthetic Three Cards',book:'',imageType,syntheticTest:true,sourceSystem:'weaver',sourceCompletionId:'synthetic-complete',assetUrl:card(1).assetUrl,assetSet:[card(1),card(2),card(3)],pigProjectId:'synthetic-project',editableProjectFileId:'editable',editableProjectUrl:'https://example.test/edit'};
+  record.assetSet[0].author = 'Prompt author';
+  record.assetSet[1].author = 'Poem author';
+  record.assetSet[1].title = 'Poem title';
   const [mapped]=f.buildWeaverGraphicsImportItems([record],{defaultImageType:imageType});
   assert.equal(mapped.assetSet.length,3);
   const imported=await f.upsertContentLibraryItem('graphics',mapped,{uid:'synthetic'});
@@ -58,12 +61,16 @@ test('actual QI and FPI import mapping, payload, storage and feed preserve all c
   assert.equal(imported.item.sourceRecordId,record.sourceRecordId);
   assert.equal(imported.item.syntheticTest,true);
   assert.equal(imported.item.pigProjectId,record.pigProjectId);
-  const replay=await f.upsertContentLibraryItem('graphics',mapped,{uid:'synthetic'});
+  const replay=await f.upsertContentLibraryItem('graphics',{...mapped,assetSet:[card(1),card(2),card(3)]},{uid:'synthetic'});
   assert.equal(replay.created,false);assert.equal(docs.size,1);assert.equal(uploads,3);
   const parsed=f.parseDoc({id:mapped.docId,data:()=>docs.get(mapped.docId)});
   assert.equal(parsed.syntheticTest,true);
   const row=f.mapToArr(parsed); const visible=normalizeScrollItem(row);
   assert.equal(visible.assetSet.length,3);assert.equal(visible.assetSet[2].index,3);
+  assert.equal(visible.assetSet[0].author,'Prompt author');
+  assert.equal(visible.assetSet[1].author,'Poem author');
+  assert.equal(visible.assetSet[1].title,'Poem title');
+  assert.equal(visible.assetSet[2].author,undefined);
   await assert.rejects(f.upsertContentLibraryItem('graphics',{...mapped,assetSet:undefined},{uid:'synthetic'}),/asset_set_required_for_existing_multicard/);
  }
 });
