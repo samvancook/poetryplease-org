@@ -11973,6 +11973,7 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
 });
 
 const CONTEST_OUTCOME_EMAIL_TYPES = ["winner", "circle", "notSelected"];
+const CONTEST_EMAIL_TEMPLATE_TYPES = [...CONTEST_OUTCOME_EMAIL_TYPES, "announcement"];
 const DEFAULT_CONTEST_OUTCOME_EMAIL_TEMPLATES = {
   winner: {
     subject: "Your {{programName}} entry — winner",
@@ -11986,10 +11987,14 @@ const DEFAULT_CONTEST_OUTCOME_EMAIL_TEMPLATES = {
     subject: "Thank you for entering {{programName}}",
     body: "Hi {{firstName}},\n\nThank you for sharing {{titles}} with {{programName}}. It wasn't selected for this year's winners circle, but we're grateful you trusted us with your work.\n\nWe'll share the celebrated pieces in Poetry, Please once they're published.\n\nThe Poetry, Please team",
   },
+  announcement: {
+    subject: "{{programName}} is open",
+    body: "Hello,\n\n{{programName}} is open. We would love to read your work.\n\nThe Button Poetry Team",
+  },
 };
 
 function contestOutcomeTemplates(saved = {}) {
-  return Object.fromEntries(CONTEST_OUTCOME_EMAIL_TYPES.map((outcome) => {
+  return Object.fromEntries(CONTEST_EMAIL_TEMPLATE_TYPES.map((outcome) => {
     const row = saved?.[outcome];
     return [outcome, typeof row?.subject === "string" && typeof row?.body === "string"
       ? { subject: row.subject, body: row.body }
@@ -12005,7 +12010,7 @@ function renderContestOutcomeTemplate(value, variables) {
 function validateContestOutcomeTemplates(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const templates = {};
-  for (const outcome of CONTEST_OUTCOME_EMAIL_TYPES) {
+  for (const outcome of CONTEST_EMAIL_TEMPLATE_TYPES) {
     const row = input[outcome];
     if (!row || typeof row.subject !== "string" || typeof row.body !== "string") return null;
     const subject = row.subject.trim();
