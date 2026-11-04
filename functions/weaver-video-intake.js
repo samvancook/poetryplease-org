@@ -119,6 +119,41 @@ export function mergeWeaverVideoContext(existing = {}, incoming = {}) {
   return patch;
 }
 
+export function buildWeaverVideoContextPatch(existing, body) {
+  const incoming = { sourceRecordId: normalizeText(body.sourceRecordId) };
+  if (!incoming.sourceRecordId || !normalizeText(body.sourceEvent)
+    || normalizeText(existing.sourceEvent) !== normalizeText(body.sourceEvent)) {
+    throw Object.assign(new Error("weaver_video_event_identity_conflict"), { status: 409 });
+  }
+
+  if (Object.hasOwn(body, "reviews")) {
+    const reviews = normalizeWeaverVideoReviews(body.reviews);
+    if (!Array.isArray(body.reviews) || reviews.length !== body.reviews.length || reviews.length > 200) {
+      throw Object.assign(new Error("invalid_weaver_video_reviews"), { status: 400 });
+    }
+    const previous = new Map((existing.weaverReviews || []).map(row => [normalizeText(row.reviewId), row]));
+    incoming.weaverReviews = reviews.map(row => previous.has(row.reviewId)
+      ? { ...previous.get(row.reviewId), excerptRecordIds: row.excerptRecordIds }
+      : row);
+  }
+  if (Object.hasOwn(body, "selectedExcerptRecordIds")) {
+    const ids = body.selectedExcerptRecordIds;
+    if (!Array.isArray(ids) || ids.length > 500 || ids.some(id => typeof id !== "string" || !id.trim())) {
+      throw Object.assign(new Error("invalid_weaver_video_excerpt_ids"), { status: 400 });
+    }
+    incoming.weaverSelectedExcerptRecordIds = normalizeStringList(ids);
+  }
+
+  const merged = mergeWeaverVideoContext(existing, incoming);
+  const patch = {};
+  for (const field of ["weaverReviews", "weaverSelectedExcerptRecordIds"]) {
+    if (Object.hasOwn(merged, field) && JSON.stringify(merged[field]) !== JSON.stringify(existing[field] || [])) {
+      patch[field] = merged[field];
+    }
+  }
+  return { patch, ...countReceivedWeaverVideoContext({ ...existing, ...patch }, incoming) };
+}
+
 export function countReceivedWeaverVideoContext(stored = {}, submitted = {}) {
   const storedReviews = new Set((stored.weaverReviews || []).map(row => normalizeText(row.reviewId)).filter(Boolean));
   const submittedReviews = new Set((submitted.weaverReviews || []).map(row => normalizeText(row.reviewId)).filter(Boolean));

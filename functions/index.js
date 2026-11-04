@@ -22,7 +22,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
-import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
@@ -9378,6 +9378,41 @@ app.get(getBoth("/internal/weaverVideoReceipt"), async (req, res) => {
     return res.json(await readWeaverVideoReceipt(sourceRecordId));
   } catch (err) {
     return res.status(500).json({ error: "weaver_video_receipt_failed", message: err.message || "unknown_error" });
+  }
+});
+
+app.post(getBoth("/internal/weaverVideoContext"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const body = req.body || {};
+  const canonicalVideoId = normalizeText(body.canonicalVideoId);
+  const sourceRecordId = normalizeText(body.sourceRecordId);
+  if (!/^WEAVER-VV-[A-F0-9]{24}$/.test(canonicalVideoId)
+    || !sourceRecordId || sourceRecordId.length > 300 || !normalizeText(body.sourceEvent)) {
+    return res.status(400).json({ error: "missing_weaver_video_identity" });
+  }
+
+  try {
+    const videos = db.collection(COLLECTIONS.videos);
+    const ref = videos.doc(canonicalVideoId);
+    const receipt = await db.runTransaction(async tx => {
+      const [target, matches] = await Promise.all([
+        tx.get(ref),
+        tx.get(videos.where("sourceRecordId", "==", sourceRecordId).limit(2)),
+      ]);
+      if (!target.exists || matches.size !== 1 || matches.docs[0].id !== target.id) {
+        throw Object.assign(new Error("weaver_video_identity_conflict"), { status: 409 });
+      }
+      const { patch, ...counts } = buildWeaverVideoContextPatch(target.data(), body);
+      const changed = Object.keys(patch).length > 0;
+      if (changed) tx.update(ref, patch);
+      return { ok: true, canonicalVideoId, sourceRecordId, changed, ...counts };
+    });
+    res.set("Cache-Control", "private, no-store");
+    return res.json(receipt);
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    console.error("Weaver video context update failed", error);
+    return res.status(500).json({ error: "weaver_video_context_update_failed" });
   }
 });
 
