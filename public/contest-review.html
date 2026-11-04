@@ -1151,8 +1151,19 @@
         status.textContent = "Review the audience and enter a valid send time first.";
         return;
       }
-      if (!window.confirm("Schedule this email for " + notificationRecipientCount +
-        " past submitters on " + when.toLocaleString() + "?")) return;
+      const scheduleButton = document.getElementById("contest-notification-schedule");
+      const signature = JSON.stringify([programId, time, notificationRecipientCount,
+        document.getElementById("contest-notification-subject").value,
+        document.getElementById("contest-notification-body").value]);
+      if (scheduleButton.dataset.confirmSignature !== signature) {
+        scheduleButton.dataset.confirmSignature = signature;
+        scheduleButton.textContent = "Confirm schedule";
+        status.textContent = "Confirm scheduling for " + notificationRecipientCount +
+          " past submitters on " + when.toLocaleString() + ". No email has been sent.";
+        return;
+      }
+      delete scheduleButton.dataset.confirmSignature;
+      scheduleButton.textContent = "Schedule notification";
       invalidateNotificationReview();
       status.textContent = "Scheduling notification...";
       try {
