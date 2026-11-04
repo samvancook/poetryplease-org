@@ -138,6 +138,21 @@
           </div>
           <div id="contest-template-status" class="status" aria-live="polite">No drafts loaded.</div>
         </details>
+        <details id="contest-notification-schedule-panel" style="margin:12px 0 18px;">
+          <summary style="cursor:pointer;font-weight:700;">Scheduled contest notifications</summary>
+          <p>Review the saved past-submitter announcement, choose a send time, and schedule it for prior contest entrants whose account setting is on. You can edit or cancel it before sending starts.</p>
+          <button id="contest-notification-preview" type="button">Review audience and email</button>
+          <div id="contest-notification-preview-status" class="status" aria-live="polite">No audience review loaded.</div>
+          <div id="contest-notification-form" hidden>
+            <label>Send time (your local time)<input id="contest-notification-time" type="datetime-local"></label>
+            <label>Subject<input id="contest-notification-subject" type="text" maxlength="200"></label>
+            <label>Message<textarea id="contest-notification-body" rows="8" maxlength="12000"></textarea></label>
+            <button id="contest-notification-schedule" type="button" class="primary" disabled>Schedule notification</button>
+          </div>
+          <h3>Scheduled and past sends</h3>
+          <button id="contest-notification-refresh" type="button">Refresh schedules</button>
+          <div id="contest-notification-list" class="status" aria-live="polite">Open this panel to load schedules.</div>
+        </details>
         <details id="contest-email-test-panel" style="margin:12px 0 18px;">
           <summary style="cursor:pointer;font-weight:700;">Send a test email</summary>
           <p>Uses the saved draft with “Test Reader” and “Sample poem”—not a real entrant’s details. Enter your own or a trusted colleague’s address; the test will go to whichever address you enter. Preview first, then confirm the send.</p>
@@ -1038,6 +1053,162 @@
     });
     document.getElementById("contest-template-reload").addEventListener("click", loadContestEmailTemplates);
     document.getElementById("contest-template-save").addEventListener("click", saveContestEmailTemplates);
+
+
+    let notificationRecipientCount = 0;
+    let notificationReady = false;
+    let notificationDraftProgramId = "";
+
+    function localDateTimeValue(value) {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return "";
+      const pad = (number) => String(number).padStart(2, "0");
+      return date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) +
+        "T" + pad(date.getHours()) + ":" + pad(date.getMinutes());
+    }
+
+    function invalidateNotificationReview() {
+      notificationReady = false;
+      document.getElementById("contest-notification-schedule").disabled = true;
+    }
+
+    async function loadScheduledContestEmails() {
+      const programId = document.getElementById("program").value;
+      const list = document.getElementById("contest-notification-list");
+      if (!programId) return void (list.textContent = "Choose a contest first.");
+      list.textContent = "Loading scheduled emails...";
+      try {
+        const result = await api("admin/contestScheduledEmails?programId=" + encodeURIComponent(programId));
+        if (document.getElementById("program").value !== programId) return;
+        if (!result.schedules.length) return void (list.textContent = "No scheduled or past notifications for this contest.");
+        list.innerHTML = result.schedules.map((row) => {
+          const editable = row.status === "scheduled";
+          return '<article class="schedule-item" data-schedule-id="' + escapeHtml(row.id) +
+            '" style="border-top:1px solid #d9d0c2;padding:12px 0;">' +
+            '<p><strong>' + escapeHtml(row.status) + '</strong> · ' +
+            escapeHtml(new Date(row.sendAt).toLocaleString()) + ' · ' +
+            Number(row.recipientCount || 0) + ' expected recipients · ' +
+            Number(row.sentCount || 0) + ' sent · ' + Number(row.uncertainCount || 0) + ' unconfirmed</p>' +
+            '<label>Send time (your local time)<input class="schedule-time" type="datetime-local" value="' +
+            escapeHtml(localDateTimeValue(row.sendAt)) + '"' + (editable ? "" : " disabled") + '></label>' +
+            '<label>Subject<input class="schedule-subject" type="text" maxlength="200" value="' +
+            escapeHtml(row.subject || "") + '"' + (editable ? "" : " disabled") + '></label>' +
+            '<label>Message<textarea class="schedule-body" rows="6" maxlength="12000"' +
+            (editable ? "" : " disabled") + '>' + escapeHtml(row.body || "") + '</textarea></label>' +
+            (editable ? '<button type="button" data-schedule-action="update">Save changes</button> ' +
+              '<button type="button" data-schedule-action="cancel">Cancel scheduled send</button>' : "") +
+            '</article>';
+        }).join("");
+      } catch (error) {
+        list.textContent = "Could not load schedules: " + error.message;
+      }
+    }
+
+    async function reviewContestNotification() {
+      const programId = document.getElementById("program").value;
+      const status = document.getElementById("contest-notification-preview-status");
+      if (!programId) return void (status.textContent = "Choose a contest first.");
+      invalidateNotificationReview();
+      status.textContent = "Checking past submitters and saved announcement...";
+      try {
+        const [audience, drafts] = await Promise.all([
+          api("admin/contestNotificationAudience?programId=" + encodeURIComponent(programId)),
+          api("admin/contestOutcomeEmailTemplates?programId=" + encodeURIComponent(programId)),
+        ]);
+        if (document.getElementById("program").value !== programId) return;
+        const form = document.getElementById("contest-notification-form");
+        const subject = document.getElementById("contest-notification-subject");
+        const body = document.getElementById("contest-notification-body");
+        const time = document.getElementById("contest-notification-time");
+        if (notificationDraftProgramId !== programId) {
+          subject.value = drafts.templates.announcement.subject;
+          body.value = drafts.templates.announcement.body;
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          tomorrow.setHours(9, 0, 0, 0);
+          time.value = localDateTimeValue(tomorrow);
+          notificationDraftProgramId = programId;
+        }
+        notificationRecipientCount = audience.recipientCount;
+        notificationReady = audience.recipientCount > 0;
+        form.hidden = false;
+        document.getElementById("contest-notification-schedule").disabled = !notificationReady;
+        status.textContent = audience.priorSubmitterCount + " past submitters; " +
+          audience.optedOutCount + " turned notifications off; " + audience.recipientCount +
+          " eligible recipients. Sample: " + audience.sample.map((row) => row.email).join(", ") +
+          ". Review the subject, message, and send time below. The account-setting link is added to each email.";
+      } catch (error) {
+        status.textContent = "Could not review notification: " + error.message;
+      }
+    }
+
+    async function scheduleContestNotification() {
+      const programId = document.getElementById("program").value;
+      const status = document.getElementById("contest-notification-preview-status");
+      const time = document.getElementById("contest-notification-time").value;
+      const when = new Date(time);
+      if (!notificationReady || !time || Number.isNaN(when.getTime())) {
+        status.textContent = "Review the audience and enter a valid send time first.";
+        return;
+      }
+      if (!window.confirm("Schedule this email for " + notificationRecipientCount +
+        " past submitters on " + when.toLocaleString() + "?")) return;
+      invalidateNotificationReview();
+      status.textContent = "Scheduling notification...";
+      try {
+        const result = await api("admin/contestScheduledEmails", { method: "POST", body: {
+          programId, sendAt: when.toISOString(), expectedRecipientCount: notificationRecipientCount,
+          subject: document.getElementById("contest-notification-subject").value,
+          body: document.getElementById("contest-notification-body").value,
+        } });
+        status.textContent = "Scheduled for " + new Date(result.sendAt).toLocaleString() +
+          " for " + result.recipientCount + " recipients. No email was sent yet.";
+        await loadScheduledContestEmails();
+      } catch (error) {
+        status.textContent = "Could not schedule: " + error.message + ". Review the audience again.";
+      }
+    }
+
+    document.getElementById("contest-notification-schedule-panel").addEventListener("toggle", (event) => {
+      if (event.target.open) loadScheduledContestEmails();
+    });
+    document.getElementById("contest-notification-preview").addEventListener("click", reviewContestNotification);
+    document.getElementById("contest-notification-refresh").addEventListener("click", loadScheduledContestEmails);
+    document.getElementById("contest-notification-schedule").addEventListener("click", scheduleContestNotification);
+    ["contest-notification-time", "contest-notification-subject", "contest-notification-body"].forEach((id) => {
+      document.getElementById(id).addEventListener("input", invalidateNotificationReview);
+    });
+    document.getElementById("program").addEventListener("change", () => {
+      notificationDraftProgramId = "";
+      invalidateNotificationReview();
+      document.getElementById("contest-notification-form").hidden = true;
+      document.getElementById("contest-notification-preview-status").textContent = "No audience review loaded.";
+      if (document.getElementById("contest-notification-schedule-panel").open) loadScheduledContestEmails();
+    });
+    document.getElementById("contest-notification-list").addEventListener("click", async (event) => {
+      const button = event.target.closest("button[data-schedule-action]");
+      if (!button) return;
+      const item = button.closest(".schedule-item");
+      const id = item?.dataset.scheduleId;
+      const action = button.dataset.scheduleAction;
+      if (!id) return;
+      if (action === "cancel" && !window.confirm("Cancel this scheduled email?")) return;
+      const list = document.getElementById("contest-notification-list");
+      button.disabled = true;
+      try {
+        const body = action === "cancel" ? { action } : {
+          action, sendAt: new Date(item.querySelector(".schedule-time").value).toISOString(),
+          subject: item.querySelector(".schedule-subject").value,
+          body: item.querySelector(".schedule-body").value,
+        };
+        await api("admin/contestScheduledEmails/" + encodeURIComponent(id), { method: "POST", body });
+        await loadScheduledContestEmails();
+      } catch (error) {
+        list.insertAdjacentHTML("afterbegin", '<p role="alert">Could not change schedule: ' +
+          escapeHtml(error.message) + "</p>");
+        button.disabled = false;
+      }
+    });
 
     let contestEmailPreviewRequestId = 0;
     let contestEmailIdentity = null;
