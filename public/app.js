@@ -2302,17 +2302,57 @@ function ensureTeamReviewFilters(visible) {
   let panel = document.getElementById('team-review-filters');
   const type = document.getElementById('type-filter-container');
   if (!visible) {
-    if (panel) { panel.hidden = true; if (panel.contains(type)) panel.before(type); }
+    if (panel) {
+      panel.hidden = true;
+      panel.open = false;
+      if (panel.contains(type)) panel.before(type);
+    }
     return;
   }
   if (!panel) {
-    panel = document.createElement('section'); panel.id = 'team-review-filters';
-    panel.setAttribute('aria-label', 'Review filters');
-    panel.innerHTML = '<div class="review-filter-primary"><label>Book group<select id="book-group-filter"><option value="">All books</option><option value="chapbook-winners">Chapbook contest winners</option></select></label><label hidden>Contest year<select id="contest-year-filter"><option value="">All contest years</option></select></label></div><details class="review-filter-more"><summary>More filters</summary><div class="review-filter-advanced"></div></details><div class="review-lane-actions"><a href="/app?bookGroup=chapbook-winners&type=FP">Review winning chapbooks</a><button type="button" id="copy-review-lane">Copy review link</button><span id="copy-review-status" role="status"></span></div>';
+    panel = document.createElement('details');
+    panel.id = 'team-review-filters';
+    panel.innerHTML = `
+      <summary><span aria-hidden="true">☰</span> Review filters</summary>
+      <section class="review-filter-menu" aria-label="Review filters">
+        <div class="review-filter-primary">
+          <label>Book group<select id="book-group-filter"><option value="">All books</option><option value="chapbook-winners">Chapbook contest winners</option></select></label>
+          <label hidden>Contest year<select id="contest-year-filter"><option value="">All contest years</option></select></label>
+        </div>
+        <details class="review-filter-more"><summary>More filters</summary><div class="review-filter-advanced"></div></details>
+        <div class="review-lane-actions"><a href="/app?bookGroup=chapbook-winners&amp;type=FP">Review winning chapbooks</a><button type="button" id="copy-review-lane">Copy review link</button><span id="copy-review-status" role="status"></span></div>
+      </section>`;
     type.before(panel);
     const style = document.createElement('style');
-    style.textContent = '#team-review-filters{box-sizing:border-box;max-width:1100px;margin:12px auto;padding:12px 16px;border:1px solid #dad0c1;border-radius:14px;background:#fffdf8;font:14px/1.4 system-ui}#team-review-filters[hidden],#team-review-filters [hidden]{display:none}#team-review-filters .review-filter-primary,#team-review-filters .review-filter-advanced{display:flex;flex-wrap:wrap;align-items:end;gap:12px}#team-review-filters label{display:flex;flex-direction:column;gap:4px}#team-review-filters select{box-sizing:border-box;max-width:100%;min-height:40px;padding:6px;border:1px solid #bfb5a6;border-radius:7px;background:white;font:inherit}#team-review-filters .review-filter-primary>div,#team-review-filters .review-filter-primary>label{flex:1 1 180px;min-width:0}#team-review-filters summary{cursor:pointer;padding:10px 0;font-weight:600}#team-review-filters .review-lane-actions{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:8px}#team-review-filters button{min-height:36px}';
+    style.textContent = `
+      #team-review-filters { position:relative; width:max-content; max-width:calc(100% - 24px); margin:4px auto; z-index:10; font:14px/1.4 system-ui; }
+      #team-review-filters[hidden], #team-review-filters [hidden] { display:none; }
+      #team-review-filters > summary { display:flex; align-items:center; gap:8px; min-height:40px; padding:0 12px; border:1px solid #dad0c1; border-radius:8px; background:#fffdf8; }
+      #team-review-filters > summary::-webkit-details-marker { display:none; }
+      #team-review-filters summary { cursor:pointer; font-weight:600; }
+      #team-review-filters .review-filter-menu {
+        box-sizing:border-box; position:absolute; top:calc(100% + 6px); left:50%; transform:translateX(-50%);
+        width:min(480px, calc(100vw - 24px)); max-height:60vh; overflow:auto;
+        padding:14px; border:1px solid #dad0c1; border-radius:12px;
+        background:#fffdf8; box-shadow:0 8px 24px #21180d26;
+      }
+      #team-review-filters .review-filter-primary, #team-review-filters .review-filter-advanced { display:flex; flex-wrap:wrap; align-items:end; gap:10px; }
+      #team-review-filters label { display:flex; flex-direction:column; gap:4px; }
+      #team-review-filters select { box-sizing:border-box; width:100%; min-height:40px; padding:6px; border:1px solid #bfb5a6; border-radius:7px; background:white; font:inherit; }
+      #team-review-filters .review-filter-primary > div, #team-review-filters .review-filter-primary > label { flex:1 1 180px; min-width:0; margin:0; }
+      #team-review-filters .review-filter-more > summary { padding:10px 0; }
+      #team-review-filters .review-lane-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+      #team-review-filters button { min-height:36px; }
+    `;
     panel.append(style);
+    document.addEventListener('pointerdown', event => {
+      if (panel.open && !panel.contains(event.target)) panel.open = false;
+    });
+    document.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !panel.open) return;
+      panel.open = false;
+      panel.firstElementChild.focus();
+    });
     document.getElementById('book-group-filter').onchange = e => setBookGroupFilter(e.target.value);
     document.getElementById('contest-year-filter').onchange = e => setContestYearFilter(e.target.value);
     document.getElementById('copy-review-lane').onclick = async () => {
