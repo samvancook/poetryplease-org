@@ -33,7 +33,7 @@ window.firebase = { initializeApp() {}, auth };
 })();
 `;
 
-function probeScript(mode, retry) {
+function probeScript(mode, scenario) {
   return `<script>
   const startupErrors = [];
   addEventListener('error', event => {
@@ -42,7 +42,7 @@ function probeScript(mode, retry) {
   addEventListener('unhandledrejection', event => startupErrors.push(String(event.reason)));
   const check = setInterval(() => {
     const retry = document.getElementById('load-more');
-    if (${JSON.stringify(retry)} && retry && !retry.hidden && retry.textContent === 'Retry loading') {
+    if (${JSON.stringify(scenario === "retry")} && retry && !retry.hidden && retry.textContent === 'Retry loading') {
       document.documentElement.dataset.startupRetried = 'true';
       retry.click();
     }
@@ -54,6 +54,15 @@ function probeScript(mode, retry) {
       && getComputedStyle(loader).visibility !== 'hidden' && !loader.classList.contains('is-hidden');
     if (rendered && !blocked) {
       document.documentElement.dataset.startupResult = 'ready';
+      if (${JSON.stringify(scenario === "advance")}) {
+        if (!document.documentElement.dataset.startupAdvanced) {
+          document.documentElement.dataset.startupAdvanced = 'true';
+          document.getElementById('load-button').click();
+        }
+      } else clearInterval(check);
+    }
+    if (${JSON.stringify(scenario === "advance")} && root?.textContent.includes('Refill fixture readable')) {
+      document.documentElement.dataset.startupRefilled = 'true';
       clearInterval(check);
     }
     document.documentElement.dataset.startupErrors = JSON.stringify(startupErrors);
@@ -86,11 +95,12 @@ function launch(url, profile) {
   });
 }
 
-test("desktop and Swipe execute their real entry shells and render the first readable card", { timeout: 135000 }, async () => {
+test("desktop and Swipe execute their real entry shells and render the first readable card", { timeout: 165000 }, async () => {
   assert.ok(chrome, "Chrome is required. Set PP_TEST_CHROME to an installed Chrome executable.");
   const row = ["Fixture author", "Fixture title", "Fixture book", "startup-fixture",
     "", "", "", "EXC", "Startup fixture first line\nStartup fixture second line"];
   const feed = { newGraphics: [row], hasMore: false, domainTotalImages: 1, ratingsSummary: {} };
+  const refill = { ...feed, newGraphics: [[...row.slice(0, 3), "refill-fixture", ...row.slice(4, 8), "Refill fixture readable"]] };
   const requests = [];
   let scenario = "ready";
   let failedFeed = false;
@@ -109,7 +119,8 @@ test("desktop and Swipe execute their real entry shells and render the first rea
         return;
       }
       response.setHeader("Content-Type", "application/json");
-      response.end(JSON.stringify(/bootstrap|fetchFiltered/.test(url.pathname) ? feed : []));
+      response.end(JSON.stringify(url.pathname === "/api/fetchDataAnon" ? refill
+        : /bootstrap|fetchFiltered/.test(url.pathname) ? feed : []));
       return;
     }
     const shell = url.pathname === "/app" ? "index.html" : url.pathname === "/m" ? "posts-swipe.html" : null;
@@ -128,13 +139,14 @@ test("desktop and Swipe execute their real entry shells and render the first rea
     if (shell) {
       const html = fs.readFileSync(filename, "utf8")
         .replace(/https:\/\/www\.gstatic\.com\/firebasejs\/[^"]+/g, "/firebase-fixture.js");
-      response.end(html.replace("<head>", "<head>" + probeScript(shell === "index.html" ? "desktop" : "swipe", scenario === "retry")));
+      response.end(html.replace("<head>", "<head>" + probeScript(shell === "index.html" ? "desktop" : "swipe", scenario)));
     } else response.end(fs.readFileSync(filename));
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   try {
-    for (const [route, nextScenario] of [["/app?desktop=1", "ready"], ["/m", "ready"], ["/m", "retry"], ["/m", "crash"]]) {
+    for (const [route, nextScenario] of [["/app?desktop=1", "ready"], ["/app?desktop=1", "advance"], ["/m", "ready"], ["/m", "retry"], ["/m", "crash"]]) {
       scenario = nextScenario;
+      const requestStart = requests.length;
       const profile = fs.mkdtempSync(path.join(os.tmpdir(), "pp-startup-browser-"));
       try {
         const output = await launch("http://127.0.0.1:" + server.address().port + route, profile);
@@ -142,6 +154,14 @@ test("desktop and Swipe execute their real entry shells and render the first rea
           assert.ok(!/data-startup-result="ready"/.test(output), "Runtime failure was falsely reported as ready");
           assert.ok(output.includes("Injected startup failure"), "Runtime failure was not captured");
           continue;
+        }
+        const fullFeedRequests = requests.slice(requestStart).filter(p => p === "/api/fetchDataAnon" || p === "/api/fetchData");
+        if (route.startsWith("/app") && scenario === "ready") {
+          assert.equal(fullFeedRequests.length, 0, "Desktop fetched the full feed before advancing");
+        }
+        if (scenario === "advance") {
+          assert.equal(fullFeedRequests.length, 1, "Desktop did not request one full refill");
+          assert.ok(/data-startup-refilled="true"/.test(output), "Desktop did not render the refilled card");
         }
         if (scenario === "retry") assert.ok(/data-startup-retried="true"/.test(output), "Failed feed did not expose a usable retry");
         assert.ok(/data-startup-result="ready"/.test(output), route + " never rendered a readable card");
