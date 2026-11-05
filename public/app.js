@@ -2690,6 +2690,7 @@ function mapGraphic(g){
       sourceEventLabel: g[16] || '',
       assetSet: g[17] || null,
       bookReviewAttributes: g[18] || null,
+      displayPreviewUrl: g[19] || null,
       author: g[0] || '',
       title: g[1] || '',
       book: g[2] || '',
@@ -2707,6 +2708,7 @@ function mapGraphic(g){
     sourceEventLabel: g?.sourceEventLabel ?? '',
     assetSet: g?.assetSet || null,
     bookReviewAttributes: g?.bookReviewAttributes || null,
+    displayPreviewUrl: g?.displayPreviewUrl || null,
     imageType: g?.imageType ?? '',
     excerpt: g?.excerpt ?? '',
     author: g?.author ?? '',
@@ -3372,8 +3374,26 @@ function preloadAsset(src, type) {
   }
   preloadCache.set(src, p); return p;
 }
-function safePreload(i) { if (i < 0 || i >= queue.length) return; const it = queue[i]; return preloadAsset(it.mediaUrl, it.imageType); }
-function renderWhenReady(i) { const it = queue[i]; if (!it) return; const p = preloadCache.get(it.mediaUrl) || Promise.resolve(); return p.finally(() => renderCurrent(it)); }
+function displayMediaUrl(item) {
+  if (!IS_MOBILE_UI && !IS_EMBED_UI && !item.assetSet?.length &&
+      ['QI', 'INT', 'FPI'].includes(item.imageType) &&
+      /^https:\/\//i.test(item.displayPreviewUrl || '')) {
+    return item.displayPreviewUrl;
+  }
+  return item.mediaUrl;
+}
+
+function safePreload(i) {
+  const item = queue[i];
+  if (item) return preloadAsset(displayMediaUrl(item), item.imageType);
+}
+
+function renderWhenReady(i) {
+  const item = queue[i];
+  if (!item) return;
+  const pending = preloadCache.get(displayMediaUrl(item)) || Promise.resolve();
+  return pending.finally(() => renderCurrent(item));
+}
 
 // ===== Viewport fit (dynamic media height) =====
 function setViewportVars() {
@@ -3887,6 +3907,7 @@ function renderItemMedia(item) {
   if (mediaWrap?.dataset) mediaWrap.dataset.kind = '';
   const oldBox = mediaWrap.querySelector('.media-box'); if (oldBox) oldBox.remove();
   mediaWrap.querySelector('.asset-download-row')?.remove();
+  mediaWrap.querySelector('.original-graphic-link')?.remove();
   const box = document.createElement('div'); box.className='media-box'; mediaWrap.appendChild(box);
 
   let img = null, v = null;
@@ -4009,12 +4030,26 @@ function renderItemMedia(item) {
   if (mediaWrap?.dataset) mediaWrap.dataset.kind = 'image';
   if (item.imageType === 'INT') box.classList.add('int-media-box');
   img = document.createElement('img');
-  img.src = item.mediaUrl;
+  const displayUrl = displayMediaUrl(item);
+  const hasPreview = displayUrl !== item.mediaUrl;
+  if (hasPreview) {
+    img.addEventListener('error', () => { img.src = item.mediaUrl; }, { once: true });
+  }
+  img.src = displayUrl;
   img.alt = item?.id || '';
   img.style.maxWidth = '100%';
   img.style.height = 'auto';
 
   box.appendChild(img);
+  if (hasPreview) {
+    const originalLink = document.createElement('a');
+    originalLink.className = 'original-graphic-link';
+    originalLink.href = item.mediaUrl;
+    originalLink.target = '_blank';
+    originalLink.rel = 'noopener noreferrer';
+    originalLink.textContent = 'Open full resolution';
+    mediaWrap.appendChild(originalLink);
+  }
   if (item.imageType === 'INT' && (item.title || item.author || item.book)) {
     const caption = document.createElement('div');
     caption.className = 'int-source-caption';
