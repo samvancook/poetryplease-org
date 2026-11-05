@@ -13910,11 +13910,13 @@ export const contestscheduledemailsdispatch = onSchedule({
       const sentCount = rows.filter((row) => row.deliveryStatus === "sent").length;
       const uncertainCount = rows.filter((row) => row.deliveryStatus === "uncertain").length;
       const pendingCount = rows.filter((row) => row.deliveryStatus === "sending").length;
-      const remainingCount = audience.recipients.length - rows.length;
-      const status = !remainingCount && !pendingCount
+      const notifiedEmails = new Set(rows.map((row) => row.email));
+      const remainingCount = audience.recipients.filter((row) => !notifiedEmails.has(row.email)).length;
+      const status = remainingCount === 0 && pendingCount === 0
         ? (uncertainCount ? "needs_review" : "sent") : "sending";
       await scheduleDoc.ref.set({
-        status, sentCount, uncertainCount, recipientCount: audience.recipients.length,
+        status, sentCount, uncertainCount,
+        recipientCount: Math.max(schedule.recipientCount || 0, rows.length, audience.recipients.length),
         updatedAt: FieldValue.serverTimestamp(),
         ...(status === "sent" || status === "needs_review" ? { completedAt: FieldValue.serverTimestamp() } : {}),
       }, { merge: true });
