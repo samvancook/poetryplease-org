@@ -235,6 +235,66 @@
     });
   }
 
+  // Small, source-checked pilot set. These are suggestions, never product links.
+  const RELATED_PILOT_BUNDLES = [
+    {
+      title: "Buddy Wakefield Books Bundle", url: "https://buttonpoetry.com/product/buddy-wakefield-books-bundle/",
+      reason: "Bundle includes this book",
+      books: [["Buddy Wakefield", "A Choir of Honest Killers"], ["Buddy Wakefield", "Stunt Water"]],
+    },
+    {
+      title: "LGBTQIA+ Authors Bundle", url: "https://buttonpoetry.com/product/lgbtqia-authors-bundle/",
+      reason: "Bundle includes this book",
+      books: [["Buddy Wakefield", "A Choir of Honest Killers"], ["Buddy Wakefield", "Stunt Water"],
+        ["Siaara Freeman", "Urbanshee"], ["Ebony Stewart", "BloodFresh"], ["Patrick Roche", "A Socially Acceptable Breakdown"]],
+    },
+    {
+      title: "Support Women Authors Bundle", url: "https://buttonpoetry.com/product/support-women-authors-bundle/",
+      reason: "This book is eligible for the bundle",
+      books: [["Siaara Freeman", "Urbanshee"], ["Ebony Stewart", "BloodFresh"], ["Sierra DeMulder", "Ephemera"]],
+    },
+    {
+      title: "Support Black Authors Bundle", url: "https://buttonpoetry.com/product/support-black-authors/",
+      reason: "This book is eligible for the bundle",
+      books: [["Siaara Freeman", "Urbanshee"], ["Ebony Stewart", "BloodFresh"], ["Miya Coleman", "Cottonmouth"]],
+    },
+  ];
+  const RELATED_PILOT_THEME = {
+    // Catalog BPP-00222 supplies the provisional poem theme; the target shop
+    // description explicitly names grief. No identities are inferred from tags.
+    poemKey: "BPP-00222",
+    poem: "Bois D’Arc",
+    author: "Buddy Wakefield",
+    book: "A Choir of Honest Killers",
+    source: "https://button-poetry-catalog-350789123099.us-central1.run.app/tags/poems/BPP-00222",
+    title: "A Socially Acceptable Breakdown",
+    url: "https://buttonpoetry.com/product/a-socially-acceptable-breakdown/",
+    reason: "Shared theme: grief and loss (provisional poem tag)",
+  };
+
+  function pilotWorkIdentity(row) {
+    return [row.author, row.book || row.bookTitle, row.title || row.poemTitle].map(normalized).join("|");
+  }
+
+  function relatedProductSuggestions(row, allowTitleMatch = false) {
+    const author = normalized(row.author);
+    const book = normalized(row.book || row.bookTitle);
+    const direct = new Set([...(row.explorerProductLinks || []), ...productLinks(row)]
+      .map((link) => text(link.url).replace(/^http:\/\//i, "https://").split(/[?#]/)[0].replace(/\/+$/, "")));
+    const suggestions = RELATED_PILOT_BUNDLES.filter((bundle) => bundle.books.some(([a, b]) =>
+      normalized(a) === author && normalized(b) === book
+    )).map(({ title, url, reason }) => ({ title, url, reason, kind: "Bundle connection" }));
+    const theme = RELATED_PILOT_THEME;
+    const key = text(row.poemKey || row.poem_key).toUpperCase();
+    const titleMatch = allowTitleMatch && !key && normalized(row.title || row.poemTitle) === normalized(theme.poem);
+    if (author === normalized(theme.author) && book === normalized(theme.book)
+        && (key === theme.poemKey || titleMatch)) {
+      const { title, url, reason, source } = theme;
+      suggestions.push({ title, url, reason, source, kind: "Thematic connection" });
+    }
+    return suggestions.filter((suggestion) => !direct.has(suggestion.url.replace(/\/+$/, "")));
+  }
+
   function rowHasProductLink(row) {
     return (Array.isArray(row && row.explorerProductLinks) && row.explorerProductLinks.length > 0)
       || productLinks(row || {}).length > 0;
@@ -311,6 +371,8 @@
     bestRowRanking,
     productLinks,
     rowHasProductLink,
+    pilotWorkIdentity,
+    relatedProductSuggestions,
     coveragePresence,
     coverageCounts,
     viewModel,
@@ -333,6 +395,8 @@ if (typeof document !== "undefined") {
     if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
 
     const PAGE_SIZE = 40;
+    const relatedPilot = new URLSearchParams(location.search).get("related") === "pilot";
+    const pilotWorkCounts = new Map();
     const state = { rows: [], summaries: [], filtered: [], visibleCount: PAGE_SIZE, coverageFilters: {}, legacyProducts: [], productLinksUnavailable: false };
     const $ = (id) => document.getElementById(id);
     const plainText = (value) => String(value == null ? "" : value).trim();
@@ -429,6 +493,7 @@ if (typeof document !== "undefined") {
       if (filters.view) params.set("view", filters.view);
       if (filters.sort) params.set("sort", filters.sort);
       if (filters.flagsOnly) params.set("flags", "1");
+      if (relatedPilot) params.set("related", "pilot");
       history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
     }
 
@@ -604,6 +669,20 @@ if (typeof document !== "undefined") {
         + "</li>";
     }
 
+    function renderRelatedProducts(row) {
+      if (!relatedPilot) return "";
+      const uniqueWork = pilotWorkCounts.get(E.pilotWorkIdentity(row)) === 1;
+      const suggestions = E.relatedProductSuggestions(row, uniqueWork);
+      if (!suggestions.length) return "";
+      return '<details><summary>Suggested related products · pilot (' + suggestions.length + ')</summary>'
+        + '<p class="muted">Optional shop suggestions. These do not count as direct product links.</p><ul>'
+        + suggestions.map((product) => '<li class="asset"><div class="meta">' + escapeHtml(product.kind) + '</div>'
+          + '<a href="' + escapeHtml(product.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(product.title) + '</a>'
+          + '<div class="meta">' + escapeHtml(product.reason)
+          + (product.source ? ' · <a href="' + escapeHtml(product.source) + '" target="_blank" rel="noopener noreferrer">Catalog tag source</a>' : "")
+          + '</div></li>').join("") + '</ul></details>';
+    }
+
     function renderWork(row, assetTypeFilter, sortMode) {
       const connected = Array.isArray(row.connectedItems) ? row.connectedItems : [];
       const visibleAssets = connected.filter((item) => !assetTypeFilter || E.getType(item) === assetTypeFilter);
@@ -633,7 +712,7 @@ if (typeof document !== "undefined") {
         + (workUrl ? '<div class="work-links"><a href="' + workUrl + '" target="_blank" rel="noopener noreferrer">Open work in Poetry Please</a></div>' : "")
         + '<details><summary>Assets and related content (' + ordered.length + ")</summary>"
         + (ordered.length ? "<ul>" + ordered.map((item) => renderAsset(item, assetTypeFilter)).join("") + "</ul>" : '<p class="muted">No connected assets match this view.</p>')
-        + "</details></article>";
+        + "</details>" + renderRelatedProducts(row) + "</article>";
     }
 
     function bookSort(left, right) {
@@ -716,6 +795,13 @@ if (typeof document !== "undefined") {
       const payload = await apiGet("scoreboard/fullPoems");
       const model = E.viewModel(payload);
       state.rows = model.rows;
+      if (relatedPilot) {
+        pilotWorkCounts.clear();
+        for (const row of model.rows) {
+          const key = E.pilotWorkIdentity(row);
+          pilotWorkCounts.set(key, (pilotWorkCounts.get(key) || 0) + 1);
+        }
+      }
       state.summaries = model.summaries;
       try {
         const response = await fetch("/explorer/product-links.json", { method: "GET" });
