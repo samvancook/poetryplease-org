@@ -121,7 +121,7 @@ test('metadata and text remain plain strings and media URLs require HTTPS', () =
 });
 
 const source = readFileSync(new URL('./index.js', import.meta.url), 'utf8');
-function routeHarness(customContent, ratings = {}, votedIds = ['item-0']) {
+function routeHarness(customContent, ratings = {}, votedIds = ['item-0'], bootstrap = false) {
   let handler;
   const all = customContent || [...content(30), { imageId: 'flagged', imageType: 'EXC', book: 'Roads' }, { imageId: 'broken', broken: true, imageType: 'EXC', book: 'Roads' }, { imageId: 'private', imageType: 'FP', book: 'Roads' }];
   const context = vm.createContext({ app: { post: (_p, fn) => { handler = fn; } }, getBoth: (p) => p, matchesBookReviewGroup,
@@ -133,9 +133,11 @@ function routeHarness(customContent, ratings = {}, votedIds = ['item-0']) {
     parseOptionalCount: (value) => value == null ? null : Number(value), parseBoolean: (value) => value === true,
     sampleItems: (items, limit) => items.slice(0, limit), mapToCounterArr: (i) => i.imageId, mapToArr: (i) => row(i.imageId), paginateScrollFeed, paginateMobileFeed,
   });
-  vm.runInContext(source.slice(source.indexOf('function prioritizeVisualContent('), source.indexOf('function buildFeedPayload(')) + '\n' +
+  vm.runInContext(source.slice(source.indexOf('function prioritizeVisualContent('), source.indexOf('function matchesFilterValue(')) + '\n' +
     source.slice(source.indexOf('function matchesFilterValue('), source.indexOf('function firstNonEmpty(')) + '\n' +
-    source.slice(source.indexOf('app.post(getBoth("/fetchFiltered")'), source.indexOf('app.get(getBoth("/embedBookLead")')), context);
+    (bootstrap
+      ? source.slice(source.indexOf('app.post(getBoth("/bootstrap")'), source.indexOf('app.post(getBoth("/fetchFiltered")'))
+      : source.slice(source.indexOf('app.post(getBoth("/fetchFiltered")'), source.indexOf('app.get(getBoth("/embedBookLead")'))), context);
   return async (body, decoded) => {
     let status = 200; let data;
     await handler({ body, decoded }, { status(code) { status = code; return this; }, json(value) { data = JSON.parse(JSON.stringify(value)); } });
@@ -295,4 +297,37 @@ test('winner lane intersects book/year/type and excludes existing votes through 
   assert.equal((await call(body)).data.newGraphics.length, 0);
   const graphic = (await call({ ...body, type: 'QI' }, {staff: true})).data;
   assert.deepEqual(graphic.newGraphics.map(row => row[3]), ['graphic']);
+});
+
+
+test('compact welcome bootstrap keeps the same top cards and only their ratings', async () => {
+  const all = content(36).map((item, index) => ({
+    ...item, book: 'Book ' + index, imageType: ['QI', 'INT', 'EXC'][index % 3],
+  }));
+  const ratings = Object.fromEntries(all.map((item, index) => [
+    item.imageId, { total: 10, score: index, movedMe: index, authorExcluded: index === 35 },
+  ]));
+  ratings.unrelated = { total: 100, score: 10000 };
+  const call = routeHarness(all, ratings, ['item-34'], true);
+  const request = { anonId: 'startup-test', welcome: true, limit: 12 };
+  const full = (await call(request)).data;
+  const compact = (await call({ ...request, includeRatingsSummary: false })).data;
+  assert.equal(compact.feedMode, 'welcome');
+  assert.deepEqual(compact.newGraphics, full.newGraphics);
+  const selected = new Set(compact.newGraphics.map(item => item[3]));
+  assert.equal(selected.size, 12);
+  assert.ok(!selected.has('item-34') && !selected.has('item-35'));
+  assert.deepEqual(Object.keys(compact.ratingsSummary).sort(), [...selected].sort());
+  for (const id of selected) assert.deepEqual(compact.ratingsSummary[id], full.ratingsSummary[id]);
+  assert.equal(Object.keys(full.ratingsSummary).length, 37);
+});
+
+test('compact bootstrap without welcome rankings retains its response and vote exclusions', async () => {
+  const compact = await routeHarness(undefined, {}, ['item-0'], true)({
+    anonId: 'startup-test', limit: 10, includeRatingsSummary: false,
+  });
+  assert.equal(compact.status, 200);
+  assert.equal(compact.data.newGraphics.length, 10);
+  assert.ok(compact.data.newGraphics.every(item => item[3] !== 'item-0'));
+  assert.equal(compact.data.ratingsSummary, undefined);
 });
