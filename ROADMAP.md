@@ -2,6 +2,12 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Compact startup ratings — 5 November 2026
+
+The anonymous Desktop welcome response previously returned ratings for all 8,224 content IDs even when the client requested includeRatingsSummary:false. A measured 12-card response was 1,621,904 bytes. Scoping its ratings to the selected cards reduced the equivalent JSON to 8,121 bytes. The bootstrap receiver now applies that scope after ranking when the compact response is requested. Full-summary callers retain their response. Focused tests compare identical selected cards and per-card ratings, including voted and author-excluded content.
+
+Baseline samples on this machine, with real anonymous production requests, measured first readable card at 3151/880 ms cold/warm Desktop and 2225/1313 ms Swipe. These are individual unthrottled observations. The cold Desktop snapshot also recorded a 5.5 MB lead image and a 4 MB background feed download. Next, assess that background request's timing and gather throttled/signed-in measurements before module extraction.
+
 ## Startup speed and isolation — planned
 
 1. Measure desktop and Swipe from navigation to the first readable card. Record shell paint, session and role resolution, bootstrap response, and first media or text render separately. Compare cold and warm loads on desktop and throttled mobile, with anonymous and signed-in sessions. Set a budget from the baseline for time to first card, requests and bytes before it.

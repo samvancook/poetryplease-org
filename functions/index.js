@@ -1913,12 +1913,16 @@ function buildWelcomeBatch(items = [], ratingsSummary = {}, limit = 12) {
   return selected;
 }
 
-function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null, welcome = false }) {
+function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null, welcome = false, includeFullRatingsSummary = true }) {
   const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const welcomeBatch = welcome && ratingsSummary
     ? buildWelcomeBatch(newObjs, ratingsSummary, Math.min(limit, 12))
     : [];
   const batch = welcomeBatch.length >= 8 ? welcomeBatch : sampleItems(newObjs, limit);
+  const batchIds = new Set(batch.map(item => normalizeKey(item.imageId)));
+  const responseRatings = ratingsSummary && !includeFullRatingsSummary
+    ? Object.fromEntries(Object.entries(ratingsSummary).filter(([id]) => batchIds.has(normalizeKey(id))))
+    : ratingsSummary;
   const releaseCatalogs = uniqueReleaseCatalogs(all);
   const imageTypes = [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort();
   const sourceEvents = [...new Set(all.map((o) => o.sourceEventLabel || o.sourceEvent).filter(Boolean))].sort();
@@ -1934,7 +1938,7 @@ function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, rat
     sourceEvents,
     feedMode: welcomeBatch.length >= 8 ? "welcome" : "ranked",
     calibrationTarget: welcomeBatch.length >= 8 ? 8 : 0,
-    ...(ratingsSummary ? { ratingsSummary } : {}),
+    ...(responseRatings ? { ratingsSummary: responseRatings } : {}),
   };
 }
 
@@ -5234,7 +5238,10 @@ app.post(getBoth("/bootstrap"), async (req, res) => {
 
   const [allContent, flaggedIds, votedIds, canSeeFullPoems, ratingsSummary = null] = await Promise.all(tasks);
   const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
-  res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta: false, ratingsSummary, welcome }));
+  res.json(buildFeedPayload({
+    all, votedIds, limit, includeDomainMeta: false, ratingsSummary, welcome,
+    includeFullRatingsSummary: req.body?.includeRatingsSummary !== false,
+  }));
 });
 
 app.post(getBoth("/fetchFiltered"), async (req, res) => {
