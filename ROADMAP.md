@@ -2,6 +2,25 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Startup speed and isolation — planned
+
+1. Measure desktop and Swipe from navigation to the first readable card. Record shell paint, session and role resolution, bootstrap response, and first media or text render separately. Compare cold and warm loads on desktop and throttled mobile, with anonymous and signed-in sessions. Set a budget from the baseline for time to first card, requests and bytes before it.
+2. Put startup orchestration behind a small module with a documented contract: route and invite handling, session and role resolution, first feed request, and loading/error recovery. Keep content renderers, scoring, and feature UI behind that contract. Keep the first ranked batch small, defer later pages and secondary tools, and start prefetch only after the first card is usable. Validate access before showing role-restricted content.
+3. Use the existing CI workflow to run a real browser startup check before extracting the module. Check that desktop and Swipe reach a readable card, that a failed bootstrap leaves a usable retry, and that protected entry links still route correctly. Extend the existing PR #289 parse checks rather than replacing them. Compare measurements before and after each slice.
+4. Make the boundary explicit in repository instructions. Startup module edits, entry shells and routing, bootstrap contracts, and changes that add work before the first card require Sam’s explicit approval. Include the protected paths and behavior in AGENTS.md when the boundary is defined. Plan a check in existing CI to flag changes to those paths and require a recorded approval. Ordinary content and viewer work should use the documented interface. No enforcement or runtime changes are part of this roadmap entry.
+
+## Chapbook winner label audit — 4 November 2026
+
+Read-only production check of the three flagged books using exact labels, observed case variants, and the Aunt Jemima ID prefix. Found nine conflicting records, all EXC. Their exclusion from the winner lane is correct as labelled.
+
+| Stored book | Conflicting excerpt IDs | Next step |
+| --- | --- | --- |
+| Hated for the Gods | `HFTG-EXC-ROBIN-S-EGG-BLUE` (Adrienne Novy), `HFTG-EXC-TONE` (Selena Rose) | Verify the source poem and edition before changing either book assignment. |
+| Sadness Workshop | `SW-EXC-HOLES-IN-THE-MOUNTAIN-1`, `SW-EXC-HOLES-IN-THE-MOUNTAIN-2`, `SW-EXC-HOLES-IN-THE-MOUNTAIN-3` (Kai Carlson-Wee) | [The Missouri Review](https://missourireview.com/article/poetry-feature-kai-carlson-wee/) confirms poem and author. Two records carry `BPP-04156`, with no matching PP FP under that key. Verify the intended edition and the third record's relationship before relabelling. |
+| Me, Aunt Jemima and the nailgun | `MAJT-EXC-ASK-A-BLACK-DUDE-CUPSI-2015-1` and `-2` (Gabriel Green), `MAJT-EXC-URSULA-NPS-2014-1` and `-2` (William Nu’utupu Giles) | Verify the performance sources and whether the correct book field should be empty. |
+
+The check found no graphics with conflicting authors under the tested book labels. The Aunt Jemima prefix returned 25 Aziza Barnes excerpts plus four conflicts and zero graphics. Hated For The Gods also has six Sean Patrick Mulroy graphics under a capitalization variant already covered by normalized matching. These findings do not explain missing QI in the winner lane. Poetry Please owns the follow-up once source metadata is confirmed. Production records were read only.
+
 ## Contest email enrollment — 4 November 2026
 
 - **Planned:** Make contest entry one form and one submit. The form should clearly ask for permission to receive Button Poetry emails; a successful entry should save that consent and add the entrant to the existing Mailchimp audience, while sending a submission confirmation and contest notices through the established transactional email path. Preserve existing unsubscribes and show staff any enrollment failures for retry.
