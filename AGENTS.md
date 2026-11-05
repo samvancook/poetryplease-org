@@ -19,3 +19,11 @@
 ## Workflow
 
 Standard git/GitHub workflow applies: branch, commit, open a pull request, check it, and merge it. The existing GitHub Actions workflow deploys merged `main` to production. Follow the current workspace's tool restrictions when carrying out these steps.
+
+## Protected startup boundary
+
+Sam's explicit approval is required before editing startup orchestration, entry routing, the bootstrap response contract, or work scheduled before the first readable card. Approval must identify the startup work being changed. Ordinary content-type, catalog, repair, and viewer work should use the existing interfaces.
+
+Current protected areas include the startup portions of public/app.js and public/scroll.js, public/mobile-entry.js, the script/bootstrap declarations in public/index.html, public/mobile.html and public/posts-swipe*.html, and server bootstrap contracts. These shared files contain other behavior too. Changes to that unrelated behavior should preserve startup and run the startup checks.
+
+The future isolated startup module and automated approval enforcement are roadmap work. Before changing startup, run the existing CI test entry, node --test tests/explorer.test.js. This includes real local Chrome startup checks with synthetic account and feed responses. It does not measure production network or Firebase SDK availability.
