@@ -64,7 +64,7 @@ test("view model derives selectors without mutating API rows", () => {
   assert.equal(payload.rows.length, 3);
 });
 
-function browserHarness() {
+function browserHarness({ search = "", rows = [] } = {}) {
   const ids = [
     "login", "switch-account", "retry-auth", "logout", "search", "author", "book", "catalog",
     "asset-type", "confidence", "product-link", "flags-only", "reset", "load-more", "workspace",
@@ -102,7 +102,7 @@ function browserHarness() {
     URLSearchParams,
     document: { getElementById: (id) => elements[id] },
     history: { replaceState() {} },
-    location: { pathname: "/explorer/", search: "", reload() {} },
+    location: { pathname: "/explorer/", search, reload() {} },
     firebase: {
       apps: [],
       initializeApp() { this.apps.push({}); },
@@ -113,7 +113,7 @@ function browserHarness() {
       status: 200,
       json: async () => url.endsWith("/me")
         ? { email: "staff@buttonpoetry.com", roles: ["team"] }
-        : { rows: [], bookSummaries: [] },
+        : { rows, bookSummaries: [] },
     }),
   };
   sandbox.window = sandbox;
@@ -133,4 +133,33 @@ test("signed-in browser lifecycle reaches content without a callback scope error
   assert.equal(harness.elements["account-note"].textContent, "Signed in as staff@buttonpoetry.com");
   assert.match(harness.elements.status.textContent, /0 matching works/);
   assert.equal(harness.elements.workspace.hidden, false);
+});
+
+const taggedPilotPoem = {
+  title: "Bois D’Arc", author: "Buddy Wakefield", book: "A Choir of Honest Killers",
+};
+
+test("related products render only in the staff pilot and do not satisfy direct-link coverage", async () => {
+  const user = { email: "staff@buttonpoetry.com", getIdToken: async () => "test-token" };
+  for (const [search, visible] of [
+    ["?q=Bois", false],
+    ["?q=Bois&related=pilot&productLink=has", false],
+    ["?q=Bois&related=pilot&productLink=missing", true],
+  ]) {
+    const harness = browserHarness({ search, rows: [taggedPilotPoem] });
+    harness.auth.currentUser = user;
+    await harness.getAuthCallback()(user);
+    const html = harness.elements.results.innerHTML;
+    assert.equal(html.includes("Suggested related products"), visible);
+    assert.equal(html.includes("Shared theme: grief and loss"), visible);
+    assert.equal(html.includes("Buddy Wakefield Books Bundle"), visible);
+  }
+});
+
+test("thematic suggestions reject a conflicting poem key and ambiguous title matches", () => {
+  const themes = (row, unique) => explorer.relatedProductSuggestions(row, unique)
+    .filter((suggestion) => suggestion.kind === "Thematic connection");
+  assert.equal(themes(taggedPilotPoem, false).length, 0);
+  assert.equal(themes({ ...taggedPilotPoem, poemKey: "BPP-00001" }, true).length, 0);
+  assert.equal(themes({ ...taggedPilotPoem, poemKey: "BPP-00222" }, false).length, 1);
 });
