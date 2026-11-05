@@ -3016,6 +3016,7 @@ async function buildRankedTextsPayload({
   types = ["EXC", "FP"],
   chapbookWinners = false,
   withoutGraphics = false,
+  unratedOnly = false,
 } = {}) {
   const normalizedTypes = uniq(
     (Array.isArray(types) ? types : [types])
@@ -3071,6 +3072,7 @@ async function buildRankedTextsPayload({
   const candidates = [...excerptItems, ...fullPoemItems]
     .filter((item) => normalizedTypes.includes(normalizeText(item.imageType).toUpperCase()))
     .filter((item) => !flaggedIds.has(normalizeKey(item.imageId || "")))
+    .filter((item) => !unratedOnly || (!item.catalogRetired && !item.syntheticTest))
     .map((item) => {
       const voteStats = aggregatedByImageId.get(item.imageId || "") || {};
       const text = normalizeTextBody(item.excerpt || "");
@@ -3108,8 +3110,7 @@ async function buildRankedTextsPayload({
       };
     })
     .filter((item) => item.text)
-    .filter((item) => item.totalVotes >= minVotes)
-    .filter((item) => item.score >= minScore);
+    .filter((item) => unratedOnly || (item.totalVotes >= minVotes && item.score >= minScore));
 
   const groupedByTextHash = new Map();
   candidates.forEach((item) => {
@@ -3152,6 +3153,7 @@ async function buildRankedTextsPayload({
   });
 
   const rows = Array.from(groupedByTextHash.values())
+    .filter((item) => !unratedOnly || item.totalVotes === 0)
     .filter((item) => !chapbookWinners || bookReviewAttributes(item)?.chapbookContestWinner === true)
     .filter((item) => !withoutGraphics || !matchingGraphicsBySignature.has(item.signature))
     .sort((a, b) => (
@@ -3206,6 +3208,7 @@ async function buildRankedTextsPayload({
       types: normalizedTypes,
       ...(chapbookWinners ? { chapbookWinners } : {}),
       ...(withoutGraphics ? { withoutGraphics } : {}),
+      ...(unratedOnly ? { unratedOnly } : {}),
     },
     snapshotMeta: scoreboardResult?.builtAtMs ? {
       source: scoreboardResult.source,
@@ -6182,15 +6185,24 @@ app.get(getBoth("/pig/ranked-texts"), async (req, res) => {
   const ctx = await requirePigReadAccess(req, res);
   if (!ctx) return;
   const limit = Math.max(1, Math.min(Number(req.query?.limit) || 100, 500));
-  const minScore = Math.max(0, Number(req.query?.minScore) || 1);
-  const minVotes = Math.max(0, Number(req.query?.minVotes) || 1);
+  const readThreshold = (value) => {
+    const raw = normalizeText(value);
+    const numeric = Number(raw);
+    return raw && Number.isFinite(numeric) ? Math.max(0, numeric) : 1;
+  };
   const types = normalizeText(req.query?.types || "EXC,FP")
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean);
   const chapbookWinners = req.query?.chapbookWinners === "1";
   const withoutGraphics = req.query?.withoutGraphics === "1";
-  const payload = await buildRankedTextsPayload({ limit, minScore, minVotes, types, chapbookWinners, withoutGraphics });
+  const unratedOnly = chapbookWinners && req.query?.unrated === "1";
+  const minScore = unratedOnly ? 0 : readThreshold(req.query?.minScore);
+  const minVotes = unratedOnly ? 0 : readThreshold(req.query?.minVotes);
+  const payload = await buildRankedTextsPayload({
+    limit, minScore, minVotes, types: unratedOnly ? ["EXC"] : types,
+    chapbookWinners, withoutGraphics, unratedOnly,
+  });
   res.json(payload);
 });
 
