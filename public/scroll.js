@@ -332,6 +332,13 @@ function createVoteControls(item, card) {
         // in-flight vote to a newly signed-in person.
         if (identity !== activeIdentity) throw new Error('Your account changed. Please review the refreshed feed.');
         await api('vote', { imageId: item.id, voteType: value, userId: auth.currentUser?.email || anonymousId });
+        window.ppTrack?.('vote', {
+          vote_value: value.replace(' ', '_'),
+          content_type: String(item.type || '').toUpperCase(),
+          item_id: String(item.id),
+          author: String(item.author || ''),
+          book: String(item.book || ''),
+        });
         if (identity !== activeIdentity || !card.isConnected) return;
         if (swipeVariant) {
           sessionVotes++;
