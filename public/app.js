@@ -3451,7 +3451,20 @@ function getEmptyFilterMessage() {
 }
 
 async function refillCurrentViewWithRetry() {
-  let data = await fetchBestBatchForCurrentView().catch(() => null);
+  let data;
+  if (!IS_MOBILE_UI && !IS_EMBED_UI && currentItem && !queue.length &&
+      !activeWelcomeLane && !hasActiveFeedFilters()) {
+    const startingItem = currentItem;
+    const startingData = lastData;
+    const identity = getFeedIdentityKey();
+    data = await withTimeout_(fetchFullFeedData(), 12000, '[PP] full feed refill').catch(() => null);
+    // Account or filter changes can replace the queue while this request is pending.
+    if (currentItem !== startingItem || lastData !== startingData ||
+        identity !== getFeedIdentityKey() || hasActiveFeedFilters()) return;
+  }
+  if (!Array.isArray(data?.newGraphics)) {
+    data = await fetchBestBatchForCurrentView().catch(() => null);
+  }
   if (data) initQueueFromData(data);
   if (currentItem || !hasActiveFeedFilters()) return;
   await new Promise((resolve) => setTimeout(resolve, 450));
@@ -3842,8 +3855,8 @@ function renderCounter() {
     displayRemaining = serverDomainRemaining;
   }
 
-  if (!selectedType && !selectedCatalog && !filterByAuthor && !filterByBook && totalInDomain === totalImages) {
-    displayTotal = totalInDomain;
+  if (!hasActiveFeedFilters()) {
+    displayTotal = totalImages;
     votedInDomain = votedOverall;
     displayRemaining = remainingOverall;
   }
@@ -4453,7 +4466,7 @@ async function ppAutoloadFirstItem() {
         }
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
-        if (!IS_EMBED_UI) hydrateFullFeedInBackground();
+        if (IS_MOBILE_UI && !IS_EMBED_UI) hydrateFullFeedInBackground();
 
         if (!currentItem && (!Array.isArray(queue) || !queue.length)) {
           console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
