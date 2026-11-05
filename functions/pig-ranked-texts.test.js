@@ -26,10 +26,16 @@ function rankedTextsRoute() {
   const context = vm.createContext({
     app: { get: (_, handler) => { route = handler; } }, getBoth: path => path,
     requirePigReadAccess: async () => ({}),
-    getScoreboardPayloadFromSnapshot: async () => ({payload: {aggregated: [
-      {imageId: 'ranked', totalVotes: 2, score: 4},
-      {imageId: 'voted-sibling', totalVotes: 1, score: -1},
-    ]}}),
+    getScoreboardPayloadFromSnapshot: async ({contentReads}) => {
+      assert.equal(await contentReads.excerpts, excerptItems);
+      assert.equal((await contentReads.graphics)[0].imageId, 'graphic');
+      assert.equal((await contentReads.fullPoems)[0].imageId, 'full');
+      assert.ok((await contentReads.flaggedIds).has('flagged'));
+      return {payload: {aggregated: [
+        {imageId: 'ranked', totalVotes: 2, score: 4},
+        {imageId: 'voted-sibling', totalVotes: 1, score: -1},
+      ]}};
+    },
     getAllFrom: async collection => ({
       excerpts: excerptItems,
       fullPoems: [text('full', 'Full', { imageType: 'FP' })],

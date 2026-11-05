@@ -474,6 +474,9 @@ export function parseDoc(snap) {
     imageId,
     contentId,
     imageUrl,
+    ...(d.displayPreviewUrl && d.displayPreviewSourceUrl === imageUrl
+      ? { displayPreviewUrl: d.displayPreviewUrl }
+      : {}),
     assetSet: d.assetSet || null,
     videoUrl: d.videoUrl || "",
     youtubeUrl: d.youtubeUrl || "",
@@ -1609,6 +1612,7 @@ function mapToArr(o) {
     o.sourceEventLabel || "",
     o.assetSet || null,
     bookReviewAttributes(o),
+    ...(o.displayPreviewUrl ? [o.displayPreviewUrl] : []),
   ];
 }
 
@@ -2727,14 +2731,14 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
   return results;
 }
 
-async function buildScoreboardPayload() {
+async function buildScoreboardPayload(contentReads = {}) {
   const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds, authorVoteIdentities] = await Promise.all([
     getAllVotes("scoreboard_rebuild"),
-    getAllFrom(COLLECTIONS.graphics),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.fullPoems),
+    contentReads.graphics ?? getAllFrom(COLLECTIONS.graphics),
+    contentReads.excerpts ?? getAllFrom(COLLECTIONS.excerpts),
+    contentReads.fullPoems ?? getAllFrom(COLLECTIONS.fullPoems),
     getAllFrom(COLLECTIONS.videos),
-    getFlaggedContentIds(),
+    contentReads.flaggedIds ?? getFlaggedContentIds(),
     getAuthorVoteIdentities(),
   ]);
 
@@ -3024,6 +3028,13 @@ async function buildRankedTextsPayload({
       .filter((type) => ["EXC", "FP"].includes(type))
   );
 
+  // A cold scoreboard rebuild can reuse the same catalog and flag reads.
+  const contentReads = {
+    excerpts: getAllFrom(COLLECTIONS.excerpts),
+    fullPoems: getAllFrom(COLLECTIONS.fullPoems),
+    graphics: getAllFrom(COLLECTIONS.graphics),
+    flaggedIds: getFlaggedContentIds(),
+  };
   const [
     scoreboardResult,
     excerptItems,
@@ -3031,11 +3042,11 @@ async function buildRankedTextsPayload({
     graphicItems,
     flaggedIds,
   ] = await Promise.all([
-    getScoreboardPayloadFromSnapshot(),
-    getAllFrom(COLLECTIONS.excerpts),
-    getAllFrom(COLLECTIONS.fullPoems),
-    getAllFrom(COLLECTIONS.graphics),
-    getFlaggedContentIds(),
+    getScoreboardPayloadFromSnapshot({ contentReads }),
+    contentReads.excerpts,
+    contentReads.fullPoems,
+    contentReads.graphics,
+    contentReads.flaggedIds,
   ]);
 
   const aggregatedByImageId = new Map();
@@ -3236,7 +3247,7 @@ async function getScoreboardBootstrapPayload() {
   };
 }
 
-async function getCachedScoreboardPayload() {
+async function getCachedScoreboardPayload(contentReads) {
   const now = Date.now();
   if (scoreboardCache.payload && (now - scoreboardCache.builtAt) < SCOREBOARD_CACHE_TTL_MS) {
     return scoreboardCache.payload;
@@ -3244,7 +3255,7 @@ async function getCachedScoreboardPayload() {
   if (scoreboardCache.inFlight) {
     return scoreboardCache.inFlight;
   }
-  scoreboardCache.inFlight = buildScoreboardPayload()
+  scoreboardCache.inFlight = buildScoreboardPayload(contentReads)
     .then((payload) => {
       scoreboardCache.payload = payload;
       scoreboardCache.builtAt = Date.now();
@@ -3552,7 +3563,7 @@ async function invalidateScoreboardSnapshot(reason = "") {
   }, { merge: true });
 }
 
-async function getScoreboardPayloadFromSnapshot({ forceRefresh = false } = {}) {
+async function getScoreboardPayloadFromSnapshot({ forceRefresh = false, contentReads } = {}) {
   const now = Date.now();
   if (!forceRefresh) {
     try {
@@ -3571,7 +3582,7 @@ async function getScoreboardPayloadFromSnapshot({ forceRefresh = false } = {}) {
     }
   }
 
-  const payload = await getCachedScoreboardPayload();
+  const payload = await getCachedScoreboardPayload(contentReads);
   try {
     await writeScoreboardSnapshot(payload);
   } catch (err) {
