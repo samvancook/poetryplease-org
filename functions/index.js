@@ -3021,6 +3021,46 @@ function buildStableTextHash({ type = "", author = "", title = "", book = "", te
   return createHash("sha256").update(payload).digest("hex");
 }
 
+let rankedTextCatalogCache;
+
+async function getRankedTextCatalog() {
+  const readCatalog = async () => {
+    const [excerpts, fullPoems, graphics] = await Promise.all([
+      getAllFrom(COLLECTIONS.excerpts, { stream: true }),
+      getAllFrom(COLLECTIONS.fullPoems, { stream: true }),
+      getAllFrom(COLLECTIONS.graphics, { stream: true }),
+    ]);
+    return { excerpts, fullPoems, graphics };
+  };
+  const metadata = await readContentCacheMetadata().catch(() => null);
+  if (!metadata) return readCatalog();
+  const generation = Number(metadata.generation || 0);
+  if (rankedTextCatalogCache?.generation === generation && Date.now() < rankedTextCatalogCache.expiresAt) {
+    return rankedTextCatalogCache.result;
+  }
+
+  // Cache the original parsed records. The public feed applies additional transformations.
+  const entry = { generation, expiresAt: Infinity, result: null };
+  rankedTextCatalogCache = entry;
+  entry.result = (async () => {
+    try {
+      const catalog = await readCatalog();
+      const current = await readContentCacheMetadata().catch(() => null);
+      if (current && Number(current.generation || 0) !== generation) {
+        if (rankedTextCatalogCache === entry) rankedTextCatalogCache = null;
+        return readCatalog();
+      }
+      // If metadata is unavailable, return these live reads without caching them.
+      entry.expiresAt = current ? Date.now() + 5 * 60 * 1000 : 0;
+      return catalog;
+    } catch (err) {
+      if (rankedTextCatalogCache === entry) rankedTextCatalogCache = null;
+      throw err;
+    }
+  })();
+  return entry.result;
+}
+
 async function buildRankedTextsPayload({
   limit = 100,
   minScore = 1,
@@ -3045,10 +3085,11 @@ async function buildRankedTextsPayload({
   );
 
   // A cold scoreboard rebuild can reuse the same catalog and flag reads.
+  const catalog = measure("catalog", getRankedTextCatalog);
   const contentReads = {
-    excerpts: measure("excerpts", () => getAllFrom(COLLECTIONS.excerpts, { stream: true })),
-    fullPoems: measure("full-poems", () => getAllFrom(COLLECTIONS.fullPoems, { stream: true })),
-    graphics: measure("graphics", () => getAllFrom(COLLECTIONS.graphics, { stream: true })),
+    excerpts: catalog.then((items) => items.excerpts),
+    fullPoems: catalog.then((items) => items.fullPoems),
+    graphics: catalog.then((items) => items.graphics),
     flaggedIds: measure("flags", getFlaggedContentIds),
   };
   const [
