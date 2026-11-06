@@ -19,6 +19,8 @@ const chrome = [
 
 const firebaseFixture = `
 (() => {
+if (window.firebase) return;
+const apps = [];
 const authState = {
   currentUser: null,
   onAuthStateChanged(callback) {
@@ -29,7 +31,7 @@ const authState = {
 };
 function auth() { return authState; }
 auth.GoogleAuthProvider = class {};
-window.firebase = { initializeApp() {}, auth };
+window.firebase = { apps, initializeApp(config) { apps.push({ config }); }, auth };
 })();
 `;
 
@@ -95,7 +97,7 @@ function launch(url, profile) {
   });
 }
 
-test("desktop and Swipe execute their real entry shells and render the first readable card", { timeout: 165000 }, async () => {
+test("Desktop, classic mobile and Swipe render the first readable card from their real shells", { timeout: 165000 }, async () => {
   assert.ok(chrome, "Chrome is required. Set PP_TEST_CHROME to an installed Chrome executable.");
   const row = ["Fixture author", "Fixture title", "Fixture book", "startup-fixture",
     "", "", "", "EXC", "Startup fixture first line\nStartup fixture second line"];
@@ -123,7 +125,8 @@ test("desktop and Swipe execute their real entry shells and render the first rea
         : /bootstrap|fetchFiltered/.test(url.pathname) ? feed : []));
       return;
     }
-    const shell = url.pathname === "/app" ? "index.html" : url.pathname === "/m" ? "posts-swipe.html" : null;
+    const shells = { "/app": "index.html", "/mobile.html": "mobile.html", "/m": "posts-swipe.html" };
+    const shell = shells[url.pathname];
     const filename = path.resolve(publicRoot, shell || "." + decodeURIComponent(url.pathname));
     if (!filename.startsWith(publicRoot + path.sep) || !fs.existsSync(filename) || !fs.statSync(filename).isFile()) {
       response.writeHead(404).end();
@@ -139,12 +142,20 @@ test("desktop and Swipe execute their real entry shells and render the first rea
     if (shell) {
       const html = fs.readFileSync(filename, "utf8")
         .replace(/https:\/\/www\.gstatic\.com\/firebasejs\/[^"]+/g, "/firebase-fixture.js");
-      response.end(html.replace("<head>", "<head>" + probeScript(shell === "index.html" ? "desktop" : "swipe", scenario)));
+      response.end(html.replace("<head>", "<head>" + probeScript(shell === "posts-swipe.html" ? "swipe" : "classic", scenario)));
     } else response.end(fs.readFileSync(filename));
   });
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   try {
-    for (const [route, nextScenario] of [["/app?desktop=1", "ready"], ["/app?desktop=1", "advance"], ["/m", "ready"], ["/m", "retry"], ["/m", "crash"]]) {
+    const cases = [
+      ["/app?desktop=1", "ready"],
+      ["/app?desktop=1", "advance"],
+      ["/mobile.html", "ready"],
+      ["/m", "ready"],
+      ["/m", "retry"],
+      ["/m", "crash"],
+    ];
+    for (const [route, nextScenario] of cases) {
       scenario = nextScenario;
       const requestStart = requests.length;
       const profile = fs.mkdtempSync(path.join(os.tmpdir(), "pp-startup-browser-"));
