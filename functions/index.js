@@ -198,6 +198,7 @@ const SCOREBOARD_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const SCOREBOARD_SNAPSHOT_DOC_ID = "scoreboard";
 const SCOREBOARD_SNAPSHOT_PATH = "system/scoreboard/latest.json";
 const SCOREBOARD_SNAPSHOT_VERSION = 4;
+const RANKED_TEXT_SCORES_PATH = "system/scoreboard/ranked-text-scores.json";
 const CANONICAL_CATALOG_API = "https://button-poetry-catalog-350789123099.us-central1.run.app";
 const CATALOG_RECONCILIATION_PREVIEW_API = CANONICAL_CATALOG_API;
 const CANONICAL_POEM_COUNT_TTL_MS = 6 * 60 * 60 * 1000;
@@ -3042,7 +3043,7 @@ async function buildRankedTextsPayload({
     graphicItems,
     flaggedIds,
   ] = await Promise.all([
-    getScoreboardPayloadFromSnapshot({ contentReads }),
+    getRankedTextScores(contentReads),
     contentReads.excerpts,
     contentReads.fullPoems,
     contentReads.graphics,
@@ -3444,6 +3445,29 @@ async function readScoreboardSnapshot() {
   return { payload, meta, builtAtMs };
 }
 
+async function getRankedTextScores(contentReads) {
+  try {
+    const snap = await db.collection(COLLECTIONS.systemState).doc(SCOREBOARD_SNAPSHOT_DOC_ID).get();
+    const meta = snap.data() || {};
+    const builtAtMs = timestampToMs(meta.builtAt);
+    if (
+      builtAtMs && Date.now() - builtAtMs < SCOREBOARD_SNAPSHOT_TTL_MS
+      && Number(meta.version) === SCOREBOARD_SNAPSHOT_VERSION
+      && meta.rankedTextScores?.id
+      && meta.builtAt.isEqual(meta.rankedTextScores.builtAt)
+    ) {
+      const [buffer] = await storage.bucket().file(RANKED_TEXT_SCORES_PATH).download();
+      const { id, aggregated } = JSON.parse(buffer.toString("utf8"));
+      if (id === meta.rankedTextScores.id && Array.isArray(aggregated)) {
+        return { payload: { aggregated }, source: "snapshot", builtAtMs };
+      }
+    }
+  } catch (err) {
+    console.warn("Ranked text scores snapshot read failed", err);
+  }
+  return getScoreboardPayloadFromSnapshot({ contentReads });
+}
+
 async function writeScoreboardSnapshot(payload) {
   const file = storage.bucket().file(SCOREBOARD_SNAPSHOT_PATH);
   const json = JSON.stringify(payload);
@@ -3455,10 +3479,28 @@ async function writeScoreboardSnapshot(payload) {
     },
   });
 
+  let rankedTextScores = null;
+  const builtAt = FieldValue.serverTimestamp();
+  try {
+    const id = randomBytes(16).toString("hex");
+    const aggregated = payload.aggregated.map(({ imageId, score, likes, dislikes, meh, movedMe, totalVotes }) => ({
+      imageId, score, likes, dislikes, meh, movedMe, totalVotes,
+    }));
+    await storage.bucket().file(RANKED_TEXT_SCORES_PATH).save(JSON.stringify({ id, aggregated }), {
+      contentType: "application/json; charset=utf-8",
+      resumable: false,
+      metadata: { cacheControl: "no-store, max-age=0" },
+    });
+    rankedTextScores = { id, builtAt };
+  } catch (err) {
+    console.warn("Ranked text scores snapshot write failed", err);
+  }
+
   const snapshotMeta = {
     storagePath: SCOREBOARD_SNAPSHOT_PATH,
     version: SCOREBOARD_SNAPSHOT_VERSION,
-    builtAt: FieldValue.serverTimestamp(),
+    builtAt,
+    rankedTextScores,
     aggregatedCount: Array.isArray(payload?.aggregated) ? payload.aggregated.length : 0,
     rawVotesCount: Array.isArray(payload?.rawVotes) ? payload.rawVotes.length : 0,
     allGraphicsCount: Array.isArray(payload?.allGraphics) ? payload.allGraphics.length : 0,
