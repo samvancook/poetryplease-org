@@ -26,7 +26,7 @@ function rankedTextsRoute() {
   const context = vm.createContext({
     app: { get: (_, handler) => { route = handler; } }, getBoth: path => path,
     requirePigReadAccess: async () => ({}),
-    getScoreboardPayloadFromSnapshot: async ({contentReads}) => {
+    getRankedTextScores: async contentReads => {
       assert.equal(await contentReads.excerpts, excerptItems);
       assert.equal((await contentReads.graphics)[0].imageId, 'graphic');
       assert.equal((await contentReads.fullPoems)[0].imageId, 'full');
@@ -82,4 +82,45 @@ test('unrated winner lane returns only eligible excerpts with no votes across si
   assert.deepEqual(payload.filters.types, ['EXC']);
   assert.equal(payload.filters.unratedOnly, true);
   assert.deepEqual(payload.rows.map(row => [row.sourceRecordId, row.totalVotes, row.score]), [['fresh', 0, 0]]);
+});
+
+
+test('P.I.G. reads matching scores and falls back for a stale or replaced copy', async () => {
+  const builtAt = { isEqual: other => other === builtAt };
+  const meta = { builtAt, version: 4, rankedTextScores: { id: 'current', builtAt } };
+  const scoreboard = { payload: { aggregated: [{ imageId: 'ranked', score: 18 }] } };
+  const scores = { id: 'current', aggregated: scoreboard.payload.aggregated };
+  let downloads = 0;
+  let fallbacks = 0;
+  const context = vm.createContext({
+    db: { collection: () => ({ doc: () => ({ get: async () => ({ data: () => meta }) }) }) },
+    storage: { bucket: () => ({ file: () => ({
+      download: async () => {
+        downloads++;
+        return [Buffer.from(JSON.stringify(scores))];
+      },
+    }) }) },
+    COLLECTIONS: { systemState: 'systemState' },
+    SCOREBOARD_SNAPSHOT_DOC_ID: 'scoreboard',
+    SCOREBOARD_SNAPSHOT_TTL_MS: 30_000,
+    SCOREBOARD_SNAPSHOT_VERSION: 4,
+    RANKED_TEXT_SCORES_PATH: 'scores',
+    timestampToMs: () => Date.now(),
+    getScoreboardPayloadFromSnapshot: async () => { fallbacks++; return scoreboard; },
+  });
+  vm.runInContext(source.slice(source.indexOf('async function getRankedTextScores('),
+    source.indexOf('async function writeScoreboardSnapshot(')), context);
+
+  const result = await context.getRankedTextScores({});
+  assert.equal(result.source, 'snapshot');
+  assert.deepEqual(JSON.parse(JSON.stringify(result.payload)), scoreboard.payload);
+  assert.equal(downloads, 1);
+  assert.equal(fallbacks, 0);
+
+  scores.id = 'another-write';
+  assert.equal(await context.getRankedTextScores({}), scoreboard);
+  meta.rankedTextScores.builtAt = {};
+  assert.equal(await context.getRankedTextScores({}), scoreboard);
+  assert.equal(downloads, 2);
+  assert.equal(fallbacks, 2);
 });
