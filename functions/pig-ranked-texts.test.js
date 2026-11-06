@@ -11,6 +11,8 @@ const text = (id, title, fields = {}) => ({
 });
 
 function rankedTextsRoute() {
+  let generation = 1;
+  let reads = 0;
   const excerptItems = [
     text('fresh', 'Fresh'),
     text('ranked', 'Ranked'),
@@ -27,7 +29,7 @@ function rankedTextsRoute() {
     app: { get: (_, handler) => { route = handler; } }, getBoth: path => path,
     requirePigReadAccess: async () => ({}),
     getRankedTextScores: async contentReads => {
-      assert.equal(await contentReads.excerpts, excerptItems);
+      assert.deepEqual(await contentReads.excerpts, excerptItems);
       assert.equal((await contentReads.graphics)[0].imageId, 'graphic');
       assert.equal((await contentReads.fullPoems)[0].imageId, 'full');
       assert.ok((await contentReads.flaggedIds).has('flagged'));
@@ -36,11 +38,15 @@ function rankedTextsRoute() {
         {imageId: 'voted-sibling', totalVotes: 1, score: -1},
       ]}};
     },
-    getAllFrom: async collection => ({
-      excerpts: excerptItems,
-      fullPoems: [text('full', 'Full', { imageType: 'FP' })],
-      graphics: [text('graphic', 'Illustrated', { imageType: 'QI' })],
-    })[collection],
+    readContentCacheMetadata: async () => ({ generation }),
+    getAllFrom: async collection => {
+      reads++;
+      return ({
+        excerpts: [...excerptItems],
+        fullPoems: [text('full', 'Full', { imageType: 'FP' })],
+        graphics: [text('graphic', 'Illustrated', { imageType: 'QI' })],
+      })[collection];
+    },
     COLLECTIONS: {excerpts: 'excerpts', fullPoems: 'fullPoems', graphics: 'graphics'},
     getFlaggedContentIds: async () => new Set(['flagged']),
     normalizeText: value => String(value ?? '').trim(),
@@ -55,11 +61,18 @@ function rankedTextsRoute() {
     source.slice(source.indexOf('app.get(getBoth("/pig/ranked-texts")'), source.indexOf('app.post(getBoth("/admin/scoreboard/refresh")')),
     context
   );
-  return async query => {
+  const request = async query => {
     let payload;
     await route({query}, {set() {}, json: data => { payload = JSON.parse(JSON.stringify(data)); }});
     return payload;
   };
+  request.reads = () => reads;
+  request.retireRanked = () => {
+    const index = excerptItems.findIndex(item => item.imageId === 'ranked');
+    excerptItems.splice(index, 1);
+    generation++;
+  };
+  return request;
 }
 
 test('ranked lane keeps defaults and accepts explicit zero thresholds', async () => {
@@ -84,6 +97,20 @@ test('unrated winner lane returns only eligible excerpts with no votes across si
   assert.deepEqual(payload.rows.map(row => [row.sourceRecordId, row.totalVotes, row.score]), [['fresh', 0, 0]]);
 });
 
+
+test('ranked searches share a catalog read and refresh when the content generation changes', async () => {
+  const request = rankedTextsRoute();
+  const query = { chapbookWinners: '1', withoutGraphics: '1' };
+  const [first, concurrent] = await Promise.all([request(query), request(query)]);
+  assert.deepEqual(first.rows, concurrent.rows);
+  assert.equal(request.reads(), 3);
+  assert.deepEqual((await request(query)).rows, first.rows);
+  assert.equal(request.reads(), 3);
+
+  request.retireRanked();
+  assert.deepEqual((await request(query)).rows, []);
+  assert.equal(request.reads(), 6);
+});
 
 test('P.I.G. reads matching scores and falls back for a stale or replaced copy', async () => {
   const builtAt = { isEqual: other => other === builtAt };
