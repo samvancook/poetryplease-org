@@ -515,9 +515,16 @@ export function parseDoc(snap) {
   };
 }
 
-async function getAllFrom(collection) {
+async function getAllFrom(collection, { stream = false } = {}) {
   const col = db.collection(collection);
   const out = [];
+  if (stream) {
+    for await (const doc of col.stream()) {
+      out.push({ id: doc.id, ...parseDoc(doc) });
+    }
+    return out;
+  }
+
   let page = await col.limit(1000).get();
   while (!page.empty) {
     page.forEach((doc) => out.push({ id: doc.id, ...parseDoc(doc) }));
@@ -3039,9 +3046,9 @@ async function buildRankedTextsPayload({
 
   // A cold scoreboard rebuild can reuse the same catalog and flag reads.
   const contentReads = {
-    excerpts: measure("excerpts", () => getAllFrom(COLLECTIONS.excerpts)),
-    fullPoems: measure("full-poems", () => getAllFrom(COLLECTIONS.fullPoems)),
-    graphics: measure("graphics", () => getAllFrom(COLLECTIONS.graphics)),
+    excerpts: measure("excerpts", () => getAllFrom(COLLECTIONS.excerpts, { stream: true })),
+    fullPoems: measure("full-poems", () => getAllFrom(COLLECTIONS.fullPoems, { stream: true })),
+    graphics: measure("graphics", () => getAllFrom(COLLECTIONS.graphics, { stream: true })),
     flaggedIds: measure("flags", getFlaggedContentIds),
   };
   const [
