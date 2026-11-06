@@ -3022,7 +3022,15 @@ async function buildRankedTextsPayload({
   chapbookWinners = false,
   withoutGraphics = false,
   unratedOnly = false,
-} = {}) {
+} = {}, timings = {}) {
+  const measure = async (name, read) => {
+    const startedAt = Date.now();
+    try {
+      return await read();
+    } finally {
+      timings[name] = Date.now() - startedAt;
+    }
+  };
   const normalizedTypes = uniq(
     (Array.isArray(types) ? types : [types])
       .map((type) => normalizeText(type).toUpperCase())
@@ -3031,10 +3039,10 @@ async function buildRankedTextsPayload({
 
   // A cold scoreboard rebuild can reuse the same catalog and flag reads.
   const contentReads = {
-    excerpts: getAllFrom(COLLECTIONS.excerpts),
-    fullPoems: getAllFrom(COLLECTIONS.fullPoems),
-    graphics: getAllFrom(COLLECTIONS.graphics),
-    flaggedIds: getFlaggedContentIds(),
+    excerpts: measure("excerpts", () => getAllFrom(COLLECTIONS.excerpts)),
+    fullPoems: measure("full-poems", () => getAllFrom(COLLECTIONS.fullPoems)),
+    graphics: measure("graphics", () => getAllFrom(COLLECTIONS.graphics)),
+    flaggedIds: measure("flags", getFlaggedContentIds),
   };
   const [
     scoreboardResult,
@@ -3043,7 +3051,7 @@ async function buildRankedTextsPayload({
     graphicItems,
     flaggedIds,
   ] = await Promise.all([
-    getRankedTextScores(contentReads),
+    measure("scores", () => getRankedTextScores(contentReads)),
     contentReads.excerpts,
     contentReads.fullPoems,
     contentReads.graphics,
@@ -6252,10 +6260,14 @@ app.get(getBoth("/pig/ranked-texts"), async (req, res) => {
   const unratedOnly = chapbookWinners && req.query?.unrated === "1";
   const minScore = unratedOnly ? 0 : readThreshold(req.query?.minScore);
   const minVotes = unratedOnly ? 0 : readThreshold(req.query?.minVotes);
+  const timings = {};
+  const startedAt = Date.now();
   const payload = await buildRankedTextsPayload({
     limit, minScore, minVotes, types: unratedOnly ? ["EXC"] : types,
     chapbookWinners, withoutGraphics, unratedOnly,
-  });
+  }, timings);
+  timings.total = Date.now() - startedAt;
+  res.set("Server-Timing", Object.entries(timings).map(([name, ms]) => `${name};dur=${ms}`).join(", "));
   res.json(payload);
 });
 
