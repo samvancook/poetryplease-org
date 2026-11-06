@@ -57,7 +57,7 @@ function rankedTextsRoute() {
   );
   return async query => {
     let payload;
-    await route({query}, {json: data => { payload = JSON.parse(JSON.stringify(data)); }});
+    await route({query}, {set() {}, json: data => { payload = JSON.parse(JSON.stringify(data)); }});
     return payload;
   };
 }
