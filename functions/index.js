@@ -3025,11 +3025,18 @@ let rankedTextCatalogCache;
 
 async function getRankedTextCatalog() {
   const readCatalog = async () => {
-    const [excerpts, fullPoems, graphics] = await Promise.all([
+    const [excerpts, fullPoems, cachedContent] = await Promise.all([
       getAllFrom(COLLECTIONS.excerpts, { stream: true }),
       getAllFrom(COLLECTIONS.fullPoems, { stream: true }),
-      getAllFrom(COLLECTIONS.graphics, { stream: true }),
+      getAllContentCached(),
     ]);
+    // The shared content snapshot already holds graphics. Exclude source texts
+    // and videos so matching and scoreboard fallback see the same kinds of
+    // records as the graphics collection read above.
+    const graphics = cachedContent.filter((item) => {
+      const type = normalizeText(item.imageType).toUpperCase();
+      return type && !["EXC", "FP", "VV"].includes(type);
+    });
     return { excerpts, fullPoems, graphics };
   };
   const metadata = await readContentCacheMetadata().catch(() => null);
