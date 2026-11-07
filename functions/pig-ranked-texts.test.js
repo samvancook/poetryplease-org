@@ -13,6 +13,7 @@ const text = (id, title, fields = {}) => ({
 function rankedTextsRoute() {
   let generation = 1;
   let reads = 0;
+  let snapshotReads = 0;
   const excerptItems = [
     text('fresh', 'Fresh'),
     text('ranked', 'Ranked'),
@@ -30,7 +31,7 @@ function rankedTextsRoute() {
     requirePigReadAccess: async () => ({}),
     getRankedTextScores: async contentReads => {
       assert.deepEqual(await contentReads.excerpts, excerptItems);
-      assert.equal((await contentReads.graphics)[0].imageId, 'graphic');
+      assert.deepEqual((await contentReads.graphics).map(item => item.imageId), ['graphic']);
       assert.equal((await contentReads.fullPoems)[0].imageId, 'full');
       assert.ok((await contentReads.flaggedIds).has('flagged'));
       return {payload: {aggregated: [
@@ -44,8 +45,16 @@ function rankedTextsRoute() {
       return ({
         excerpts: [...excerptItems],
         fullPoems: [text('full', 'Full', { imageType: 'FP' })],
-        graphics: [text('graphic', 'Illustrated', { imageType: 'QI' })],
       })[collection];
+    },
+    getAllContentCached: async () => {
+      snapshotReads++;
+      return [
+        ...excerptItems,
+        text('full', 'Full', { imageType: 'FP' }),
+        text('graphic', 'Illustrated', { imageType: 'QI' }),
+        text('video', 'Video', { imageType: 'VV' }),
+      ];
     },
     COLLECTIONS: {excerpts: 'excerpts', fullPoems: 'fullPoems', graphics: 'graphics'},
     getFlaggedContentIds: async () => new Set(['flagged']),
@@ -67,6 +76,7 @@ function rankedTextsRoute() {
     return payload;
   };
   request.reads = () => reads;
+  request.snapshotReads = () => snapshotReads;
   request.retireRanked = () => {
     const index = excerptItems.findIndex(item => item.imageId === 'ranked');
     excerptItems.splice(index, 1);
@@ -98,18 +108,21 @@ test('unrated winner lane returns only eligible excerpts with no votes across si
 });
 
 
-test('ranked searches share a catalog read and refresh when the content generation changes', async () => {
+test('ranked searches share snapshot graphics and refresh when the content generation changes', async () => {
   const request = rankedTextsRoute();
   const query = { chapbookWinners: '1', withoutGraphics: '1' };
   const [first, concurrent] = await Promise.all([request(query), request(query)]);
   assert.deepEqual(first.rows, concurrent.rows);
-  assert.equal(request.reads(), 3);
+  assert.equal(request.reads(), 2);
+  assert.equal(request.snapshotReads(), 1);
   assert.deepEqual((await request(query)).rows, first.rows);
-  assert.equal(request.reads(), 3);
+  assert.equal(request.reads(), 2);
+  assert.equal(request.snapshotReads(), 1);
 
   request.retireRanked();
   assert.deepEqual((await request(query)).rows, []);
-  assert.equal(request.reads(), 6);
+  assert.equal(request.reads(), 4);
+  assert.equal(request.snapshotReads(), 2);
 });
 
 test('P.I.G. reads matching scores and falls back for a stale or replaced copy', async () => {
