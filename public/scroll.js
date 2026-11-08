@@ -3,6 +3,7 @@ import { renderPostCard, closePostDetails } from './post-cards.js';
 import { renderSwipeCard, resetSwipeReview, observeSwipeCards } from './posts-swipe.js';
 import { linkedItemPage, chapbookLaneFilters } from './mobile-entry.js?v=20261030-chapbook-embed';
 import { createReadingReturn } from './swipe-reading.js';
+import { createFeedLoader } from './feed-startup.js?v=20261107';
 
 const $ = (id) => document.getElementById(id);
 const auth = firebase.auth();
@@ -20,8 +21,6 @@ const outlineReviewIcon = document.body.dataset.reviewIcons === 'outline'
 const votes = [['moved me', '❤️', 'Love'], ['meh', '😐', 'Meh'], ['like', '👍', 'Like'], ['dislike', '👎', 'Dislike']];
 let account = null;
 let ownAuthor = '';
-let activeIdentity = null;
-let sessionGeneration = 0;
 let automaticPages = true;
 let sessionVotes = 0;
 let welcomeCalibrated = (() => { try { return localStorage.getItem('pp_welcome_calibrated') === '1'; } catch { return false; } })();
@@ -108,14 +107,13 @@ $('image-viewer').addEventListener('close', () => {
   $('enlarged-image').removeAttribute('src');
   imageReturnFocus?.focus({ preventScroll: true });
 });
-function updateFooter(state) {
-  $('feed').setAttribute('aria-busy', String(state.loading));
-  $('load-more').hidden = state.loading || !state.hasMore;
-  $('load-more').disabled = state.loading;
-  $('load-more').textContent = state.error ? 'Retry loading' : 'Load more';
-  $('feed-status').textContent = state.loading ? 'Loading more…' : state.error ? state.error.message :
-    state.hasMore ? 'More below' : contestReading && state.seen.size ? 'You’ve reached the end of the winners collection.' : linkedItemId && state.seen.size ? 'You’re viewing a linked item.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.';
-}
+const loader = createFeedLoader({
+  feed: $('feed'),
+  status: $('feed-status'),
+  loadMore: $('load-more'),
+  onRetry: () => { automaticPages = true; pager.loadMore(); },
+  endMessage: (state) => contestReading && state.seen.size ? 'You’ve reached the end of the winners collection.' : linkedItemId && state.seen.size ? 'You’re viewing a linked item.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.',
+});
 const pager = new ScrollFeedPager({
   fetchPage: (context, signal) => context.linkedItemId
     ? linkedItemPage(context.linkedItemId, id => api('contentById?' + new URLSearchParams({id}), null, signal))
@@ -123,7 +121,7 @@ const pager = new ScrollFeedPager({
     ...(swipeVariant && !contestReading ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
   }, signal),
   append: (items) => items.forEach(renderCard),
-  changed: updateFooter,
+  changed: loader.update,
   clear: () => { discardReading(); if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
 });
 function restartFeed() {
@@ -323,14 +321,14 @@ function createVoteControls(item, card) {
     button.append(icon, node('span', '', label));
     button.firstChild.setAttribute('aria-hidden', 'true');
     button.addEventListener('click', async () => {
-      const identity = activeIdentity;
+      const identity = loader.identity;
       for (const control of controls.children) control.disabled = true;
       status.textContent = 'Saving your response…';
       try {
         if (!auth.currentUser) await auth.signInAnonymously();
         // An account change requires a fresh feed; never attribute this card's
         // in-flight vote to a newly signed-in person.
-        if (identity !== activeIdentity) throw new Error('Your account changed. Please review the refreshed feed.');
+        if (identity !== loader.identity) throw new Error('Your account changed. Please review the refreshed feed.');
         await api('vote', { imageId: item.id, voteType: value, userId: auth.currentUser?.email || anonymousId });
         window.ppTrack?.('vote', {
           vote_value: value.replace(' ', '_'),
@@ -339,7 +337,7 @@ function createVoteControls(item, card) {
           author: String(item.author || ''),
           book: String(item.book || ''),
         });
-        if (identity !== activeIdentity || !card.isConnected) return;
+        if (identity !== loader.identity || !card.isConnected) return;
         if (swipeVariant) {
           sessionVotes++;
           if (!auth.currentUser?.email && sessionVotes >= 8) {
@@ -350,7 +348,7 @@ function createVoteControls(item, card) {
         button.setAttribute('aria-pressed', 'true');
         status.textContent = 'Saved: ' + label + '.';
       } catch (error) {
-        if (identity !== activeIdentity || !card.isConnected) return;
+        if (identity !== loader.identity || !card.isConnected) return;
         status.textContent = error.message || 'Response not saved. Please retry.';
         for (const control of controls.children) control.disabled = false;
       }
@@ -360,7 +358,6 @@ function createVoteControls(item, card) {
   return [controls, status];
 }
 
-$('load-more').addEventListener('click', () => { automaticPages = true; pager.loadMore(); });
 if ('IntersectionObserver' in window) {
   new IntersectionObserver((entries) => {
     if (entries.some((entry) => entry.isIntersecting) && automaticPages && !pager.error) pager.loadMore();
@@ -375,27 +372,23 @@ $('sign-in').addEventListener('click', async () => {
   catch (error) { if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment'].includes(error.code)) await auth.signInWithRedirect(new firebase.auth.GoogleAuthProvider()); else $('account-status').textContent = 'Sign-in did not complete. Please try again.'; }
 });
 $('sign-out').addEventListener('click', () => auth.signOut().catch(() => { $('account-status').textContent = 'Sign-out did not complete. Please retry.'; }));
-auth.getRedirectResult().catch(() => {});
-auth.onAuthStateChanged(async (user) => {
-  const identity = user?.email || anonymousId;
-  if (identity === activeIdentity) return;
-  activeIdentity = identity;
-  sessionVotes = 0;
-  const generation = ++sessionGeneration;
-  pager.reset(null);
-  $('feed-status').textContent = 'Loading your queue…';
-  $('load-more').hidden = true;
-  $('account-status').textContent = user?.email || 'Browsing without an account';
-  $('sign-in').hidden = !!user?.email;
-  $('sign-out').hidden = !user?.email;
-  account = null;
-  ownAuthor = '';
-  try {
+loader.watchAuth(auth, {
+  identityFor: (user) => user?.email || anonymousId,
+  reset(user) {
+    sessionVotes = 0;
+    pager.reset(null);
+    $('account-status').textContent = user?.email || 'Browsing without an account';
+    $('sign-in').hidden = !!user?.email;
+    $('sign-out').hidden = !user?.email;
+    account = null;
+    ownAuthor = '';
+  },
+  async prepare(user, isCurrent) {
     account = user?.email ? await api('me') : null;
-    if (generation !== sessionGeneration) return;
+    if (!isCurrent()) return;
     if (isAuthorOnly()) {
       const data = await api('my/authorProfileEditorData');
-      if (generation !== sessionGeneration) return;
+      if (!isCurrent()) return;
       ownAuthor = String(data?.profile?.displayName || data?.workingProfile?.displayName || '').trim();
       if (!ownAuthor) throw new Error('Your author profile could not be resolved. Please use the single-item view for now.');
     }
@@ -414,7 +407,5 @@ auth.onAuthStateChanged(async (user) => {
       filters.author = previewAuthor;
     }
     await restartFeed();
-  } catch (error) {
-    if (generation === sessionGeneration) $('feed-status').textContent = error.message || 'Your account could not be loaded. Please reload or open the single-item view.';
-  }
+  },
 });
