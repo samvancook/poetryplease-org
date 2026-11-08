@@ -6326,6 +6326,35 @@ app.get(getBoth("/pig/ranked-texts"), async (req, res) => {
   res.json(payload);
 });
 
+let servingTrialProfiles = null;
+app.get(getBoth("/admin/servingTrials"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  const type = normalizeText(req.query?.type).toUpperCase();
+  if (!["YT", "QI"].includes(type)) return res.status(400).json({ error: "invalid_trial_type" });
+  const includeReviewed = req.query?.includeReviewed === "1";
+  const [allContent, flaggedIds, votedIds, ratingsSummary] = await Promise.all([
+    getAllContentCached(),
+    getFlaggedContentIds(),
+    includeReviewed ? new Set() : getUniqueVotedImageIdsByUser(ctx.decoded.email),
+    getRatingsSummaryCached(),
+  ]);
+  const eligible = excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds))
+    .filter((item) => !item.reviewOnly && !votedIds.has(normalizeKey(item.imageId)));
+  const { compareSocialServing } = await import("./serving-trials.js");
+  // Read the compact local profile only for this staff comparison.
+  if (!servingTrialProfiles) {
+    servingTrialProfiles = JSON.parse(readFileSync(new URL("./serving-trial-profiles.json", import.meta.url), "utf8"));
+  }
+  const result = compareSocialServing(eligible, {
+    profiles: servingTrialProfiles, ratingsSummary, type,
+    newcomer: req.query?.model !== "community",
+    seed: "social-trial-v1",
+  });
+  res.set("Cache-Control", "private, no-store");
+  res.json({ ...result, includeReviewed, scope: "covered-candidates-first-page" });
+});
+
 app.post(getBoth("/admin/scoreboard/refresh"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
