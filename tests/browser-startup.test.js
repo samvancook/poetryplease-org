@@ -97,3 +97,48 @@ test("startup check rejects missing local dependencies before browser navigation
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /ENOENT.*missing-startup-dependency/);
 });
+
+// Approved startup baselines from loader extractions #340 and #342.
+// Update a baseline only after Sam explicitly approves that startup change.
+const startupBoundary = [
+  { file: "startup-loader.js", scriptsOnly: false, sha256: "017b20feab1a03a76c1c373fe6ee11a98963e102cd9b2ed89760b82ebc61f50d" },
+  { file: "feed-startup.js", scriptsOnly: false, sha256: "df5cfcbd0c75e31ead6f0e2b5281f5626fbf728bd95f19bb6c6ef53d8134c120" },
+  { file: "mobile-entry.js", scriptsOnly: false, sha256: "6b4d828f1dd386429d90f816cffdd75e51e3c02d0c1e5165fd2a3f5880fc94dc" },
+  { file: "index.html", scriptsOnly: true, sha256: "feaf35c58da45846c257ac5fe8182aefc4aa83000bdd1b5bb62af4b2ea944b6b" },
+  { file: "mobile.html", scriptsOnly: true, sha256: "1afbfd01782183be0fcdc40a90d8ae521ff232aba4a224a50f47c9c78935a3b8" },
+  { file: "posts-swipe.html", scriptsOnly: true, sha256: "a00d38a20854dcdc629ae28fa4cb30d908fa4a1110a5aa21e10768f416bdf70f" },
+  { file: "posts-swipe-outline.html", scriptsOnly: true, sha256: "c1ebbd8a76bd625f3e732ef8bd2b308a87b2bc3a79dcc7f730c7a01cc52d0009" },
+];
+
+function checkStartupBoundary(overrides = {}) {
+  const fs = require("node:fs");
+  const { createHash } = require("node:crypto");
+  for (const { file, scriptsOnly, sha256 } of startupBoundary) {
+    const original = Object.hasOwn(overrides, file)
+      ? overrides[file] : fs.readFileSync(path.join(__dirname, "../public", file), "utf8");
+    const normalized = original.replace(/\r\n/g, "\n");
+    const protectedSource = scriptsOnly
+      ? [...normalized.matchAll(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi)].map(match => match[0]).join("\n")
+      : normalized;
+    const actual = createHash("sha256").update(protectedSource).digest("hex");
+    assert.equal(actual, sha256,
+      file + " changed protected startup code. Obtain Sam's explicit approval before updating its baseline.");
+  }
+}
+
+test("protected startup modules and entry scripts match their approved baselines", () => {
+  checkStartupBoundary();
+});
+
+test("startup boundary catches module changes and script order changes", () => {
+  const fs = require("node:fs");
+  const read = file => fs.readFileSync(path.join(__dirname, "../public", file), "utf8");
+  assert.throws(() => checkStartupBoundary({ "feed-startup.js": read("feed-startup.js") + "\n// changed" }),
+    /feed-startup.js changed protected startup code/);
+  assert.throws(() => checkStartupBoundary({ "index.html": read("index.html").replace(
+    '<script src="/startup-loader.js?v=20261106-desktop-loader"></script>',
+    '<script src="/app.js?v=20261106-desktop-loader"></script>') }),
+    /index.html changed protected startup code/);
+  assert.doesNotThrow(() => checkStartupBoundary({ "index.html": read("index.html").replace(
+    "<title>", "<!-- unrelated presentation edit -->\n<title>") }));
+});
