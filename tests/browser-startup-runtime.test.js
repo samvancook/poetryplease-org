@@ -121,7 +121,8 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
         return;
       }
       response.setHeader("Content-Type", "application/json");
-      response.end(JSON.stringify(url.pathname === "/api/fetchDataAnon" ? refill
+      response.end(JSON.stringify(url.pathname === "/api/contentById" ? { item: row }
+        : url.pathname === "/api/fetchDataAnon" ? refill
         : /bootstrap|fetchFiltered/.test(url.pathname) ? feed : []));
       return;
     }
@@ -152,6 +153,7 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
       ["/app?desktop=1", "advance"],
       ["/mobile.html", "ready"],
       ["/m", "ready"],
+      ["/m?item=startup-fixture", "linked"],
       ["/m", "retry"],
       ["/m", "crash"],
     ];
@@ -174,6 +176,10 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
           assert.equal(fullFeedRequests.length, 1, "Desktop did not request one full refill");
           assert.ok(/data-startup-refilled="true"/.test(output), "Desktop did not render the refilled card");
         }
+        if (scenario === "linked") {
+          assert.ok(requests.slice(requestStart).includes("/api/contentById"), "Linked item did not load directly");
+          assert.ok(!requests.slice(requestStart).includes("/api/fetchFiltered"), "Linked item fell back to the mixed feed");
+        }
         if (scenario === "retry") assert.ok(/data-startup-retried="true"/.test(output), "Failed feed did not expose a usable retry");
         assert.ok(/data-startup-result="ready"/.test(output), route + " never rendered a readable card");
         assert.ok(/data-startup-errors="\[\]"/.test(output), route + " reported an uncaught startup error: " + output.match(/data-startup-errors="([^"]*)"/)?.[1]);
@@ -186,4 +192,33 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
   } finally {
     await new Promise(resolve => server.close(resolve));
   }
+});
+
+test("feed startup ignores an earlier account failure after identity changes", async () => {
+  const source = fs.readFileSync(path.join(publicRoot, "feed-startup.js"), "utf8");
+  const { createFeedLoader } = await import("data:text/javascript;base64," + Buffer.from(source).toString("base64"));
+  const status = { textContent: "" };
+  const loadMore = { addEventListener() {} };
+  let onAuth;
+  let rejectEarlier;
+  let resetCount = 0;
+  const earlier = new Promise((resolve, reject) => { rejectEarlier = reject; });
+  const loader = createFeedLoader({ feed: {}, status, loadMore, onRetry() {}, endMessage() {} });
+  loader.watchAuth({
+    getRedirectResult: async () => null,
+    onAuthStateChanged(callback) { onAuth = callback; },
+  }, {
+    identityFor: user => user.email,
+    reset() { resetCount++; },
+    prepare: user => user.email === "earlier" ? earlier : Promise.resolve(),
+  });
+  const pending = onAuth({ email: "earlier" });
+  await onAuth({ email: "current" });
+  status.textContent = "Current queue";
+  rejectEarlier(new Error("Earlier account failed"));
+  await pending;
+  await onAuth({ email: "current" });
+  assert.equal(status.textContent, "Current queue");
+  assert.equal(loader.identity, "current");
+  assert.equal(resetCount, 2);
 });
