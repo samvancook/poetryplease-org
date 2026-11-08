@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Poetry Please — serving trials</title>
+  <style>
+    body{margin:0;background:#faf7f0;color:#201c18;font:16px/1.5 system-ui,sans-serif}main{max-width:1150px;margin:auto;padding:24px}
+    h1{font-size:1.7rem}a{color:#245c61}button,select,input{font:inherit}button,select{padding:8px 12px}button{cursor:pointer}
+    .controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:20px 0}.controls label{display:flex;gap:8px;align-items:center}
+    .comparison{display:grid;grid-template-columns:1fr 1fr;gap:24px}ol{padding-left:28px}li{padding:14px;border:1px solid #d3cfc5;border-radius:8px;margin:12px 0;background:white}
+    li p{margin:6px 0}.small{font-size:.88rem;color:#59544c}.changed{border-color:#367a6b}pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.75rem}
+    #status{min-height:1.5em}#method{background:#eee9df;padding:14px;border-radius:8px}
+    @media(max-width:650px){main{padding:16px}.comparison{gap:12px}li{padding:8px}ol{padding-left:20px}h2{font-size:1rem}}
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+<main>
+  <a href="/m">Poetry Please</a>
+  <h1>Social performance serving trials</h1>
+  <p>Staff comparison of content with usable social evidence. Compare the current PP ordering with a social tie-break among the same candidates.</p>
+  <p id="account"></p>
+  <button id="signin" type="button">Sign in with Google</button>
+  <button id="signout" type="button" hidden>Sign out</button>
+  <p id="status" role="status" aria-live="polite">Checking account…</p>
+  <section id="workspace" hidden>
+    <div class="controls">
+      <label>Trial <select id="type"><option value="YT">YouTube · exact videos</option><option value="QI">QI · poem evidence</option></select></label>
+      <label>PP ordering <select id="model"><option value="new">New visitor</option><option value="community">Community</option></select></label>
+      <label><input id="reviewed" type="checkbox">Include content I've reviewed</label>
+      <button id="refresh" type="button">Compare</button>
+    </div>
+    <p id="coverage"></p>
+    <p id="method"></p>
+    <div class="comparison">
+      <section><h2>Current PP ordering</h2><ol id="baseline"></ol></section>
+      <section><h2>Social tie-break trial</h2><ol id="trial"></ol></section>
+    </div>
+  </section>
+</main>
+<script type="module">
+  firebase.initializeApp({apiKey:'AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8',authDomain:'poetry-please.firebaseapp.com',projectId:'poetry-please',appId:'1:609992589187:web:ea8aed51a08c3716b880b6'});
+  const auth = firebase.auth();
+  const $ = id => document.getElementById(id);
+  const params = new URLSearchParams(location.search);
+  $('type').value = params.get('type') === 'QI' ? 'QI' : 'YT';
+  $('model').value = params.get('model') === 'community' ? 'community' : 'new';
+  $('reviewed').checked = params.get('includeReviewed') === '1';
+  let generation = 0;
+
+  function element(tag, text, className) {
+    const node = document.createElement(tag);
+    node.textContent = text;
+    if (className) node.className = className;
+    return node;
+  }
+  function renderRows(target, rows, trial) {
+    target.replaceChildren();
+    for (const row of rows) {
+      const li = document.createElement('li');
+      if (trial && row.rank !== row.baselineRank) li.className = 'changed';
+      const link = element('a', row.title || row.id);
+      link.href = '/m?item=' + encodeURIComponent(row.id);
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      li.append(link, element('p', [row.author,row.book].filter(Boolean).join(' · ')),
+        element('p', row.votes + ' PP votes · review score ' + row.feedScore.toFixed(3), 'small'));
+      if (trial) li.append(element('p', 'Current position ' + row.baselineRank + ' → trial position ' + row.rank, 'small'));
+      const evidence = row.evidence;
+      li.append(element('p', 'Social percentile ' + Math.round(evidence.score * 100) + ' · cohort ' + evidence.cohortSize, 'small'),
+        element('p', evidence.platform + ' · ' + evidence.ageBand + ' at capture · ' + new Date(evidence.capturedAt).toLocaleDateString(), 'small'),
+        element('p', Object.entries(evidence.values).map(([key,value]) => key + ' ' + value.toLocaleString()).join(' · '), 'small'));
+      const details = document.createElement('details');
+      details.append(element('summary', 'Data and provenance'), element('pre', JSON.stringify(evidence,null,2)));
+      li.append(details);
+      target.append(li);
+    }
+  }
+  async function compare() {
+    const user = auth.currentUser;
+    if (!user) return;
+    const attempt = ++generation;
+    $('status').textContent = 'Loading the staff comparison…';
+    $('refresh').disabled = true;
+    const query = new URLSearchParams({type:$('type').value,model:$('model').value});
+    if ($('reviewed').checked) query.set('includeReviewed','1');
+    history.replaceState(null,'',location.pathname + '?' + query);
+    try {
+      const request = async refresh => fetch('/api/admin/servingTrials?' + query, {
+        headers:{Authorization:'Bearer ' + await user.getIdToken(refresh)}, signal:AbortSignal.timeout(90000),
+      });
+      let response = await request(false);
+      if (response.status === 401) response = await request(true);
+      if (!response.ok) throw new Error(response.status === 403 ? 'A team or admin account is required.' : 'Comparison could not load. Please retry.');
+      const data = await response.json();
+      if (attempt !== generation) return;
+      $('workspace').hidden = false;
+      $('coverage').textContent = data.coveredItems + ' covered candidates out of ' + data.eligibleLaneItems +
+        ' eligible items in this lane. Showing up to 24. ' + data.changedPositions + ' positions changed. Profile built ' +
+        new Date(data.generatedAt).toLocaleDateString() + '.';
+      $('method').textContent = (data.type === 'YT'
+        ? 'YouTube uses exact video IDs and likes plus twice comments per view, compared within source and post-age cohorts.'
+        : 'QI uses the highest observed interaction percentile for its poem, compared within platform, source, available metrics and post-age cohorts. This is poem evidence, not a rating of this graphic.') +
+        ' Cohorts need at least five posts. Social data only breaks ties in PP review priority among this page’s covered candidates. The two columns use the same items. Open a title to inspect the content.';
+      renderRows($('baseline'),data.baseline,false);
+      renderRows($('trial'),data.trial,true);
+      $('status').textContent = data.coveredItems ? 'Comparison ready.' : 'No covered candidates are available for this selection. You can include content you have reviewed.';
+    } catch (error) {
+      if (attempt === generation) $('status').textContent = error.message;
+    } finally {
+      if (attempt === generation) $('refresh').disabled = false;
+    }
+  }
+  $('refresh').addEventListener('click',compare);
+  $('signin').addEventListener('click',async () => {
+    try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+    catch { $('status').textContent = 'Sign-in did not complete. Please try again.'; }
+  });
+  $('signout').addEventListener('click',() => auth.signOut());
+  auth.onAuthStateChanged(user => {
+    generation++;
+    $('signin').hidden = !!user;
+    $('signout').hidden = !user;
+    $('workspace').hidden = true;
+    $('baseline').replaceChildren();
+    $('trial').replaceChildren();
+    $('account').textContent = user?.email || '';
+    if (user) compare();
+    else $('status').textContent = 'Sign in with your Poetry Please team account.';
+  });
+</script>
+</body>
+</html>
