@@ -1985,8 +1985,9 @@ function matchesRequestedType(item, requestedType) {
 // The app re-filters by releaseCatalog in the browser, so only public embeds
 // match a preserved eventReleaseCatalog.
 function filterContentByFeedFilters(items, filters = {}, { includeEventCatalogs = false } = {}) {
+  const allWinnerTypes = filters.bookGroup === "chapbook-winners" && normalizeKey(filters.type) === "all";
   return (items || []).filter((item) => {
-    if (!matchesRequestedType(item, filters.type)) return false;
+    if (!allWinnerTypes && !matchesRequestedType(item, filters.type)) return false;
     if (!matchesBookReviewGroup(item, filters)) return false;
     const catalogs = includeEventCatalogs ? contentReleaseCatalogs(item) : [item?.releaseCatalog];
     if (normalizeText(filters.catalog) && !catalogs.some((catalog) => matchesCatalogFilterValue(catalog, filters.catalog))) return false;
