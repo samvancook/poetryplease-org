@@ -2617,7 +2617,7 @@ function isAggregateVideoType(value = '') {
 }
 function matchesSelectedType(item, typeValue) {
   const normalized = normalizeFilterValue(typeValue);
-  if (!normalized) return true;
+  if (!normalized || (selectedBookGroup === 'chapbook-winners' && normalized === 'all')) return true;
   const itemType = normalizeFilterValue(item?.imageType);
   if (normalized === 'promo') return PROMO_TYPES.some((type) => normalizeFilterValue(type) === itemType);
   if (isAggregateVideoType(normalized)) {
