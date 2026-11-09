@@ -74,7 +74,7 @@ export function buildContestAssignmentMessage({ programName, view, reviewUrl }) 
   };
 }
 
-export async function sendAuthorInviteWithMandrill({ apiKey, email, message, tag = "poetry-please-author-invite", fromEmail = "sam@buttonpoetry.com", fromName = "Button Poetry", replyTo = "sam@buttonpoetry.com", fetchImpl = fetch }) {
+export async function sendAuthorInviteWithMandrill({ apiKey, email, message, tag = "poetry-please-author-invite", fromEmail = "sam@buttonpoetry.com", fromName = "Button Poetry", replyTo = "sam@buttonpoetry.com", trackClicks = false, fetchImpl = fetch }) {
   if (!apiKey) throw new Error("mandrill_key_missing");
   const response = await fetchImpl(MANDRILL_SEND_URL, {
     method: "POST",
@@ -88,8 +88,9 @@ export async function sendAuthorInviteWithMandrill({ apiKey, email, message, tag
         to: [{ email, type: "to" }],
         subject: message.subject,
         text: message.text,
+        ...(message.html ? { html: message.html } : {}),
         track_opens: false,
-        track_clicks: false,
+        track_clicks: trackClicks,
         tags: [tag],
       },
     }),
