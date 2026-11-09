@@ -142,6 +142,7 @@
           <summary style="cursor:pointer;font-weight:700;">Scheduled contest notifications</summary>
           <p>Review the saved past-submitter announcement, choose a send time, and schedule it for prior contest entrants whose account setting is on. You can edit or cancel it before sending starts.</p>
           <button id="contest-notification-preview" type="button">Review audience and email</button>
+           <button id="contest-notification-last-day" type="button">Load last-day draft</button>
           <div id="contest-notification-preview-status" class="status" aria-live="polite">No audience review loaded.</div>
           <div id="contest-notification-form" hidden>
             <label>Send time (your local time)<input id="contest-notification-time" type="datetime-local"></label>
@@ -1088,7 +1089,9 @@
             '<p><strong>' + escapeHtml(row.status) + '</strong> · ' +
             escapeHtml(new Date(row.sendAt).toLocaleString()) + ' · ' +
             Number(row.recipientCount || 0) + ' expected recipients · ' +
-            Number(row.sentCount || 0) + ' sent · ' + Number(row.uncertainCount || 0) + ' unconfirmed</p>' +
+            Number(row.sentCount || 0) + ' sent · ' + Number(row.uncertainCount || 0) + ' unconfirmed' +
+            (row.sentRecipientsWhoEntered == null ? "" : " · " + Number(row.sentRecipientsWhoEntered) +
+              " sent recipients entered after this email") + '</p>' +
             '<label>Send time (your local time)<input class="schedule-time" type="datetime-local" value="' +
             escapeHtml(localDateTimeValue(row.sendAt)) + '"' + (editable ? "" : " disabled") + '></label>' +
             '<label>Subject<input class="schedule-subject" type="text" maxlength="200" value="' +
@@ -1103,6 +1106,23 @@
         list.textContent = "Could not load schedules: " + error.message;
       }
     }
+
+    function loadLastDayContestDraft() {
+      const programId = document.getElementById("program").value;
+      const status = document.getElementById("contest-notification-preview-status");
+      if (!programId) return void (status.textContent = "Choose the November contest first.");
+      document.getElementById("contest-notification-subject").value = "Last day to send us your short poem";
+      document.getElementById("contest-notification-body").value =
+        "Hi {{firstName}},\n\nThank you for sharing your work with us last time. Our November Short Form Contest closes tonight at 11:59 p.m. Central.\n\nHave a poem of 250 characters or fewer? We’d love to read it. Entry is free.\n\nSubmit your poem:\nhttps://poetryplease.org/contest-submit.html?program=" +
+        encodeURIComponent(programId) +
+        "&utm_source=poetryplease&utm_medium=email&utm_campaign=november_2026_last_day\n\nThank you,\nButton Poetry";
+      document.getElementById("contest-notification-form").hidden = false;
+      notificationDraftProgramId = programId;
+      invalidateNotificationReview();
+      status.textContent = "Last-day draft loaded. Review the audience and choose a send time before scheduling. Nothing was sent.";
+    }
+
+    document.getElementById("contest-notification-last-day").addEventListener("click", loadLastDayContestDraft);
 
     async function reviewContestNotification() {
       const programId = document.getElementById("program").value;
