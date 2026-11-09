@@ -12409,6 +12409,24 @@ async function contestNotificationAudience(programId) {
   return { recipients, priorSubmitterCount: byEmail.size, optedOutCount: byEmail.size - recipients.length };
 }
 
+function renderContestNotificationHtml(body) {
+  const lines = body.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const content = lines.map((line) => {
+    if (/^https:\/\/poetryplease\.org\/contest-submit\.html\?/.test(line)) {
+      const url = escapeHtml(line);
+      return '<p style="margin:24px 0"><a href="' + url +
+        '" style="display:inline-block;background:#28666b;color:#fff;text-decoration:none;padding:14px 22px;border-radius:8px;font-weight:700">Submit your poem</a></p>';
+    }
+    return '<p style="margin:0 0 16px;line-height:1.65">' + escapeHtml(line) + '</p>';
+  }).join("");
+  return '<!doctype html><html><body style="margin:0;background:#f8f5ee;color:#211e1a;font-family:Arial,sans-serif">' +
+    '<div style="max-width:580px;margin:0 auto;padding:36px 24px">' +
+    '<div style="font-family:Georgia,serif;font-size:28px;margin-bottom:24px">Poetry, Please</div>' +
+    '<div style="background:#fff;border:1px solid #e6ded1;border-radius:12px;padding:28px">' + content +
+    '</div><p style="color:#666;font-size:13px;line-height:1.5;margin-top:22px">Manage contest notifications: ' +
+    '<a href="https://poetryplease.org/my-submissions.html" style="color:#28666b">Your account</a></p></div></body></html>';
+}
+
 function validContestNotificationDraft(subject, body) {
   return typeof subject === "string" && typeof body === "string" &&
     subject.trim().length > 0 && subject.trim().length <= 200 && !/[\r\n]/.test(subject) &&
@@ -12435,6 +12453,29 @@ app.get(getBoth("/admin/contestScheduledEmails"), async (req, res) => {
   const snap = await db.collection("contestScheduledEmails").where("programId", "==", programId).get();
   const schedules = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
     .sort((a, b) => String(b.sendAt || "").localeCompare(String(a.sendAt || "")));
+  const sent = schedules.filter((row) => row.status === "sent" || row.status === "needs_review");
+  if (sent.length) {
+    const entrantSnap = await db.collection(COLLECTIONS.submissionEntrants)
+      .where("submissionProgramId", "==", programId).get();
+    const entrantsByEmail = new Map();
+    for (const doc of entrantSnap.docs) {
+      const row = doc.data() || {};
+      const email = normalizeText(row.email || "").toLowerCase();
+      const submittedAt = row.createdAt?.toMillis?.() || 0;
+      if (email && submittedAt) entrantsByEmail.set(email,
+        Math.min(entrantsByEmail.get(email) || Infinity, submittedAt));
+    }
+    await Promise.all(sent.map(async (row) => {
+      const notices = await db.collection("contestNotificationNotices")
+        .where("scheduleId", "==", row.id).get();
+      const cutoff = row.startedAt?.toMillis?.() || Date.parse(row.sendAt || "") || 0;
+      row.sentRecipientsWhoEntered = notices.docs.filter((doc) => {
+        const notice = doc.data() || {};
+        const submittedAt = entrantsByEmail.get(normalizeText(notice.email || "").toLowerCase());
+        return notice.deliveryStatus === "sent" && submittedAt > cutoff;
+      }).length;
+    }));
+  }
   res.json({ ok: true, schedules });
 });
 
@@ -14062,8 +14103,8 @@ export const contestscheduledemailsdispatch = onSchedule({
           }) + "\n\nManage contest notifications: https://poetryplease.org/my-submissions.html";
           try {
             const delivery = await sendAuthorInviteWithMandrill({
-              apiKey, email: recipient.email, message: { subject, text: body },
-              tag: "poetry-please-contest-notification", ...identity,
+              apiKey, email: recipient.email, message: { subject, text: body, html: renderContestNotificationHtml(body) },
+              tag: "poetry-please-contest-notification", trackClicks: true, ...identity,
             });
             await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
               deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
