@@ -12394,6 +12394,8 @@ async function contestNotificationAudience(programId) {
     db.collection("contestNotificationPreferences").where("notifyNextContest", "==", false).get(),
   ]);
   const optedOut = new Set(optOuts.docs.map((doc) => normalizeText(doc.data()?.email || "").toLowerCase()));
+  const alreadyEntered = new Set(entrants.docs.filter((doc) => doc.data()?.submissionProgramId === programId)
+    .map((doc) => normalizeText(doc.data()?.email || "").toLowerCase()));
   const byEmail = new Map();
   for (const doc of entrants.docs) {
     const row = doc.data() || {};
@@ -12404,9 +12406,11 @@ async function contestNotificationAudience(programId) {
       email, firstName: normalizeText(row.firstName || "").slice(0, 80) || "there",
     });
   }
-  const recipients = [...byEmail.values()].filter((row) => !optedOut.has(row.email))
+  const recipients = [...byEmail.values()].filter((row) => !optedOut.has(row.email) && !alreadyEntered.has(row.email))
     .sort((a, b) => a.email.localeCompare(b.email));
-  return { recipients, priorSubmitterCount: byEmail.size, optedOutCount: byEmail.size - recipients.length };
+  return { recipients, priorSubmitterCount: byEmail.size,
+    optedOutCount: [...byEmail.keys()].filter((email) => optedOut.has(email)).length,
+    alreadyEnteredCount: [...byEmail.keys()].filter((email) => alreadyEntered.has(email)).length };
 }
 
 function renderContestNotificationHtml(body) {
@@ -12441,7 +12445,8 @@ app.get(getBoth("/admin/contestNotificationAudience"), async (req, res) => {
   if (!program.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const audience = await contestNotificationAudience(programId);
   res.json({ ok: true, programId, priorSubmitterCount: audience.priorSubmitterCount,
-    optedOutCount: audience.optedOutCount, recipientCount: audience.recipients.length,
+    optedOutCount: audience.optedOutCount, alreadyEnteredCount: audience.alreadyEnteredCount,
+    recipientCount: audience.recipients.length,
     sample: audience.recipients.slice(0, 5) });
 });
 
