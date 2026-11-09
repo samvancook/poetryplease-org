@@ -1154,7 +1154,8 @@
         form.hidden = false;
         document.getElementById("contest-notification-schedule").disabled = !notificationReady;
         status.textContent = audience.priorSubmitterCount + " past submitters; " +
-          audience.optedOutCount + " turned notifications off; " + audience.recipientCount +
+          audience.optedOutCount + " turned notifications off; " +
+          Number(audience.alreadyEnteredCount || 0) + " already entered this contest; " + audience.recipientCount +
           " eligible recipients. Sample: " + audience.sample.map((row) => row.email).join(", ") +
           ". Review the subject, message, and send time below. The account-setting link is added to each email.";
       } catch (error) {
