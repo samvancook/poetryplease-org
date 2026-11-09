@@ -3752,6 +3752,7 @@ function applyScoreboardQuery(payload = {}, query = {}) {
   const type = normalizeScoreboardType(query.type);
   const book = normalizeText(query.book).toLowerCase();
   const catalog = normalizeText(query.catalog).toLowerCase();
+  const bookGroup = normalizeText(query.bookGroup);
   const hideZero = normalizeText(query.hideZero) !== "false";
   const charMin = parseOptionalCount(query.charMin);
   const charMax = parseOptionalCount(query.charMax);
@@ -3776,6 +3777,12 @@ function applyScoreboardQuery(payload = {}, query = {}) {
     : source;
   if (!user && !responseAuthor && hideZero) rows = rows.filter((row) => Number(row.totalVotes || 0) > 0);
   if (type) rows = rows.filter((row) => normalizeScoreboardType(row.type) === type);
+  if (bookGroup) {
+    rows = rows.filter((row) => matchesBookReviewGroup({
+      author: row.author,
+      book: row.originalBookTitle ?? row.bookTitle,
+    }, { bookGroup }));
+  }
   if (book) rows = rows.filter((row) => normalizeText(row.bookTitle).toLowerCase() === book);
   if (catalog) rows = rows.filter((row) => normalizeText(row.releaseCatalog).toLowerCase() === catalog);
   if ((type === "fp" || type === "exc") && (charMin !== null || charMax !== null)) {

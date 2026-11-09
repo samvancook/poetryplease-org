@@ -171,6 +171,12 @@
         <label id="typeFilterControl">Filter by type
           <select id="typeDropdown"></select>
         </label>
+        <label id="bookGroupFilterControl">Book group
+          <select id="bookGroupDropdown">
+            <option value="">All books</option>
+            <option value="chapbook-winners">Chapbook Contest Winners</option>
+          </select>
+        </label>
         <label id="bookFilterControl">Filter by book
           <select id="bookDropdown"></select>
         </label>
@@ -787,6 +793,7 @@
       fullPoemsContainer.style.display = isFullPoems ? '' : 'none';
       teamProgressContainer.style.display = isTeamProgress ? '' : 'none';
       document.getElementById('typeFilterControl').style.display = isScoreboard ? '' : 'none';
+      document.getElementById('bookGroupFilterControl').style.display = isScoreboard ? '' : 'none';
       document.getElementById('zeroVotesFilterControl').style.display = (isScoreboard || isProgressBars || isTeamProgress) ? '' : 'none';
       document.getElementById('userFilterControl').style.display = (isScoreboard || isProgressBars || isTeamProgress) ? '' : 'none';
       document.getElementById('authorResponsesControl').style.display = isScoreboard ? '' : 'none';
@@ -904,7 +911,10 @@
         .filter(Boolean)
         .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
       sel.innerHTML = '<option value="">All Types</option>' + normalized.map((type) => `<option value="${escapeHtml(type)}">${escapeHtml(formatContentTypeLabel(type))}</option>`).join('');
-      if ([...sel.options].some((option) => option.value === selected)) sel.value = selected;
+      const matchingOption = [...sel.options].find((option) =>
+        normalizeTypeForFilter(option.value) === normalizeTypeForFilter(selected)
+      );
+      if (matchingOption) sel.value = matchingOption.value;
     }
 
     function sortData() {
@@ -1483,6 +1493,8 @@
       if (user) params.set('user', user);
       if (authorResponses) params.set('authorResponses', authorResponses);
       if (type) params.set('type', type);
+      const bookGroup = document.getElementById('bookGroupDropdown').value;
+      if (bookGroup) params.set('bookGroup', bookGroup);
       if (book) params.set('book', book);
       if (catalog) params.set('catalog', catalog);
       if (charMin) params.set('charMin', charMin);
@@ -1765,6 +1777,18 @@
     }
 
     async function init() {
+      const params = new URLSearchParams(location.search);
+      if (params.get('bookGroup') === 'chapbook-winners') {
+        document.getElementById('bookGroupDropdown').value = 'chapbook-winners';
+        currentSortKey = 'score';
+        currentSortDir = -1;
+        document.querySelector('#scoreboard th[data-column="score"]').classList.add('desc');
+        if (normalizeTypeForFilter(params.get('type')) === 'qi') {
+          const typeDropdown = document.getElementById('typeDropdown');
+          typeDropdown.add(new Option(formatContentTypeLabel('QI'), 'QI', true, true));
+        }
+      }
+      document.getElementById('bookGroupDropdown').addEventListener('change', filterData);
       wireSortHeaders();
       updateCharacterCountControlsVisibility();
       document.getElementById('userDropdown').addEventListener('change', () => {
