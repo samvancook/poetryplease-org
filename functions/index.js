@@ -1513,6 +1513,24 @@ async function getVoteDocsByUser(userId) {
   return list;
 }
 
+// Reads the vote documents whose userId is one of the given ids, using
+// equality "in" queries (30 ids per query) instead of a full collection scan.
+export async function getVoteDocsForUserIds(userIds, { firestore = db } = {}) {
+  const ids = Array.from(new Set(Array.from(userIds || []).filter(Boolean)));
+  const results = [];
+  for (let i = 0; i < ids.length; i += 30) {
+    const chunk = ids.slice(i, i + 30);
+    const base = firestore.collection(COLLECTIONS.votes).where("userId", "in", chunk).limit(1000);
+    let page = await base.get();
+    while (!page.empty) {
+      page.forEach((doc) => results.push(doc.data() || {}));
+      if (page.size < 1000) break;
+      page = await base.startAfter(page.docs[page.docs.length - 1]).get();
+    }
+  }
+  return results;
+}
+
 async function getAllVotes(reason = "unspecified") {
   const startedAt = Date.now();
   const list = [];
@@ -5118,29 +5136,33 @@ async function buildFlaggedContentIds() {
   }
   const authorVoteUserIds = await getAuthorVoteUserIds();
   if (authorVoteUserIds.size) {
+    // Read only the author accounts' votes. This used to page through the whole
+    // votes collection every time the 2-minute cache expired, on every instance.
+    const startedAt = Date.now();
     const latestAuthorVotes = new Map();
-    let votePage = await db.collection(COLLECTIONS.votes).limit(1000).get();
-    while (!votePage.empty) {
-      votePage.forEach((doc) => {
-        const data = doc.data() || {};
-        if (data.supersededAt) return;
-        const userId = normalizeKey(data.userId || "");
-        const imageId = normalizeKey(data.imageId || "");
-        if (!authorVoteUserIds.has(userId) || !imageId) return;
-        const key = `${userId}|${imageId}`;
-        const time = timestampToMs(data.timestamp);
-        const current = latestAuthorVotes.get(key);
-        if (!current || time >= current.time) {
-          latestAuthorVotes.set(key, {
-            imageId,
-            voteType: normalizeKey(data.voteType || ""),
-            time,
-          });
-        }
-      });
-      const last = votePage.docs[votePage.docs.length - 1];
-      votePage = await db.collection(COLLECTIONS.votes).startAfter(last).limit(1000).get();
-    }
+    const voteDocs = await getVoteDocsForUserIds(authorVoteUserIds);
+    voteDocs.forEach((data) => {
+      if (data.supersededAt) return;
+      const userId = normalizeKey(data.userId || "");
+      const imageId = normalizeKey(data.imageId || "");
+      if (!authorVoteUserIds.has(userId) || !imageId) return;
+      const key = `${userId}|${imageId}`;
+      const time = timestampToMs(data.timestamp);
+      const current = latestAuthorVotes.get(key);
+      if (!current || time >= current.time) {
+        latestAuthorVotes.set(key, {
+          imageId,
+          voteType: normalizeKey(data.voteType || ""),
+          time,
+        });
+      }
+    });
+    console.info("author_votes_scoped_read", {
+      reason: "flagged_content",
+      authorIdCount: authorVoteUserIds.size,
+      documentCount: voteDocs.length,
+      durationMs: Date.now() - startedAt,
+    });
     latestAuthorVotes.forEach((vote) => {
       if (vote.voteType === "dislike") ids.add(vote.imageId);
     });
