@@ -6476,19 +6476,6 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta }));
 });
 
-// submitVote
-app.post(getBoth("/submitVote"), async (req, res) => {
-  const { imageId, voteType, userId } = req.body || {};
-  if (!imageId || !voteType || !userId) return res.status(400).json({ error: "bad request" });
-  await db.collection(COLLECTIONS.votes).add({
-    imageId,
-    voteType,
-    userId,
-    timestamp: FieldValue.serverTimestamp(),
-  });
-  res.json({ ok: true });
-});
-
 // nextAnonymousId
 app.post(getBoth("/nextAnonymousId"), async (_req, res) => {
   const ref = db.collection("admin").doc("anonCounter");
@@ -10224,9 +10211,11 @@ app.get(getBoth("/internal/userCoverage"), async (req, res) => {
   if (!email) return res.status(400).json({ error: "missing_email" });
 
   try {
-    const [allContent, votes, flaggedIds] = await Promise.all([
+    // Read only this user's votes; a full votes scan here was a billing hot path.
+    const userIdVariants = Array.from(new Set([email, normalizeText(req.query?.email)].filter(Boolean)));
+    const [allContent, votedIdSets, flaggedIds] = await Promise.all([
       getAllContentCached(),
-      getAllVotes("user_coverage"),
+      Promise.all(userIdVariants.map((userId) => getUniqueVotedImageIdsByUser(userId))),
       getFlaggedContentIds(),
     ]);
     const matching = allContent.filter((item) => (
@@ -10235,12 +10224,7 @@ app.get(getBoth("/internal/userCoverage"), async (req, res) => {
       && normalizeText(item.imageId)
     ));
     const eligible = matching.filter((item) => !flaggedIds.has(normalizeKey(item.imageId)));
-    const votedIds = new Set(
-      votes
-        .filter((vote) => normalizeText(vote.userId).toLowerCase() === email)
-        .map((vote) => normalizeKey(vote.imageId))
-        .filter(Boolean)
-    );
+    const votedIds = new Set(votedIdSets.flatMap((ids) => Array.from(ids)).map(normalizeKey).filter(Boolean));
     const remaining = eligible.filter((item) => !votedIds.has(normalizeKey(item.imageId)));
 
     res.json({
