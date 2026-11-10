@@ -1513,6 +1513,24 @@ async function getVoteDocsByUser(userId) {
   return list;
 }
 
+// Reads the vote documents whose userId is one of the given ids, using
+// equality "in" queries (30 ids per query) instead of a full collection scan.
+export async function getVoteDocsForUserIds(userIds, { firestore = db } = {}) {
+  const ids = Array.from(new Set(Array.from(userIds || []).filter(Boolean)));
+  const results = [];
+  for (let i = 0; i < ids.length; i += 30) {
+    const chunk = ids.slice(i, i + 30);
+    const base = firestore.collection(COLLECTIONS.votes).where("userId", "in", chunk).limit(1000);
+    let page = await base.get();
+    while (!page.empty) {
+      page.forEach((doc) => results.push(doc.data() || {}));
+      if (page.size < 1000) break;
+      page = await base.startAfter(page.docs[page.docs.length - 1]).get();
+    }
+  }
+  return results;
+}
+
 async function getAllVotes(reason = "unspecified") {
   const startedAt = Date.now();
   const list = [];
@@ -5118,29 +5136,33 @@ async function buildFlaggedContentIds() {
   }
   const authorVoteUserIds = await getAuthorVoteUserIds();
   if (authorVoteUserIds.size) {
+    // Read only the author accounts' votes. This used to page through the whole
+    // votes collection every time the 2-minute cache expired, on every instance.
+    const startedAt = Date.now();
     const latestAuthorVotes = new Map();
-    let votePage = await db.collection(COLLECTIONS.votes).limit(1000).get();
-    while (!votePage.empty) {
-      votePage.forEach((doc) => {
-        const data = doc.data() || {};
-        if (data.supersededAt) return;
-        const userId = normalizeKey(data.userId || "");
-        const imageId = normalizeKey(data.imageId || "");
-        if (!authorVoteUserIds.has(userId) || !imageId) return;
-        const key = `${userId}|${imageId}`;
-        const time = timestampToMs(data.timestamp);
-        const current = latestAuthorVotes.get(key);
-        if (!current || time >= current.time) {
-          latestAuthorVotes.set(key, {
-            imageId,
-            voteType: normalizeKey(data.voteType || ""),
-            time,
-          });
-        }
-      });
-      const last = votePage.docs[votePage.docs.length - 1];
-      votePage = await db.collection(COLLECTIONS.votes).startAfter(last).limit(1000).get();
-    }
+    const voteDocs = await getVoteDocsForUserIds(authorVoteUserIds);
+    voteDocs.forEach((data) => {
+      if (data.supersededAt) return;
+      const userId = normalizeKey(data.userId || "");
+      const imageId = normalizeKey(data.imageId || "");
+      if (!authorVoteUserIds.has(userId) || !imageId) return;
+      const key = `${userId}|${imageId}`;
+      const time = timestampToMs(data.timestamp);
+      const current = latestAuthorVotes.get(key);
+      if (!current || time >= current.time) {
+        latestAuthorVotes.set(key, {
+          imageId,
+          voteType: normalizeKey(data.voteType || ""),
+          time,
+        });
+      }
+    });
+    console.info("author_votes_scoped_read", {
+      reason: "flagged_content",
+      authorIdCount: authorVoteUserIds.size,
+      documentCount: voteDocs.length,
+      durationMs: Date.now() - startedAt,
+    });
     latestAuthorVotes.forEach((vote) => {
       if (vote.voteType === "dislike") ids.add(vote.imageId);
     });
@@ -6476,19 +6498,6 @@ app.post(getBoth("/fetchDataAnon"), async (req, res) => {
   res.json(buildFeedPayload({ all, votedIds, limit, includeDomainMeta }));
 });
 
-// submitVote
-app.post(getBoth("/submitVote"), async (req, res) => {
-  const { imageId, voteType, userId } = req.body || {};
-  if (!imageId || !voteType || !userId) return res.status(400).json({ error: "bad request" });
-  await db.collection(COLLECTIONS.votes).add({
-    imageId,
-    voteType,
-    userId,
-    timestamp: FieldValue.serverTimestamp(),
-  });
-  res.json({ ok: true });
-});
-
 // nextAnonymousId
 app.post(getBoth("/nextAnonymousId"), async (_req, res) => {
   const ref = db.collection("admin").doc("anonCounter");
@@ -6523,7 +6532,9 @@ app.post(getBoth("/vote"), async (req, res) => {
     if (normalizeKey(voteType) === "dislike") {
       await invalidateRatingsSnapshot();
     }
-    await invalidateScoreboardSnapshot(`vote_created:${imageId}`);
+    // The scoreboard snapshot is not invalidated per vote: each invalidation made the
+    // next scoreboard/P.I.G. read rescan every vote. It refreshes on its
+    // SCOREBOARD_SNAPSHOT_TTL_MS (30 min) or via /admin/scoreboard/refresh.
     res.status(204).end(); // success
   } catch (err) {
     console.error("Vote error:", err);
@@ -10224,9 +10235,11 @@ app.get(getBoth("/internal/userCoverage"), async (req, res) => {
   if (!email) return res.status(400).json({ error: "missing_email" });
 
   try {
-    const [allContent, votes, flaggedIds] = await Promise.all([
+    // Read only this user's votes; a full votes scan here was a billing hot path.
+    const userIdVariants = Array.from(new Set([email, normalizeText(req.query?.email)].filter(Boolean)));
+    const [allContent, votedIdSets, flaggedIds] = await Promise.all([
       getAllContentCached(),
-      getAllVotes("user_coverage"),
+      Promise.all(userIdVariants.map((userId) => getUniqueVotedImageIdsByUser(userId))),
       getFlaggedContentIds(),
     ]);
     const matching = allContent.filter((item) => (
@@ -10235,12 +10248,7 @@ app.get(getBoth("/internal/userCoverage"), async (req, res) => {
       && normalizeText(item.imageId)
     ));
     const eligible = matching.filter((item) => !flaggedIds.has(normalizeKey(item.imageId)));
-    const votedIds = new Set(
-      votes
-        .filter((vote) => normalizeText(vote.userId).toLowerCase() === email)
-        .map((vote) => normalizeKey(vote.imageId))
-        .filter(Boolean)
-    );
+    const votedIds = new Set(votedIdSets.flatMap((ids) => Array.from(ids)).map(normalizeKey).filter(Boolean));
     const remaining = eligible.filter((item) => !votedIds.has(normalizeKey(item.imageId)));
 
     res.json({
