@@ -6532,7 +6532,9 @@ app.post(getBoth("/vote"), async (req, res) => {
     if (normalizeKey(voteType) === "dislike") {
       await invalidateRatingsSnapshot();
     }
-    await invalidateScoreboardSnapshot(`vote_created:${imageId}`);
+    // The scoreboard snapshot is not invalidated per vote: each invalidation made the
+    // next scoreboard/P.I.G. read rescan every vote. It refreshes on its
+    // SCOREBOARD_SNAPSHOT_TTL_MS (30 min) or via /admin/scoreboard/refresh.
     res.status(204).end(); // success
   } catch (err) {
     console.error("Vote error:", err);
