@@ -1,0 +1,51 @@
+name: Startup probe
+
+# Read-only check of production startup. Run it by hand from the Actions tab.
+# It deploys nothing and writes no data.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Server bootstrap timing
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 3 --retry-delay 5 "https://poetryplease.org/api/healthz"
+          echo
+          # Read-only requests from a fixed synthetic visitor that never votes.
+          for body in '{"anonId":"local-citiming01","limit":20,"welcome":true,"includeRatingsSummary":false}' \
+                      '{"anonId":"local-citiming01","limit":20,"welcome":true,"includeRatingsSummary":false}' \
+                      '{"anonId":"local-citiming01","limit":20,"includeRatingsSummary":false}'; do
+            curl --fail --silent --show-error \
+              -X POST -H "Content-Type: application/json" -d "$body" \
+              -D /tmp/bootstrap-headers.txt -o /dev/null \
+              -w "bootstrap http=%{http_code} total=%{time_total}s bytes=%{size_download}\n" \
+              "https://poetryplease.org/api/bootstrap"
+            grep -i '^server-timing:' /tmp/bootstrap-headers.txt || echo "server-timing: not present"
+          done
+
+      - name: Install browser
+        run: |
+          mkdir -p /tmp/probe && cd /tmp/probe
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1.49.1 >/dev/null
+          npx playwright install --with-deps chromium >/dev/null
+
+      - name: Anonymous browser start on Desktop, classic mobile and Swipe
+        run: |
+          cp scripts/startup-probe.mjs /tmp/probe/
+          cd /tmp/probe && node startup-probe.mjs
