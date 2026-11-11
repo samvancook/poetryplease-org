@@ -184,6 +184,23 @@ jobs:
           curl --fail --silent --show-error --retry 6 --retry-delay 10             -H "x-api-key: $pig_key"             "https://poetryplease.org/api/internal/coverageCounts?lane=INT_FPI" >/dev/null
           echo "Authenticated Poetry Please smoke tests passed."
 
+      - name: Public health and anonymous bootstrap timing
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 6 --retry-delay 10 "https://poetryplease.org/api/healthz"
+          echo
+          # Read-only requests from a fixed synthetic visitor that never votes.
+          for body in '{"anonId":"local-citiming01","limit":20,"welcome":true,"includeRatingsSummary":false}' \
+                      '{"anonId":"local-citiming01","limit":20,"welcome":true,"includeRatingsSummary":false}' \
+                      '{"anonId":"local-citiming01","limit":20,"includeRatingsSummary":false}'; do
+            curl --fail --silent --show-error --retry 3 --retry-delay 10 \
+              -X POST -H "Content-Type: application/json" -d "$body" \
+              -D /tmp/bootstrap-headers.txt -o /dev/null \
+              -w "bootstrap http=%{http_code} total=%{time_total}s bytes=%{size_download}\n" \
+              "https://poetryplease.org/api/bootstrap"
+            grep -i '^server-timing:' /tmp/bootstrap-headers.txt || echo "server-timing: not present"
+          done
+
 
       - name: Apply safe P.I.G. ID hygiene migration
         if: steps.changes.outputs.functions == 'true' && contains(github.event.head_commit.message, '[apply-pig-hygiene]')
