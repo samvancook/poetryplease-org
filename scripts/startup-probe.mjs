@@ -9,24 +9,40 @@ const routes = [
   ["Classic mobile", "/mobile.html?debugLoad=1", { width: 390, height: 844 }, "#media-wrap"],
   ["Swipe", "/m", { width: 390, height: 844 }, "#feed"],
 ];
-const passes = Number(process.env.PP_PROBE_PASSES || 2);
+// Two passes on the runner's fast network, then one shaped like a mid-range
+// phone connection (about 1.6 Mbps down, 150 ms latency).
+const passes = [
+  { label: "fast-1" },
+  { label: "fast-2" },
+  { label: "slow-phone", throttle: { offline: false, latency: 150, downloadThroughput: 200 * 1024, uploadThroughput: 94 * 1024 } },
+];
 
 const browser = await chromium.launch({ channel: "chrome" });
 let failed = false;
-for (let pass = 1; pass <= passes; pass += 1) {
+for (const { label: pass, throttle } of passes) {
   for (const [name, route, viewport, rootSelector] of routes) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
+    if (throttle) {
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Network.enable");
+      await cdp.send("Network.emulateNetworkConditions", throttle);
+    }
+    const sizes = [];
+    page.on("requestfinished", async (request) => {
+      try {
+        const size = (await request.sizes()).responseBodySize;
+        const url = new URL(request.url());
+        sizes.push({ kb: Math.round(size / 1024), at: Date.now() - started, url: (url.host === new URL(base).host ? "" : url.host) + url.pathname.slice(0, 70) });
+      } catch { /* page closed */ }
+    });
     const errors = [];
     const api = [];
-    let bytes = 0;
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("response", async (response) => {
       const url = new URL(response.url());
       const request = response.request();
       const timing = request.timing();
-      const size = Number(response.headers()["content-length"] || 0);
-      bytes += size;
       if (url.pathname.startsWith("/api/")) {
         api.push({
           path: url.pathname,
@@ -41,7 +57,7 @@ for (let pass = 1; pass <= passes; pass += 1) {
     let firstCardMs = null;
     let text = "";
     try {
-      await page.goto(base + route, { waitUntil: "domcontentloaded", timeout: 60000 });
+      await page.goto(base + route, { waitUntil: "domcontentloaded", timeout: 90000 });
       await page.waitForFunction((selector) => {
         const loader = document.getElementById("pp-loader");
         if (loader && getComputedStyle(loader).display !== "none"
@@ -52,7 +68,7 @@ for (let pass = 1; pass <= passes; pass += 1) {
         const media = [...root.querySelectorAll("img")].some((img) => img.naturalWidth > 0 && visible(img))
           || [...root.querySelectorAll("video, iframe")].some(visible);
         return media || (root.innerText || "").trim().length > 20;
-      }, rootSelector, { timeout: 45000 });
+      }, rootSelector, { timeout: throttle ? 90000 : 45000 });
       firstCardMs = Date.now() - started;
       await page.waitForTimeout(1500);
       text = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, " ").slice(0, 140);
@@ -62,7 +78,10 @@ for (let pass = 1; pass <= passes; pass += 1) {
     const marks = await page.evaluate(() => (window.PP_LOAD_TIMING?.rows || [])
       .map((row) => `${row.ms}ms ${row.label}`)).catch(() => []);
     if (firstCardMs === null || errors.length) failed = true;
-    console.log(JSON.stringify({ pass, name, firstCardMs, declaredKB: Math.round(bytes / 1024), api, marks, errors, text }));
+    const beforeCard = sizes.filter((entry) => firstCardMs === null || entry.at <= firstCardMs);
+    const totalKB = (list) => list.reduce((sum, entry) => sum + entry.kb, 0);
+    const largest = sizes.slice().sort((a, b) => b.kb - a.kb).slice(0, 6).map((entry) => `${entry.kb}KB@${entry.at}ms ${entry.url}`);
+    console.log(JSON.stringify({ pass, name, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, api, marks, errors, text }));
     await context.close();
   }
 }
