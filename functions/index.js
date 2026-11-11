@@ -5365,6 +5365,7 @@ app.get(getBoth("/ratingsSummary"), async (_req, res) => {
 });
 
 app.post(getBoth("/bootstrap"), async (req, res) => {
+  const requestStartedAt = Date.now();
   const decoded = await verifyIdTokenFromHeader(req);
   const anonId = normalizeText(req.body?.anonId);
   const userId = decoded?.email || anonId;
@@ -5374,23 +5375,33 @@ app.post(getBoth("/bootstrap"), async (req, res) => {
   const welcome = !decoded?.email && req.body?.welcome === true;
   const includeRatingsSummary = welcome || req.body?.includeRatingsSummary !== false;
 
+  // Measurement only: each step still starts at the same moment and runs in parallel.
+  const startedAt = Date.now();
+  const timings = { auth: startedAt - requestStartedAt };
+  const timed = (name, promise) => promise.finally(() => { timings[name] = Date.now() - startedAt; });
   const tasks = [
-    getAllContentCached(),
-    getFlaggedContentIds(),
-    getUniqueVotedImageIdsByUser(userId),
-    canSeeFullPoemsInReview(decoded),
+    timed("content", getAllContentCached()),
+    timed("flagged", getFlaggedContentIds()),
+    timed("voted", getUniqueVotedImageIdsByUser(userId)),
+    timed("access", canSeeFullPoemsInReview(decoded)),
   ];
 
   if (includeRatingsSummary) {
-    tasks.push(getRatingsSummaryCached());
+    tasks.push(timed("ratings", getRatingsSummaryCached()));
   }
 
   const [allContent, flaggedIds, votedIds, canSeeFullPoems, ratingsSummary = null] = await Promise.all(tasks);
+  const buildStartedAt = Date.now();
   const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
-  res.json(buildFeedPayload({
+  const payload = buildFeedPayload({
     all, votedIds, limit, includeDomainMeta: false, ratingsSummary, welcome,
     includeFullRatingsSummary: req.body?.includeRatingsSummary !== false,
-  }));
+  });
+  timings.build = Date.now() - buildStartedAt;
+  timings.total = Date.now() - requestStartedAt;
+  console.info("bootstrap_timing", { ...timings, welcome, signedIn: !!decoded?.email, votedCount: votedIds.size });
+  res.set("Server-Timing", Object.entries(timings).map(([name, ms]) => `${name};dur=${ms}`).join(", "));
+  res.json(payload);
 });
 
 app.post(getBoth("/fetchFiltered"), async (req, res) => {
