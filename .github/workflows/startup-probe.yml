@@ -42,8 +42,8 @@ jobs:
         run: |
           mkdir -p /tmp/probe && cd /tmp/probe
           npm init -y >/dev/null
-          npm install --no-audit --no-fund playwright@1.49.1 >/dev/null
-          npx playwright install --with-deps chromium >/dev/null
+          # Uses the Chrome already on the runner, so nothing else is downloaded.
+          npm install --no-audit --no-fund playwright-core@1.49.1 >/dev/null
 
       - name: Anonymous browser start on Desktop, classic mobile and Swipe
         run: |
