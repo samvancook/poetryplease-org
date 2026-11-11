@@ -1,7 +1,7 @@
 // Read-only production startup probe. Opens each public entry route as a new
 // anonymous visitor and reports how long the first readable card takes.
 // It never votes, signs in or writes data.
-import { chromium } from "playwright";
+import { chromium } from "playwright-core";
 
 const base = process.env.PP_PROBE_BASE || "https://poetryplease.org";
 const routes = [
@@ -11,7 +11,7 @@ const routes = [
 ];
 const passes = Number(process.env.PP_PROBE_PASSES || 2);
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ channel: "chrome" });
 let failed = false;
 for (let pass = 1; pass <= passes; pass += 1) {
   for (const [name, route, viewport, rootSelector] of routes) {
