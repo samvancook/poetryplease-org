@@ -3225,6 +3225,35 @@ function buildFilteredList(data) {
   }));
 }
 
+// ===== First card first (mobile) =====
+// On the mobile viewer, background downloads wait until the first card's media
+// has settled, so they cannot compete with it on a slow connection. Other
+// viewers run the work immediately, exactly as before.
+const FIRST_CARD_MAX_WAIT_MS = 15000;
+let firstCardSettled = false;
+const firstCardWaiters = [];
+function markFirstCardSettled() {
+  if (firstCardSettled) return;
+  firstCardSettled = true;
+  LoadTiming.mark('firstCardSettled');
+  firstCardWaiters.splice(0).forEach((fn) => fn());
+}
+function afterFirstCard(fn) {
+  if (!IS_MOBILE_UI || IS_EMBED_UI || firstCardSettled) { fn(); return; }
+  let done = false;
+  const once = () => {
+    if (done) return;
+    done = true;
+    try { fn(); } catch (err) { console.warn('[PP] deferred startup work failed', err); }
+  };
+  firstCardWaiters.push(once);
+  setTimeout(once, FIRST_CARD_MAX_WAIT_MS);
+}
+function preloadAround(start) {
+  safePreload(start);
+  afterFirstCard(() => { for (let k = 1; k <= PRELOAD_AHEAD; k++) safePreload(idx + k); });
+}
+
 // ===== Preload =====
 function preloadAsset(src, type) {
   if (!src) return Promise.resolve();
@@ -3246,7 +3275,7 @@ function preloadAsset(src, type) {
   preloadCache.set(src, p); return p;
 }
 function displayMediaUrl(item) {
-  if (!IS_MOBILE_UI && !IS_EMBED_UI && !item.assetSet?.length &&
+  if (!IS_EMBED_UI && !item.assetSet?.length &&
       ['QI', 'INT', 'FPI'].includes(item.imageType) &&
       /^https:\/\//i.test(item.displayPreviewUrl || '')) {
     return item.displayPreviewUrl;
@@ -3481,7 +3510,7 @@ function initQueueFromData(data) {
   // the visual-first pool order.
   idx = 0;
   historyStack.length = 0;
-  for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
+  preloadAround(idx);
   renderWhenReady(idx);
 }
 
@@ -3499,7 +3528,7 @@ function rebuildQueueAfterFilter() {
   }
   const pos = keepId ? queue.findIndex(g => g.id === keepId) : -1;
   idx = pos >= 0 ? pos : 0;
-  for (let k=0; k<=PRELOAD_AHEAD; k++) safePreload(idx + k);
+  preloadAround(idx);
   renderWhenReady(idx);
 }
 
@@ -3912,7 +3941,16 @@ function renderItemMedia(item) {
   img.style.height = 'auto';
 
   box.appendChild(img);
-  if (hasPreview) {
+  if (hasPreview && IS_MOBILE_UI) {
+    // Phones show the light preview; the original loads only when zooming in.
+    img.addEventListener('touchstart', (e) => {
+      if (e.touches?.length !== 2 || img.dataset.fullRequested) return;
+      img.dataset.fullRequested = '1';
+      const full = new Image();
+      full.onload = () => { if (img.isConnected) img.src = item.mediaUrl; };
+      full.src = item.mediaUrl;
+    }, { passive: true });
+  } else if (hasPreview) {
     const originalLink = document.createElement('a');
     originalLink.className = 'original-graphic-link';
     originalLink.href = item.mediaUrl;
@@ -3992,16 +4030,20 @@ function renderItemMedia(item) {
   }
   if (img) img.addEventListener('load', () => {
     LoadTiming.mark('firstMediaLoaded', 'image');
+    markFirstCardSettled();
     requestAnimationFrame(adjustViewportFit);
   }, { once: true });
   if (v) {
     const recalc = () => {
       LoadTiming.mark('firstMediaLoaded', 'video');
+      markFirstCardSettled();
       requestAnimationFrame(adjustViewportFit);
     };
     v.addEventListener('loadedmetadata', recalc, { once: true });
     v.addEventListener('canplay',        recalc, { once: true });
   }
+  if (img) img.addEventListener('error', markFirstCardSettled, { once: true });
+  if (!img && !v) markFirstCardSettled();
 }
 function renderCurrent(item) {
   if (sessionFlaggedContentIds.has(normalizeFilterValue(item?.id))) return;
@@ -4372,7 +4414,7 @@ async function ppAutoloadFirstItem() {
         }
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
-        if (IS_MOBILE_UI && !IS_EMBED_UI) hydrateFullFeedInBackground();
+        if (IS_MOBILE_UI && !IS_EMBED_UI) afterFirstCard(() => hydrateFullFeedInBackground());
 
         if (!currentItem && (!Array.isArray(queue) || !queue.length)) {
           console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
