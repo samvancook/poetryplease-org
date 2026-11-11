@@ -1465,26 +1465,79 @@ async function getVotesByUser(userId) {
   return list;
 }
 
-async function getUniqueVotedImageIdsByUser(userId) {
+// A signed-in bootstrap used to re-read every vote the user had ever cast. The
+// voted list is now kept in this instance's memory and reused while one cheap
+// count query confirms the user's vote documents have not changed. Votes
+// recorded by this instance are added in place. Anything else that changes the
+// count (a vote through another instance, an account merge) forces a full
+// re-read, and the short lifetime bounds changes that keep the count the same
+// (a vote superseded after a content correction).
+const VOTED_IDS_CACHE_TTL_MS = 10 * 60 * 1000;
+const VOTED_IDS_CACHE_MAX_USERS = 500;
+const votedIdsCache = new Map();
+
+function votedIdKey(imageId) {
+  return normalizeText(imageId || "").toLowerCase();
+}
+
+async function readVotedImageIds(userId, firestore) {
   const ids = new Set();
-  let page = await db.collection(COLLECTIONS.votes).where("userId", "==", userId).select("imageId", "supersededAt").limit(1000).get();
+  let docCount = 0;
+  const base = () => firestore.collection(COLLECTIONS.votes).where("userId", "==", userId).select("imageId", "supersededAt");
+  let page = await base().limit(1000).get();
   while (!page.empty) {
     page.forEach((d) => {
+      docCount += 1;
       const f = d.data() || {};
       if (f.supersededAt) return;
-      const imageId = normalizeText(f.imageId || "").toLowerCase();
+      const imageId = votedIdKey(f.imageId);
       if (imageId) ids.add(imageId);
     });
     const last = page.docs[page.docs.length - 1];
-    page = await db
-      .collection(COLLECTIONS.votes)
-      .where("userId", "==", userId)
-      .select("imageId", "supersededAt")
-      .startAfter(last)
-      .limit(1000)
-      .get();
+    page = await base().startAfter(last).limit(1000).get();
   }
-  return ids;
+  return { ids, docCount };
+}
+
+export async function getUniqueVotedImageIdsByUser(userId, { firestore = db, now = Date.now } = {}) {
+  const cached = votedIdsCache.get(userId);
+  if (cached && now() - cached.loadedAt < VOTED_IDS_CACHE_TTL_MS) {
+    try {
+      const counted = await firestore.collection(COLLECTIONS.votes).where("userId", "==", userId).count().get();
+      if (Number(counted.data().count) === cached.docCount && votedIdsCache.get(userId) === cached) {
+        return new Set(cached.ids);
+      }
+    } catch (err) {
+      console.warn("voted_ids_count_failed", err?.message || err);
+    }
+  }
+  const fresh = await readVotedImageIds(userId, firestore);
+  votedIdsCache.delete(userId);
+  votedIdsCache.set(userId, { ...fresh, loadedAt: now() });
+  while (votedIdsCache.size > VOTED_IDS_CACHE_MAX_USERS) {
+    votedIdsCache.delete(votedIdsCache.keys().next().value);
+  }
+  return new Set(fresh.ids);
+}
+
+// Call after this instance has written one vote document for userId.
+// writeStartedAt is the time just before that write began. A list loaded
+// before then cannot contain the vote, so it is updated in place; a list
+// loaded during or after the write may or may not, so it is dropped.
+export function noteVoteRecorded(userId, imageId, writeStartedAt) {
+  const cached = votedIdsCache.get(userId);
+  if (!cached) return;
+  if (!(cached.loadedAt < writeStartedAt)) {
+    votedIdsCache.delete(userId);
+    return;
+  }
+  cached.docCount += 1;
+  const key = votedIdKey(imageId);
+  if (key) cached.ids.add(key);
+}
+
+export function clearVotedIdsCache() {
+  votedIdsCache.clear();
 }
 
 async function getVoteDocsByUser(userId) {
@@ -6537,7 +6590,9 @@ app.post(getBoth("/vote"), async (req, res) => {
       timestamp: FieldValue.serverTimestamp(),
     };
 
+    const voteWriteStartedAt = Date.now();
     await db.collection(COLLECTIONS.votes).add(vote);
+    noteVoteRecorded(userId, imageId, voteWriteStartedAt);
     // Keep routine votes from forcing a full historical scan on the next page load.
     // Dislikes still invalidate promptly because author dislikes exclude content.
     if (normalizeKey(voteType) === "dislike") {
