@@ -4330,6 +4330,8 @@ function onGoBack(){
 }
 
 // ===== AUTOLOAD FIRST ITEM =====
+const FIRST_RENDER_GRACE_MS = 12000;
+let firstRenderRetried = false;
 let __pp_initialLoad = false;
 let __pp_initialLoadSeq = 0;
 
@@ -4379,6 +4381,7 @@ async function ppAutoloadFirstItem() {
 
   __pp_initialLoad = true;
   const loadSeq = ++__pp_initialLoadSeq;
+  let firstRenderRequested = false;
 
   try {
     if (selectedItemId) {
@@ -4390,6 +4393,7 @@ async function ppAutoloadFirstItem() {
       historyStack.length = 0;
       safePreload(0);
       renderWhenReady(0);
+      firstRenderRequested = true;
       return;
     }
 
@@ -4419,6 +4423,8 @@ async function ppAutoloadFirstItem() {
         if (!currentItem && (!Array.isArray(queue) || !queue.length)) {
           console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
           if (loadSeq === __pp_initialLoadSeq) __pp_initialLoad = false;
+        } else {
+          firstRenderRequested = true;
         }
         return;
       }
@@ -4434,7 +4440,21 @@ async function ppAutoloadFirstItem() {
     if (loadSeq === __pp_initialLoadSeq && !currentItem) renderEmptyFilterState(undefined, true);
   } finally {
     if (loadSeq === __pp_initialLoadSeq && !currentItem && !routeItemUnavailable) {
-      __pp_initialLoad = false;
+      if (firstRenderRequested) {
+        // The first card is chosen and only waiting on its media. Keep the
+        // load marked as running so the mobile failsafe and the loader cap do
+        // not start a second copy of it; retry once if the card never arrives.
+        setTimeout(() => {
+          if (loadSeq !== __pp_initialLoadSeq || currentItem) return;
+          __pp_initialLoad = false;
+          if (firstRenderRetried) return;
+          firstRenderRetried = true;
+          LoadTiming.mark('firstRenderRetry');
+          ppAutoloadFirstItem();
+        }, FIRST_RENDER_GRACE_MS);
+      } else {
+        __pp_initialLoad = false;
+      }
     }
     if (loadSeq === __pp_initialLoadSeq && !currentItem) LoaderController.markScreenReady();
   }
