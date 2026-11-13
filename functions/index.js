@@ -13087,6 +13087,67 @@ app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
   res.json({ ok: true, assigned: selectedIds.length, reviewerEmail, programId, requested: batchSize });
 });
 
+app.post(getBoth("/admin/contestReviewAssignments/resize"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  const keepCount = Number(req.body?.keepCount);
+  const expectedHash = normalizeText(req.body?.expectedHash || "");
+  if (!programId || !/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail) || !Number.isInteger(keepCount) || keepCount < 0) {
+    return res.status(400).json({ error: "invalid_assignment_resize" });
+  }
+  const assignmentId = createHash("sha256").update(programId + "|" + reviewerEmail).digest("hex").slice(0, 40);
+  const ref = db.collection(COLLECTIONS.contestReviewAssignments).doc(assignmentId);
+  const [assignmentSnap, programSnap, submissionSnap, decisionSnap] = await Promise.all([
+    ref.get(),
+    db.collection(COLLECTIONS.submissionPrograms).doc(programId).get(),
+    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+  ]);
+  if (!assignmentSnap.exists || !programSnap.exists || assignmentSnap.data()?.programId !== programId ||
+      normalizeText(assignmentSnap.data()?.reviewerEmail || "").toLowerCase() !== reviewerEmail) {
+    return res.status(404).json({ error: "reviewer_assignment_not_found" });
+  }
+  const ids = [...new Set(assignmentSnap.data()?.submissionIds || [])];
+  if (keepCount > ids.length) return res.status(400).json({ error: "keep_count_exceeds_current_assignments" });
+  const required = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+  const submissions = new Map(submissionSnap.docs.map((doc) => [doc.id, mapSubmissionDoc(doc)]));
+  const completed = new Set(decisionSnap.docs.filter((doc) => {
+    const vote = doc.data() || {};
+    return normalizeText(vote.reviewerEmail || "").toLowerCase() === reviewerEmail && ids.includes(vote.submissionId);
+  }).map((doc) => doc.data().submissionId));
+  const protectedIds = new Set(ids.filter((id) => {
+    const row = submissions.get(id);
+    return completed.has(id) || Number(row?.contestReviewTarget || 0) > required || !!row?.contestSpotCheckBatchId;
+  }));
+  if (keepCount < protectedIds.size) return res.status(409).json({ error: "keep_count_below_completed_or_extra_reads" });
+  const keep = ids.filter((id) => protectedIds.has(id));
+  for (const id of ids) {
+    if (keep.length >= keepCount) break;
+    if (!protectedIds.has(id)) keep.push(id);
+  }
+  const keepSet = new Set(keep);
+  const keptIds = ids.filter((id) => keepSet.has(id));
+  const hash = createHash("sha256").update(JSON.stringify([ids, [...completed].sort()])).digest("hex");
+  const preview = { current: ids.length, keep: keptIds.length, remove: ids.length - keptIds.length, reviewerEmail, expectedHash: hash };
+  if (!expectedHash) return res.json({ ok: true, preview });
+  if (expectedHash !== hash) return res.status(409).json({ error: "assignment_resize_preview_changed" });
+  try {
+    await db.runTransaction(async (transaction) => {
+      const current = await transaction.get(ref);
+      if (!current.exists || JSON.stringify(current.data()?.submissionIds || []) !== JSON.stringify(assignmentSnap.data()?.submissionIds || [])) {
+        throw new Error("assignment_resize_preview_changed");
+      }
+      transaction.update(ref, { submissionIds: keptIds, updatedBy: ctx.decoded.uid, updatedAt: FieldValue.serverTimestamp() });
+    });
+  } catch (error) {
+    if (error.message === "assignment_resize_preview_changed") return res.status(409).json({ error: error.message });
+    throw error;
+  }
+  res.json({ ok: true, ...preview });
+});
+
 app.post(getBoth("/admin/contestFourthReviewBatch"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
