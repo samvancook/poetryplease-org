@@ -47,6 +47,8 @@
     .progress-table th { color:var(--muted); font-size:13px; }
     .table-wrap { overflow-x:auto; }
     .metric-row { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+    .admin-tool-group { border-top:1px solid var(--line); padding-top:16px; margin-top:20px; }
+    .admin-tool-group h3 { margin:0 0 8px; }
     .assignment-form { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:20px 0; }
     .assignment-form label { display:grid; gap:5px; }
     .assignment-form input[type="email"] { min-width:230px; }
@@ -173,6 +175,8 @@
     <details id="admin-progress" class="card" hidden>
       <summary class="admin-progress-summary">Assignments and review progress</summary>
       <div id="progress-metrics" class="metric-row"></div>
+      <div id="coverage-summary" class="status" aria-live="polite"></div>
+      <section class="admin-tool-group" aria-labelledby="initial-reads-heading"><h3 id="initial-reads-heading">Initial reads and assignments</h3>
       <p>Assign the next available entries in batches. After an entry has its first three reviews, use Queue extra reviewer beside that entry to request another named review.</p>
             <details id="contest-mail-settings-panel" style="margin-top:18px;">
               <summary style="font-weight:700;cursor:pointer;">Email sender and replies</summary>
@@ -204,10 +208,21 @@
             </details>
       <form id="assignment-form" class="assignment-form">
         <label>Reviewer’s Button Poetry email<input id="assignment-email" type="email" required placeholder="name@buttonpoetry.com"></label>
-        <label>Batch size<input id="assignment-size" type="number" min="1" max="100" value="50" required></label>
+        <label>New assignments to add (1–100)<input id="assignment-size" type="number" min="1" max="100" value="50" required></label>
         <button type="submit" class="primary">Assign next batch</button>
       </form>
+      <p>Each click adds this many to the reviewer’s existing queue. Check their current assigned count below before adding more.</p>
       <div id="assignment-status" class="status"></div>
+      <details id="resize-assignment-panel"><summary>Reduce a reviewer’s assignment queue</summary>
+        <p>This keeps completed reviews and the earliest pending assignments. Preview the exact change before applying it; no votes are deleted.</p>
+        <form id="resize-assignment-form" class="assignment-form">
+          <label>Reviewer’s Button Poetry email<input id="resize-assignment-email" type="email" required placeholder="name@buttonpoetry.com"></label>
+          <label>Keep total assignments<input id="resize-assignment-count" type="number" min="0" required></label>
+          <button type="submit">Preview reduction</button>
+        </form>
+        <div id="resize-assignment-status" class="status"></div>
+        <button id="resize-assignment-confirm" type="button" class="primary" hidden>Apply reduction</button>
+      </details>
       <div class="card" style="margin:12px 0;">
         <strong>Email a committed assignment via Mandrill</strong>
         <p>Finalist notices send when you commit a batch. For an existing assignment that still needs a notice, choose the reviewer and queue below.</p>
@@ -218,7 +233,10 @@
         </form>
         <div id="notice-status" class="status"></div>
       </div>
-      <h3>Spot check: three No votes</h3>
+      <h3>Reviewer progress</h3>
+      <div id="reviewer-progress" class="table-wrap"></div>
+      </section>
+      <section class="admin-tool-group" aria-labelledby="spot-check-heading"><h3 id="spot-check-heading">Spot check: three No votes</h3>
       <p>Randomly assign 10% of eligible three-No entries (at least 30, or all if fewer). The spot checker must not be one of the original reviewers. This adds a fourth blinded vote to each sampled entry; it does not archive anything automatically.</p>
       <form id="spot-check-form" class="assignment-form">
         <label>Spot checker’s Button Poetry email<input id="spot-check-email" type="email" required placeholder="name@buttonpoetry.com"></label>
@@ -227,8 +245,8 @@
       <div id="spot-check-status" class="status"></div>
       <a id="spot-check-link" hidden target="_blank" rel="noopener">Open reviewer spot-check link</a>
       <div id="spot-check-results" class="table-wrap"></div>
-      <h3>Reviewer progress</h3>
-      <div id="reviewer-progress" class="table-wrap"></div>
+      </section>
+      <section class="admin-tool-group" aria-label="Finalist reads">
       <details id="finalist-admin" style="margin:22px 0;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Assign finalist reads</summary>
         <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two or three independent readers for more opinions. Original voters are skipped for that poem. Committing new assignments emails the assigned readers.</p>
@@ -242,7 +260,8 @@
         <div id="finalist-progress" class="table-wrap"></div>
         <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
       </details>
-      <h3 id="review-outcomes">Review outcomes</h3>
+      </section>
+      <section class="admin-tool-group" aria-labelledby="review-outcomes"><h3 id="review-outcomes">Review outcomes</h3>
       <label>Show submissions
         <select id="outcome-view">
           <option value="complete">3+ reviews</option>
@@ -270,6 +289,7 @@
       <div id="outcome-results" class="table-wrap"></div>
       <details style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
       <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
+      </section>
     </details>
     <section id="review-card" class="card" hidden>
       <div class="topbar">
@@ -473,6 +493,15 @@
         '<span class="pill">' + report.fullyReviewed + ' fully reviewed</span>' +
         '<span class="pill">' + (report.archivedCount || 0) + ' archived</span>' +
         '<span class="pill">' + report.requiredReviewCount + ' initial reviews required per entry</span>';
+      const active = report.submissions.filter((row) => !row.archived);
+      const target = report.requiredReviewCount;
+      const missing = active.reduce((sum, row) => sum + Math.max(0, target - row.reviewCount), 0);
+      const assigned = active.reduce((sum, row) => {
+        const gap = Math.max(0, target - row.reviewCount);
+        const reviewed = new Set(row.reviewers.map((vote) => vote.reviewerEmail));
+        return sum + Math.min(gap, row.assignedTo.filter((email) => !reviewed.has(email)).length);
+      }, 0);
+      document.getElementById("coverage-summary").textContent = missing + " initial reads remain to reach " + target + " per active poem. " + assigned + " are already assigned; " + Math.max(0, missing - assigned) + " still need assignments.";
       document.getElementById("reviewer-progress").innerHTML = report.reviewers.length
         ? '<table class="progress-table"><thead><tr><th>Reviewer</th><th>Assigned</th><th>Batch done</th><th>Total reviewed</th></tr></thead><tbody>' +
           report.reviewers.map((row) => '<tr><td>' + escapeHtml(row.email) + '</td><td>' + row.assigned +
@@ -1748,6 +1777,10 @@
         status.textContent = "Choose a contest first.";
         return;
       }
+      const email = document.getElementById("assignment-email").value.trim().toLowerCase();
+      const size = Number(document.getElementById("assignment-size").value);
+      const current = state.adminProgress?.reviewers.find((row) => row.email === email)?.assigned || 0;
+      if (!window.confirm("Add up to " + size + " assignments for " + email + "? They already have " + current + " assigned; this can bring the total to " + (current + size) + ".")) return;
       status.textContent = "Assigning entries...";
       try {
         const result = await api("admin/contestReviewAssignments", {
@@ -1759,7 +1792,7 @@
           },
         });
         status.textContent = result.assigned
-          ? "Assigned " + result.assigned + " entries to " + result.reviewerEmail + "."
+          ? "Added " + result.assigned + " entries to " + result.reviewerEmail + "’s queue. Check the updated total below."
           : "No unreserved entries remain for this reviewer.";
         if (result.assigned) {
           document.getElementById("notice-email").value = result.reviewerEmail;
@@ -1769,6 +1802,35 @@
       } catch (error) {
         status.textContent = "Could not assign entries: " + error.message;
       }
+    });
+    let resizePreview = null;
+    document.getElementById("resize-assignment-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      resizePreview = null;
+      document.getElementById("resize-assignment-confirm").hidden = true;
+      const status = document.getElementById("resize-assignment-status");
+      try {
+        const body = {
+          programId: document.getElementById("program").value,
+          reviewerEmail: document.getElementById("resize-assignment-email").value.trim(),
+          keepCount: Number(document.getElementById("resize-assignment-count").value),
+        };
+        const result = await api("admin/contestReviewAssignments/resize", { method: "POST", body });
+        resizePreview = { ...body, expectedHash: result.preview.expectedHash };
+        status.textContent = "Current: " + result.preview.current + ". Keep: " + result.preview.keep + ". Remove: " + result.preview.remove + ". Completed reviews stay intact.";
+        document.getElementById("resize-assignment-confirm").hidden = result.preview.remove === 0;
+      } catch (error) { status.textContent = "Could not preview reduction: " + error.message; }
+    });
+    document.getElementById("resize-assignment-confirm").addEventListener("click", async () => {
+      if (!resizePreview) return;
+      const status = document.getElementById("resize-assignment-status");
+      document.getElementById("resize-assignment-confirm").hidden = true;
+      try {
+        const result = await api("admin/contestReviewAssignments/resize", { method: "POST", body: resizePreview });
+        status.textContent = "Removed " + result.remove + " pending assignments. " + result.keep + " remain.";
+        resizePreview = null;
+        await loadQueue();
+      } catch (error) { resizePreview = null; status.textContent = "Could not reduce queue: " + error.message + ". Preview again."; }
     });
     document.getElementById("spot-check-form").addEventListener("submit", async (event) => {
       event.preventDefault();
