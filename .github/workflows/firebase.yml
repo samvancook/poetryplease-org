@@ -1,7 +1,9 @@
 name: Deploy to Firebase
 
+# A manual preview-backfill run gets its own group so it can never displace a
+# queued deployment.
 concurrency:
-  group: firebase-${{ github.workflow }}-${{ github.ref }}
+  group: firebase-${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && inputs.preview_backfill != 'none' && '-preview-backfill' || '' }}
   cancel-in-progress: false
 
 on:
@@ -13,9 +15,26 @@ on:
     branches:
       - '**'        # run on PRs too
   workflow_dispatch:  # allow manual runs from the Actions tab
-  
+    inputs:
+      preview_backfill:
+        # Left at "none", a manual run tests and deploys as before. Any other
+        # choice runs only the display_preview_backfill job and deploys nothing.
+        #   status        read-only count of graphics with and without a light preview
+        #   request       asks for previews on the next <preview_limit> graphics that need one
+        #   retry-stalled asks again for graphics requested earlier that still have none
+        #   refresh-feed  one content-cache refresh so finished previews reach the feed
+        description: Display preview backfill (none = normal deploy)
+        type: choice
+        default: none
+        options: [none, status, request, retry-stalled, refresh-feed]
+      preview_limit:
+        description: How many graphics to request (1-100); used by request and retry-stalled
+        required: false
+        default: '25'
+
 jobs:
   test_functions:
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.preview_backfill != 'none') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -64,7 +83,7 @@ jobs:
         run: firebase emulators:exec --project demo-poetry-please --only auth,firestore,functions "node --test functions/manuscript-reconciliation.emulator.test.js"
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: ${{ github.ref == 'refs/heads/main' && !(github.event_name == 'workflow_dispatch' && inputs.preview_backfill != 'none') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -215,6 +234,53 @@ jobs:
           echo
           echo "Safe P.I.G. ID hygiene migration completed."
 
+
+  # ------------------------------------------------------------
+  # DISPLAY PREVIEW BACKFILL, started by hand only. It deploys nothing.
+  # It lives in this workflow because Google Cloud only accepts this
+  # workflow's identity. Previews are built by the graphicdisplaypreview
+  # function. Originals are never modified, and a preview is removed by
+  # clearing its fields on the graphic.
+  # ------------------------------------------------------------
+  display_preview_backfill:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill != 'none' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/609992589187/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+          create_credentials_file: true
+
+      - name: Run
+        env:
+          ACTION: ${{ inputs.preview_backfill }}
+          LIMIT: ${{ inputs.preview_limit }}
+        run: |
+          set -euo pipefail
+          case "$LIMIT" in ''|*[!0-9]*) echo "limit must be a whole number"; exit 2;; esac
+          poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
+          trap 'unset poetry_key' EXIT
+          base="https://poetryplease.org/api/internal/displayPreviews"
+          status() {
+            curl --fail-with-body --silent --show-error --max-time 120 -H "x-api-key: $poetry_key" "$base/status" | jq .
+          }
+          post() {
+            curl --fail-with-body --silent --show-error --max-time 600 -X POST \
+              -H "x-api-key: $poetry_key" -H "Content-Type: application/json" -d "$2" "$base/$1" | jq .
+          }
+          case "$ACTION" in
+            status) status ;;
+            request) post request "{\"limit\":$LIMIT}"; echo "Waiting for the previews to build..."; sleep 90; status ;;
+            retry-stalled) post request "{\"limit\":$LIMIT,\"retryStalled\":true}"; echo "Waiting for the previews to build..."; sleep 90; status ;;
+            refresh-feed) post refreshFeed '{}' ;;
+            *) echo "unknown action"; exit 2 ;;
+          esac
 
   # ------------------------------------------------------------
   # DEPLOY PREVIEW CHANNEL for non-main branches

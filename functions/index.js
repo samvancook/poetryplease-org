@@ -9809,7 +9809,7 @@ app.post(getBoth("/internal/repairWaguespackSpelling"), async (req, res) => {
 });
 
 // ----- Display preview backfill (API key only; run from the
-// display-preview-backfill workflow). Status is read-only. A run only stamps
+// display_preview_backfill job in the deploy workflow). Status is read-only. A run only stamps
 // displayPreviewRequestedAt on graphics that still need a preview; the
 // graphicdisplaypreview function then builds each one. Originals are untouched.
 async function readDisplayPreviewStatus() {
