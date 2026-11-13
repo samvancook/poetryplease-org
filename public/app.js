@@ -980,11 +980,17 @@ async function prepareOwnAuthorLane(user) {
   }
   if (!user || !currentAccount?.roles?.includes('author')) return;
   try {
-    // The authenticated author editor resolves this account's profile; do not
-    // infer a pen name from email or let the browser select another author.
-    const data = await api('my/authorProfileEditorData', { method: 'GET' });
-    if (firebase.auth().currentUser?.uid !== user.uid) return;
-    ownAuthorName = String(data?.profile?.displayName || data?.workingProfile?.displayName || '').trim();
+    // The server resolves this account's profile; do not infer a pen name from
+    // email or let the browser select another author. The account call carries
+    // the name, so the first card does not wait on the author editor's full
+    // library read. That lookup remains only as a fallback.
+    if (typeof currentAccount.authorDisplayName === 'string') {
+      ownAuthorName = currentAccount.authorDisplayName.trim();
+    } else {
+      const data = await api('my/authorProfileEditorData', { method: 'GET' });
+      if (firebase.auth().currentUser?.uid !== user.uid) return;
+      ownAuthorName = String(data?.profile?.displayName || data?.workingProfile?.displayName || '').trim();
+    }
   } catch (err) {
     console.warn('Could not resolve own author profile for feed routing', err);
     return;
