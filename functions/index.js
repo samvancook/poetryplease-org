@@ -23,7 +23,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
-import { ensureDisplayPreview, graphicImageUrl, needsDisplayPreview } from "./display-preview.js";
+import { ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
@@ -9808,6 +9808,57 @@ app.post(getBoth("/internal/repairWaguespackSpelling"), async (req, res) => {
   res.json({ ok: true, correctedAuthor, updatedCount, updatedByCollection });
 });
 
+// ----- Display preview backfill (API key only; run from the
+// display-preview-backfill workflow). Status is read-only. A run only stamps
+// displayPreviewRequestedAt on graphics that still need a preview; the
+// graphicdisplaypreview function then builds each one. Originals are untouched.
+async function readDisplayPreviewStatus() {
+  const snap = await db.collection(COLLECTIONS.graphics).select(...DISPLAY_PREVIEW_STATUS_FIELDS).get();
+  return summarizeDisplayPreviews(snap.docs.map((doc) => ({ id: doc.id, data: doc.data() || {} })));
+}
+
+app.get(getBoth("/internal/displayPreviews/status"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  try {
+    const { pending, stalled, ...summary } = await readDisplayPreviewStatus();
+    res.json({ ...summary, pendingCount: pending.length, stalledCount: stalled.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "display_preview_status_failed" });
+  }
+});
+
+app.post(getBoth("/internal/displayPreviews/request"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  try {
+    const limit = Math.max(1, Math.min(Number(req.body?.limit) || 25, 100));
+    const { pending, stalled } = await readDisplayPreviewStatus();
+    // retryStalled re-asks for graphics requested earlier that still have none.
+    const source = req.body?.retryStalled === true ? stalled : pending;
+    const chosen = source.slice(0, limit);
+    const requestedAt = new Date().toISOString();
+    // Spaced out so the two preview workers are never handed a burst.
+    for (const [index, id] of chosen.entries()) {
+      if (index) await new Promise((resolve) => setTimeout(resolve, 3000));
+      await db.collection(COLLECTIONS.graphics).doc(id).update({ displayPreviewRequestedAt: requestedAt });
+    }
+    res.json({ requested: chosen.length, requestedAt, remainingAfter: source.length - chosen.length, ids: chosen });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "display_preview_request_failed" });
+  }
+});
+
+// One content-cache refresh so finished previews reach the feed now instead of
+// at the next natural rebuild.
+app.post(getBoth("/internal/displayPreviews/refreshFeed"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  try {
+    await invalidateContentCache();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "display_preview_refresh_failed" });
+  }
+});
+
 app.get(getBoth("/internal/coverageCounts"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) {
     return res.status(401).json({ error: "invalid_api_key" });
@@ -14183,10 +14234,11 @@ export const weaverrepairnotify = onDocumentCreated({
 
 // Gives a new or replaced single graphic a light display preview, so the
 // viewers do not download a multi-megabyte original to show one card.
-// It reacts only when a graphic is created or its image changes; other edits
-// do nothing here. It never changes the original, and any failure leaves the
-// graphic showing its original as before. The feed picks the preview up the
-// next time the content cache is rebuilt.
+// It reacts only when a graphic is created, its image changes, or the backfill
+// asks for it (displayPreviewRequestedAt); other edits do nothing here. It never
+// changes the original, and any failure leaves the graphic showing its original
+// as before. The feed picks the preview up the next time the content cache is
+// rebuilt.
 export const graphicdisplaypreview = onDocumentWritten({
   document: "graphics/{docId}",
   database: "poetrypleasedatabase",
@@ -14202,7 +14254,10 @@ export const graphicdisplaypreview = onDocumentWritten({
   const data = after.data() || {};
   const imageUrl = graphicImageUrl(data);
   const before = event.data.before;
-  if (before?.exists && graphicImageUrl(before.data() || {}) === imageUrl) return;
+  const previous = before?.exists ? (before.data() || {}) : null;
+  const requested = !!data.displayPreviewRequestedAt
+    && String(data.displayPreviewRequestedAt) !== String(previous?.displayPreviewRequestedAt || "");
+  if (previous && graphicImageUrl(previous) === imageUrl && !requested) return;
   if (!needsDisplayPreview(data)) return;
   const docId = event.params.docId;
   try {
@@ -14214,7 +14269,13 @@ export const graphicdisplaypreview = onDocumentWritten({
     });
     console.log(JSON.stringify({ event: "display_preview", docId, ...result }));
   } catch (err) {
-    console.warn(JSON.stringify({ event: "display_preview_failed", docId, error: String(err?.message || err) }));
+    const message = String(err?.message || err).slice(0, 300);
+    console.warn(JSON.stringify({ event: "display_preview_failed", docId, error: message }));
+    // Recorded so the backfill status can report it. This write does not
+    // start another attempt: neither the image nor the request changes.
+    await db.collection(COLLECTIONS.graphics).doc(docId)
+      .update({ displayPreviewLastError: { message, imageUrl, at: new Date().toISOString() } })
+      .catch(() => {});
   }
 });
 

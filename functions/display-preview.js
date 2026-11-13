@@ -106,7 +106,11 @@ export async function ensureDisplayPreview({
   const attached = await runTransaction(async (tx) => {
     const current = await tx.get(docRef);
     if (!stillCurrent(current)) return false;
-    tx.update(docRef, { displayPreviewUrl: publicUrl, displayPreviewSourceUrl: imageUrl });
+    tx.update(docRef, {
+      displayPreviewUrl: publicUrl, displayPreviewSourceUrl: imageUrl,
+      displayPreviewBytes: preview.buffer.length, displayPreviewSourceBytes: source.length,
+      displayPreviewBuiltAt: new Date(now()).toISOString(),
+    });
     return true;
   });
   if (!attached) {
@@ -117,4 +121,48 @@ export async function ensureDisplayPreview({
     status: "attached", sourceBytes: source.length, previewBytes: preview.buffer.length,
     width: preview.width, height: preview.height, storagePath,
   };
+}
+
+// Fields the backfill status needs from each graphic; nothing else is read.
+export const DISPLAY_PREVIEW_STATUS_FIELDS = [
+  "imageUrl", "thumbnailUrl", "url", "driveLink", "videoUrl", "imageType", "assetSet", "title", "author",
+  "displayPreviewUrl", "displayPreviewSourceUrl", "displayPreviewCheckedUrl", "displayPreviewBytes",
+  "displayPreviewSourceBytes", "displayPreviewBuiltAt", "displayPreviewRequestedAt", "displayPreviewLastError",
+];
+
+// Summarizes where the library stands. graphics: [{ id, data }].
+// pending: graphics that still need a preview and have not been requested yet.
+// stalled: requested earlier but still without a preview (waiting or failed).
+export function summarizeDisplayPreviews(graphics, { recentLimit = 30 } = {}) {
+  const counts = { total: 0, single: 0, withPreview: 0, needsPreview: 0, requestedWaiting: 0, noGain: 0, failed: 0, notHostedHere: 0 };
+  const pending = []; const stalled = []; const built = []; const failures = [];
+  let previewBytes = 0; let sourceBytes = 0;
+  for (const { id, data } of graphics) {
+    counts.total += 1;
+    const imageUrl = graphicImageUrl(data);
+    if (!DISPLAY_PREVIEW_TYPES.has(String(data.imageType || "").toUpperCase())) continue;
+    if (Array.isArray(data.assetSet) && data.assetSet.length) continue;
+    counts.single += 1;
+    if (data.displayPreviewUrl && data.displayPreviewSourceUrl === imageUrl) {
+      counts.withPreview += 1;
+      if (data.displayPreviewBytes && data.displayPreviewSourceBytes) {
+        previewBytes += data.displayPreviewBytes; sourceBytes += data.displayPreviewSourceBytes;
+      }
+      built.push({ id, title: String(data.title || ""), author: String(data.author || ""), builtAt: String(data.displayPreviewBuiltAt || ""),
+        previewBytes: data.displayPreviewBytes || null, sourceBytes: data.displayPreviewSourceBytes || null,
+        previewUrl: data.displayPreviewUrl, originalUrl: imageUrl });
+      continue;
+    }
+    if (data.displayPreviewCheckedUrl === imageUrl) { counts.noGain += 1; continue; }
+    if (!isPreviewableSourceUrl(imageUrl)) { counts.notHostedHere += 1; continue; }
+    counts.needsPreview += 1;
+    if (data.displayPreviewLastError?.imageUrl === imageUrl) {
+      counts.failed += 1; stalled.push(id);
+      if (failures.length < recentLimit) failures.push({ id, error: String(data.displayPreviewLastError.message || "") });
+    } else if (data.displayPreviewRequestedAt) { counts.requestedWaiting += 1; stalled.push(id); }
+    else pending.push(id);
+  }
+  built.sort((a, b) => b.builtAt.localeCompare(a.builtAt));
+  pending.sort(); stalled.sort();
+  return { counts, measuredPreviewBytes: previewBytes, measuredSourceBytes: sourceBytes, recent: built.slice(0, recentLimit), failures, pending, stalled };
 }
