@@ -282,7 +282,7 @@ function renderCard(item) {
     stage.setAttribute('aria-label', 'Enlarge ' + (item.title || 'image'));
     stage.addEventListener('click', () => openImage(item, stage));
     const image = node('img');
-    image.src = item.mediaUrl;
+    image.src = item.previewUrl || item.mediaUrl;
     image.alt = [item.type === 'INT' ? 'Interior photo' : 'Graphic', item.title, item.author].filter(Boolean).join(' · ');
     image.loading = 'lazy';
     image.decoding = 'async';

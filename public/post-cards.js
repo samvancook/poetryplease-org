@@ -177,7 +177,7 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
     retry.hidden = true;
     card.append(retry);
     let loader;
-    const start = () => loader ||= bindGraphicLoad(graphic, item.mediaUrl, state => {
+    const start = () => loader ||= bindGraphicLoad(graphic, item.previewUrl || item.mediaUrl, state => {
       card.dataset.graphicState = state;
       // Keep lazy images in layout while loading so the browser fetches them.
       graphic.hidden = state === 'error';
@@ -188,12 +188,20 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
     if (deferGraphicLoad) deferGraphicLoad(card, start);
     else start();
     retry.addEventListener('click', () => { start().retry(); });
+    const preview = item.previewUrl, original = item.mediaUrl;
+    if (preview && original && preview !== original) card.addEventListener('graphiczoomstart', () => {
+      const full = new Image();
+      full.addEventListener('load', () => {
+        if (graphic.isConnected && graphic.getAttribute('src') === preview) graphic.src = original;
+      }, { once: true });
+      full.src = original;
+    }, { once: true });
     mountGraphicCardControls(card, cards, (asset, index) => {
       const url = asset.assetPreviewUrl || asset.assetUrl;
       activeGraphic = url;
       card.dataset.assetCardIndex = String(index + 1);
       if (loader) loader.changeSource(url);
-      else item = { ...item, mediaUrl: url };
+      else item = { ...item, mediaUrl: url, previewUrl: '' };
       card.dispatchEvent(new Event('graphiccardchange'));
     });
   }

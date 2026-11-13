@@ -140,7 +140,7 @@ function routeHarness(customContent, ratings = {}, votedIds = ['item-0'], bootst
       : source.slice(source.indexOf('app.post(getBoth("/fetchFiltered")'), source.indexOf('app.get(getBoth("/embedBookLead")'))), context);
   return async (body, decoded) => {
     let status = 200; let data;
-    await handler({ body, decoded }, { status(code) { status = code; return this; }, json(value) { data = JSON.parse(JSON.stringify(value)); } });
+    await handler({ body, decoded }, { set() { return this; }, status(code) { status = code; return this; }, json(value) { data = JSON.parse(JSON.stringify(value)); } });
     return { status, data };
   };
 }
@@ -330,4 +330,19 @@ test('compact bootstrap without welcome rankings retains its response and vote e
   assert.equal(compact.data.newGraphics.length, 10);
   assert.ok(compact.data.newGraphics.every(item => item[3] !== 'item-0'));
   assert.equal(compact.data.ratingsSummary, undefined);
+});
+
+test('a single graphic carries its light preview; asset sets, text and unsafe URLs do not', () => {
+  const row = (type, extra = {}) => {
+    const r = ['A', 'T', 'Book', 'id', 'https://example.com/full.png', '', '', type, ''];
+    r[17] = extra.assetSet || null;
+    if ('preview' in extra) r[19] = extra.preview;
+    return r;
+  };
+  assert.equal(normalizeScrollItem(row('QI', { preview: 'https://example.com/small.png' })).previewUrl, 'https://example.com/small.png');
+  assert.equal(normalizeScrollItem(row('QI')).previewUrl, '');
+  assert.equal(normalizeScrollItem(row('QI', { preview: 'http://example.com/small.png' })).previewUrl, '');
+  assert.equal(normalizeScrollItem(row('EXC', { preview: 'https://example.com/small.png' })).previewUrl, '');
+  assert.equal(normalizeScrollItem(row('QI', { preview: 'https://example.com/small.png', assetSet: { assets: [] } })).previewUrl, '');
+  assert.equal(normalizeScrollItem(row('QI', { preview: 'https://example.com/small.png' })).mediaUrl, 'https://example.com/full.png');
 });
