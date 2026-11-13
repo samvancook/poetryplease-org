@@ -1608,9 +1608,20 @@ async function getAllVotes(reason = "unspecified") {
   return list;
 }
 
-async function getAuthorVoteUserIds() {
+// Spellings of the author role a user document may carry. Roles are written
+// lowercase today; the other spellings keep older documents matching the way
+// the previous full-collection scan (which lowercased every role) did.
+const AUTHOR_ROLE_SPELLINGS = ["author", "Author", "AUTHOR"];
+
+// Reads only the users who hold the author role, via the roles array index.
+// This used to page through the whole users collection on every flagged-content
+// rebuild (every 2 minutes per instance), the largest remaining repeated read.
+export async function getAuthorVoteUserIds({ firestore = db } = {}) {
   const ids = new Set();
-  let page = await db.collection(COLLECTIONS.users).limit(1000).get();
+  const base = firestore.collection(COLLECTIONS.users)
+    .where("roles", "array-contains-any", AUTHOR_ROLE_SPELLINGS)
+    .limit(1000);
+  let page = await base.get();
   while (!page.empty) {
     page.forEach((doc) => {
       const data = doc.data() || {};
@@ -1619,8 +1630,8 @@ async function getAuthorVoteUserIds() {
       ids.add(normalizeKey(doc.id));
       if (data.email) ids.add(normalizeKey(data.email));
     });
-    const last = page.docs[page.docs.length - 1];
-    page = await db.collection(COLLECTIONS.users).startAfter(last).limit(1000).get();
+    if (page.size < 1000) break;
+    page = await base.startAfter(page.docs[page.docs.length - 1]).get();
   }
   return ids;
 }
