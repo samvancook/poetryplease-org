@@ -6608,16 +6608,37 @@ app.post(getBoth("/vote"), async (req, res) => {
   }
 });
 
+// The author name the viewers route by. It must match what
+// /my/authorProfileEditorData reports (profile.displayName, else the working
+// profile's), without that endpoint's full content-library read.
+export async function resolveOwnAuthorDisplayName(decoded, userRecord = {}, { firestore = db } = {}) {
+  const profileId = userRecord.authorProfileId || decoded.uid;
+  const snap = await firestore.collection(COLLECTIONS.authorProfiles).doc(profileId).get();
+  if (snap.exists) return String((snap.data() || {}).displayName || "").trim();
+  return String(decoded.name || userRecord.displayName || decoded.email || "").trim();
+}
+
 app.get(getBoth("/me"), async (req, res) => {
   const ctx = await requireDecodedUser(req, res);
   if (!ctx) return;
   const fresh = (await getUserRecord(ctx.decoded.uid)) || ctx.userRecord || {};
+  const roles = Array.isArray(fresh.roles) ? fresh.roles : ["user"];
+  let authorDisplayName = null;
+  if (roles.includes("author")) {
+    try {
+      authorDisplayName = await resolveOwnAuthorDisplayName(ctx.decoded, fresh);
+    } catch (err) {
+      // Leave it null: the viewer then falls back to the author editor lookup.
+      console.warn("Own author display name lookup failed", err);
+    }
+  }
   res.json({
     uid: ctx.decoded.uid,
     email: ctx.decoded.email || "",
     displayName: ctx.decoded.name || fresh.displayName || "",
-    roles: Array.isArray(fresh.roles) ? fresh.roles : ["user"],
+    roles,
     authorProfileId: fresh.authorProfileId || null,
+    authorDisplayName,
   });
 });
 

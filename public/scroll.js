@@ -387,9 +387,13 @@ loader.watchAuth(auth, {
     account = user?.email ? await api('me') : null;
     if (!isCurrent()) return;
     if (isAuthorOnly()) {
-      const data = await api('my/authorProfileEditorData');
-      if (!isCurrent()) return;
-      ownAuthor = String(data?.profile?.displayName || data?.workingProfile?.displayName || '').trim();
+      if (typeof account?.authorDisplayName === 'string') {
+        ownAuthor = account.authorDisplayName.trim();
+      } else {
+        const data = await api('my/authorProfileEditorData');
+        if (!isCurrent()) return;
+        ownAuthor = String(data?.profile?.displayName || data?.workingProfile?.displayName || '').trim();
+      }
       if (!ownAuthor) throw new Error('Your author profile could not be resolved. Please use the single-item view for now.');
     }
     // Author ownership and explicit staff preview are access scopes, not browsing filters.
