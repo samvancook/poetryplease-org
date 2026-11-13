@@ -5,7 +5,7 @@ import { normalizeGraphicAssetSet, validateAffectedCardIndex, repairAssetSetUpda
 import { onRequest } from "firebase-functions/v2/https";
 import { onTaskDispatched } from "firebase-functions/v2/tasks";
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { defineSecret } from "firebase-functions/params";
 import express from "express";
 import cors from "cors";
@@ -23,6 +23,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
+import { ensureDisplayPreview, graphicImageUrl, needsDisplayPreview } from "./display-preview.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
@@ -14177,6 +14178,43 @@ export const weaverrepairnotify = onDocumentCreated({
       weaverNotificationAttemptedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
     throw err;
+  }
+});
+
+// Gives a new or replaced single graphic a light display preview, so the
+// viewers do not download a multi-megabyte original to show one card.
+// It reacts only when a graphic is created or its image changes; other edits
+// do nothing here. It never changes the original, and any failure leaves the
+// graphic showing its original as before. The feed picks the preview up the
+// next time the content cache is rebuilt.
+export const graphicdisplaypreview = onDocumentWritten({
+  document: "graphics/{docId}",
+  database: "poetrypleasedatabase",
+  region: "us-central1",
+  memory: "1GiB",
+  timeoutSeconds: 120,
+  maxInstances: 2,
+  concurrency: 1,
+  retry: false,
+}, async (event) => {
+  const after = event.data?.after;
+  if (!after?.exists) return;
+  const data = after.data() || {};
+  const imageUrl = graphicImageUrl(data);
+  const before = event.data.before;
+  if (before?.exists && graphicImageUrl(before.data() || {}) === imageUrl) return;
+  if (!needsDisplayPreview(data)) return;
+  const docId = event.params.docId;
+  try {
+    const result = await ensureDisplayPreview({
+      docRef: db.collection(COLLECTIONS.graphics).doc(docId),
+      expectedImageUrl: imageUrl,
+      saveImage: saveImageUpload,
+      runTransaction: (fn) => db.runTransaction(fn),
+    });
+    console.log(JSON.stringify({ event: "display_preview", docId, ...result }));
+  } catch (err) {
+    console.warn(JSON.stringify({ event: "display_preview_failed", docId, error: String(err?.message || err) }));
   }
 });
 
