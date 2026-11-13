@@ -9832,27 +9832,41 @@ app.get(getBoth("/internal/displayPreviews/status"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
   try {
     const { pending, stalled, ...summary } = await readDisplayPreviewStatus();
-    res.json({ ...summary, pendingCount: pending.length, stalledCount: stalled.length });
+    // ?list=pending|stalled also returns those ids, so a backfill run reads
+    // the library once instead of once per batch.
+    const list = req.query.list === "pending" ? pending : req.query.list === "stalled" ? stalled : null;
+    res.json({ ...summary, pendingCount: pending.length, stalledCount: stalled.length, ...(list ? { ids: list } : {}) });
   } catch (err) {
     res.status(500).json({ error: err.message || "display_preview_status_failed" });
   }
 });
 
+const DISPLAY_PREVIEW_REQUEST_MAX_IDS = 15;
+const DISPLAY_PREVIEW_REQUEST_SPACING_MS = 3000;
 app.post(getBoth("/internal/displayPreviews/request"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
   try {
-    const limit = Math.max(1, Math.min(Number(req.body?.limit) || 25, 100));
-    const { pending, stalled } = await readDisplayPreviewStatus();
-    // retryStalled re-asks for graphics requested earlier that still have none.
-    const source = req.body?.retryStalled === true ? stalled : pending;
-    const chosen = source.slice(0, limit);
-    const requestedAt = new Date().toISOString();
-    // Spaced out so the two preview workers are never handed a burst.
-    for (const [index, id] of chosen.entries()) {
-      if (index) await new Promise((resolve) => setTimeout(resolve, 3000));
-      await db.collection(COLLECTIONS.graphics).doc(id).update({ displayPreviewRequestedAt: requestedAt });
+    // The caller names the graphics (from status?list=...). A batch is kept
+    // small so this call finishes well inside Hosting's 60 second limit.
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+    if (!ids.length || ids.length > DISPLAY_PREVIEW_REQUEST_MAX_IDS
+      || ids.some((id) => typeof id !== "string" || !id || id.length > 300 || id.includes("/"))) {
+      return res.status(400).json({ error: "invalid_ids", maxIds: DISPLAY_PREVIEW_REQUEST_MAX_IDS });
     }
-    res.json({ requested: chosen.length, requestedAt, remainingAfter: source.length - chosen.length, ids: chosen });
+    const requestedAt = new Date().toISOString();
+    const requested = []; const missing = [];
+    // Spaced out so the two preview workers are never handed a burst.
+    for (const [index, id] of ids.entries()) {
+      if (index) await new Promise((resolve) => setTimeout(resolve, DISPLAY_PREVIEW_REQUEST_SPACING_MS));
+      try {
+        await db.collection(COLLECTIONS.graphics).doc(id).update({ displayPreviewRequestedAt: requestedAt });
+        requested.push(id);
+      } catch (err) {
+        if (err?.code !== 5 && err?.code !== "not-found") throw err;
+        missing.push(id);
+      }
+    }
+    res.json({ requested: requested.length, requestedAt, ids: requested, missing });
   } catch (err) {
     res.status(500).json({ error: err.message || "display_preview_request_failed" });
   }

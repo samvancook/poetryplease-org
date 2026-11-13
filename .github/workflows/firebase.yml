@@ -28,7 +28,7 @@ on:
         default: none
         options: [none, status, request, retry-stalled, refresh-feed]
       preview_limit:
-        description: How many graphics to request (1-100); used by request and retry-stalled
+        description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
         default: '25'
 
@@ -245,7 +245,7 @@ jobs:
   display_preview_backfill:
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill != 'none' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 340
     permissions:
       contents: read
       id-token: write
@@ -264,21 +264,41 @@ jobs:
         run: |
           set -euo pipefail
           case "$LIMIT" in ''|*[!0-9]*) echo "limit must be a whole number"; exit 2;; esac
+          if [ "$LIMIT" -lt 1 ] || [ "$LIMIT" -gt 5000 ]; then echo "limit must be 1-5000"; exit 2; fi
           poetry_key="$(gcloud secrets versions access latest --secret=POETRY_PLEASE_API_KEY --project poetry-please)"
           trap 'unset poetry_key' EXIT
           base="https://poetryplease.org/api/internal/displayPreviews"
-          status() {
-            curl --fail-with-body --silent --show-error --max-time 120 -H "x-api-key: $poetry_key" "$base/status" | jq .
+          get() {
+            curl --fail-with-body --silent --show-error --max-time 120 --retry 3 --retry-delay 10 -H "x-api-key: $poetry_key" "$base/$1"
           }
           post() {
-            curl --fail-with-body --silent --show-error --max-time 600 -X POST \
-              -H "x-api-key: $poetry_key" -H "Content-Type: application/json" -d "$2" "$base/$1" | jq .
+            curl --fail-with-body --silent --show-error --max-time 58 -X POST \
+              -H "x-api-key: $poetry_key" -H "Content-Type: application/json" -d "$2" "$base/$1"
+          }
+          # Reads the library once, then asks for previews 15 graphics at a
+          # time (the server spaces them three seconds apart). Stops at the
+          # first failed batch; a rerun picks up whatever is still pending.
+          run_batches() {
+            get "status?list=$1" | jq -c --argjson limit "$LIMIT" '.ids[:$limit] | _nwise(15) | {ids: .}' > batches.jsonl
+            total="$(jq -s 'map(.ids | length) | add // 0' batches.jsonl)"
+            echo "Requesting previews for $total graphics."
+            done_count=0
+            while IFS= read -r batch; do
+              result="$(post request "$batch")"
+              done_count=$((done_count + $(jq '.requested' <<<"$result")))
+              missing="$(jq -c '.missing' <<<"$result")"
+              if [ "$missing" != "[]" ]; then echo "Not found: $missing"; fi
+              echo "Requested $done_count of $total"
+            done < batches.jsonl
+            echo "Waiting for the last previews to build..."
+            sleep 60
+            get status | jq 'del(.recent)'
           }
           case "$ACTION" in
-            status) status ;;
-            request) post request "{\"limit\":$LIMIT}"; echo "Waiting for the previews to build..."; sleep 90; status ;;
-            retry-stalled) post request "{\"limit\":$LIMIT,\"retryStalled\":true}"; echo "Waiting for the previews to build..."; sleep 90; status ;;
-            refresh-feed) post refreshFeed '{}' ;;
+            status) get status | jq . ;;
+            request) run_batches pending ;;
+            retry-stalled) run_batches stalled ;;
+            refresh-feed) post refreshFeed '{}' | jq . ;;
             *) echo "unknown action"; exit 2 ;;
           esac
 
