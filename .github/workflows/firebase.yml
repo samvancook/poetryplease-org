@@ -279,7 +279,7 @@ jobs:
           # time (the server spaces them three seconds apart). Stops at the
           # first failed batch; a rerun picks up whatever is still pending.
           run_batches() {
-            get "status?list=$1" | jq -c --argjson limit "$LIMIT" '.ids[:$limit] | _nwise(15) | {ids: .}' > batches.jsonl
+            get "status?list=$1" | jq -c --argjson limit "$LIMIT" '.ids[:$limit] as $all | range(0; $all | length; 15) | {ids: $all[.:. + 15]}' > batches.jsonl
             total="$(jq -s 'map(.ids | length) | add // 0' batches.jsonl)"
             echo "Requesting previews for $total graphics."
             done_count=0
