@@ -3009,12 +3009,7 @@
                 </td>
                 <td>
                   ${row.contestSubmission ? `
-                    <div class="actions" style="margin-top:0;">
-                      <button type="button" data-contest-decision="${row.id}" data-decision="yes" ${row.currentReviewerDecision === 'yes' ? 'disabled' : ''}>Yes</button>
-                      <button type="button" class="secondary" data-contest-decision="${row.id}" data-decision="maybe" ${row.currentReviewerDecision === 'maybe' ? 'disabled' : ''}>Maybe</button>
-                      <button type="button" class="secondary" data-contest-decision="${row.id}" data-decision="no" ${row.currentReviewerDecision === 'no' ? 'disabled' : ''}>No</button>
-                    </div>
-                    <div style="margin-top:8px;">Your decision: ${escapeHtml(row.currentReviewerDecision || 'none')}</div>
+                    <a href="/contest-review.html?program=${encodeURIComponent(row.submissionProgramId || '')}&amp;view=all">Review this contest in the judging workspace</a>
                   ` : `
                     <div class="actions" style="margin-top:0;">
                       <button type="button" data-review-submission="${row.id}" data-decision="approved" ${row.status !== 'pending' ? 'disabled' : ''}>Approve</button>
