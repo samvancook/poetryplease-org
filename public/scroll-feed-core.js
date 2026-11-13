@@ -2,9 +2,14 @@ export function normalizeScrollItem(row) {
   if (!Array.isArray(row)) return null;
   const [author, title, book, id, mediaUrl, bookUrl, catalog, type, text] = row;
   if (!id) return null;
+  const kind = String(type || '').toUpperCase();
+  const assetSet = row[17] || null;
+  // A lighter copy of a single graphic, when the server has one. The feed shows
+  // it in place of the full-size original; opening the item still loads mediaUrl.
+  const previewUrl = !assetSet && ['QI', 'INT', 'FPI'].includes(kind) ? safeMediaUrl(row[19]) : '';
   return { author: String(author || ''), title: String(title || ''), book: String(book || ''),
-    id: String(id), mediaUrl: safeMediaUrl(mediaUrl), bookUrl: safeMediaUrl(bookUrl),
-    catalog: String(catalog || ''), type: String(type || '').toUpperCase(), text: String(text || ''), assetSet: row[17] || null };
+    id: String(id), mediaUrl: safeMediaUrl(mediaUrl), previewUrl, bookUrl: safeMediaUrl(bookUrl),
+    catalog: String(catalog || ''), type: kind, text: String(text || ''), assetSet };
 }
 
 export function safeMediaUrl(value) {

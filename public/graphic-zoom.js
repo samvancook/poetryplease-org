@@ -40,6 +40,7 @@ export function attachGraphicZoom(card) {
   let state = { scale: 1, x: 0, y: 0 };
   let gesture;
   let suppressClickUntil = 0;
+  let sharperRequested = false;
   const dimensions = () => ({ width: art.clientWidth, height: art.clientHeight,
     imageWidth: image.naturalWidth || art.clientWidth || 1, imageHeight: image.naturalHeight || art.clientHeight || 1 });
   function set(next) {
@@ -47,6 +48,9 @@ export function attachGraphicZoom(card) {
     image.style.transform = `translate3d(${state.x}px,${state.y}px,0) scale(${state.scale})`;
     const zoomed = state.scale > 1.001;
     art.classList.toggle('graphic-zoomed', zoomed);
+    // The feed may be showing a light preview; the card swaps in the original
+    // the first time someone zooms, so a zoomed graphic stays sharp.
+    if (zoomed && !sharperRequested) { sharperRequested = true; card.dispatchEvent(new Event('graphiczoomstart')); }
     minus.hidden = fit.hidden = !zoomed;
     plus.disabled = state.scale >= 4;
     status.textContent = zoomed ? Math.round(state.scale * 100) + '%' : '';
