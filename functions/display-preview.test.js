@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import sharp from "sharp";
 import {
-  buildDisplayPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, isPreviewableSourceUrl,
+  buildDisplayPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, isPreviewableSourceUrl, summarizeDisplayPreviews,
   DISPLAY_PREVIEW_MAX_EDGE,
 } from "./display-preview.js";
 
@@ -85,7 +85,8 @@ test("a graphic gets its preview stored and bound to the image it was made from"
   assert.equal(result.status, "attached");
   assert.deepEqual(calls, [SOURCE]);
   assert.equal(storage.saved[0].storagePath, "content-library/graphics/doc-1/display-preview-42.webp");
-  assert.deepEqual(state.updates, [{ displayPreviewUrl: "https://firebasestorage.googleapis.com/preview/1", displayPreviewSourceUrl: SOURCE }]);
+  assert.deepEqual(state.updates, [{ displayPreviewUrl: "https://firebasestorage.googleapis.com/preview/1", displayPreviewSourceUrl: SOURCE,
+    displayPreviewBytes: 100, displayPreviewSourceBytes: 1000, displayPreviewBuiltAt: new Date(42).toISOString() }]);
   assert.equal(state.data.title, "kept");
   // A second run has nothing to do and downloads nothing.
   const again = await ensureDisplayPreview({ docRef, runTransaction, saveImage: storage.saveImage, fetchImpl: fetchOf(Buffer.alloc(1), calls) });
@@ -128,4 +129,29 @@ test("a failed download or oversized source throws and changes nothing", async (
     fetchImpl: async () => ({ ok: true, status: 200, headers: { get: () => String(50 * 1024 * 1024) }, arrayBuffer: async () => Buffer.alloc(1) }) }), /too_large/);
   assert.deepEqual(state.updates, []);
   assert.equal(storage.saved.length, 0);
+});
+
+test("the backfill summary separates done, pending, stalled and ineligible graphics", () => {
+  const g = (id, data) => ({ id, data: { imageType: "QI", imageUrl: SOURCE + id, ...data } });
+  const summary = summarizeDisplayPreviews([
+    g("b-pending", {}),
+    g("a-pending", {}),
+    g("done-old", { displayPreviewUrl: "https://p/1", displayPreviewSourceUrl: SOURCE + "done-old", displayPreviewBytes: 100, displayPreviewSourceBytes: 1000, displayPreviewBuiltAt: "2026-11-01T00:00:00.000Z" }),
+    g("done-new", { displayPreviewUrl: "https://p/2", displayPreviewSourceUrl: SOURCE + "done-new", displayPreviewBytes: 200, displayPreviewSourceBytes: 3000, displayPreviewBuiltAt: "2026-11-13T00:00:00.000Z" }),
+    g("stale-preview", { displayPreviewUrl: "https://p/3", displayPreviewSourceUrl: "https://old" }),
+    g("waiting", { displayPreviewRequestedAt: "2026-11-13T01:00:00.000Z" }),
+    g("failed", { displayPreviewRequestedAt: "x", displayPreviewLastError: { message: "boom", imageUrl: SOURCE + "failed" } }),
+    g("old-error", { displayPreviewLastError: { message: "boom", imageUrl: "https://other" } }),
+    g("no-gain", { displayPreviewCheckedUrl: SOURCE + "no-gain" }),
+    g("drive", { imageUrl: "https://drive.google.com/file/d/x" }),
+    g("set", { assetSet: [{}] }),
+    g("video", { imageType: "VV" }),
+  ]);
+  assert.deepEqual(summary.counts, { total: 12, single: 10, withPreview: 2, needsPreview: 6, requestedWaiting: 1, noGain: 1, failed: 1, notHostedHere: 1 });
+  assert.deepEqual(summary.pending, ["a-pending", "b-pending", "old-error", "stale-preview"]);
+  assert.deepEqual(summary.stalled, ["failed", "waiting"]);
+  assert.deepEqual(summary.recent.map((row) => row.id), ["done-new", "done-old"]);
+  assert.equal(summary.measuredPreviewBytes, 300);
+  assert.equal(summary.measuredSourceBytes, 4000);
+  assert.deepEqual(summary.failures, [{ id: "failed", error: "boom" }]);
 });
