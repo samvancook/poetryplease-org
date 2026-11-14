@@ -89,3 +89,24 @@ test("dry run writes nothing; bad sources and changed driveLinks are left alone"
   run = fakeDeps({ graphic: { imageUrl: "https://firebasestorage.googleapis.com/v0/b/x/o/y" }, drive: { D1: image } });
   assert.equal((await restoreGraphicOriginal({ id: "g", driveFileId: "D1" }, run.deps)).reason, "image_not_in_bucket");
 });
+
+test("fetch returns the verified bytes without writing; finish only proceeds once the object holds an image", async () => {
+  const image = await png();
+  const name = "a.png";
+  const run = fakeDeps({ graphic: { imageUrl: URL_OF(name), driveLink: "old" }, objects: { [name]: STUB }, drive: { D1: image } });
+  const item = { id: "g", driveFileId: "D1", oldDriveLink: "old", newDriveLink: "new" };
+
+  const fetched = await restoreGraphicOriginal(item, run.deps, { mode: "fetch" });
+  assert.equal(fetched.status, "fetched");
+  assert.equal(fetched.backupObject, RESTORE_BACKUP_PREFIX + name);
+  assert.deepEqual(Buffer.from(fetched.base64, "base64"), image);
+  assert.equal(run.log.writes.length + run.log.copies.length + run.log.updates.length, 0);
+
+  assert.equal((await restoreGraphicOriginal(item, run.deps, { mode: "finish" })).reason, "not_restored");
+  assert.equal(run.log.updates.length, 0);
+
+  run.store.set(name, image); // the caller wrote it
+  const finished = await restoreGraphicOriginal(item, run.deps, { mode: "finish" });
+  assert.equal(finished.status, "finished");
+  assert.deepEqual(run.log.updates, [{ id: "g", patch: { displayPreviewRequestedAt: "2026-11-14T12:00:00.000Z", driveLink: "new" } }]);
+});

@@ -315,29 +315,66 @@ jobs:
             sleep 60
             get status | jq 'del(.recent)'
           }
+          summarize_restore() {
+            echo "Summary by status:"
+            jq -s 'group_by(.status) | map({status: .[0].status, count: length})' "$RUNNER_TEMP/restore-results.jsonl"
+            echo "Not restored, by reason:"
+            jq -s 'map(select(.status == "failed" or .status == "skipped")) | group_by(.error // .reason) | map({why: (.[0].error // .[0].reason), count: length, sample: [.[:3][].id]})' "$RUNNER_TEMP/restore-results.jsonl"
+          }
           case "$ACTION" in
             status) get status | jq . ;;
             request) run_batches pending ;;
             retry-stalled) run_batches stalled ;;
             refresh-feed) post refreshFeed '{}' | jq . ;;
             list-stalled) get "status?list=stalled-details" | jq -c '.stalledDetails[]' ;;
-            restore-dry-run|restore-originals)
+            restore-dry-run)
               # Six graphics per call keeps each call inside Hosting's 60 s limit.
-              # Per-graphic failures are reported and the run goes on; a failed
-              # call stops it. Rerunning is safe: restored graphics come back
-              # as already_ok.
-              dry=false; [ "$ACTION" = restore-dry-run ] && dry=true
-              jq -c --argjson limit "$LIMIT" --argjson dry "$dry" \
-                '.items[:$limit] as $all | range(0; $all | length; 6) | {dryRun: $dry, items: $all[.:. + 6]}' \
+              jq -c --argjson limit "$LIMIT" \
+                '.items[:$limit] as $all | range(0; $all | length; 6) | {dryRun: true, items: $all[.:. + 6]}' \
                 docs/handoffs/graphic-restore-plan-2026-11-14.json > "$RUNNER_TEMP/restore-batches.jsonl"
               : > "$RUNNER_TEMP/restore-results.jsonl"
               while IFS= read -r batch; do
                 post restoreOriginals "$batch" | jq -c '.results[]' | tee -a "$RUNNER_TEMP/restore-results.jsonl"
               done < "$RUNNER_TEMP/restore-batches.jsonl"
-              echo "Summary by status:"
-              jq -s 'group_by(.status) | map({status: .[0].status, count: length})' "$RUNNER_TEMP/restore-results.jsonl"
-              echo "Failures by error:"
-              jq -s 'map(select(.status == "failed" or .status == "skipped")) | group_by(.error // .reason) | map({why: (.[0].error // .[0].reason), count: length, sample: [.[:3][].id]})' "$RUNNER_TEMP/restore-results.jsonl" ;;
+              summarize_restore ;;
+            restore-originals)
+              # The app's runtime account cannot write poetrypleasebucket, so
+              # this job writes it: the app fetches and verifies each image
+              # (mode fetch), this job backs up the error stub and uploads the
+              # image to the exact object name, then the app confirms it and
+              # asks for a preview (mode finish). Rerunning is safe: restored
+              # graphics come back as already_ok.
+              bucket_api="https://storage.googleapis.com/storage/v1/b/poetrypleasebucket"
+              token="$(gcloud auth print-access-token)"
+              allowed="$(curl --fail-with-body -sS -H "Authorization: Bearer $token" \
+                "$bucket_api/iam/testPermissions?permissions=storage.objects.create&permissions=storage.objects.get" | jq -c '.permissions // []')"
+              echo "This job's permissions on poetrypleasebucket: $allowed"
+              jq -e 'index("storage.objects.create")' <<<"$allowed" >/dev/null || { echo "Cannot write poetrypleasebucket; nothing was changed."; exit 3; }
+              jq -c --argjson limit "$LIMIT" '.items[:$limit][]' docs/handoffs/graphic-restore-plan-2026-11-14.json > "$RUNNER_TEMP/restore-items.jsonl"
+              : > "$RUNNER_TEMP/restore-results.jsonl"
+              count=0
+              while IFS= read -r item; do
+                count=$((count + 1))
+                [ $((count % 100)) -eq 0 ] && token="$(gcloud auth print-access-token)"
+                fetched="$(post restoreOriginals "$(jq -c '{mode: "fetch", items: [.]}' <<<"$item")" | jq -c '.results[0]')"
+                if [ "$(jq -r '.status' <<<"$fetched")" != fetched ]; then
+                  jq -c 'del(.base64)' <<<"$fetched" | tee -a "$RUNNER_TEMP/restore-results.jsonl"; continue
+                fi
+                object="$(jq -r '.object | @uri' <<<"$fetched")"
+                backup="$(jq -r '.backupObject // "" | @uri' <<<"$fetched")"
+                mime="$(jq -r '.mimeType' <<<"$fetched")"
+                jq -r '.base64' <<<"$fetched" | base64 -d > "$RUNNER_TEMP/restore-image"
+                if [ -n "$backup" ]; then
+                  curl --fail-with-body -sS -o /dev/null -X POST -H "Authorization: Bearer $token" -H "Content-Length: 0" \
+                    "$bucket_api/o/$object/copyTo/b/poetrypleasebucket/o/$backup"
+                fi
+                curl --fail-with-body -sS -o /dev/null -X POST -H "Authorization: Bearer $token" -H "Content-Type: $mime" \
+                  --data-binary @"$RUNNER_TEMP/restore-image" \
+                  "https://storage.googleapis.com/upload/storage/v1/b/poetrypleasebucket/o?uploadType=media&name=$object"
+                post restoreOriginals "$(jq -c '{mode: "finish", items: [.]}' <<<"$item")" | jq -c '.results[0]' \
+                  | tee -a "$RUNNER_TEMP/restore-results.jsonl"
+              done < "$RUNNER_TEMP/restore-items.jsonl"
+              summarize_restore ;;
             diagnose-stalled)
               get "status?list=stalled-details" | jq -c '.stalledDetails[]' > "$RUNNER_TEMP/stalled.jsonl"
               (cd functions && node diagnose-display-previews.mjs "$RUNNER_TEMP/stalled.jsonl") ;;

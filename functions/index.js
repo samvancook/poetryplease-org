@@ -9918,16 +9918,22 @@ app.post(getBoth("/internal/displayPreviews/restoreOriginals"), async (req, res)
     return res.status(400).json({ error: "invalid_items", maxItems: RESTORE_MAX_ITEMS });
   }
   const dryRun = req.body?.dryRun === true;
+  // The app's runtime account cannot write poetrypleasebucket, so the
+  // backfill job (which can) uses mode "fetch" one graphic at a time, writes
+  // the bytes itself, then calls mode "finish".
+  const mode = ["fetch", "finish"].includes(req.body?.mode) ? req.body.mode : (dryRun ? "dryRun" : "restore");
+  if (mode === "fetch" && items.length > 1) return res.status(400).json({ error: "fetch_one_at_a_time" });
   const results = [];
   for (const item of items) {
     try {
-      results.push(await restoreGraphicOriginal(item, restoreOriginalDeps, { dryRun }));
+      results.push(await restoreGraphicOriginal(item, restoreOriginalDeps, { mode }));
     } catch (err) {
       results.push({ id: item.id, status: "failed", error: String(err?.message || err).slice(0, 200) });
     }
   }
-  console.log(JSON.stringify({ event: "restore_graphic_originals", dryRun, results }));
-  res.json({ dryRun, results });
+  console.log(JSON.stringify({ event: "restore_graphic_originals", mode,
+    results: results.map(({ base64, ...rest }) => rest) }));
+  res.json({ dryRun: mode === "dryRun", mode, results });
 });
 
 // One content-cache refresh so finished previews reach the feed now instead of
