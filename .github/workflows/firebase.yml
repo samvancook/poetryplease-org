@@ -252,13 +252,8 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - name: Authenticate to Google Cloud with GitHub OIDC
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: projects/609992589187/locations/global/workloadIdentityPools/github-actions/providers/github
-          service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
-          create_credentials_file: true
-
+      # Checkout must come before sign-in: it cleans the folder that holds
+      # the credentials file.
       - name: Checkout (diagnose only)
         if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
         uses: actions/checkout@v4
@@ -273,6 +268,13 @@ jobs:
         if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
         working-directory: functions
         run: npm install --no-audit --no-fund
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/609992589187/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+          create_credentials_file: true
 
       - name: Run
         env:
