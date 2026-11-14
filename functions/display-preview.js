@@ -136,6 +136,8 @@ export const DISPLAY_PREVIEW_STATUS_FIELDS = [
 export function summarizeDisplayPreviews(graphics, { recentLimit = 30 } = {}) {
   const counts = { total: 0, single: 0, withPreview: 0, needsPreview: 0, requestedWaiting: 0, noGain: 0, failed: 0, notHostedHere: 0 };
   const pending = []; const stalled = []; const built = []; const failures = [];
+  // Every stalled graphic with what is known about it, for diagnosing failures.
+  const stalledDetails = [];
   let previewBytes = 0; let sourceBytes = 0;
   for (const { id, data } of graphics) {
     counts.total += 1;
@@ -158,11 +160,18 @@ export function summarizeDisplayPreviews(graphics, { recentLimit = 30 } = {}) {
     counts.needsPreview += 1;
     if (data.displayPreviewLastError?.imageUrl === imageUrl) {
       counts.failed += 1; stalled.push(id);
-      if (failures.length < recentLimit) failures.push({ id, error: String(data.displayPreviewLastError.message || "") });
-    } else if (data.displayPreviewRequestedAt) { counts.requestedWaiting += 1; stalled.push(id); }
+      const error = String(data.displayPreviewLastError.message || "");
+      if (failures.length < recentLimit) failures.push({ id, error });
+      stalledDetails.push({ id, imageType: String(data.imageType || ""), imageUrl, error,
+        failedAt: String(data.displayPreviewLastError.at || ""), requestedAt: String(data.displayPreviewRequestedAt || "") });
+    } else if (data.displayPreviewRequestedAt) {
+      counts.requestedWaiting += 1; stalled.push(id);
+      stalledDetails.push({ id, imageType: String(data.imageType || ""), imageUrl, error: null,
+        failedAt: "", requestedAt: String(data.displayPreviewRequestedAt) });
+    }
     else pending.push(id);
   }
   built.sort((a, b) => b.builtAt.localeCompare(a.builtAt));
-  pending.sort(); stalled.sort();
-  return { counts, measuredPreviewBytes: previewBytes, measuredSourceBytes: sourceBytes, recent: built.slice(0, recentLimit), failures, pending, stalled };
+  pending.sort(); stalled.sort(); stalledDetails.sort((a, b) => a.id.localeCompare(b.id));
+  return { counts, measuredPreviewBytes: previewBytes, measuredSourceBytes: sourceBytes, recent: built.slice(0, recentLimit), failures, pending, stalled, stalledDetails };
 }
