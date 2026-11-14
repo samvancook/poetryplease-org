@@ -25,10 +25,12 @@ on:
         #   refresh-feed  one content-cache refresh so finished previews reach the feed
         #   list-stalled  read-only: prints every stalled graphic's image URL and last error
         #   diagnose-stalled read-only: downloads each stalled original and groups them by cause
+        #   restore-dry-run  read-only: checks the first <preview_limit> rows of the restore plan
+        #   restore-originals puts broken originals back (docs/handoffs/graphic-restore-plan-2026-11-14.json)
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled, restore-dry-run, restore-originals]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -60,7 +62,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js
+        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
@@ -254,18 +256,18 @@ jobs:
     steps:
       # Checkout must come before sign-in: it cleans the folder that holds
       # the credentials file.
-      - name: Checkout (diagnose only)
-        if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
+      - name: Checkout (diagnose and restore only)
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals"]'), inputs.preview_backfill) }}
         uses: actions/checkout@v4
 
-      - name: Set up Node (diagnose only)
-        if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
+      - name: Set up Node (diagnose and restore only)
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals"]'), inputs.preview_backfill) }}
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Install function dependencies (diagnose only)
-        if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
+      - name: Install function dependencies (diagnose and restore only)
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals"]'), inputs.preview_backfill) }}
         working-directory: functions
         run: npm install --no-audit --no-fund
 
@@ -319,6 +321,23 @@ jobs:
             retry-stalled) run_batches stalled ;;
             refresh-feed) post refreshFeed '{}' | jq . ;;
             list-stalled) get "status?list=stalled-details" | jq -c '.stalledDetails[]' ;;
+            restore-dry-run|restore-originals)
+              # Six graphics per call keeps each call inside Hosting's 60 s limit.
+              # Per-graphic failures are reported and the run goes on; a failed
+              # call stops it. Rerunning is safe: restored graphics come back
+              # as already_ok.
+              dry=false; [ "$ACTION" = restore-dry-run ] && dry=true
+              jq -c --argjson limit "$LIMIT" --argjson dry "$dry" \
+                '.items[:$limit] as $all | range(0; $all | length; 6) | {dryRun: $dry, items: $all[.:. + 6]}' \
+                docs/handoffs/graphic-restore-plan-2026-11-14.json > "$RUNNER_TEMP/restore-batches.jsonl"
+              : > "$RUNNER_TEMP/restore-results.jsonl"
+              while IFS= read -r batch; do
+                post restoreOriginals "$batch" | jq -c '.results[]' | tee -a "$RUNNER_TEMP/restore-results.jsonl"
+              done < "$RUNNER_TEMP/restore-batches.jsonl"
+              echo "Summary by status:"
+              jq -s 'group_by(.status) | map({status: .[0].status, count: length})' "$RUNNER_TEMP/restore-results.jsonl"
+              echo "Failures by error:"
+              jq -s 'map(select(.status == "failed" or .status == "skipped")) | group_by(.error // .reason) | map({why: (.[0].error // .[0].reason), count: length, sample: [.[:3][].id]})' "$RUNNER_TEMP/restore-results.jsonl" ;;
             diagnose-stalled)
               get "status?list=stalled-details" | jq -c '.stalledDetails[]' > "$RUNNER_TEMP/stalled.jsonl"
               (cd functions && node diagnose-display-previews.mjs "$RUNNER_TEMP/stalled.jsonl") ;;
