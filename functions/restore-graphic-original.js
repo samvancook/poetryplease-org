@@ -65,16 +65,32 @@ export async function verifyImage(buffer) {
 //   updateGraphic(id, patch),
 //   now() -> ms
 // }
-// Returns { id, status, ... }. status: restored | already_ok | skipped | would_restore
-export async function restoreGraphicOriginal(item, deps, { dryRun = false } = {}) {
+// mode:
+//   "restore"  write here (needs storage.objects.create on the bucket)
+//   "dryRun"   report what would happen, write nothing
+//   "fetch"    like dryRun, plus the verified source bytes as base64, so a
+//              caller that can write the bucket does the write
+//   "finish"   after such a write: confirm the object now holds an image,
+//              then update driveLink and ask for a preview
+// Returns { id, status, ... }. status: restored | would_restore | fetched |
+// finished | already_ok | skipped
+export async function restoreGraphicOriginal(item, deps, { dryRun = false, mode = dryRun ? "dryRun" : "restore" } = {}) {
   const id = String(item?.id || "");
   const data = await deps.getGraphic(id);
   if (!data) return { id, status: "skipped", reason: "graphic_missing" };
   const target = parseBucketObjectUrl(data.imageUrl);
   if (!target || target.bucket !== RESTORE_BUCKET) return { id, status: "skipped", reason: "image_not_in_bucket" };
-  if (!item.driveFileId && !item.copyFromObject) return { id, status: "skipped", reason: "no_source" };
 
   const current = await deps.readObject(target.bucket, target.name);
+  if (mode === "finish") {
+    if (!current || isErrorStub(current)) return { id, status: "skipped", reason: "not_restored", object: target.name };
+    await verifyImage(current);
+    const patch = requestPatch(item, data, deps);
+    await deps.updateGraphic(id, patch);
+    return { id, status: "finished", object: target.name, driveLinkUpdated: !!patch.driveLink };
+  }
+
+  if (!item.driveFileId && !item.copyFromObject) return { id, status: "skipped", reason: "no_source" };
   if (current && !isErrorStub(current)) return { id, status: "already_ok", object: target.name };
 
   let source;
@@ -86,14 +102,21 @@ export async function restoreGraphicOriginal(item, deps, { dryRun = false } = {}
     source = await deps.fetchDrive(item.driveFileId);
   }
   const mimeType = await verifyImage(source);
-  const plan = { id, object: target.name, replaced: current ? "error_stub" : "missing", bytes: source.length, mimeType,
+  const plan = { id, bucket: target.bucket, object: target.name, replaced: current ? "error_stub" : "missing", bytes: source.length, mimeType,
+    backupObject: current ? RESTORE_BACKUP_PREFIX + target.name : null,
     from: item.copyFromObject ? `bucket:${item.copyFromObject}` : `drive:${item.driveFileId}` };
-  if (dryRun) return { ...plan, status: "would_restore" };
+  if (mode === "dryRun") return { ...plan, status: "would_restore" };
+  if (mode === "fetch") return { ...plan, status: "fetched", base64: source.toString("base64") };
 
   if (current) await deps.copyObject(target.bucket, target.name, RESTORE_BACKUP_PREFIX + target.name);
   await deps.writeObject(target.bucket, target.name, source, mimeType);
-  const patch = { displayPreviewRequestedAt: new Date(deps.now()).toISOString() };
-  if (item.newDriveLink && item.oldDriveLink && data.driveLink === item.oldDriveLink) patch.driveLink = item.newDriveLink;
+  const patch = requestPatch(item, data, deps);
   await deps.updateGraphic(id, patch);
   return { ...plan, status: "restored", driveLinkUpdated: !!patch.driveLink };
+}
+
+function requestPatch(item, data, deps) {
+  const patch = { displayPreviewRequestedAt: new Date(deps.now()).toISOString() };
+  if (item.newDriveLink && item.oldDriveLink && data.driveLink === item.oldDriveLink) patch.driveLink = item.newDriveLink;
+  return patch;
 }
