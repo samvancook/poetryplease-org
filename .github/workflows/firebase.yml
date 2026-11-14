@@ -24,10 +24,11 @@ on:
         #   retry-stalled asks again for graphics requested earlier that still have none
         #   refresh-feed  one content-cache refresh so finished previews reach the feed
         #   list-stalled  read-only: prints every stalled graphic's image URL and last error
+        #   diagnose-stalled read-only: downloads each stalled original and groups them by cause
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -59,7 +60,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js
+        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
@@ -258,6 +259,21 @@ jobs:
           service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
           create_credentials_file: true
 
+      - name: Checkout (diagnose only)
+        if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
+        uses: actions/checkout@v4
+
+      - name: Set up Node (diagnose only)
+        if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install function dependencies (diagnose only)
+        if: ${{ inputs.preview_backfill == 'diagnose-stalled' }}
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
       - name: Run
         env:
           ACTION: ${{ inputs.preview_backfill }}
@@ -301,6 +317,9 @@ jobs:
             retry-stalled) run_batches stalled ;;
             refresh-feed) post refreshFeed '{}' | jq . ;;
             list-stalled) get "status?list=stalled-details" | jq -c '.stalledDetails[]' ;;
+            diagnose-stalled)
+              get "status?list=stalled-details" | jq -c '.stalledDetails[]' > "$RUNNER_TEMP/stalled.jsonl"
+              (cd functions && node diagnose-display-previews.mjs "$RUNNER_TEMP/stalled.jsonl") ;;
             *) echo "unknown action"; exit 2 ;;
           esac
 
