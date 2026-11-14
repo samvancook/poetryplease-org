@@ -24,6 +24,7 @@ import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-pha
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
 import { ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
+import { restoreGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
@@ -9874,6 +9875,61 @@ app.post(getBoth("/internal/displayPreviews/request"), async (req, res) => {
   }
 });
 
+// Puts broken graphics' originals back at the object their imageUrl already
+// names (see restore-graphic-original.js for the safety rules). The caller
+// sends the plan, a few graphics per call; dryRun reports without writing.
+async function readBucketObjectOrNull(bucketName, name) {
+  try {
+    const [buffer] = await storage.bucket(bucketName).file(name).download();
+    return buffer;
+  } catch (err) {
+    if (Number(err?.code) === 404) return null;
+    throw err;
+  }
+}
+
+const restoreOriginalDeps = {
+  getGraphic: async (id) => {
+    const snap = await db.collection(COLLECTIONS.graphics).doc(id).get();
+    return snap.exists ? (snap.data() || {}) : null;
+  },
+  readObject: readBucketObjectOrNull,
+  writeObject: (bucketName, name, buffer, mimeType) => storage.bucket(bucketName).file(name).save(buffer, {
+    resumable: false, metadata: { contentType: mimeType, cacheControl: "public,max-age=3600" },
+  }),
+  copyObject: (bucketName, from, to) => storage.bucket(bucketName).file(from).copy(storage.bucket(bucketName).file(to)),
+  fetchDrive: async (fileId) => {
+    const media = await fetchAuthenticatedGoogleDriveMedia(fileId, "", UPLOAD_RULES.libraryGraphic);
+    const buffer = Buffer.from(await media.response.arrayBuffer());
+    if (buffer.length > UPLOAD_RULES.libraryGraphic.maxBytes) throw new Error("remote_media_too_large");
+    return buffer;
+  },
+  updateGraphic: (id, patch) => db.collection(COLLECTIONS.graphics).doc(id).update(patch),
+  now: () => Date.now(),
+};
+
+app.post(getBoth("/internal/displayPreviews/restoreOriginals"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  const valid = (v) => v === undefined || (typeof v === "string" && v.length > 0 && v.length < 1024);
+  if (!items.length || items.length > RESTORE_MAX_ITEMS || items.some((item) => !item || typeof item.id !== "string"
+    || !item.id || item.id.length > 300 || item.id.includes("/")
+    || ![item.driveFileId, item.copyFromObject, item.oldDriveLink, item.newDriveLink].every(valid))) {
+    return res.status(400).json({ error: "invalid_items", maxItems: RESTORE_MAX_ITEMS });
+  }
+  const dryRun = req.body?.dryRun === true;
+  const results = [];
+  for (const item of items) {
+    try {
+      results.push(await restoreGraphicOriginal(item, restoreOriginalDeps, { dryRun }));
+    } catch (err) {
+      results.push({ id: item.id, status: "failed", error: String(err?.message || err).slice(0, 200) });
+    }
+  }
+  console.log(JSON.stringify({ event: "restore_graphic_originals", dryRun, results }));
+  res.json({ dryRun, results });
+});
+
 // One content-cache refresh so finished previews reach the feed now instead of
 // at the next natural rebuild.
 app.post(getBoth("/internal/displayPreviews/refreshFeed"), async (req, res) => {
@@ -14286,10 +14342,15 @@ export const graphicdisplaypreview = onDocumentWritten({
     && String(data.displayPreviewRequestedAt) !== String(previous?.displayPreviewRequestedAt || "");
   if (previous && graphicImageUrl(previous) === imageUrl && !requested) return;
   if (!needsDisplayPreview(data)) return;
-  const docId = event.params.docId;
+  // Use the event's own document reference: event.params.docId does not come
+  // back intact for ids with characters such as curly quotes or "%", so a
+  // reference rebuilt from it pointed at a document that does not exist and
+  // those graphics were silently skipped.
+  const docRef = after.ref;
+  const docId = after.id;
   try {
     const result = await ensureDisplayPreview({
-      docRef: db.collection(COLLECTIONS.graphics).doc(docId),
+      docRef,
       expectedImageUrl: imageUrl,
       saveImage: saveImageUpload,
       runTransaction: (fn) => db.runTransaction(fn),
@@ -14300,7 +14361,7 @@ export const graphicdisplaypreview = onDocumentWritten({
     console.warn(JSON.stringify({ event: "display_preview_failed", docId, error: message }));
     // Recorded so the backfill status can report it. This write does not
     // start another attempt: neither the image nor the request changes.
-    await db.collection(COLLECTIONS.graphics).doc(docId)
+    await docRef
       .update({ displayPreviewLastError: { message, imageUrl, at: new Date().toISOString() } })
       .catch(() => {});
   }
