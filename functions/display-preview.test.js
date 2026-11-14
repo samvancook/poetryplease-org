@@ -154,4 +154,8 @@ test("the backfill summary separates done, pending, stalled and ineligible graph
   assert.equal(summary.measuredPreviewBytes, 300);
   assert.equal(summary.measuredSourceBytes, 4000);
   assert.deepEqual(summary.failures, [{ id: "failed", error: "boom" }]);
+  assert.deepEqual(summary.stalledDetails, [
+    { id: "failed", imageType: "QI", imageUrl: SOURCE + "failed", error: "boom", failedAt: "", requestedAt: "x" },
+    { id: "waiting", imageType: "QI", imageUrl: SOURCE + "waiting", error: null, failedAt: "", requestedAt: "2026-11-13T01:00:00.000Z" },
+  ]);
 });

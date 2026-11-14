@@ -9831,11 +9831,13 @@ async function readDisplayPreviewStatus() {
 app.get(getBoth("/internal/displayPreviews/status"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
   try {
-    const { pending, stalled, ...summary } = await readDisplayPreviewStatus();
+    const { pending, stalled, stalledDetails, ...summary } = await readDisplayPreviewStatus();
     // ?list=pending|stalled also returns those ids, so a backfill run reads
-    // the library once instead of once per batch.
+    // the library once instead of once per batch. ?list=stalled-details
+    // returns each stalled graphic's image URL and last error instead.
     const list = req.query.list === "pending" ? pending : req.query.list === "stalled" ? stalled : null;
-    res.json({ ...summary, pendingCount: pending.length, stalledCount: stalled.length, ...(list ? { ids: list } : {}) });
+    const details = req.query.list === "stalled-details" ? { stalledDetails } : {};
+    res.json({ ...summary, pendingCount: pending.length, stalledCount: stalled.length, ...(list ? { ids: list } : {}), ...details });
   } catch (err) {
     res.status(500).json({ error: err.message || "display_preview_status_failed" });
   }
