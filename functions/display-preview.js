@@ -123,6 +123,13 @@ export async function ensureDisplayPreview({
   };
 }
 
+// True when a freshly attached preview should refresh the feed right away.
+// Only for previews built because a graphic was uploaded or its image was
+// replaced; a backfill builds thousands and refreshes the feed once at the end.
+export function shouldRefreshFeedAfterPreview(result, { requested = false } = {}) {
+  return result?.status === "attached" && !requested;
+}
+
 // Fields the backfill status needs from each graphic; nothing else is read.
 export const DISPLAY_PREVIEW_STATUS_FIELDS = [
   "imageUrl", "thumbnailUrl", "url", "driveLink", "videoUrl", "imageType", "assetSet", "title", "author",

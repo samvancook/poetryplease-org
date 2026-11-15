@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import sharp from "sharp";
 import {
-  buildDisplayPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, isPreviewableSourceUrl, summarizeDisplayPreviews,
+  buildDisplayPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, isPreviewableSourceUrl, summarizeDisplayPreviews, shouldRefreshFeedAfterPreview,
   DISPLAY_PREVIEW_MAX_EDGE,
 } from "./display-preview.js";
 
@@ -158,4 +158,13 @@ test("the backfill summary separates done, pending, stalled and ineligible graph
     { id: "failed", imageType: "QI", imageUrl: SOURCE + "failed", error: "boom", failedAt: "", requestedAt: "x" },
     { id: "waiting", imageType: "QI", imageUrl: SOURCE + "waiting", error: null, failedAt: "", requestedAt: "2026-11-13T01:00:00.000Z" },
   ]);
+});
+
+test("only a preview attached for an upload or replaced image refreshes the feed", () => {
+  assert.equal(shouldRefreshFeedAfterPreview({ status: "attached" }, { requested: false }), true);
+  assert.equal(shouldRefreshFeedAfterPreview({ status: "attached" }), true);
+  assert.equal(shouldRefreshFeedAfterPreview({ status: "attached" }, { requested: true }), false);
+  assert.equal(shouldRefreshFeedAfterPreview({ status: "no_gain" }, { requested: false }), false);
+  assert.equal(shouldRefreshFeedAfterPreview({ status: "skipped", reason: "image_changed" }, { requested: false }), false);
+  assert.equal(shouldRefreshFeedAfterPreview(undefined), false);
 });
