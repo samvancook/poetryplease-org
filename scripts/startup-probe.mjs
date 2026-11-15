@@ -96,8 +96,11 @@ for (const { label: pass, throttle } of passes) {
         if (loader && getComputedStyle(loader).display !== "none"
           && getComputedStyle(loader).visibility !== "hidden" && !loader.classList.contains("is-hidden")) return false;
         const root = document.querySelector(selector);
-        if (!root) return false;
         const visible = (element) => element.getBoundingClientRect().height > 0;
+        // Desktop and classic mobile show an empty or failed feed with one of these buttons.
+        const emptyState = document.getElementById("btn-show-more-poems") || document.getElementById("btn-feed-retry");
+        if (emptyState && visible(emptyState)) return "empty";
+        if (!root) return false;
         const media = [...root.querySelectorAll("img")].some((img) => img.naturalWidth > 0 && visible(img))
           || [...root.querySelectorAll("video, iframe")].some(visible);
         if (media || (root.innerText || "").trim().length > 20) return "card";
