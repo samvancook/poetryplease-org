@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import sharp from "sharp";
-import { restoreGraphicOriginal, parseBucketObjectUrl, isErrorStub, RESTORE_BACKUP_PREFIX } from "./restore-graphic-original.js";
+import { restoreGraphicOriginal, reattachGraphicOriginal, parseBucketObjectUrl, isErrorStub, RESTORE_BACKUP_PREFIX } from "./restore-graphic-original.js";
 
 const STUB = Buffer.from(JSON.stringify({ error: { code: 404, message: "File not found: abc." } }, null, 2));
 const png = () => sharp({ create: { width: 40, height: 30, channels: 3, background: "#c33" } }).png().toBuffer();
@@ -109,4 +109,55 @@ test("fetch returns the verified bytes without writing; finish only proceeds onc
   const finished = await restoreGraphicOriginal(item, run.deps, { mode: "finish" });
   assert.equal(finished.status, "finished");
   assert.deepEqual(run.log.updates, [{ id: "g", patch: { displayPreviewRequestedAt: "2026-11-14T12:00:00.000Z", driveLink: "new" } }]);
+});
+
+function reattachDeps({ graphic, urls = {}, drive = {} }) {
+  const log = { saves: [], updates: [] };
+  return {
+    log,
+    deps: {
+      getGraphic: async () => graphic,
+      fetchUrl: async (url) => urls[url] ?? null,
+      fetchDrive: async (id) => { if (!drive[id]) throw new Error("drive_service_fetch_404"); return drive[id]; },
+      saveUpload: async ({ storagePath, mimeType }) => { log.saves.push({ storagePath, mimeType }); return `https://fb/${storagePath}`; },
+      storageFolder: (id) => `content-library/graphics/${id.toLowerCase()}`,
+      updateGraphic: async (id, patch) => log.updates.push({ id, patch }),
+      now: () => Date.parse("2026-11-15T12:00:00Z"),
+    },
+  };
+}
+
+test("reattach saves the Drive image as a new upload when the hosted file is a web page", async () => {
+  const image = await png();
+  const old = "https://fb/old.jpg";
+  const { deps, log } = reattachDeps({
+    graphic: { imageUrl: old }, urls: { [old]: Buffer.from("<!doctype html><html></html>") }, drive: { D1: image },
+  });
+  const item = { id: "Drive-Folder-X", driveFileId: "D1", expectImageUrl: old };
+  const dry = await reattachGraphicOriginal(item, deps, { dryRun: true });
+  assert.equal(dry.status, "would_reattach");
+  assert.equal(log.saves.length + log.updates.length, 0);
+  const result = await reattachGraphicOriginal(item, deps);
+  assert.equal(result.status, "reattached");
+  const path = `content-library/graphics/drive-folder-x/${Date.parse("2026-11-15T12:00:00Z")}-restored.png`;
+  assert.deepEqual(log.saves, [{ storagePath: path, mimeType: "image/png" }]);
+  assert.deepEqual(log.updates, [{ id: "Drive-Folder-X", patch: {
+    imageUrl: `https://fb/${path}`, imageUrlBeforeRestore: old, displayPreviewRequestedAt: "2026-11-15T12:00:00.000Z" } }]);
+});
+
+test("reattach leaves a graphic alone when its image changed or already works", async () => {
+  const image = await png();
+  const old = "https://fb/old.jpg";
+  const changed = reattachDeps({ graphic: { imageUrl: "https://fb/new.png" }, drive: { D1: image } });
+  assert.equal((await reattachGraphicOriginal({ id: "g", driveFileId: "D1", expectImageUrl: old }, changed.deps)).reason, "image_url_changed");
+  const fine = reattachDeps({ graphic: { imageUrl: old }, urls: { [old]: image }, drive: { D1: image } });
+  assert.equal((await reattachGraphicOriginal({ id: "g", driveFileId: "D1", expectImageUrl: old }, fine.deps)).status, "already_ok");
+  assert.equal(changed.log.saves.length + fine.log.saves.length, 0);
+});
+
+test("reattach refuses Drive bytes that are not an image", async () => {
+  const old = "https://fb/old.jpg";
+  const { deps, log } = reattachDeps({ graphic: { imageUrl: old }, urls: { [old]: Buffer.from("<html>") }, drive: { D1: Buffer.from("<html>") } });
+  await assert.rejects(reattachGraphicOriginal({ id: "g", driveFileId: "D1", expectImageUrl: old }, deps));
+  assert.equal(log.saves.length + log.updates.length, 0);
 });
