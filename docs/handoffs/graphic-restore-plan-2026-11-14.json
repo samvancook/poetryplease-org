@@ -1,6 +1,32 @@
 {
- "note": "Graphics whose original image is missing or a Drive error stub in poetrypleasebucket, with where to restore it from. Built 2026-11-14 from the Oct 15 relink plan (Drive sheet 1QN0I6pMDY4OXE6CkJcCyxRr2cH45FnfIEXdfkfLGbV0) plus bucket name matches.",
+ "note": "Graphics whose original image is missing or a Drive error stub in poetrypleasebucket, with where to restore it from. Built 2026-11-14 from the Oct 15 relink plan (Drive sheet 1QN0I6pMDY4OXE6CkJcCyxRr2cH45FnfIEXdfkfLGbV0) plus bucket name matches. 2026-11-15: five late finds put first (two same-name .jpg objects in the bucket, two Drive copies whose description names the deleted id, one Drive file with the same name).",
  "items": [
+  {
+   "id": "DOMT-QI-ON-THE-LAST-GESTURE-BETWEEN-US-V2",
+   "copyFromObject": "Benaim - DOMT - INT - I ask why.jpg"
+  },
+  {
+   "id": "HELI-QI-SCARS-V3",
+   "copyFromObject": "Francisco - HELI - INT - And of course.jpg"
+  },
+  {
+   "id": "TF-QI-ME-BUT-HAPPY-V4",
+   "driveFileId": "1sgUcO17ISxE4WOjJgs7IvJxrYCD5JnfO",
+   "oldDriveLink": "https://drive.google.com/a/buttonpoetry.com/file/d/11U5TkJQEoswG8ivR_u6avt96sPvVQh4s/view?usp=drivesdk",
+   "newDriveLink": "https://drive.google.com/file/d/1sgUcO17ISxE4WOjJgs7IvJxrYCD5JnfO/view"
+  },
+  {
+   "id": "TF-QI-ME-BUT-HAPPY-V5",
+   "driveFileId": "15mk7WGzUs2T05bav2DdbQOy9EGnGyP1S",
+   "oldDriveLink": "https://drive.google.com/a/buttonpoetry.com/file/d/1u5142EFWimvr4HuIqhbNtg5aTjXH6RIG/view?usp=drivesdk",
+   "newDriveLink": "https://drive.google.com/file/d/15mk7WGzUs2T05bav2DdbQOy9EGnGyP1S/view"
+  },
+  {
+   "id": "WSH-QI-SACRAL-CHAKRA-V2",
+   "driveFileId": "1LC0fHPek0K8Z1LfGUa11nk91lf4hCARz",
+   "oldDriveLink": "https://drive.google.com/a/buttonpoetry.com/file/d/1-TGI4NtZemdyCx4PGM1i0YCKG30-6Y3d/view?usp=drivesdk",
+   "newDriveLink": "https://drive.google.com/file/d/1LC0fHPek0K8Z1LfGUa11nk91lf4hCARz/view"
+  },
   {
    "id": "ALSA-QI-BREAK",
    "driveFileId": "1MUZWeJEpTGgG3j1l-8kkECoGcRclICkC",
