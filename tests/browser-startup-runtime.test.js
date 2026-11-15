@@ -17,14 +17,18 @@ const chrome = [
   "/usr/bin/chromium-browser",
 ].find(candidate => candidate && fs.existsSync(candidate));
 
-const firebaseFixture = `
+const firebaseFixture = signedIn => `
 (() => {
 if (window.firebase) return;
 const apps = [];
+const fixtureUser = ${signedIn ? `{
+  uid: "fixture-reader", email: "fixture-reader@example.test", displayName: "Fixture Reader",
+  isAnonymous: false, providerData: [], getIdToken: () => Promise.resolve("fixture-token")
+}` : "null"};
 const authState = {
-  currentUser: null,
+  currentUser: fixtureUser,
   onAuthStateChanged(callback) {
-    setTimeout(() => callback(null), 0);
+    setTimeout(() => callback(fixtureUser), 0);
     return () => {};
   },
   getRedirectResult: () => Promise.resolve(null)
@@ -110,11 +114,17 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
     const url = new URL(request.url, "http://127.0.0.1");
     if (url.pathname === "/firebase-fixture.js") {
       response.setHeader("Content-Type", "text/javascript");
-      response.end(firebaseFixture);
+      response.end(firebaseFixture(scenario === "signed-in"));
       return;
     }
     if (url.pathname.startsWith("/api/")) {
       requests.push(url.pathname);
+      if (scenario === "signed-in" && url.pathname === "/api/me") {
+        // A slow account lookup: background startup work must still wait for the first card.
+        setTimeout(() => response.writeHead(200, { "Content-Type": "application/json" })
+          .end(JSON.stringify({ roles: ["user"], email: "fixture-reader@example.test" })), 700);
+        return;
+      }
       if (scenario === "retry" && url.pathname === "/api/fetchFiltered" && !failedFeed) {
         failedFeed = true;
         response.writeHead(503, { "Content-Type": "application/json" }).end("{}");
@@ -151,6 +161,8 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
     const cases = [
       ["/app?desktop=1", "ready"],
       ["/app?desktop=1", "advance"],
+      ["/app?desktop=1", "signed-in"],
+      ["/mobile.html", "signed-in"],
       ["/mobile.html", "ready"],
       ["/m", "ready"],
       ["/m?item=startup-fixture", "linked"],
@@ -171,6 +183,17 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
         const fullFeedRequests = requests.slice(requestStart).filter(p => p === "/api/fetchDataAnon" || p === "/api/fetchData");
         if (route.startsWith("/app") && scenario === "ready") {
           assert.equal(fullFeedRequests.length, 0, "Desktop fetched the full feed before advancing");
+        }
+        if (scenario === "signed-in") {
+          const seen = requests.slice(requestStart);
+          const feedAt = seen.findIndex(p => p === "/api/bootstrap" || p === "/api/fetchFiltered");
+          assert.ok(seen.includes("/api/me"), route + " did not look up the signed-in account");
+          assert.ok(feedAt >= 0, route + " signed in but never requested its first feed");
+          for (const background of ["/api/ratingsSummary", "/api/books", "/api/imageTypes", "/api/releaseCatalogs"]) {
+            const at = seen.indexOf(background);
+            assert.ok(at === -1 || at > feedAt, route + " requested " + background + " before the signed-in first feed");
+          }
+          assert.ok(seen.includes("/api/imageTypes"), route + " never loaded its filter lists after the first card");
         }
         if (scenario === "advance") {
           assert.equal(fullFeedRequests.length, 1, "Desktop did not request one full refill");

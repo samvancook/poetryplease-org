@@ -191,16 +191,32 @@ const LoaderController = window.PoetryPleaseStartupLoader.create({
 });
 
 let deferredBootQueued = false;
+let deferredBootFirstQueuedAt = 0;
+const DEFERRED_BOOT_MAX_WAIT_MS = 15000;
+
+// The filter lists and the ratings file are background work. They wait until
+// the first card has settled, so they cannot compete with it. A signed-in
+// reader's first load only starts after the account lookup, so "not started
+// yet" counts as waiting too. An empty or failed first load releases the wait,
+// and the cap releases it whatever happens.
+function deferredBootShouldWait() {
+  if (firstCardSettled) return false;
+  if (Date.now() - deferredBootFirstQueuedAt >= DEFERRED_BOOT_MAX_WAIT_MS) return false;
+  if (routeItemUnavailable) return false;
+  return __pp_initialLoadSeq === 0 || __pp_initialLoad;
+}
 
 function queueDeferredBootWork() {
   if (deferredBootQueued) return;
   deferredBootQueued = true;
+  if (!deferredBootFirstQueuedAt) deferredBootFirstQueuedAt = Date.now();
   const run = () => {
-    if (!lastData && __pp_initialLoad) {
+    if (deferredBootShouldWait()) {
       deferredBootQueued = false;
       setTimeout(queueDeferredBootWork, 180);
       return;
     }
+    LoadTiming.mark('deferredBootRun');
     const selType = document.getElementById('type-filter');
     const selCat  = document.getElementById('catalog-filter');
     const selBook = document.getElementById('book-filter');
