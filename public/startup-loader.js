@@ -11,9 +11,9 @@
       screenReady: false,
       loaderHidden: false,
       loaderShownAt: Date.now(),
-      minLoaderMs: 700,
+      // No forced minimum: the splash hides as soon as the screen is ready.
+      minLoaderMs: 0,
       maxLoaderMs: 5000,
-      inlineDotsIntervalId: 0,
       hardCapTimerId: 0,
     };
 
@@ -50,54 +50,74 @@
       window.setTimeout(hidePrimary, state.minLoaderMs - elapsed);
     }
 
+    // Where the first card will appear. Classic mobile already draws the card
+    // frame, so the outline fills it; Desktop has no frame yet, so the outline
+    // is drawn just below the controls.
+    function placeOutline(overlayEl) {
+      const card = overlayEl.querySelector('.pp-card-outline');
+      if (!card) return;
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const slot = document.getElementById('media-wrap');
+      const rect = slot ? slot.getBoundingClientRect() : null;
+      const usable = rect && rect.width > 0 && rect.top < viewportHeight - 200;
+      const framed = Boolean(usable && rect.height >= 240);
+      let top;
+      let left;
+      let width;
+      let height;
+      if (framed) {
+        top = rect.top;
+        left = rect.left;
+        width = rect.width;
+        height = Math.min(rect.height, viewportHeight - rect.top);
+      } else {
+        width = Math.max(200, Math.min(720, viewportWidth - 32));
+        left = (viewportWidth - width) / 2;
+        top = usable ? rect.bottom + 12 : viewportHeight * 0.2;
+        height = Math.max(160, Math.min(viewportHeight * 0.56, viewportHeight - top - 32));
+      }
+      card.style.top = Math.round(top) + 'px';
+      card.style.left = Math.round(left) + 'px';
+      card.style.width = Math.round(width) + 'px';
+      card.style.height = Math.round(height) + 'px';
+      card.style.border = framed ? '0' : '1px solid rgba(30,26,21,0.12)';
+      card.style.background = framed ? 'transparent' : 'rgba(255,253,248,0.72)';
+      const barColor = framed ? 'rgba(255,255,255,0.20)' : 'rgba(30,26,21,0.10)';
+      card.querySelectorAll('.pp-card-outline__bar').forEach((bar) => { bar.style.background = barColor; });
+    }
+
     function showInline() {
       if (hasCurrentItem()) return;
       let overlayEl = getInlineOverlay();
       if (!overlayEl) {
         overlayEl = document.createElement('div');
         overlayEl.className = 'pp-inline-loading-overlay';
-        overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:1;transition:opacity 320ms ease;background:#faf7f0;';
+        overlayEl.style.cssText = 'position:fixed;inset:0;z-index:15000;pointer-events:none;opacity:1;transition:opacity 320ms ease;';
         overlayEl.innerHTML = `
-          <div class="pp-inline-loading" style="display:flex;align-items:center;justify-content:center;padding:24px;">
-            <div style="display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center;">
-              <img src="/pp-loader-logo.png?v=20260323b" alt="" aria-hidden="true" style="width:min(46vw,220px);max-width:220px;filter:drop-shadow(0 18px 32px rgba(30,26,21,0.14));opacity:0.92;" />
-              <div style="font:600 14px/1.2 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;letter-spacing:0.18em;text-transform:uppercase;color:rgba(30,26,21,0.68);">
-                Loading<span class="pp-inline-loading-dots" aria-hidden="true" style="display:inline-block;width:3ch;text-align:left;"></span>
-              </div>
-            </div>
+          <div class="pp-card-outline" aria-hidden="true" style="position:fixed;box-sizing:border-box;border-radius:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;">
+            <div class="pp-card-outline__bar" style="width:72%;max-width:420px;height:14px;border-radius:7px;"></div>
+            <div class="pp-card-outline__bar" style="width:58%;max-width:340px;height:14px;border-radius:7px;"></div>
+            <div class="pp-card-outline__bar" style="width:66%;max-width:380px;height:14px;border-radius:7px;"></div>
+            <div class="pp-card-outline__bar" style="width:34%;max-width:200px;height:10px;border-radius:5px;margin-top:10px;"></div>
           </div>
+          <span role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">Loading</span>
         `;
         document.body.appendChild(overlayEl);
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const card = overlayEl.querySelector('.pp-card-outline');
+        if (card && !reduceMotion && typeof card.animate === 'function') {
+          card.animate([{ opacity: 0.55 }, { opacity: 1 }, { opacity: 0.55 }], { duration: 1400, iterations: Infinity, easing: 'ease-in-out' });
+        }
       } else {
         overlayEl.style.opacity = '1';
       }
-
-      const dotsEl = overlayEl.querySelector('.pp-inline-loading-dots');
-      if (!dotsEl) return;
-      if (state.inlineDotsIntervalId) {
-        window.clearInterval(state.inlineDotsIntervalId);
-        state.inlineDotsIntervalId = 0;
-      }
-      let frame = 0;
-      const frames = ['', '.', '..', '...'];
-      state.inlineDotsIntervalId = window.setInterval(() => {
-        frame = (frame + 1) % frames.length;
-        if (!dotsEl.isConnected) {
-          window.clearInterval(state.inlineDotsIntervalId);
-          state.inlineDotsIntervalId = 0;
-          return;
-        }
-        dotsEl.textContent = frames[frame];
-      }, 320);
+      placeOutline(overlayEl);
     }
 
     function clearInline() {
       const overlayEl = getInlineOverlay();
       if (!overlayEl) return;
-      if (state.inlineDotsIntervalId) {
-        window.clearInterval(state.inlineDotsIntervalId);
-        state.inlineDotsIntervalId = 0;
-      }
       overlayEl.style.opacity = '0';
       window.setTimeout(() => {
         if (document.body.contains(overlayEl)) overlayEl.remove();
