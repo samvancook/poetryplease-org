@@ -14,6 +14,9 @@
 // - The only Firestore writes are driveLink (when the plan gives one and the
 //   graphic still has the old one) and displayPreviewRequestedAt, which asks
 //   the preview builder to try again.
+// - reattachGraphicOriginal (below) is the one exception: for a hosted upload
+//   that is not an image at all it writes a new upload and changes imageUrl,
+//   keeping the old URL in imageUrlBeforeRestore.
 import sharp from "sharp";
 
 export const RESTORE_BUCKET = "poetrypleasebucket";
@@ -119,4 +122,47 @@ function requestPatch(item, data, deps) {
   const patch = { displayPreviewRequestedAt: new Date(deps.now()).toISOString() };
   if (item.newDriveLink && item.oldDriveLink && data.driveLink === item.oldDriveLink) patch.driveLink = item.newDriveLink;
   return patch;
+}
+
+const EXTENSION_BY_MIME = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" };
+
+// For a graphic whose imageUrl is a hosted upload that is not an image at all
+// (for example a Google sign-in page saved when a Drive link was imported),
+// saves the Drive image as a new upload and points imageUrl at it. The old
+// object is left in place and its URL is kept in imageUrlBeforeRestore, so the
+// change can be undone.
+// item: { id, driveFileId, expectImageUrl } (expectImageUrl must equal the
+//   graphic's current imageUrl, so nothing changed since the plan was made)
+// deps: { getGraphic, fetchUrl(url) -> Buffer | null, fetchDrive,
+//   saveUpload({ storagePath, mimeType, buffer }) -> publicUrl,
+//   storageFolder(id) -> "content-library/graphics/<folder>", updateGraphic, now }
+// Returns { id, status, ... }. status: reattached | would_reattach | already_ok | skipped
+export async function reattachGraphicOriginal(item, deps, { dryRun = false } = {}) {
+  const id = String(item?.id || "");
+  const data = await deps.getGraphic(id);
+  if (!data) return { id, status: "skipped", reason: "graphic_missing" };
+  if (!item.driveFileId || !item.expectImageUrl) return { id, status: "skipped", reason: "incomplete_item" };
+  const oldUrl = String(data.imageUrl || "");
+  if (oldUrl !== item.expectImageUrl) return { id, status: "skipped", reason: "image_url_changed" };
+
+  const current = await deps.fetchUrl(oldUrl);
+  if (current) {
+    const isImage = await verifyImage(current).then(() => true, () => false);
+    if (isImage) return { id, status: "already_ok" };
+  }
+
+  const source = await deps.fetchDrive(item.driveFileId);
+  const mimeType = await verifyImage(source);
+  const storagePath = `${deps.storageFolder(id)}/${deps.now()}-restored.${EXTENSION_BY_MIME[mimeType]}`;
+  const plan = { id, from: `drive:${item.driveFileId}`, bytes: source.length, mimeType, storagePath,
+    replacedBytes: current ? current.length : 0 };
+  if (dryRun) return { ...plan, status: "would_reattach" };
+
+  const publicUrl = await deps.saveUpload({ storagePath, mimeType, buffer: source });
+  await deps.updateGraphic(id, {
+    imageUrl: publicUrl,
+    imageUrlBeforeRestore: oldUrl,
+    displayPreviewRequestedAt: new Date(deps.now()).toISOString(),
+  });
+  return { ...plan, status: "reattached", imageUrl: publicUrl };
 }

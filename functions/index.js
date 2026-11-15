@@ -24,7 +24,7 @@ import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-pha
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
 import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
-import { restoreGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
+import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
@@ -9934,6 +9934,47 @@ app.post(getBoth("/internal/displayPreviews/restoreOriginals"), async (req, res)
   console.log(JSON.stringify({ event: "restore_graphic_originals", mode,
     results: results.map(({ base64, ...rest }) => rest) }));
   res.json({ dryRun: mode === "dryRun", mode, results });
+});
+
+// Re-attaches a graphic whose hosted upload is not an image (for example a
+// Google sign-in page saved when a Drive link was imported) from its Drive
+// file. Writes a new upload; the old object stays, and its URL is kept in
+// imageUrlBeforeRestore.
+const DRIVE_FILE_ID_PATTERN = /^[A-Za-z0-9_-]{10,200}$/;
+const reattachOriginalDeps = {
+  getGraphic: restoreOriginalDeps.getGraphic,
+  fetchDrive: restoreOriginalDeps.fetchDrive,
+  updateGraphic: restoreOriginalDeps.updateGraphic,
+  now: restoreOriginalDeps.now,
+  fetchUrl: async (url) => {
+    const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
+    if (!response.ok) return null;
+    return Buffer.from(await response.arrayBuffer());
+  },
+  storageFolder: (id) => `content-library/graphics/${normalizeKey(id)}`,
+  saveUpload: async ({ storagePath, mimeType, buffer }) => (await saveImageUpload({ storagePath, mimeType, buffer })).publicUrl,
+};
+
+app.post(getBoth("/internal/displayPreviews/reattachOriginals"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length || items.length > RESTORE_MAX_ITEMS || items.some((item) => !item || typeof item.id !== "string"
+    || !item.id || item.id.length > 300 || item.id.includes("/")
+    || typeof item.driveFileId !== "string" || !DRIVE_FILE_ID_PATTERN.test(item.driveFileId)
+    || typeof item.expectImageUrl !== "string" || !item.expectImageUrl.startsWith("https://") || item.expectImageUrl.length > 2048)) {
+    return res.status(400).json({ error: "invalid_items", maxItems: RESTORE_MAX_ITEMS });
+  }
+  const dryRun = req.body?.dryRun === true;
+  const results = [];
+  for (const item of items) {
+    try {
+      results.push(await reattachGraphicOriginal(item, reattachOriginalDeps, { dryRun }));
+    } catch (err) {
+      results.push({ id: item.id, status: "failed", error: String(err?.message || err).slice(0, 200) });
+    }
+  }
+  console.log(JSON.stringify({ event: "reattach_graphic_originals", dryRun, results }));
+  res.json({ dryRun, results });
 });
 
 // One content-cache refresh so finished previews reach the feed now instead of
