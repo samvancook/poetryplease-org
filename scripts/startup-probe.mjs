@@ -27,8 +27,10 @@ async function signIn(context, page) {
   await cdp.detach();
 }
 const routes = [
-  ["Desktop", "/app?desktop=1&debugLoad=1", { width: 1280, height: 900 }, "#media-wrap"],
-  ["Classic mobile", "/mobile.html?debugLoad=1", { width: 390, height: 844 }, "#media-wrap"],
+  // The card itself, not #media-wrap: on Desktop that wrapper also holds the
+  // vote buttons, whose text alone used to pass as a readable card.
+  ["Desktop", "/app?desktop=1&debugLoad=1", { width: 1280, height: 900 }, "#media-wrap .media-box"],
+  ["Classic mobile", "/mobile.html?debugLoad=1", { width: 390, height: 844 }, "#media-wrap .media-box"],
   ["Swipe", "/m", { width: 390, height: 844 }, "#feed"],
 ];
 // Two passes on the runner's fast network, then one shaped like a mid-range
