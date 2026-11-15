@@ -27,10 +27,12 @@ on:
         #   diagnose-stalled read-only: downloads each stalled original and groups them by cause
         #   restore-dry-run  read-only: checks the first <preview_limit> rows of the restore plan
         #   restore-originals puts broken originals back (docs/handoffs/graphic-restore-plan-2026-11-14.json)
+        #   signed-in-probe  not a backfill: runs only the signed_in_probe job, which measures
+        #                    startup on the live site signed in as the test reader
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled, restore-dry-run, restore-originals]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled, restore-dry-run, restore-originals, signed-in-probe]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -247,7 +249,7 @@ jobs:
   # clearing its fields on the graphic.
   # ------------------------------------------------------------
   display_preview_backfill:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill != 'none' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill != 'none' && inputs.preview_backfill != 'signed-in-probe' }}
     runs-on: ubuntu-latest
     timeout-minutes: 340
     permissions:
@@ -380,6 +382,60 @@ jobs:
               (cd functions && node diagnose-display-previews.mjs "$RUNNER_TEMP/stalled.jsonl") ;;
             *) echo "unknown action"; exit 2 ;;
           esac
+
+  # ------------------------------------------------------------
+  # SIGNED-IN STARTUP PROBE, started by hand only. It deploys nothing.
+  # Measures the first card on the live site while signed in as the test
+  # reader "startup-probe-reader" (no roles, never votes). It lives in this
+  # workflow because Google Cloud only accepts this workflow's identity,
+  # which is what issues the reader's one-hour sign-in token.
+  # ------------------------------------------------------------
+  signed_in_probe:
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill == 'signed-in-probe' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Authenticate to Google Cloud with GitHub OIDC
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/609992589187/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+          create_credentials_file: true
+
+      - name: Install probe dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/probe" && cd "$RUNNER_TEMP/probe"
+          npm init -y >/dev/null
+          # Uses the Chrome already on the runner, so nothing else is downloaded.
+          npm install --no-audit --no-fund playwright-core@1.49.1 firebase-admin@14.2.0 >/dev/null
+
+      - name: Signed-in browser start on Desktop, classic mobile and Swipe
+        env:
+          PP_PROBE_SERVICE_ACCOUNT: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+        run: |
+          set -euo pipefail
+          cp scripts/startup-probe.mjs scripts/startup-probe-token.mjs "$RUNNER_TEMP/probe/"
+          cd "$RUNNER_TEMP/probe"
+          export PP_PROBE_TOKEN_FILE="$RUNNER_TEMP/probe-token"
+          node startup-probe-token.mjs
+          PP_PROBE_CUSTOM_TOKEN="$(cat "$PP_PROBE_TOKEN_FILE")"
+          echo "::add-mask::$PP_PROBE_CUSTOM_TOKEN"
+          rm -f "$PP_PROBE_TOKEN_FILE"
+          export PP_PROBE_CUSTOM_TOKEN
+          # The probe must not inherit the cloud identity.
+          env -u GOOGLE_APPLICATION_CREDENTIALS -u CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE -u GOOGLE_GHA_CREDS_PATH \
+            node startup-probe.mjs
 
   # ------------------------------------------------------------
   # DEPLOY PREVIEW CHANNEL for non-main branches
