@@ -23,7 +23,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
-import { ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
+import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { restoreGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
@@ -14362,6 +14362,14 @@ export const graphicdisplaypreview = onDocumentWritten({
       runTransaction: (fn) => db.runTransaction(fn),
     });
     console.log(JSON.stringify({ event: "display_preview", docId, ...result }));
+    // An upload or replaced image refreshed the feed before this preview
+    // existed, so the feed would keep serving the full-size original until
+    // its next rebuild. Backfill requests refresh the feed once, by hand.
+    if (shouldRefreshFeedAfterPreview(result, { requested })) {
+      await invalidateContentCache().catch((err) => {
+        console.warn(JSON.stringify({ event: "display_preview_feed_refresh_failed", docId, error: String(err?.message || err).slice(0, 300) }));
+      });
+    }
   } catch (err) {
     const message = String(err?.message || err).slice(0, 300);
     console.warn(JSON.stringify({ event: "display_preview_failed", docId, error: message }));
