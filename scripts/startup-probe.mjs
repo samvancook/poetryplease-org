@@ -84,10 +84,12 @@ for (const { label: pass, throttle } of passes) {
     sizes.length = 0;
     const started = Date.now();
     let firstCardMs = null;
+    // "card" for a readable card, "empty" when the app says the feed is empty.
+    let settled = "";
     let text = "";
     try {
       await page.goto(base + route, { waitUntil: "domcontentloaded", timeout: 90000 });
-      await page.waitForFunction((selector) => {
+      settled = await page.waitForFunction((selector) => {
         const loader = document.getElementById("pp-loader");
         if (loader && getComputedStyle(loader).display !== "none"
           && getComputedStyle(loader).visibility !== "hidden" && !loader.classList.contains("is-hidden")) return false;
@@ -96,21 +98,25 @@ for (const { label: pass, throttle } of passes) {
         const visible = (element) => element.getBoundingClientRect().height > 0;
         const media = [...root.querySelectorAll("img")].some((img) => img.naturalWidth > 0 && visible(img))
           || [...root.querySelectorAll("video, iframe")].some(visible);
-        return media || (root.innerText || "").trim().length > 20;
-      }, rootSelector, { timeout: throttle ? 90000 : 45000 });
+        if (media || (root.innerText || "").trim().length > 20) return "card";
+        // Swipe reports an empty feed in its footer, outside the feed itself.
+        const status = (document.getElementById("feed-status")?.textContent || "").trim();
+        return /^No unreviewed items/.test(status) ? "empty" : false;
+      }, rootSelector, { timeout: throttle ? 90000 : 45000 }).then((handle) => handle.jsonValue());
       firstCardMs = Date.now() - started;
       await page.waitForTimeout(1500);
-      text = (await page.evaluate(() => document.body.innerText)).replace(/\s+/g, " ").slice(0, 140);
     } catch (error) {
       errors.push("probe: " + error.message.split("\n")[0]);
     }
+    // Captured even after a timeout, so a failed visit still shows its screen.
+    text = await page.evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 140)).catch(() => "");
     const marks = await page.evaluate(() => (window.PP_LOAD_TIMING?.rows || [])
       .map((row) => `${row.ms}ms ${row.label}`)).catch(() => []);
     if (firstCardMs === null || errors.length) failed = true;
     const beforeCard = sizes.filter((entry) => firstCardMs === null || entry.at <= firstCardMs);
     const totalKB = (list) => list.reduce((sum, entry) => sum + entry.kb, 0);
     const largest = sizes.slice().sort((a, b) => b.kb - a.kb).slice(0, 6).map((entry) => `${entry.kb}KB@${entry.at}ms ${entry.url}`);
-    console.log(JSON.stringify({ mode, pass, name, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, api, marks, errors, text }));
+    console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, api, marks, errors, text }));
     await context.close();
   }
 }
