@@ -72,7 +72,18 @@ function probeScript(mode, scenario) {
           document.documentElement.dataset.startupAdvanced = 'true';
           document.getElementById('load-button').click();
         }
-      } else clearInterval(check);
+      } else if (${JSON.stringify(scenario !== "mobile-low")}) clearInterval(check);
+    }
+    // Classic mobile: vote through cards until few are left, which should start the full feed.
+    if (${JSON.stringify(scenario === "mobile-low")} && rendered && !blocked) {
+      const sent = Number(document.documentElement.dataset.startupVotes || 0);
+      if (sent < 3 && !document.documentElement.dataset.startupVoting) {
+        document.documentElement.dataset.startupVoting = 'true';
+        Promise.resolve(window.PP.vote('like')).finally(() => {
+          document.documentElement.dataset.startupVotes = String(sent + 1);
+          delete document.documentElement.dataset.startupVoting;
+        });
+      }
     }
     if (${JSON.stringify(scenario === "advance")} && root?.textContent.includes('Refill fixture readable')) {
       document.documentElement.dataset.startupRefilled = 'true';
@@ -114,6 +125,7 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
     "", "", "", "EXC", "Startup fixture first line\nStartup fixture second line"];
   const feed = { newGraphics: [row], hasMore: false, domainTotalImages: 1, ratingsSummary: {} };
   const refill = { ...feed, newGraphics: [[...row.slice(0, 3), "refill-fixture", ...row.slice(4, 8), "Refill fixture readable"]] };
+  const manyRows = Array.from({ length: 11 }, (_, i) => [...row.slice(0, 3), "startup-fixture-" + i, ...row.slice(4)]);
   const requests = [];
   let scenario = "ready";
   let failedFeed = false;
@@ -141,7 +153,7 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
       response.setHeader("Content-Type", "application/json");
       response.end(JSON.stringify(url.pathname === "/api/contentById" ? { item: row }
         : url.pathname === "/api/fetchDataAnon" ? refill
-        : /bootstrap|fetchFiltered/.test(url.pathname) ? feed : []));
+        : /bootstrap|fetchFiltered/.test(url.pathname) ? (scenario === "mobile-low" ? { ...feed, newGraphics: manyRows } : feed) : []));
       return;
     }
     const shells = { "/app": "index.html", "/mobile.html": "mobile.html", "/m": "posts-swipe.html" };
@@ -171,6 +183,7 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
       ["/app?desktop=1", "advance"],
       ["/app?desktop=1", "signed-in"],
       ["/mobile.html", "signed-in"],
+      ["/mobile.html", "mobile-low"],
       ["/mobile.html", "ready"],
       ["/m", "ready"],
       ["/m?item=startup-fixture", "linked"],
@@ -191,6 +204,12 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
         const fullFeedRequests = requests.slice(requestStart).filter(p => p === "/api/fetchDataAnon" || p === "/api/fetchData");
         if (route.startsWith("/app") && scenario === "ready") {
           assert.equal(fullFeedRequests.length, 0, "Desktop fetched the full feed before advancing");
+        }
+        if (route.startsWith("/mobile.html") && scenario !== "mobile-low") {
+          assert.equal(fullFeedRequests.length, 0, "Classic mobile fetched the full feed before the reader advanced");
+        }
+        if (scenario === "mobile-low") {
+          assert.equal(fullFeedRequests.length, 1, "Classic mobile did not fetch the full feed once when few cards were left");
         }
         if (scenario === "signed-in") {
           const seen = requests.slice(requestStart);

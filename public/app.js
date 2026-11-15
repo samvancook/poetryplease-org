@@ -3003,6 +3003,18 @@ async function ensureFilterReadyThenRebuild() {
   rebuildQueueAfterFilter();
 }
 
+// Classic mobile tops its queue up with the full feed, a download of about
+// 4 MB. It used to start right after the first card; it now starts when the
+// reader is close to the end of the cards already loaded. The welcome lane
+// keeps its own short set until calibration finishes, as it does on Desktop.
+const MOBILE_HYDRATE_WHEN_REMAINING = 8;
+function hydrateWhenQueueRunsLow() {
+  if (!IS_MOBILE_UI || IS_EMBED_UI) return;
+  if (activeWelcomeLane || eventReadingMode || hasActiveFeedFilters()) return;
+  if (!Array.isArray(queue) || queue.length > MOBILE_HYDRATE_WHEN_REMAINING) return;
+  hydrateFullFeedInBackground();
+}
+
 async function hydrateFullFeedInBackground() {
   if (IS_EMBED_UI) return;
   if (fullFeedHydrationStarted || fullFeedHydrationDone) return;
@@ -4299,6 +4311,7 @@ async function onVoteAny(value /* 'like'|'dislike'|'meh'|'moved me' */){
       idx = nextIndex;
       safePreload(idx + PRELOAD_AHEAD);
       renderWhenReady(idx);
+      hydrateWhenQueueRunsLow();
     } else {
       await refillCurrentViewWithRetry();
     }
@@ -4338,7 +4351,7 @@ async function onSkip(){
   finally {
     removeItemFromQueueById(currentItem?.id);
     const nextIndex = chooseNextIndex();
-    if (nextIndex !== -1) { idx = nextIndex; safePreload(idx + PRELOAD_AHEAD); renderWhenReady(idx); }
+    if (nextIndex !== -1) { idx = nextIndex; safePreload(idx + PRELOAD_AHEAD); renderWhenReady(idx); hydrateWhenQueueRunsLow(); }
     else { await refillCurrentViewWithRetry(); }
     setVoteButtonsDisabled(false); isTransitioning = false;
   }
@@ -4443,7 +4456,6 @@ async function ppAutoloadFirstItem() {
         }
         console.debug('[PP] autoload: got data, initializing queue');
         initQueueFromData(data);
-        if (IS_MOBILE_UI && !IS_EMBED_UI) afterFirstCard(() => hydrateFullFeedInBackground());
 
         if (!currentItem && (!Array.isArray(queue) || !queue.length)) {
           console.warn('[PP] autoload: initQueueFromData ran but no currentItem; unlocking');
