@@ -29,10 +29,11 @@ on:
         #   restore-originals puts broken originals back (docs/handoffs/graphic-restore-plan-2026-11-14.json)
         #   signed-in-probe  not a backfill: runs only the signed_in_probe job, which measures
         #                    startup on the live site signed in as the test reader
+        #   signed-in-probe-author  the same, with the test reader marked as an author
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled, restore-dry-run, restore-originals, signed-in-probe]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled, restore-dry-run, restore-originals, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -249,7 +250,7 @@ jobs:
   # clearing its fields on the graphic.
   # ------------------------------------------------------------
   display_preview_backfill:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill != 'none' && inputs.preview_backfill != 'signed-in-probe' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill != 'none' && !startsWith(inputs.preview_backfill, 'signed-in-probe') }}
     runs-on: ubuntu-latest
     timeout-minutes: 340
     permissions:
@@ -386,12 +387,13 @@ jobs:
   # ------------------------------------------------------------
   # SIGNED-IN STARTUP PROBE, started by hand only. It deploys nothing.
   # Measures the first card on the live site while signed in as the test
-  # reader "startup-probe-reader" (no roles, never votes). It lives in this
+  # reader "startup-probe-reader" (never votes; an author only for the
+  # signed-in-probe-author choice). It lives in this
   # workflow because Google Cloud only accepts this workflow's identity,
   # which is what issues the reader's one-hour sign-in token.
   # ------------------------------------------------------------
   signed_in_probe:
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.preview_backfill == 'signed-in-probe' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && startsWith(inputs.preview_backfill, 'signed-in-probe') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -423,6 +425,7 @@ jobs:
       - name: Signed-in browser start on Desktop, classic mobile and Swipe
         env:
           PP_PROBE_SERVICE_ACCOUNT: firebase-adminsdk-k1gj0@poetry-please.iam.gserviceaccount.com
+          PP_PROBE_READER_ROLE: ${{ inputs.preview_backfill == 'signed-in-probe-author' && 'author' || 'reader' }}
         run: |
           set -euo pipefail
           cp scripts/startup-probe.mjs scripts/startup-probe-token.mjs "$RUNNER_TEMP/probe/"
