@@ -23,12 +23,19 @@ if (window.firebase) return;
 const apps = [];
 const fixtureUser = ${signedIn ? `{
   uid: "fixture-reader", email: "fixture-reader@example.test", displayName: "Fixture Reader",
-  isAnonymous: false, providerData: [], getIdToken: () => Promise.resolve("fixture-token")
+  isAnonymous: false, providerData: [],
+  // The account lookup made at sign-in is slow, slower than the classic mobile
+  // failsafe. A page timer is used because the test browser's virtual clock
+  // stands still while a network request is pending.
+  getIdToken: () => new Promise(resolve =>
+    setTimeout(() => resolve("fixture-token"), Date.now() - fixtureLoadedAt < 600 ? 1500 : 0))
 }` : "null"};
+const fixtureLoadedAt = Date.now();
+// As with the real SDK, nobody is signed in until the restored session is announced.
 const authState = {
-  currentUser: fixtureUser,
+  currentUser: null,
   onAuthStateChanged(callback) {
-    setTimeout(() => callback(fixtureUser), 0);
+    setTimeout(() => { authState.currentUser = fixtureUser; callback(fixtureUser); }, 0);
     return () => {};
   },
   getRedirectResult: () => Promise.resolve(null)
@@ -120,9 +127,10 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
     if (url.pathname.startsWith("/api/")) {
       requests.push(url.pathname);
       if (scenario === "signed-in" && url.pathname === "/api/me") {
-        // A slow account lookup: background startup work must still wait for the first card.
-        setTimeout(() => response.writeHead(200, { "Content-Type": "application/json" })
-          .end(JSON.stringify({ roles: ["user"], email: "fixture-reader@example.test" })), 700);
+        // Background startup work must wait for the first card even after the account
+        // lookup, and only one first feed may be requested while that lookup is pending.
+        response.writeHead(200, { "Content-Type": "application/json" })
+          .end(JSON.stringify({ roles: ["user"], email: "fixture-reader@example.test" }));
         return;
       }
       if (scenario === "retry" && url.pathname === "/api/fetchFiltered" && !failedFeed) {
@@ -193,6 +201,8 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
             const at = seen.indexOf(background);
             assert.ok(at === -1 || at > feedAt, route + " requested " + background + " before the signed-in first feed");
           }
+          assert.equal(seen.filter(p => p === "/api/bootstrap" || p === "/api/fetchFiltered").length, 1,
+            route + " requested its first feed more than once while the account lookup was pending");
           assert.ok(seen.includes("/api/imageTypes"), route + " never loaded its filter lists after the first card");
         }
         if (scenario === "advance") {

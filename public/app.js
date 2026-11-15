@@ -4356,6 +4356,9 @@ const FIRST_RENDER_GRACE_MS = 12000;
 let firstRenderRetried = false;
 let __pp_initialLoad = false;
 let __pp_initialLoadSeq = 0;
+// Account lookups the auth listener is still waiting on before it starts the first load.
+let accountBootstrapsPending = 0;
+const MOBILE_FAILSAFE_MAX_WAIT_MS = 6000;
 
 // Simple promise timeout helper
 function withTimeout_(promise, ms, label) {
@@ -4677,11 +4680,14 @@ firebase.auth().onAuthStateChanged(async (user) => {
     });
   }
 
+  accountBootstrapsPending += 1;
   try {
     await refreshCurrentAccount();
     await prepareOwnAuthorLane(visibleUser);
   } catch (err) {
     console.warn('Author account bootstrap failed', err);
+  } finally {
+    accountBootstrapsPending -= 1;
   }
 
   const nextFeedIdentityKey = getFeedIdentityKey();
@@ -4860,10 +4866,22 @@ window.addEventListener('DOMContentLoaded', () => {
   } else setTimeout(emitState,0);
 
   // Failsafe: if mobile shell loads and nothing rendered, auto-start once
-  if (IS_MOBILE_UI) setTimeout(() => {
-  if (!currentItem && !__pp_initialLoad) {
-    try { ppAutoloadFirstItem(); } catch (_) {}
+  // While the auth listener is still looking up the account it will start the
+  // first load itself, for the right identity and lane. Starting one here too
+  // made a second feed request and replaced the card that had just appeared.
+  // The failsafe still fires if that lookup has not finished after 6 seconds.
+  if (IS_MOBILE_UI) {
+    const failsafeArmedAt = Date.now();
+    const failsafeStart = () => {
+      // A feed answer that has already arrived, even an empty one, needs no second request.
+      if (currentItem || __pp_initialLoad || lastData) return;
+      if (accountBootstrapsPending > 0 && Date.now() - failsafeArmedAt < MOBILE_FAILSAFE_MAX_WAIT_MS) {
+        setTimeout(failsafeStart, 250);
+        return;
+      }
+      try { ppAutoloadFirstItem(); } catch (_) {}
+    };
+    setTimeout(failsafeStart, 1200);
   }
-}, 1200);
 
 })();
