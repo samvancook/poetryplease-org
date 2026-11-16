@@ -1,8 +1,8 @@
 {
   "generatedAt": "2026-04-23T14:15:14.301399Z",
   "updatedAt": "2026-11-16",
-  "updateNote": "Released 624 quote images whose originals were restored or re-attached and verified in Nov 2026 (see docs/handoffs/graphic-restore-plan-2026-11-14.json and graphic-reattach-plan-2026-11-15.json).",
-  "count": 69,
+  "updateNote": "Released 624 quote images whose originals were restored or re-attached and verified in Nov 2026 (see docs/handoffs/graphic-restore-plan-2026-11-14.json and graphic-reattach-plan-2026-11-15.json). Then released 15 Bowman, FreeQuency and Guevara quote images: their April fetch_error came from the check script failing on curly quotes and accents, and each file is a real image.",
+  "count": 54,
   "ids": [
     "ACHK-QI-A-CHOIR-OF-HONEST-KILLERS-V3",
     "APP-QI-WISHES-FOR-THE-RICH-AFTER-LUCILLE-CLIFTON-V2",
@@ -27,24 +27,9 @@
     "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V6",
     "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V7",
     "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V8",
-    "BOWMAN - SHAP - Quote Images - HOPE YOU\u2019RE OKAY, AND EVEN IF YOU AREN\u2019T, YOU CAN JUST BE 23.png",
-    "BOWMAN - SHAP - Quote Images - I WON\u2019T CALL YOU PRETTY 8.png",
-    "BOWMAN - SHAP - Quote Images - IT HURTS A LOT AND THEN IT DOESN\u2019T 11.png",
-    "BOWMAN - SHAP - Quote Images - YOU DON\u2019T SAY I LOVE YOU OFTEN, BUT YOU SAY IT CONSTANTLY, QUIETLY, EVERY DAY 18.png",
-    "BOWMAN - SHAP - Quote Images - \u201cHOW CAN I BEGIN ANYTHING NEW WITH ALL OF YESTERDAY IN ME?\u201d 'LEONARD COHEN' 9.png",
-    "BOWMAN - SHAP - Quote Images - \u201cTHE LONGER I LIVE THE MORE BEAUTIFUL LIFE BECOMES \u201d \u2013 FRANK LLOYD WRIGHT 7.png",
-    "BOWMAN - SHAP - Quote Images - \u201cTHERE IS NO REMEDY FOR LOVE BUT TO LOVE MORE\u201d -HENRY DAVID THOREAU 31.png",
     "DOMT-QI-ON-THE-LAST-GESTURE-BETWEEN-US-V2",
     "EMAI-QI-HIDE-AND-SEEK-V2",
     "ETSA-QI-CHURCH-GIRLS-FIRST-SINNER-FRIEND",
-    "FREEQUENCY - OUB - Quote Images - FOR \u2018REGULAR BLACK GIRLS\u2019 WHO\u2019VE CONSIDERED SKIN BLEACHING%2FWHEN YOUR BLACKNESS WAS TOO MUCH 11.png",
-    "FREEQUENCY - OUB - Quote Images - TO EVERY MAN AND MASC PERSON WHO\u2019S (BEEN) CHALLENGED (BY) MY MASCULINITY 10.png",
-    "GUEVARA - CIPO - Quote Images - CUMBIA DE LOS SALVADORE\u00d1OS 1.PNG",
-    "GUEVARA - CIPO - Quote Images - LAS T\u00cdAS 7.PNG",
-    "GUEVARA - CIPO - Quote Images - PART I: 'VANESSA TIENE OTRA MAM\u00c1, PERO NOS LLAMAN GEMELAS' 22.PNG",
-    "GUEVARA - CIPO - Quote Images - PART III: 'SOMOS ARTISTAS TAMBI\u00c9N' 3.PNG",
-    "GUEVARA - CIPO - Quote Images - PART V: 'I FEEL LIKE I\u2019VE HEARD THIS STORY BEFORE' 18.PNG",
-    "GUEVARA - CIPO - Quote Images - \u00a1YA VIENE LA LLUUUVIA!' 4.PNG",
     "ISST-QI-CONTINENT-FROM-THE-LATIN-CONTINERE-MEANING-TO-CONTAIN",
     "NABF-QI-THE-RITUAL",
     "OND-QI-BALLAD-OF-THE-BRUISED-LUNG",
@@ -236,55 +221,6 @@
       "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
     },
     {
-      "id": "BOWMAN - SHAP - Quote Images - HOPE YOU\u2019RE OKAY, AND EVEN IF YOU AREN\u2019T, YOU CAN JUST BE 23.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/BOWMAN%20-%20SHAP%20-%20Quote%20Images%20-%20HOPE%20YOU\u2019RE%20OKAY%2C%20AND%20EVEN%20IF%20YOU%20AREN\u2019T%2C%20YOU%20CAN%20JUST%20BE%2023.png",
-      "driveLink": "https://drive.google.com/file/d/1v40qM7nJL4k3Bf-HQtSZWbhPouHhvr0p/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u2019' in position 79: ordinal not in range(128)"
-    },
-    {
-      "id": "BOWMAN - SHAP - Quote Images - I WON\u2019T CALL YOU PRETTY 8.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/BOWMAN%20-%20SHAP%20-%20Quote%20Images%20-%20I%20WON\u2019T%20CALL%20YOU%20PRETTY%208.png",
-      "driveLink": "https://drive.google.com/file/d/1FNb7ct3ciSdSBiJ0ZOFasoIQIX_oRsdo/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u2019' in position 76: ordinal not in range(128)"
-    },
-    {
-      "id": "BOWMAN - SHAP - Quote Images - IT HURTS A LOT AND THEN IT DOESN\u2019T 11.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/BOWMAN%20-%20SHAP%20-%20Quote%20Images%20-%20IT%20HURTS%20A%20LOT%20AND%20THEN%20IT%20DOESN\u2019T%2011.png",
-      "driveLink": "https://drive.google.com/file/d/1axRFC3D_c7xNlPcB719BZ_6oM3RXWq3m/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u2019' in position 115: ordinal not in range(128)"
-    },
-    {
-      "id": "BOWMAN - SHAP - Quote Images - YOU DON\u2019T SAY I LOVE YOU OFTEN, BUT YOU SAY IT CONSTANTLY, QUIETLY, EVERY DAY 18.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/BOWMAN%20-%20SHAP%20-%20Quote%20Images%20-%20YOU%20DON\u2019T%20SAY%20I%20LOVE%20YOU%20OFTEN%2C%20BUT%20YOU%20SAY%20IT%20CONSTANTLY%2C%20QUIETLY%2C%20EVERY%20DAY%2018.png",
-      "driveLink": "https://drive.google.com/file/d/1WT731G4lJtbFE2d8RxRdqLwbvOj7lVNw/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u2019' in position 78: ordinal not in range(128)"
-    },
-    {
-      "id": "BOWMAN - SHAP - Quote Images - \u201cHOW CAN I BEGIN ANYTHING NEW WITH ALL OF YESTERDAY IN ME?\u201d 'LEONARD COHEN' 9.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/BOWMAN%20-%20SHAP%20-%20Quote%20Images%20-%20\u201cHOW%20CAN%20I%20BEGIN%20ANYTHING%20NEW%20WITH%20ALL%20OF%20YESTERDAY%20IN%20ME%3F\u201d%20'LEONARD%20COHEN'%209.png",
-      "driveLink": "https://drive.google.com/file/d/1p8hJCmEuR99mVPh0jvImNkYLJqS4uyE_/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u201c' in position 69: ordinal not in range(128)"
-    },
-    {
-      "id": "BOWMAN - SHAP - Quote Images - \u201cTHE LONGER I LIVE THE MORE BEAUTIFUL LIFE BECOMES \u201d \u2013 FRANK LLOYD WRIGHT 7.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/BOWMAN%20-%20SHAP%20-%20Quote%20Images%20-%20\u201cTHE%20LONGER%20I%20LIVE%20THE%20MORE%20BEAUTIFUL%20LIFE%20BECOMES%20\u201d%20\u2013%20FRANK%20LLOYD%20WRIGHT%207.png",
-      "driveLink": "https://drive.google.com/file/d/1XkVwppLSHv71lEeQ5vG-_McgZn_a-5Ru/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u201c' in position 69: ordinal not in range(128)"
-    },
-    {
-      "id": "BOWMAN - SHAP - Quote Images - \u201cTHERE IS NO REMEDY FOR LOVE BUT TO LOVE MORE\u201d -HENRY DAVID THOREAU 31.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/BOWMAN%20-%20SHAP%20-%20Quote%20Images%20-%20\u201cTHERE%20IS%20NO%20REMEDY%20FOR%20LOVE%20BUT%20TO%20LOVE%20MORE\u201d%20-HENRY%20DAVID%20THOREAU%2031.png",
-      "driveLink": "https://drive.google.com/file/d/1Nhhj7Oa1RcR52WeW8-BIQery_V7un4Ct/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u201c' in position 69: ordinal not in range(128)"
-    },
-    {
       "id": "DOMT-QI-ON-THE-LAST-GESTURE-BETWEEN-US-V2",
       "reason": "non_image_bytes",
       "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Benaim%20-%20DOMT%20-%20INT%20-%20I%20ask%20why",
@@ -303,62 +239,6 @@
       "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Jackson%20-%20ETSA%20-%20INT%20-%20Cover%201.jpg",
       "driveLink": "https://drive.google.com/file/d/1b2BmvYjunaR5ZJGumSNYeS-8mz6Og5Zx/view?usp=drivesdk",
       "firstBytes": "{\n  \"error\": {\n    \"code\": 404,\n"
-    },
-    {
-      "id": "FREEQUENCY - OUB - Quote Images - FOR \u2018REGULAR BLACK GIRLS\u2019 WHO\u2019VE CONSIDERED SKIN BLEACHING%2FWHEN YOUR BLACKNESS WAS TOO MUCH 11.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/FREEQUENCY%20-%20OUB%20-%20Quote%20Images%20-%20FOR%20\u2018REGULAR%20BLACK%20GIRLS\u2019%20WHO\u2019VE%20CONSIDERED%20SKIN%20BLEACHING/WHEN%20YOUR%20BLACKNESS%20WAS%20TOO%20MUCH%2011.png",
-      "driveLink": "https://drive.google.com/file/d/1sjpDxJbCL8d-2ptWcqab9wVybxF3yPpA/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u2018' in position 78: ordinal not in range(128)"
-    },
-    {
-      "id": "FREEQUENCY - OUB - Quote Images - TO EVERY MAN AND MASC PERSON WHO\u2019S (BEEN) CHALLENGED (BY) MY MASCULINITY 10.png",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/FREEQUENCY%20-%20OUB%20-%20Quote%20Images%20-%20TO%20EVERY%20MAN%20AND%20MASC%20PERSON%20WHO\u2019S%20(BEEN)%20CHALLENGED%20(BY)%20MY%20MASCULINITY%2010.png",
-      "driveLink": "https://drive.google.com/file/d/1eN1MNjpKEYcgVdApaa_a50uFq1O9bAgb/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u2019' in position 116: ordinal not in range(128)"
-    },
-    {
-      "id": "GUEVARA - CIPO - Quote Images - CUMBIA DE LOS SALVADORE\u00d1OS 1.PNG",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/GUEVARA%20-%20CIPO%20-%20Quote%20Images%20-%20CUMBIA%20DE%20LOS%20SALVADORE\u00d1OS%201.PNG",
-      "driveLink": "https://drive.google.com/file/d/1ODCDx2DmFXpzOsv_T0FTJ8oyAZzK97Hx/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\xd1' in position 99: ordinal not in range(128)"
-    },
-    {
-      "id": "GUEVARA - CIPO - Quote Images - LAS T\u00cdAS 7.PNG",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/GUEVARA%20-%20CIPO%20-%20Quote%20Images%20-%20LAS%20T\u00cdAS%207.PNG",
-      "driveLink": "https://drive.google.com/file/d/1h0HVokL6bkQucAP4WhkeScgyqk6Rvakv/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\xcd' in position 77: ordinal not in range(128)"
-    },
-    {
-      "id": "GUEVARA - CIPO - Quote Images - PART I: 'VANESSA TIENE OTRA MAM\u00c1, PERO NOS LLAMAN GEMELAS' 22.PNG",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/GUEVARA%20-%20CIPO%20-%20Quote%20Images%20-%20PART%20I:%20'VANESSA%20TIENE%20OTRA%20MAM\u00c1%2C%20PERO%20NOS%20LLAMAN%20GEMELAS'%2022.PNG",
-      "driveLink": "https://drive.google.com/file/d/1i53W6rJuLCIlaSoJqG3j_XIZqU5iyVZY/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\xc1' in position 111: ordinal not in range(128)"
-    },
-    {
-      "id": "GUEVARA - CIPO - Quote Images - PART III: 'SOMOS ARTISTAS TAMBI\u00c9N' 3.PNG",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/GUEVARA%20-%20CIPO%20-%20Quote%20Images%20-%20PART%20III:%20'SOMOS%20ARTISTAS%20TAMBI\u00c9N'%203.PNG",
-      "driveLink": "https://drive.google.com/file/d/11kXi6vnpRNPBZHEw5Z2XrJQ2wzH0Hb5w/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\xc9' in position 109: ordinal not in range(128)"
-    },
-    {
-      "id": "GUEVARA - CIPO - Quote Images - PART V: 'I FEEL LIKE I\u2019VE HEARD THIS STORY BEFORE' 18.PNG",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/GUEVARA%20-%20CIPO%20-%20Quote%20Images%20-%20PART%20V:%20'I%20FEEL%20LIKE%20I\u2019VE%20HEARD%20THIS%20STORY%20BEFORE'%2018.PNG",
-      "driveLink": "https://drive.google.com/file/d/15SD4CtX4nljfMCFHrGT6OAlf-9PtLbRn/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\u2019' in position 102: ordinal not in range(128)"
-    },
-    {
-      "id": "GUEVARA - CIPO - Quote Images - \u00a1YA VIENE LA LLUUUVIA!' 4.PNG",
-      "reason": "fetch_error",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/GUEVARA%20-%20CIPO%20-%20Quote%20Images%20-%20\u00a1YA%20VIENE%20LA%20LLUUUVIA!'%204.PNG",
-      "driveLink": "https://drive.google.com/file/d/1iqQozdIX66831Lsc5TL6cbWjwUL-ZBtv/view?usp=drivesdk",
-      "error": "UnicodeEncodeError: 'ascii' codec can't encode character '\\xa1' in position 70: ordinal not in range(128)"
     },
     {
       "id": "ISST-QI-CONTINENT-FROM-THE-LATIN-CONTINERE-MEANING-TO-CONTAIN",
