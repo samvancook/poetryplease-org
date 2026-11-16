@@ -12394,8 +12394,8 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
   const [submissionSnap, decisionSnap, assignmentSnap, entrantSnap, spotCheckSnap, finalistSnap] = await Promise.all([
-    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
-    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    db.collection(COLLECTIONS.contentSubmissions).where("submissionProgramId", "==", programId).get(),
+    db.collection(COLLECTIONS.submissionResponses).where("submissionProgramId", "==", programId).get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("programId", "==", programId).get(),
     db.collection(COLLECTIONS.submissionEntrants).where("submissionProgramId", "==", programId).get(),
     db.collection(COLLECTIONS.contestSpotChecks).where("programId", "==", programId).get(),
@@ -12403,13 +12403,13 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   ]);
   const entrantsBySubmission = new Map(entrantSnap.docs.map((doc) => [doc.id, doc.data() || {}]));
   const instagramBySubmission = new Map([...entrantsBySubmission].map(([id, entrant]) => [id, normalizeText(entrant.instagramHandle || "")]));
-  const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.submissionProgramId === programId);
+  const submissions = submissionSnap.docs.map(mapSubmissionDoc).filter((row) => row.contestSubmission && row.submissionProgramId === programId);
   const submissionIds = new Set(submissions.map((row) => row.id));
   const archivedIds = new Set(submissions.filter((row) => row.contestArchived === true).map((row) => row.id));
   const decisionsBySubmission = new Map();
   for (const doc of decisionSnap.docs) {
     const decision = doc.data() || {};
-    if (!submissionIds.has(decision.submissionId)) continue;
+    if (!submissionIds.has(decision.submissionId) || decision.responseType !== "contest_review") continue;
     const list = decisionsBySubmission.get(decision.submissionId) || [];
     list.push({
       reviewerEmail: normalizeText(decision.reviewerEmail || "").toLowerCase(),
