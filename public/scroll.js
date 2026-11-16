@@ -1,4 +1,4 @@
-import { ScrollFeedPager, originalViewerUrl, safeMediaUrl } from './scroll-feed-core.js';
+import { ScrollFeedPager, originalViewerUrl, safeMediaUrl, bookLine } from './scroll-feed-core.js';
 import { renderPostCard, closePostDetails } from './post-cards.js';
 import { renderSwipeCard, resetSwipeReview, observeSwipeCards } from './posts-swipe.js';
 import { linkedItemPage, chapbookLaneFilters } from './mobile-entry.js?v=20261030-chapbook-embed';
@@ -207,7 +207,9 @@ function renderCaption(item) {
   if (item.type === 'FP') caption.append(node('span', 'source-label', 'Full poem'));
   if (item.title) caption.append(node('span', '', item.title));
   if (item.author) caption.append(node('span', '', item.author));
-  if (item.book) caption.append(node('span', 'book-name', item.book));
+  const line = bookLine(item);
+  if (line?.related) caption.append(node('span', 'book-name', `${line.prefix}: ${line.book}`));
+  else if (line) caption.append(node('span', 'book-name', line.book));
   return caption;
 }
 function appendVideo(stage, item) {
@@ -296,7 +298,8 @@ function renderCard(item) {
   card.append(...createVoteControls(item, card));
   const details = node('details', 'card-details');
   details.append(node('summary', '', 'About this item'));
-  details.append(node('p', '', [item.type, item.catalog, item.book].filter(Boolean).join(' · ')));
+  const detailBook = bookLine(item);
+  details.append(node('p', '', [item.type, item.catalog, detailBook && (detailBook.related ? `${detailBook.prefix}: ${detailBook.book}` : detailBook.book)].filter(Boolean).join(' · ')));
   const original = node('a', '', 'Open in single-item view');
   original.href = originalViewerUrl(item, routeFilters());
   details.append(original);

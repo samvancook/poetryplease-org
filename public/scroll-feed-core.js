@@ -9,7 +9,19 @@ export function normalizeScrollItem(row) {
   const previewUrl = !assetSet && ['QI', 'INT', 'FPI'].includes(kind) ? safeMediaUrl(row[19]) : '';
   return { author: String(author || ''), title: String(title || ''), book: String(book || ''),
     id: String(id), mediaUrl: safeMediaUrl(mediaUrl), previewUrl, bookUrl: safeMediaUrl(bookUrl),
-    catalog: String(catalog || ''), type: kind, text: String(text || ''), assetSet };
+    catalog: String(catalog || ''), type: kind, text: String(text || ''), assetSet,
+    bookRelation: String(row[20] || '') };
+}
+
+// How to name the book next to an item. Most items come from the book they list.
+// "related": a performance piece that is not in that book; the book is another of the author's.
+// "none": nothing to show. Returns { prefix, book } or null.
+export function bookLine(item = {}) {
+  const book = String(item.book || '').trim();
+  const relation = String(item.bookRelation || '').toLowerCase();
+  if (!book || relation === 'none') return null;
+  if (relation === 'related') return { prefix: 'More from this poet', book, related: true };
+  return { prefix: '', book, related: false };
 }
 
 export function safeMediaUrl(value) {

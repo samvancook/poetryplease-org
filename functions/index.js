@@ -476,6 +476,10 @@ export function parseDoc(snap) {
     author: d.author || "",
     title: d.title || d.poem || "",
     book: d.book || "",
+    // "related": the poem is not in `book`; the book is another of the author's books. "none": no book to show.
+    bookRelation: ["related", "none"].includes(String(d.bookRelation || "").trim().toLowerCase())
+      ? String(d.bookRelation).trim().toLowerCase()
+      : "",
     bookShortener: d.bookShortener || "",
     imageId,
     contentId,
@@ -1724,7 +1728,8 @@ function mapToArr(o) {
     o.sourceEventLabel || "",
     o.assetSet || null,
     bookReviewAttributes(o),
-    ...(o.displayPreviewUrl ? [o.displayPreviewUrl] : []),
+    o.displayPreviewUrl || "",
+    o.bookRelation || "",
   ];
 }
 

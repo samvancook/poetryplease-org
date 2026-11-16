@@ -2566,6 +2566,18 @@ updateFilterControlsVisibility();
 })();
 
 
+// How the book line reads. "related": a performance piece that is not in this book,
+// which is another of the author's books. "none": no book line. Keep in step with
+// bookLine() in scroll-feed-core.js.
+function bookRelationOf(item) {
+  const relation = String(item?.bookRelation || '').toLowerCase();
+  return relation === 'related' || relation === 'none' ? relation : '';
+}
+function bookLabel(item, promptPoemSet = false) {
+  if (bookRelationOf(item) === 'related') return `More from this poet: ${item.book || ''}`;
+  return `${promptPoemSet ? 'From the book' : 'From their book'}: ${item.book || ''}`;
+}
+
 // ===== Mapping (matches your GAS) =====
 function mapGraphic(g){
   if (Array.isArray(g)) {
@@ -2587,6 +2599,7 @@ function mapGraphic(g){
       assetSet: g[17] || null,
       bookReviewAttributes: g[18] || null,
       displayPreviewUrl: g[19] || null,
+      bookRelation: g[20] || '',
       author: g[0] || '',
       title: g[1] || '',
       book: g[2] || '',
@@ -2605,6 +2618,7 @@ function mapGraphic(g){
     assetSet: g?.assetSet || null,
     bookReviewAttributes: g?.bookReviewAttributes || null,
     displayPreviewUrl: g?.displayPreviewUrl || null,
+    bookRelation: g?.bookRelation || '',
     imageType: g?.imageType ?? '',
     excerpt: g?.excerpt ?? '',
     author: g?.author ?? '',
@@ -3750,7 +3764,7 @@ function renderMetaRows(item) {
   }
   if (IS_EMBED_UI) {
     mediaWrap.prepend(row(promptPoemSet ? 'Prompt and poem' : `Title: ${item.title || ''}`));
-    mediaWrap.prepend(row(`${promptPoemSet ? 'From the book' : 'From their book'}: ${item.book || ''}`));
+    if (bookRelationOf(item) !== 'none') mediaWrap.prepend(row(bookLabel(item, promptPoemSet)));
     if (!promptPoemSet) mediaWrap.prepend(row(`Author: ${item.author || ''}`));
     return;
   }
@@ -3758,8 +3772,8 @@ function renderMetaRows(item) {
   // Excerpt titles appear with their source caption inside the card.
   if (promptPoemSet) mediaWrap.prepend(row('Prompt and poem'));
   else if (item.imageType !== 'EXC') mediaWrap.prepend(row(`Title: ${item.title || ''}`));
-  if (item.book) mediaWrap.prepend(row(
-    `${promptPoemSet ? 'From the book' : 'From their book'}: ${item.book || ''}`,
+  if (item.book && bookRelationOf(item) !== 'none') mediaWrap.prepend(row(
+    bookLabel(item, promptPoemSet),
     'bookCheckbox',
     filterByBook && valuesMatch(selectedBook, item.book),
     'More from this book',
