@@ -1856,7 +1856,7 @@ async function readRatingsSnapshot() {
   const meta = metaSnap.data() || {};
   const builtAtMs = timestampToMs(meta.builtAt);
   if (!builtAtMs || Number(meta.version || 0) !== RATINGS_SNAPSHOT_VERSION) return null;
-  if (timestampToMs(meta.invalidatedAt) >= builtAtMs) return null;
+  if (timestampToMs(meta.invalidatedAt) >= builtAtMs) return { invalidated: true, staffDemotedIds: meta.staffDemotedIds };
   const storagePath = normalizeText(meta.storagePath);
   if (!storagePath) return null;
   if (ratingsCache.basePayload && ratingsCache.builtAt === builtAtMs && ratingsCache.storagePath === storagePath) {
@@ -1873,7 +1873,7 @@ async function readRatingsSnapshot() {
   return { payload: stored.ratings, builtAtMs, authorVoteUserIds: ratingsCache.authorVoteUserIds };
 }
 
-async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
+async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds, staffDemotedIds) {
   const storagePath = `${RATINGS_SNAPSHOT_PATH}/${builtAtMs}-${randomBytes(4).toString("hex")}.json`;
   await storage.bucket().file(storagePath).save(JSON.stringify({
     ratings: payload,
@@ -1893,6 +1893,7 @@ async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
       version: RATINGS_SNAPSHOT_VERSION,
       builtAt: new Date(builtAtMs),
       updatedBy: "server",
+      ...(staffDemotedIds ? { staffDemotedIds } : {}),
     }, { merge: true });
     return true;
   });
@@ -1903,7 +1904,7 @@ async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
   ratingsCache.storagePath = storagePath;
 }
 
-async function rebuildRatingsSnapshot(reason) {
+async function rebuildRatingsSnapshot(reason, { refreshStaffDemotions = false, priorStaffDemotedIds = [] } = {}) {
   const builtAtMs = Date.now();
   const [votes, authorVoteUserIds] = await Promise.all([
     getAllVotes(reason),
@@ -1915,7 +1916,22 @@ async function rebuildRatingsSnapshot(reason) {
     return !time || time <= builtAtMs;
   });
   const payload = aggregateRatings(baseVotes, { authorVoteUserIds });
-  await writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds);
+  let staffDemotedIds;
+  if (refreshStaffDemotions) {
+    const users = await db.collection(COLLECTIONS.users)
+      .select("roles", "email", "status", "automaticTeamAccess").get();
+    const { staff } = staffReviewIdentities(users);
+    const latest = latestStaffReviews(baseVotes, staff);
+    staffDemotedIds = [...latest].filter(([, reviews]) =>
+      crossesStaffNegativityThreshold(reviews.values())).map(([id]) => id);
+  }
+  const demoted = new Set(staffDemotedIds || priorStaffDemotedIds);
+  if (demoted.size) {
+    for (const [id, rating] of Object.entries(payload)) {
+      if (demoted.has(normalizeKey(id))) rating.staffDiscoveryDemoted = true;
+    }
+  }
+  await writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds, staffDemotedIds);
   console.info("ratings_snapshot_rebuilt", { reason, voteCount: baseVotes.length, builtAtMs });
   return { payload, builtAtMs, authorVoteUserIds };
 }
@@ -1951,6 +1967,7 @@ function mergeRatingsSummaries(base, delta) {
     for (const field of fields) combined[field] = (Number(existing[field]) || 0) + (Number(recent[field]) || 0);
     combined.rating = combined.total ? combined.score / combined.total : 0;
     combined.authorExcluded = combined.authorDislikes > 0;
+    if (existing.staffDiscoveryDemoted === true) combined.staffDiscoveryDemoted = true;
     out[id] = combined;
   }
   return out;
@@ -1966,7 +1983,11 @@ async function getRatingsSummaryCached() {
   const generation = ratingsCache.generation;
   const inFlight = (async () => {
     let snapshot = await readRatingsSnapshot();
-    if (!snapshot) snapshot = await rebuildRatingsSnapshot("ratings_snapshot_bootstrap");
+    if (!snapshot || snapshot.invalidated) {
+      snapshot = await rebuildRatingsSnapshot("ratings_snapshot_bootstrap", {
+        priorStaffDemotedIds: snapshot?.staffDemotedIds || [],
+      });
+    }
     const recentVotes = await getVotesAfter(snapshot.builtAtMs);
     const delta = aggregateRatings(recentVotes, { authorVoteUserIds: snapshot.authorVoteUserIds });
     const payload = mergeRatingsSummaries(snapshot.payload, delta);
@@ -5565,8 +5586,11 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     ? filteredAll.slice().sort((a, b) => normalizeText(a.imageId).localeCompare(normalizeText(b.imageId)))
     : null;
   const servedIds = mobileFeed && Array.isArray(req.body?.servedIds) ? req.body.servedIds : [];
+  const defaultDiscovery = (!filters.type || normalizeKey(filters.type) === "promo")
+    && !filters.bookGroup && !filters.contestYear && !filters.book && !filters.author
+    && !filters.catalog && !filters.event;
   const scrollPage = mobileFeed ? paginateMobileFeed(filteredNew, {
-    ratingsSummary, servedIds, authorReview: !!filters.author,
+    ratingsSummary, servedIds, authorReview: !!filters.author, demoteStaffNegatives: defaultDiscovery,
     newcomer: !decoded?.email || votedIds.size < 8,
     preferVisual: !decoded?.email, includeMuted: Number(req.body?.sessionVotes || 0) >= 5,
     seed: normalizeText(req.body?.scrollSeed), limit: req.body?.limit || 12,
@@ -5896,15 +5920,7 @@ function staffReviewSeason(now = new Date()) {
     start: Date.parse(`${seasonYear}-${spring ? "02" : "08"}-01T06:00:00Z`) };
 }
 
-let staffReviewCache;
-async function buildStaffReviewQueue(season) {
-  const [users, items, flags, excerpts, occurrences, poems] = await Promise.all([
-    db.collection(COLLECTIONS.users).select("roles", "email", "status", "automaticTeamAccess").get(),
-    getAllContentCached(), getFlaggedContentIds(),
-    db.collection(COLLECTIONS.excerpts).select("imageId", "imageID", "sourceContentId", "sourceVideoFileId").get(),
-    db.collection(COLLECTIONS.excerptVideoOccurrences).select("canonicalExcerptId").get(),
-    db.collection(COLLECTIONS.fullPoems).select("imageId", "imageID", "createdAt").get(),
-  ]);
+function staffReviewIdentities(users) {
   const staff = new Map();
   const voteIds = new Set();
   for (const doc of users.docs) {
@@ -5917,8 +5933,12 @@ async function buildStaffReviewQueue(season) {
       voteIds.add(id);
     }
   }
+  return { staff, voteIds };
+}
+
+function latestStaffReviews(votes, staff) {
   const latest = new Map();
-  for (const vote of await getVoteDocsForUserIds(voteIds)) {
+  for (const vote of votes) {
     const person = staff.get(normalizeKey(vote.userId));
     const id = normalizeKey(vote.imageId);
     if (!person || !id || vote.supersededAt) continue;
@@ -5929,6 +5949,30 @@ async function buildStaffReviewQueue(season) {
       byPerson.set(person, { value: normalizeKey(vote.voteType), time });
     }
   }
+  return latest;
+}
+
+function crossesStaffNegativityThreshold(responses) {
+  let dislikes = 0;
+  let mehs = 0;
+  for (const { value } of responses) {
+    if (value === "dislike") dislikes++;
+    if (value === "meh") mehs++;
+  }
+  return dislikes >= 2 || dislikes + mehs >= 3;
+}
+
+let staffReviewCache;
+async function buildStaffReviewQueue(season) {
+  const [users, items, flags, excerpts, occurrences, poems] = await Promise.all([
+    db.collection(COLLECTIONS.users).select("roles", "email", "status", "automaticTeamAccess").get(),
+    getAllContentCached(), getFlaggedContentIds(),
+    db.collection(COLLECTIONS.excerpts).select("imageId", "imageID", "sourceContentId", "sourceVideoFileId").get(),
+    db.collection(COLLECTIONS.excerptVideoOccurrences).select("canonicalExcerptId").get(),
+    db.collection(COLLECTIONS.fullPoems).select("imageId", "imageID", "createdAt").get(),
+  ]);
+  const { staff, voteIds } = staffReviewIdentities(users);
+  const latest = latestStaffReviews(await getVoteDocsForUserIds(voteIds), staff);
   const videoExcerpts = new Set(occurrences.docs.map(doc => normalizeKey(doc.get("canonicalExcerptId"))));
   for (const doc of excerpts.docs) {
     if (!doc.get("sourceContentId") || !doc.get("sourceVideoFileId")) continue;
@@ -5952,9 +5996,8 @@ async function buildStaffReviewQueue(season) {
     if (!lane) continue;
     const responses = [...(latest.get(id) || [])].filter(([, vote]) =>
       ["like", "meh", "dislike", "moved me"].includes(vote.value));
-    const dislikes = responses.filter(([, vote]) => vote.value === "dislike").length;
-    const negative = dislikes + responses.filter(([, vote]) => vote.value === "meh").length;
-    if (responses.length >= STAFF_REVIEW_TARGET || dislikes >= 2 || negative >= 3) continue;
+    if (responses.length >= STAFF_REVIEW_TARGET ||
+        crossesStaffNegativityThreshold(responses.map(([, vote]) => vote))) continue;
     queues[lane].push({ id: item.imageId, type, title: item.title, author: item.author,
       book: item.book, reviews: responses.length, needed: STAFF_REVIEW_TARGET - responses.length,
       reviewers: responses.map(([person]) => person) });
@@ -14764,7 +14807,7 @@ export const ratingssummaryrefresh = onSchedule({
   memory: "1GiB",
   timeoutSeconds: 540,
 }, async () => {
-  await rebuildRatingsSnapshot("scheduled_ratings_refresh");
+  await rebuildRatingsSnapshot("scheduled_ratings_refresh", { refreshStaffDemotions: true });
 });
 
 // Keep this LAST

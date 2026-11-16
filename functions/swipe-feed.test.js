@@ -167,3 +167,19 @@ test('staff serving trials require role access and honor reviewed and flagged ex
   await route({ query: { type: 'QI', includeReviewed: '1' } }, res);
   assert.deepEqual(payload.trial.map(row => row.id).sort(), ['keep', 'voted']);
 });
+
+test('staff-demoted items trail discovery across pages and keep normal scoped ordering', () => {
+  const content = ['held', 'one', 'two', 'three'].map(imageId => ({ imageId, imageType: 'QI' }));
+  const ratingsSummary = { held: { total: 9, movedMe: 8, staffDiscoveryDemoted: true } };
+  const options = { ratingsSummary, newcomer: true, limit: 2, seed: 'demotion' };
+  const baseline = paginateMobileFeed(content, options);
+  assert.equal(baseline.items[0].imageId, 'held');
+  const first = paginateMobileFeed(content, { ...options, demoteStaffNegatives: true });
+  assert.deepEqual(first.items.map(item => item.imageId), ['one', 'three']);
+  assert.equal(first.hasMore, true);
+  const second = paginateMobileFeed(content, {
+    ...options, demoteStaffNegatives: true, servedIds: first.items.map(item => item.imageId),
+  });
+  assert.deepEqual(second.items.map(item => item.imageId), ['two', 'held']);
+  assert.equal(second.hasMore, false);
+});
