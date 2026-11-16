@@ -67,7 +67,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js
+        run: node --test uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js content-cache-policy.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
