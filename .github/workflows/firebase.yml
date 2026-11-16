@@ -24,6 +24,7 @@ on:
         #   retry-stalled asks again for graphics requested earlier that still have none
         #   refresh-feed  one content-cache refresh so finished previews reach the feed
         #   list-stalled  read-only: prints every stalled graphic's image URL and last error
+        #   catalog-export read-only: prints one JSON line per graphic (title, author, book, image URL, hidden)
         #   diagnose-stalled read-only: downloads each stalled original and groups them by cause
         #   restore-dry-run  read-only: checks the first <preview_limit> rows of the restore plan
         #   restore-originals puts broken originals back (docs/handoffs/graphic-restore-plan-2026-11-14.json)
@@ -35,7 +36,7 @@ on:
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, signed-in-probe, signed-in-probe-author]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -332,6 +333,7 @@ jobs:
             retry-stalled) run_batches stalled ;;
             refresh-feed) post refreshFeed '{}' | jq . ;;
             list-stalled) get "status?list=stalled-details" | jq -c '.stalledDetails[]' ;;
+            catalog-export) get "catalog" | jq -c '.items[]' ;;
             reattach-dry-run|reattach-originals)
               dry="$([ "$ACTION" = reattach-dry-run ] && echo true || echo false)"
               post reattachOriginals "$(jq -c --argjson dry "$dry" '{dryRun: $dry, items: .items[:6]}' docs/handoffs/graphic-reattach-plan-2026-11-15.json)" | jq . ;;

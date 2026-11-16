@@ -9974,6 +9974,39 @@ app.get(getBoth("/internal/displayPreviews/status"), async (req, res) => {
   }
 });
 
+// Read-only: one row per graphic with the fields needed to audit its
+// record against its file (title, author, book, image URL, visibility
+// flags). Used by the catalog-export workflow choice.
+const GRAPHIC_CATALOG_FIELDS = [
+  "imageId", "imageType", "title", "poem", "author", "book", "imageUrl", "thumbnailUrl", "url", "driveLink",
+  "sourceFileName", "catalogRetired", "quarantineReleased", "reviewOnly", "syntheticTest",
+];
+app.get(getBoth("/internal/displayPreviews/catalog"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  try {
+    const snap = await db.collection(COLLECTIONS.graphics).select(...GRAPHIC_CATALOG_FIELDS).get();
+    const items = snap.docs.map((doc) => {
+      const d = doc.data() || {};
+      const imageId = d.imageId || doc.id;
+      return {
+        id: doc.id,
+        imageId,
+        imageType: d.imageType || "",
+        title: d.title || d.poem || "",
+        author: d.author || "",
+        book: d.book || "",
+        imageUrl: d.imageUrl || d.thumbnailUrl || d.url || d.driveLink || "",
+        sourceFileName: d.sourceFileName || "",
+        hidden: d.catalogRetired === true || d.reviewOnly === true || d.syntheticTest === true
+          || (BROKEN_QI_IDS.has(normalizeKey(imageId)) && d.quarantineReleased !== true),
+      };
+    });
+    res.json({ count: items.length, items });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "graphic_catalog_failed" });
+  }
+});
+
 const DISPLAY_PREVIEW_REQUEST_MAX_IDS = 15;
 const DISPLAY_PREVIEW_REQUEST_SPACING_MS = 3000;
 app.post(getBoth("/internal/displayPreviews/request"), async (req, res) => {
