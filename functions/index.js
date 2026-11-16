@@ -12304,10 +12304,16 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
 
   const requestedProgramId = normalizeText(req.query.programId || "");
   const reviewerEmail = normalizeText(ctx.decoded.email || "").toLowerCase();
+  const submissionQuery = requestedProgramId
+    ? db.collection(COLLECTIONS.contentSubmissions).where("submissionProgramId", "==", requestedProgramId)
+    : db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true);
+  const decisionQuery = requestedProgramId
+    ? db.collection(COLLECTIONS.submissionResponses).where("submissionProgramId", "==", requestedProgramId)
+    : db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review");
   const [submissionSnap, programSnap, decisionSnap, assignmentSnap, finalistSnap] = await Promise.all([
-    db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
+    submissionQuery.get(),
     db.collection(COLLECTIONS.submissionPrograms).limit(100).get(),
-    db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
+    decisionQuery.get(),
     db.collection(COLLECTIONS.contestReviewAssignments).where("reviewerEmail", "==", reviewerEmail).get(),
     db.collection(COLLECTIONS.contestFinalistReads).where("reviewerEmail", "==", reviewerEmail).get(),
   ]);
@@ -12317,6 +12323,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
   const decisionsBySubmissionId = new Map();
   decisionSnap.docs.forEach((doc) => {
     const row = { id: doc.id, ...(doc.data() || {}) };
+    if (normalizeKey(row.responseType) !== "contest_review") return;
     const submissionId = normalizeText(row.submissionId);
     if (!submissionId) return;
     decisionsBySubmissionId.set(submissionId, [...(decisionsBySubmissionId.get(submissionId) || []), row]);
@@ -12324,7 +12331,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
 
   const submissions = submissionSnap.docs
     .map(mapSubmissionDoc)
-    .filter((row) => row.contestArchived !== true)
+    .filter((row) => row.contestSubmission === true && row.contestArchived !== true)
     .filter((row) => !requestedProgramId || row.submissionProgramId === requestedProgramId)
     .map((row) => {
       const program = programsById.get(row.submissionProgramId) || {};
