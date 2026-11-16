@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Staff review priorities | Poetry Please</title>
+  <style>
+    body { margin:0 auto; max-width:800px; padding:24px; background:#faf7f0; color:#201c18; font:16px/1.5 system-ui,sans-serif }
+    a { color:#245c61 } button { font:inherit; padding:.45em .75em; cursor:pointer }
+    section { margin:24px 0; background:white; border:1px solid #ddd5c7; border-radius:8px; padding:16px }
+    h2 { margin:0 } li { margin:12px 0 } li span { display:block; color:#504b44 }
+  </style>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+  <a href="/app">Poetry Please</a>
+  <h1>Staff review priorities</h1>
+  <p>Help each item reach five staff reviews. Open a title to read or view it and vote.</p>
+  <button id="signin" hidden>Sign in with Google</button>
+  <button id="refresh" hidden>Refresh priorities</button>
+  <p id="status" role="status">Checking access…</p>
+  <main id="queues"></main>
+  <script>
+    firebase.initializeApp({apiKey:'AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8',authDomain:'poetry-please.firebaseapp.com',
+      projectId:'poetry-please',appId:'1:609992589187:web:ea8aed51a08c3716b880b6'});
+    const auth = firebase.auth();
+    const $ = id => document.getElementById(id);
+    function node(tag, value) {
+      const element = document.createElement(tag);
+      element.textContent = value;
+      return element;
+    }
+    let generation = 0;
+    async function load(user) {
+      const request = ++generation;
+      $('queues').replaceChildren();
+      $('signin').hidden = !!user;
+      $('refresh').hidden = true;
+      if (!user) {
+        $('status').textContent = 'Sign in with your Poetry Please staff account.';
+        return;
+      }
+      $('status').textContent = 'Loading priorities…';
+      try {
+        const token = await user.getIdToken();
+        const response = await fetch('/api/staffReviewQueue', {headers:{Authorization:'Bearer ' + token}});
+        if (response.status === 403) throw new Error('A team or admin account is required.');
+        if (!response.ok) throw new Error('Could not load priorities. Please refresh to try again.');
+        const data = await response.json();
+        if (request !== generation) return;
+        $('status').textContent = 'Current catalog: ' + data.catalog;
+        for (const lane of data.lanes) {
+          const section = node('section', '');
+          section.id = lane.id;
+          section.append(node('h2', lane.title), node('p', lane.available + ' for you to review · ' + lane.total + ' team priorities'));
+          const list = node('ol', '');
+          const more = node('button', 'Show 25 more');
+          let offset = 0;
+          const show = () => {
+            for (const item of lane.items.slice(offset, offset + 25)) {
+              const li = node('li', '');
+              const link = node('a', item.title || item.id);
+              link.href = '/app?item=' + encodeURIComponent(item.id) + '&view=desktop';
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              li.append(link, node('span', [item.author, item.book, item.type,
+                item.reviews + ' of ' + data.target + ' staff reviews'].filter(Boolean).join(' · ')));
+              list.append(li);
+            }
+            offset += 25;
+            more.hidden = offset >= lane.items.length;
+          };
+          more.addEventListener('click', show);
+          section.append(list, more);
+          $('queues').append(section);
+          show();
+        }
+        const lane = document.getElementById(location.hash.slice(1));
+        lane?.scrollIntoView();
+        $('refresh').hidden = false;
+      } catch (error) {
+        if (request === generation) {
+          $('status').textContent = error.message;
+          $('refresh').hidden = false;
+        }
+      }
+    }
+    $('refresh').onclick = () => load(auth.currentUser);
+    $('signin').onclick = () => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(() => {
+      $('status').textContent = 'Sign-in did not complete. Please try again.';
+    });
+    auth.onAuthStateChanged(load);
+  </script>
+</body>
+</html>
