@@ -1,71 +1,21 @@
 {
   "generatedAt": "2026-04-23T14:15:14.301399Z",
   "updatedAt": "2026-11-16",
-  "updateNote": "Released 624 quote images whose originals were restored or re-attached and verified in Nov 2026 (see docs/handoffs/graphic-restore-plan-2026-11-14.json and graphic-reattach-plan-2026-11-15.json). Then released 15 Bowman, FreeQuency and Guevara quote images: their April fetch_error came from the check script failing on curly quotes and accents, and each file is a real image.",
-  "count": 54,
+  "updateNote": "Released 624 quote images whose originals were restored or re-attached and verified in Nov 2026 (see docs/handoffs/graphic-restore-plan-2026-11-14.json and graphic-reattach-plan-2026-11-15.json). Then released 15 Bowman, FreeQuency and Guevara quote images: their April fetch_error came from the check script failing on curly quotes and accents, and each file is a real image. Then released 44 more (Ebony Stewart BLOO, Neil Hilborn OND, Hanif Abdurraqib TCAW, Buddy Wakefield, Hailey M. Tran, Najya Williams): their records had since been pointed at re-uploaded images, each checked as a real image with the right author. Still held: the 8 on the roadmap, a Najya Williams image filed under Ebony Stewart (WASH), and EMAI-QI-HIDE-AND-SEEK-V2, which has no record.",
+  "count": 10,
   "ids": [
-    "ACHK-QI-A-CHOIR-OF-HONEST-KILLERS-V3",
     "APP-QI-WISHES-FOR-THE-RICH-AFTER-LUCILLE-CLIFTON-V2",
     "AT-QI-NOTES-APP-EXCERPT-HORMEL-PEPPERONI-GUY-ONE-MAN-BAND-DEPRESSION",
-    "BLOO-QI-POP-QUIZ",
-    "BLOO-QI-POP-QUIZ-V2",
-    "BLOO-QI-POP-QUIZ-V3",
-    "BLOO-QI-PUNK-NOIR-THE-BLACK-WOMAN-AS-PROPHET-FOR-SISTER-ROSETTA-THARPE",
-    "BLOO-QI-PUNK-NOIR-THE-BLACK-WOMAN-AS-PROPHET-FOR-SISTER-ROSETTA-THARPE-V2",
-    "BLOO-QI-PUNK-NOIR-THE-BLACK-WOMAN-AS-PROPHET-FOR-SISTER-ROSETTA-THARPE-V3",
-    "BLOO-QI-SO-WHATCHU-SAYIN",
-    "BLOO-QI-SO-WHATCHU-SAYIN-V2",
-    "BLOO-QI-SO-WHATCHU-SAYIN-V3",
-    "BLOO-QI-SO-WHATCHU-SAYIN-V4",
-    "BLOO-QI-SWAY",
-    "BLOO-QI-SWAY-V2",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V2",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V3",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V4",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V5",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V6",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V7",
-    "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V8",
     "DOMT-QI-ON-THE-LAST-GESTURE-BETWEEN-US-V2",
     "EMAI-QI-HIDE-AND-SEEK-V2",
     "ETSA-QI-CHURCH-GIRLS-FIRST-SINNER-FRIEND",
     "ISST-QI-CONTINENT-FROM-THE-LATIN-CONTINERE-MEANING-TO-CONTAIN",
     "NABF-QI-THE-RITUAL",
-    "OND-QI-BALLAD-OF-THE-BRUISED-LUNG",
-    "OND-QI-HERE-AND-AWAY",
-    "OND-QI-JOEY",
-    "OND-QI-LITTLE-POEMS",
-    "OND-QI-MSP-PHI-LGA-ALB-PHI-MSP",
-    "OND-QI-NOT-DEAD",
-    "OND-QI-NOT-DEAD-V2",
-    "OND-QI-OCD",
-    "OND-QI-OCD-V2",
-    "OND-QI-PHREAKING",
-    "OND-QI-PHREAKING-V2",
-    "OND-QI-PHREAKING-V3",
-    "OND-QI-SNOW-THEORY",
-    "OND-QI-WHAT-THE-CICADAS-DONT-UNDERSTAND",
-    "OND-QI-YOU-CAN-LOOK",
-    "OND-QI-YOU-CAN-LOOK-V2",
-    "TCAW-QI-IN-DEFENSE-OF-THAT-WINTER-WHERE-I-LISTENED-TO-THE-FIRST-TAKING-BACK-SUNDAY-ALBUM-EVERY-DAY-UNTIL-THE-SNOW-PEELED-ITSELF-BACK-FROM-THE-GRASS-AND-I-FOUND-MY-COLLEGE-SWEATSHIRT-AGAIN",
-    "TCAW-QI-ODE-TO-ELLIOTT-SMITH-ENDING-IN-THE-FIRST-SNOWFALL-OF-2003",
-    "TCAW-QI-ON-MELTING",
-    "TCAW-QI-SHERIDAN-AVENUE-2002",
-    "TCAW-QI-USAVCUBA",
     "TOWW-QI-NEW-YEARS-EVE-2015-V2",
-    "TRAN - AEO - Quote Images - Now Casting: The Ideal Victim\u00ae - 20.png",
     "WILLIAMS - OADW - Quote Images  - A BLACK GIRL\u2019S INCANTATION FOR FREEDOM AND LIBERATION - 11.png",
-    "WILLIAMS - OADW - Quote Images  - Introducing\u2026 - 27.png",
     "WSH-QI-HOW-TO-DEFINE-YOU"
   ],
   "details": [
-    {
-      "id": "ACHK-QI-A-CHOIR-OF-HONEST-KILLERS-V3",
-      "reason": "missing_or_non_bucket",
-      "imageUrl": "https://drive.google.com/thumbnail?id=1_Ur5Rgl2GBxX_PqBxOCoaAQuSU14ZEQP&sz=w1600",
-      "driveLink": "https://drive.google.com/file/d/1_Ur5Rgl2GBxX_PqBxOCoaAQuSU14ZEQP/view?usp=drivesdk"
-    },
     {
       "id": "APP-QI-WISHES-FOR-THE-RICH-AFTER-LUCILLE-CLIFTON-V2",
       "reason": "non_image_bytes",
@@ -79,146 +29,6 @@
       "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Neil%20-%20OND%20-%20Quote%20Image%20-%20On%20our%20first%20date.png",
       "driveLink": "https://drive.google.com/a/buttonpoetry.com/file/d/0B_-uqSs_rEYCMlpHUUk5YkV6bjQ/view?usp=drivesdk",
       "firstBytes": "{\n  \"error\": {\n    \"code\": 404,\n"
-    },
-    {
-      "id": "BLOO-QI-POP-QUIZ",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CBut%20who%20needs%20a%20heart%20when%20there%E2%80%99s%20subjugation%3F%22",
-      "driveLink": "https://drive.google.com/file/d/1w2Ab7Ez6iHgYcB68cOALgSuiwNO5y3aC/view?usp=sharing",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-POP-QUIZ-V2",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CI%E2%80%99m%20not%20saying%20I%E2%80%99m%20not%20aware%20of%20what%20this%20country...%22",
-      "driveLink": "https://drive.google.com/file/d/1uCfZKu5ZUSlnCdaCkHlr2tCbo4514d_o/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-POP-QUIZ-V3",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CTrust%20me%2C%20I%20know%20patience.%22",
-      "driveLink": "https://drive.google.com/file/d/1FbioMlANkLDwz9MH6QIVAIT1jrTg87a7/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-PUNK-NOIR-THE-BLACK-WOMAN-AS-PROPHET-FOR-SISTER-ROSETTA-THARPE",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CAllow%20me%20to%20reintroduce%20myself%20to%20the%20anti-establishment...%22",
-      "driveLink": "https://drive.google.com/file/d/1mKJR6BpGazXj7QaxnxXgYg5tnpk4AIAN/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-PUNK-NOIR-THE-BLACK-WOMAN-AS-PROPHET-FOR-SISTER-ROSETTA-THARPE-V2",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CHold%20me%20down%20long%20enough%20and%20I%E2%80%99ll%20figure%20out...%22",
-      "driveLink": "https://drive.google.com/file/d/1Rf2Qx-t3SXHlSmkHJRwyKYUxyOG2OaL7/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-PUNK-NOIR-THE-BLACK-WOMAN-AS-PROPHET-FOR-SISTER-ROSETTA-THARPE-V3",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CMy%20culture%20be%20endangered%20cause%20mainstream...%22",
-      "driveLink": "https://drive.google.com/file/d/1yuUJ_w6KHjVZNEOvsX1MVbaH8seKeNnx/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-SO-WHATCHU-SAYIN",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CA%20%28B%29lack%20person%20was%20murdered%20today.%20Should%20I%20write%20it%20in%20a%20way...%22",
-      "driveLink": "https://drive.google.com/file/d/1jLbfHkAKetbybZrKXPXVqIeE02x5RcG2/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-SO-WHATCHU-SAYIN-V2",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CEverything%20I%20do%20I%20did%20while%20bleeding%20blood...%22",
-      "driveLink": "https://drive.google.com/file/d/1BS7AkaK_9u5t-xRIzAidbf_S7XutMdJW/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-SO-WHATCHU-SAYIN-V3",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CWhen%20the%20gunshots%20pop%20call%20%E2%80%98em%20fireworks...%22",
-      "driveLink": "https://drive.google.com/file/d/1HIzc3xQLZGf43Rdn_aHo0DRoq4Is8yUU/view?usp=sharing",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-SO-WHATCHU-SAYIN-V4",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CWomen%20I%20know%20our%20value%20is%20measured%20by%20how%20much...%22",
-      "driveLink": "https://drive.google.com/file/d/169QAJfU4wUJ6FaD7qxZ751usu_Y8R7XG/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-SWAY",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CDear%20Black%20girl%2C%20you%20mispronounced...%22",
-      "driveLink": "https://drive.google.com/file/d/1beOQKnWZgc0CIj3ICPK0L0JoJB_zmwi5/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-SWAY-V2",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CEven%20when%20your%20bones%20hurt%2C%20when%20they...%22",
-      "driveLink": "https://drive.google.com/file/d/1oOb8UZHZ7jpNF-2V1mOs8VXhecZLGwYI/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CGood%20intentions%20do%20not%20erase%20harm%20%2F%2F%20so%20%2F%2F%20do%20%2F%2F%20no%20%2F%2F%20harm.%E2%80%9D",
-      "driveLink": "https://drive.google.com/file/d/186QPPlsKt7ICVLcVGVeZvNXRSkMmjH0e/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V2",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CI%2C%20too%2C%20had%20to%20remove%20myself%20from%20people%20who%20only%20valued...%22",
-      "driveLink": "https://drive.google.com/file/d/165jQVEjWlcsqeNjO49J5VLpKCdSC5I1u/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V3",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CIf%20you%20have%20to%20leave%20to%20be%20appreciated%2C%20then%20stay%20gone.%E2%80%9D",
-      "driveLink": "https://drive.google.com/file/d/1wrDh-rChs6lzzaPr0a9efCDeQYH0fTpU/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V4",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CIf%20you%20love%20yourself%2C%20the%20least%20you%20can%20do%20is%20be%20unavailable%20for%20bullsh%2At.%E2%80%9D",
-      "driveLink": "https://drive.google.com/file/d/1G9llM-UHNEvNqxG_K3dzTuyg1LIPbyqq/view?usp=sharing",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V5",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CI%E2%80%99ve%20never%20wanted%20to%20be%20a%20part%20of%20a%20congregation...%22",
-      "driveLink": "https://drive.google.com/file/d/182xDcSNlM9gFLt-73jeTT2sH0mn1fPQ7/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V6",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CPoetry%20understands%20that%20grief%20is%20not%20linear...%22",
-      "driveLink": "https://drive.google.com/file/d/1HBUNoCxt-_ZbgSCmfLrfz4I-VWeIPG_E/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V7",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CSometimes%20you%20have%20to%20write%20the%20same%20poem%20twice.%22",
-      "driveLink": "https://drive.google.com/file/d/1jhE1-1eGc1Yr0KAwJw8wWoqr6RsXyp5q/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
-    },
-    {
-      "id": "BLOO-QI-TANTRUMS-OR-HOW-TO-BE-A-POET-IN-SIX-STEPS-V8",
-      "reason": "non_image_bytes",
-      "imageUrl": "https://storage.googleapis.com/poetrypleasebucket/Stewart%20-%20BLOO%20-%20Quote%20Image%20-%20%E2%80%9CWhat%20would%20happen%20if%20you%20wrote%20a%20poem%20and...%22",
-      "driveLink": "https://drive.google.com/file/d/1OM-QKuZNnvVfk6ut-MxRv0LuagIA1dub/view?usp=drivesdk",
-      "firstBytes": "{\n  \"error\": {\n    \"code\": 401,\n"
     },
     {
       "id": "DOMT-QI-ON-THE-LAST-GESTURE-BETWEEN-US-V2",
