@@ -84,7 +84,10 @@
 
   PP.updateInfo = function (item) {
     item = item || window.currentItem || {};
-    setTxt('info-book', pick(item, ['book', 'bookTitle', 'collection', 'series'], null));
+    // "related": a performance piece that is not in this book (another of the author's books).
+    const relation = String(item.bookRelation || '').toLowerCase();
+    setTxt('info-book-label', relation === 'related' ? 'More from this poet' : 'Book');
+    setTxt('info-book', relation === 'none' ? null : pick(item, ['book', 'bookTitle', 'collection', 'series'], null));
     setTxt('info-title', pick(item, ['title', 'poemTitle', 'name'], null));
     setTxt('info-author', pick(item, ['author', 'authorName', 'writer'], null));
     const likes = pick(item, ['likes', 'likeCount'], 0) ?? 0;

@@ -1,5 +1,5 @@
 import { graphicCards, mountGraphicCardControls } from './graphic-asset-set.js';
-import { safeMediaUrl } from './scroll-feed-core.js';
+import { safeMediaUrl, bookLine } from './scroll-feed-core.js';
 import { createPoemLinks } from './poem-links.js';
 
 // The renderer can be newer than a cached HTML shell. Keep its layout CSS in
@@ -213,7 +213,8 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
   if (item.type === 'FP') meta.append(make('span', 'post-kind', 'Full poem'));
   if (item.title) meta.append(make('h2', '', item.title));
   if (item.author) meta.append(make('p', 'post-author', item.author));
-  if (item.book) meta.append(make('p', 'post-book', item.book));
+  const line = bookLine(item);
+  if (line) meta.append(make('p', 'post-book', line.related ? `${line.prefix}: ${line.book}` : line.book));
   info.append(meta, ...createVotes(item, card));
   const actions = make('div', 'post-actions');
   const bookUrl = safeMediaUrl(item.bookUrl);
