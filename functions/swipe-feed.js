@@ -155,7 +155,7 @@ function orderByCommunityPreference(list, options = {}) {
 
 // Each page chooses from all eligible, not-yet-served IDs. Live score changes
 // and votes on earlier cards cannot shift an offset and skip unseen content.
-export function paginateMobileFeed(items, { ratingsSummary = {}, servedIds = [], limit = 12, seed = '', welcomeItems = [], newcomer = false, authorReview = false, preferVisual = false, includeMuted = false } = {}) {
+export function paginateMobileFeed(items, { ratingsSummary = {}, servedIds = [], limit = 12, seed = '', welcomeItems = [], newcomer = false, authorReview = false, preferVisual = false, includeMuted = false, demoteStaffNegatives = false } = {}) {
   const seen = new Set((Array.isArray(servedIds) ? servedIds : []).filter(id => typeof id === 'string').map(keyOf));
   const unique = new Map();
   for (const item of items) {
@@ -163,6 +163,27 @@ export function paginateMobileFeed(items, { ratingsSummary = {}, servedIds = [],
     const rating = ratingsSummary[id] || ratingsSummary[item.imageId] || {};
     if (!id || seen.has(id) || unique.has(id) || (!authorReview && rating.authorExcluded)) continue;
     unique.set(id, item);
+  }
+  if (demoteStaffNegatives && !authorReview) {
+    const preferred = [];
+    const demoted = [];
+    for (const [id, item] of unique) {
+      const rating = ratingsSummary[id] || ratingsSummary[item.imageId] || {};
+      (rating.staffDiscoveryDemoted === true ? demoted : preferred).push(item);
+    }
+    if (demoted.length) {
+      const size = Math.max(1, Math.min(24, Math.floor(Number(limit)) || 12));
+      const options = { ratingsSummary, limit: size, seed, welcomeItems, newcomer, preferVisual, includeMuted };
+      const primary = paginateMobileFeed(preferred, options);
+      if (primary.hasMore) return primary;
+      const available = size - primary.items.length;
+      const tail = paginateMobileFeed(demoted, { ...options, limit: available || 1, welcomeItems: [] });
+      if (!tail.items.length) return primary;
+      const items = available ? [...primary.items, ...tail.items] : primary.items;
+      const hasMore = !available || tail.hasMore;
+      return { items, hasMore, feedMode: primary.feedMode,
+        nextCursor: hasMore ? 'mobile:' + keyOf(items.at(-1).imageId) : null };
+    }
   }
   let ordered;
   let feedMode;
