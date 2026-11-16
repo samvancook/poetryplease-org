@@ -5903,6 +5903,8 @@ app.get(getBoth("/scoreboard/textPreview"), async (req, res) => {
 
 // scoreboard
 const STAFF_REVIEW_TARGET = 5;
+// Building the queue scans the catalog metadata and staff vote history.
+const STAFF_REVIEW_CACHE_TTL_MS = 10 * 60 * 1000;
 const STAFF_REVIEW_URL = "https://poetryplease.org/staff-review.html";
 const staffReviewLanes = {
   videoExcerpts: "Video excerpts",
@@ -6013,7 +6015,7 @@ app.get(getBoth("/staffReviewQueue"), async (req, res) => {
   const season = staffReviewSeason();
   if (staffReviewCache?.day !== season.day || staffReviewCache.expires < Date.now()) {
     const pending = buildStaffReviewQueue(season);
-    staffReviewCache = { day: season.day, expires: Date.now() + 60000, pending };
+    staffReviewCache = { day: season.day, expires: Date.now() + STAFF_REVIEW_CACHE_TTL_MS, pending };
     pending.catch(() => { if (staffReviewCache?.pending === pending) staffReviewCache = null; });
   }
   const queues = await staffReviewCache.pending;
