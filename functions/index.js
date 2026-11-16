@@ -23,6 +23,7 @@ import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseA
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
 import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
+import { loadedSnapshotIsCurrent } from "./content-cache-policy.js";
 import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
@@ -209,6 +210,8 @@ let contentCache = {
   builtAt: 0,
   generation: null,
   payload: null,
+  // The snapshot object the payload was loaded from, or published to.
+  sourcePath: "",
   inFlight: null,
   inFlightGeneration: null,
 };
@@ -571,6 +574,7 @@ async function invalidateContentCache() {
   contentCache.builtAt = 0;
   contentCache.generation = null;
   contentCache.payload = null;
+  contentCache.sourcePath = "";
   contentCache.inFlight = null;
   contentCache.inFlightGeneration = null;
   await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).set({
@@ -649,17 +653,31 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
   if (!forceRefresh && contentCache.generation === generation && contentCache.payload && (now - contentCache.builtAt) < CONTENT_CACHE_TTL_MS) {
     return contentCache.payload;
   }
+  // The 15 minute check: when the metadata still names the snapshot already
+  // in memory, a reload would fetch the same bytes, so keep what is loaded.
+  if (!forceRefresh && contentCache.generation === generation && contentCache.payload && loadedSnapshotIsCurrent({
+    loadedPath: contentCache.sourcePath,
+    metaPath: normalizeText(meta.storagePath || ""),
+    snapshotBuiltAtMs: timestampToMs(meta.builtAt),
+    now,
+    snapshotTtlMs: CONTENT_SNAPSHOT_TTL_MS,
+  })) {
+    contentCache.builtAt = now;
+    return contentCache.payload;
+  }
   if (!forceRefresh && contentCache.inFlightGeneration === generation && contentCache.inFlight) {
     return contentCache.inFlight;
   }
   const build = (async () => {
     const startedAt = Date.now();
     let payload = null;
+    let sourcePath = "";
     if (!forceRefresh) {
       try {
         const snapshot = await readContentSnapshot(meta);
         if (snapshot && (now - snapshot.builtAtMs) < CONTENT_SNAPSHOT_TTL_MS) {
           payload = snapshot.payload.map(canonicalizeContentRecord);
+          sourcePath = snapshot.storagePath;
         }
       } catch (err) {
         console.warn("Content snapshot read failed; falling back to Firestore", err);
@@ -685,6 +703,8 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
     contentCache.payload = payload;
     contentCache.builtAt = Date.now();
     contentCache.generation = generation;
+    // After a rebuild from Firestore the metadata names the snapshot just published.
+    contentCache.sourcePath = sourcePath || normalizeText(current.storagePath || "");
     console.info("Content cache loaded", { count: payload.length, durationMs: Date.now() - startedAt });
     return payload;
   })().finally(() => {
