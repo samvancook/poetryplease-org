@@ -565,3 +565,16 @@ The live page still has the older graphics-only introduction. Replace its introd
 ### Short form contest handoff follow-up (2026-10-14)
 
 After the short form contest is fully enacted, verify and complete the assignment route from Poetry Please to P.I.G., then Weaver, then back to Poetry Please. Confirm the return receipt and status are visible on the original contest assignment; preserve its identity across the handoff.
+
+## Quarantined quote images awaiting new artwork — 16 November 2026
+
+Low priority. After the November restore ([PR #386](https://github.com/samvancook/poetryplease-org/pull/386)), these 8 quote-image records stay on the quarantine list in `functions/broken-qi-ids.json`. Sam decided on 16 November to keep them hidden. They are tracked in the [recreate tracker](https://claude.ai/artifact/5not14BqyuknDfgb2AjaRn).
+
+- **No surviving image (5):** `ETSA-QI-CHURCH-GIRLS-FIRST-SINNER-FRIEND`, `ISST-QI-CONTINENT-FROM-THE-LATIN-CONTINERE-MEANING-TO-CONTAIN`, `NABF-QI-THE-RITUAL`, `TOWW-QI-NEW-YEARS-EVE-2015-V2` and `WSH-QI-HOW-TO-DEFINE-YOU`. Each bucket object is still the 342-byte Drive "File not found" stub. The fix is to recreate each one from the quote clue and a sibling template.
+- **Shows another poem's image (3):** each record was linked to the wrong file before the restore.
+  - `DOMT-QI-ON-THE-LAST-GESTURE-BETWEEN-US-V2` shows "poem from the beach trip".
+  - `APP-QI-WISHES-FOR-THE-RICH-AFTER-LUCILLE-CLIFTON-V2` (Steven Willis) shows a Stevie Edwards *Sadness Workshop* quote.
+  - `AT-QI-NOTES-APP-EXCERPT-HORMEL-PEPPERONI-GUY-ONE-MAN-BAND-DEPRESSION` shows an *Our Numbered Days* quote.
+  - The fix is to attach the correct image.
+
+To finish one, attach the new image with the `reattach-originals` workflow choice from [PR #377](https://github.com/samvancook/poetryplease-org/pull/377), which keeps the record's id and votes. Then take its id off the quarantine list. To drop one instead, retire it with `catalogRetired: true`. In the 40-image sample, about 1 in 20 records was linked to the wrong file. An audit of the remaining quote images for this kind of mismatch would be a separate, optional pass.
