@@ -5873,6 +5873,111 @@ app.get(getBoth("/scoreboard/textPreview"), async (req, res) => {
 });
 
 // scoreboard
+const STAFF_REVIEW_TARGET = 5;
+const STAFF_REVIEW_URL = "https://poetryplease.org/staff-review.html";
+const staffReviewLanes = {
+  videoExcerpts: "Video excerpts",
+  fullPoems: "New full poems",
+  frontlist: "Frontlist marketing",
+};
+
+function staffReviewSeason(now = new Date()) {
+  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Chicago",
+    year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  const [year, month] = day.split("-").map(Number);
+  const spring = month >= 2 && month <= 7;
+  const seasonYear = month === 1 ? year - 1 : year;
+  return { day, catalog: `${spring ? "Spring" : "Fall"} ${seasonYear}`,
+    start: Date.parse(`${seasonYear}-${spring ? "02" : "08"}-01T06:00:00Z`) };
+}
+
+let staffReviewCache;
+async function buildStaffReviewQueue(season) {
+  const [users, items, flags, excerpts, occurrences, poems] = await Promise.all([
+    db.collection(COLLECTIONS.users).select("roles", "email", "status", "automaticTeamAccess").get(),
+    getAllContentCached(), getFlaggedContentIds(),
+    db.collection(COLLECTIONS.excerpts).select("imageId", "imageID", "sourceContentId", "sourceVideoFileId").get(),
+    db.collection(COLLECTIONS.excerptVideoOccurrences).select("canonicalExcerptId").get(),
+    db.collection(COLLECTIONS.fullPoems).select("imageId", "imageID", "createdAt").get(),
+  ]);
+  const staff = new Map();
+  const voteIds = new Set();
+  for (const doc of users.docs) {
+    const user = doc.data();
+    if (user.status === "disabled" || !resolveRoles(user.roles, user.email, {
+      automaticTeamAccess: user.automaticTeamAccess !== false,
+    }).some(role => role === "team" || role === "admin")) continue;
+    for (const id of uniq([doc.id, user.email, normalizeKey(user.email)])) {
+      staff.set(normalizeKey(id), doc.id);
+      voteIds.add(id);
+    }
+  }
+  const latest = new Map();
+  for (const vote of await getVoteDocsForUserIds(voteIds)) {
+    const person = staff.get(normalizeKey(vote.userId));
+    const id = normalizeKey(vote.imageId);
+    if (!person || !id || vote.supersededAt) continue;
+    if (!latest.has(id)) latest.set(id, new Map());
+    const byPerson = latest.get(id);
+    const time = timestampToMs(vote.timestamp);
+    if (!byPerson.has(person) || byPerson.get(person).time < time) {
+      byPerson.set(person, { value: normalizeKey(vote.voteType), time });
+    }
+  }
+  const videoExcerpts = new Set(occurrences.docs.map(doc => normalizeKey(doc.get("canonicalExcerptId"))));
+  for (const doc of excerpts.docs) {
+    if (!doc.get("sourceContentId") || !doc.get("sourceVideoFileId")) continue;
+    for (const id of [doc.id, doc.get("imageId"), doc.get("imageID")]) videoExcerpts.add(normalizeKey(id));
+  }
+  const recentPoems = new Set();
+  for (const doc of poems.docs) {
+    if (timestampToMs(doc.get("createdAt") || doc.createTime) < season.start) continue;
+    for (const id of [doc.id, doc.get("imageId"), doc.get("imageID")]) recentPoems.add(normalizeKey(id));
+  }
+  const queues = Object.fromEntries(Object.keys(staffReviewLanes).map(lane => [lane, []]));
+  for (const item of excludeBrokenContent(excludeFlaggedContent(items, flags))) {
+    const id = normalizeKey(item.imageId);
+    const contentId = normalizeKey(item.contentId);
+    if (!id) continue;
+    const type = normalizeText(item.imageType).toUpperCase();
+    const frontlist = matchesCatalogFilterValue(item.releaseCatalog, season.catalog);
+    const lane = type === "EXC" && (videoExcerpts.has(id) || videoExcerpts.has(contentId)) ? "videoExcerpts"
+      : type === "FP" && (frontlist || recentPoems.has(id) || recentPoems.has(contentId)) ? "fullPoems"
+      : frontlist && ["QI", "INT", "FPI", "GP", "EXC", "VV", "YT"].includes(type) ? "frontlist" : "";
+    if (!lane) continue;
+    const responses = [...(latest.get(id) || [])].filter(([, vote]) =>
+      ["like", "meh", "dislike", "moved me"].includes(vote.value));
+    const dislikes = responses.filter(([, vote]) => vote.value === "dislike").length;
+    const negative = dislikes + responses.filter(([, vote]) => vote.value === "meh").length;
+    if (responses.length >= STAFF_REVIEW_TARGET || dislikes >= 2 || negative >= 3) continue;
+    queues[lane].push({ id: item.imageId, type, title: item.title, author: item.author,
+      book: item.book, reviews: responses.length, needed: STAFF_REVIEW_TARGET - responses.length,
+      reviewers: responses.map(([person]) => person) });
+  }
+  for (const rows of Object.values(queues)) rows.sort((a, b) =>
+    a.reviews - b.reviews || String(a.book).localeCompare(String(b.book)) || String(a.title).localeCompare(String(b.title)) || a.id.localeCompare(b.id));
+  return queues;
+}
+
+app.get(getBoth("/staffReviewQueue"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  const season = staffReviewSeason();
+  if (staffReviewCache?.day !== season.day || staffReviewCache.expires < Date.now()) {
+    const pending = buildStaffReviewQueue(season);
+    staffReviewCache = { day: season.day, expires: Date.now() + 60000, pending };
+    pending.catch(() => { if (staffReviewCache?.pending === pending) staffReviewCache = null; });
+  }
+  const queues = await staffReviewCache.pending;
+  res.set("Cache-Control", "private, no-store");
+  res.json({ catalog: season.catalog, target: STAFF_REVIEW_TARGET, lanes:
+    Object.entries(queues).map(([id, rows]) => {
+      const available = rows.filter(row => !row.reviewers.includes(ctx.decoded.uid));
+      return { id, title: staffReviewLanes[id], total: rows.length, available: available.length,
+        items: available.map(({ reviewers, ...row }) => row) };
+    }) });
+});
+
 app.get(getBoth("/scoreboard"), async (req, res) => {
   const ctx = await requireRole(req, res, ["team", "admin"]);
   if (!ctx) return;
@@ -14485,6 +14590,45 @@ export const manuscriptreconciliationphase2preview = onRequest({
   serviceAccount: "manuscript-phase2-preview@poetry-please.iam.gserviceaccount.com",
 }, manuscriptReconciliationPhase2App);
 
+
+export const staffreviewdailydigest = onSchedule({
+  schedule: "0 8 * * *", timeZone: "America/Chicago", region: "us-central1",
+  memory: "1GiB", timeoutSeconds: 300, secrets: [MANDRILL_AUTHOR_INVITE_API_KEY_SECRET],
+}, async () => {
+  const season = staffReviewSeason();
+  const notice = db.collection("staffReviewDigests").doc(season.day);
+  if ((await notice.get()).exists) return;
+  const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
+  if (!apiKey) throw new Error("mandrill_mail_not_configured");
+  const queues = await buildStaffReviewQueue(season);
+  const sections = Object.entries(queues).map(([id, rows]) => {
+    const reviewsNeeded = rows.reduce((sum, row) => sum + row.needed, 0);
+    const examples = rows.slice(0, 5).map(row =>
+      `• ${row.title || row.id} — ${row.author || row.book || row.type} (needs ${row.needed})
+  https://poetryplease.org/app?item=${encodeURIComponent(row.id)}`);
+    return [`${staffReviewLanes[id]}: ${rows.length} items, ${reviewsNeeded} reviews needed`,
+      ...examples, `${STAFF_REVIEW_URL}#${id}`].join("\n");
+  });
+  const claimed = await db.runTransaction(async tx => {
+    if ((await tx.get(notice)).exists) return false;
+    tx.create(notice, { status: "sending", createdAt: FieldValue.serverTimestamp() });
+    return true;
+  });
+  if (!claimed) return;
+  try {
+    const delivery = await sendAuthorInviteWithMandrill({
+      apiKey, email: AUTHOR_INVITE_TEST_EMAIL,
+      fromEmail: CONTEST_MAIL_IDENTITY.fromEmail, fromName: "Poetry Please",
+      replyTo: CONTEST_MAIL_IDENTITY.replyTo, tag: "poetry-please-staff-review-digest",
+      message: { subject: `Poetry Please staff review priorities · ${season.day}`,
+        text: [`Current catalog: ${season.catalog}`, ...sections].join("\n\n") },
+    });
+    await notice.update({ status: delivery.status, messageId: delivery.messageId, sentAt: FieldValue.serverTimestamp() });
+  } catch (error) {
+    await notice.update({ status: "unconfirmed", updatedAt: FieldValue.serverTimestamp() });
+    throw error;
+  }
+});
 
 export const contestscheduledemailsdispatch = onSchedule({
   schedule: "* * * * *",

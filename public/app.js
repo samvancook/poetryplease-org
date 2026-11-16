@@ -748,6 +748,9 @@ function updateUserStatusUI() {
       const browseBadge = ownContentBadge && lockedLane && valuesMatch(selectedAuthor, ownAuthorName)
         ? ' <a id="browse-all-badge" href="/app?browse=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#5f574b;font-size:12px;font-weight:600;text-decoration:none;">Browse all</a>'
         : '';
+      const staffReviewLink = canAccessScoreboard
+        ? ' <a href="/staff-review.html">Staff review priorities</a>'
+        : '';
       const scoreboardBadge = canAccessScoreboard
         ? ' <a id="scoreboard-badge" href="/scoreboard" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#e6efe1;color:#3f5f36;font-size:12px;font-weight:600;text-decoration:none;">Scoreboard</a>'
         : '';
@@ -778,7 +781,7 @@ function updateUserStatusUI() {
               <span>Mobile preview</span>
             </label>`
         : '';
-      const staffTools = `${roleBadge}${teamBadge}${ownContentBadge}${graphicsStartBadges}${browseBadge}${profileBadge}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${buildBadge}${viewToggle}`;
+      const staffTools = `${roleBadge}${teamBadge}${ownContentBadge}${graphicsStartBadges}${browseBadge}${profileBadge}${staffReviewLink}${scoreboardBadge}${contestBuilderBadge}${contestReviewBadge}${feedSignalsBadge}${countsBadge}${scrubMehBadge}${buildBadge}${viewToggle}`;
       if (canAccessScoreboard && !document.getElementById('staff-menu-styles')) {
         const style = document.createElement('style');
         style.id = 'staff-menu-styles';
