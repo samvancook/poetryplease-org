@@ -1463,7 +1463,7 @@
     });
 
     function setContestAdminNavigation(visible) {
-      for (const id of ["overview-nav", "contest-submissions-link", "assignments-nav", "decisions-nav", "final-selection-nav", "graphics-results-nav", "emails-nav"]) {
+      for (const id of ["overview-nav", "contest-submissions-link", "assignments-nav", "decisions-nav", "graphics-results-nav", "emails-nav"]) {
         document.getElementById(id).hidden = !visible;
       }
       for (const id of ["contest-overview", "contest-entrants-panel"]) document.getElementById(id).hidden = !visible;
@@ -1584,7 +1584,7 @@
         if (document.getElementById('contest-mail-settings-panel').open) loadContestMailSettings();
         panel.hidden = false;
         selection.hidden = false;
-        selectionNav.hidden = false;
+        selectionNav.hidden = true;
         graphicsNav.hidden = false;
         setContestAdminNavigation(true);
         renderContestOverview(report);
