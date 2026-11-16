@@ -4386,6 +4386,7 @@ function mapAdminContentDoc(collection, doc) {
     // Private Weaver review context is exposed only through admin Content Library.
     weaverReviews: Array.isArray(data.weaverReviews) ? data.weaverReviews : [],
     weaverFootageConnections: Array.isArray(data.weaverFootageConnections) ? data.weaverFootageConnections : [],
+    performanceContext:data.weaverPerformanceContext || null,
     weaverSelectedExcerptRecordIds: Array.isArray(data.weaverSelectedExcerptRecordIds)
       ? data.weaverSelectedExcerptRecordIds
       : [],
@@ -4565,6 +4566,7 @@ function buildContentDocPayload(type, body = {}, options = {}) {
     payload.weaverCandidateId = normalizeText(body.weaverCandidateId);
     payload.weaverPrioritySetId = normalizeText(body.weaverPrioritySetId);
     payload.weaverSourceFileId = normalizeText(body.weaverSourceFileId);
+    if (body.weaverPerformanceContext) payload.weaverPerformanceContext=body.weaverPerformanceContext;
     payload.weaverGateId = normalizeText(body.weaverGateId);
     payload.weaverReleaseStatus = normalizeText(body.weaverReleaseStatus);
     payload.weaverPublicationRestricted = !!body.weaverPublicationRestricted;
@@ -8041,7 +8043,7 @@ async function readVideoRenditions(req, res) {
     primaryMediaUrl:video.videoUrl || video.url || "",originalFinalFileId:extractGoogleDriveFileId(video.driveLink || ""),
     reviewCount:Array.isArray(video.weaverReviews) ? video.weaverReviews.length : 0,
     excerptLinkCount:Array.isArray(video.weaverSelectedExcerptRecordIds) ? video.weaverSelectedExcerptRecordIds.length : 0,
-    renditions,selected});
+    performanceContext:video.weaverPerformanceContext || null,renditions,selected});
 }
 app.get(getBoth("/admin/videoRenditions"), readVideoRenditions);
 app.get(getBoth("/internal/videoRenditions"), readVideoRenditions);
@@ -9856,6 +9858,7 @@ async function readWeaverVideoReceipt(sourceRecordId) {
     },
     review: { reviewCount, selectedExcerptIdCount },
     footage: {schemaVersion:1,connections:normalizeFootageConnections(video?.weaverFootageConnections || [])},
+    performanceContext:video?.weaverPerformanceContext || null,
     ledger: { count: ledgers.length, latest: ledgers[0] || null },
   };
 }
@@ -9886,6 +9889,7 @@ app.post(getBoth("/internal/weaverVideoContext"), async (req, res) => {
   try {
     const videos = db.collection(COLLECTIONS.videos);
     const ref = videos.doc(canonicalVideoId);
+    const auditRef = db.collection("weaverVideoContextAudit").doc();
     const receipt = await db.runTransaction(async tx => {
       const [target, matches] = await Promise.all([
         tx.get(ref),
@@ -9896,8 +9900,13 @@ app.post(getBoth("/internal/weaverVideoContext"), async (req, res) => {
       }
       const { patch, ...counts } = buildWeaverVideoContextPatch(target.data(), body);
       const changed = Object.keys(patch).length > 0;
-      if (changed) tx.update(ref, patch);
-      return { ok: true, canonicalVideoId, sourceRecordId, changed, ...counts };
+      if (changed) {
+        tx.update(ref, patch);
+        tx.create(auditRef,{canonicalVideoId,sourceRecordId,action:"merge_video_context",
+          actor:"weaver_api",createdAt:FieldValue.serverTimestamp(),
+          before:Object.fromEntries(Object.keys(patch).map(key=>[key,target.data()[key] ?? null])),after:patch});
+      }
+      return { ok: true, canonicalVideoId, sourceRecordId, changed,auditId:changed?auditRef.id:null, ...counts };
     });
     res.set("Cache-Control", "private, no-store");
     return res.json(receipt);

@@ -1,3 +1,4 @@
+import {mergeVideoPerformanceContext,normalizeVideoPerformanceContext} from "./video-performance-context.js";
 import { createHash } from "node:crypto";
 import {normalizeFootageConnections,mergeFootageConnections,receivedFootageConnections} from './footage-provenance.js';
 
@@ -76,6 +77,9 @@ export function mergeWeaverVideoContext(existing = {}, incoming = {}) {
     throw error;
   }
   const patch = {};
+  if (Object.hasOwn(incoming,"weaverPerformanceContext")) {
+    patch.weaverPerformanceContext=mergeVideoPerformanceContext(existing.weaverPerformanceContext,incoming.weaverPerformanceContext,incoming.sourceRecordId);
+  }
   if (Object.hasOwn(incoming,'weaverFootageConnections')) {
     patch.weaverFootageConnections=mergeFootageConnections(existing.weaverFootageConnections || [],incoming.weaverFootageConnections);
     patch.weaverFootageContextVersion=1;
@@ -126,6 +130,9 @@ export function buildWeaverVideoContextPatch(existing, body) {
     throw Object.assign(new Error("weaver_video_event_identity_conflict"), { status: 409 });
   }
 
+  if (Object.hasOwn(body,"performanceContext")) {
+    incoming.weaverPerformanceContext=normalizeVideoPerformanceContext(body.performanceContext,incoming.sourceRecordId);
+  }
   if (Object.hasOwn(body, "reviews")) {
     const reviews = normalizeWeaverVideoReviews(body.reviews);
     if (!Array.isArray(body.reviews) || reviews.length !== body.reviews.length || reviews.length > 200) {
@@ -146,12 +153,13 @@ export function buildWeaverVideoContextPatch(existing, body) {
 
   const merged = mergeWeaverVideoContext(existing, incoming);
   const patch = {};
-  for (const field of ["weaverReviews", "weaverSelectedExcerptRecordIds"]) {
+  for (const field of ["weaverReviews", "weaverSelectedExcerptRecordIds", "weaverPerformanceContext"]) {
     if (Object.hasOwn(merged, field) && JSON.stringify(merged[field]) !== JSON.stringify(existing[field] || [])) {
       patch[field] = merged[field];
     }
   }
-  return { patch, ...countReceivedWeaverVideoContext({ ...existing, ...patch }, incoming) };
+  return { patch, ...countReceivedWeaverVideoContext({ ...existing, ...patch }, incoming),
+    ...(incoming.weaverPerformanceContext ? {performanceContext:patch.weaverPerformanceContext || existing.weaverPerformanceContext} : {}) };
 }
 
 export function countReceivedWeaverVideoContext(stored = {}, submitted = {}) {
@@ -173,6 +181,11 @@ export function countReceivedWeaverVideoContext(stored = {}, submitted = {}) {
 }
 
 export function buildWeaverVideoIntake(body = {}) {
+  let performanceContext;
+  if (Object.hasOwn(body,"performanceContext")) {
+    try {performanceContext=normalizeVideoPerformanceContext(body.performanceContext,normalizeText(body.sourceRecordId));}
+    catch(error){return {ok:false,status:error.status||400,error:error.message};}
+  }
   let footageConnections;
   if (Object.hasOwn(body,'footageConnections')) {
     if (body.footageContextVersion !== 1) return {ok:false,status:400,error:'unsupported_footage_context_version'};
@@ -235,6 +248,7 @@ export function buildWeaverVideoIntake(body = {}) {
       eventReleaseCatalog: normalizeText(body.eventReleaseCatalog),
       sourceEvent,
       sourceEventLabel,
+      ...(performanceContext ? {weaverPerformanceContext:performanceContext} : {}),
       weaverCandidateId: normalizeText(body.candidateId),
       weaverPrioritySetId: normalizeText(body.prioritySetId),
       weaverSourceFileId: normalizeText(body.sourceFileId),
