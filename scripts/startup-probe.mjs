@@ -86,6 +86,22 @@ for (const { label: pass, throttle } of passes) {
     sizes.length = 0;
     const started = Date.now();
     let firstCardMs = null;
+    // Pictures of the real page while it loads, so the loading sequence can be
+    // looked at and not only timed. One fast pass and the slow pass are enough.
+    const shots = [];
+    const shotTimers = [];
+    const takeShot = async (label) => {
+      try {
+        const at = Date.now() - started;
+        const image = await page.screenshot({ type: "jpeg", quality: 45, timeout: 5000 });
+        shots.push({ label, at, image: image.toString("base64") });
+      } catch { /* page busy or closed */ }
+    };
+    if (pass !== "fast-2") {
+      for (const ms of throttle ? [1500, 2500, 3500] : [400, 800, 1200]) {
+        shotTimers.push(setTimeout(() => takeShot(ms + "ms"), ms));
+      }
+    }
     // "card" for a readable card, "empty" when the app says the feed is empty.
     let settled = "";
     let text = "";
@@ -109,7 +125,9 @@ for (const { label: pass, throttle } of passes) {
         return /^No unreviewed items/.test(status) ? "empty" : false;
       }, rootSelector, { timeout: throttle ? 90000 : 45000 }).then((handle) => handle.jsonValue());
       firstCardMs = Date.now() - started;
+      if (pass !== "fast-2") await takeShot("card");
       await page.waitForTimeout(1500);
+      if (pass !== "fast-2") await takeShot("settled");
     } catch (error) {
       errors.push("probe: " + error.message.split("\n")[0]);
     }
@@ -121,6 +139,10 @@ for (const { label: pass, throttle } of passes) {
     const beforeCard = sizes.filter((entry) => firstCardMs === null || entry.at <= firstCardMs);
     const totalKB = (list) => list.reduce((sum, entry) => sum + entry.kb, 0);
     const largest = sizes.slice().sort((a, b) => b.kb - a.kb).slice(0, 6).map((entry) => `${entry.kb}KB@${entry.at}ms ${entry.url}`);
+    shotTimers.forEach(clearTimeout);
+    for (const shot of shots) {
+      console.log("SHOT " + JSON.stringify({ mode, pass, name, label: shot.label, at: shot.at }) + " " + shot.image);
+    }
     console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, api, marks, errors, text }));
     await context.close();
   }
