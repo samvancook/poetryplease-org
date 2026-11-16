@@ -45,7 +45,7 @@
       $('status').textContent = 'Loading priorities…';
       try {
         const token = await user.getIdToken();
-        const response = await fetch('/api/staffReviewQueue', {headers:{Authorization:'Bearer ' + token}});
+        const response = await fetch('/api/staffReviewQueue', {cache:'no-store', headers:{Authorization:'Bearer ' + token}});
         if (response.status === 403) throw new Error('A team or admin account is required.');
         if (!response.ok) throw new Error('Could not load priorities. Please refresh to try again.');
         const data = await response.json();
