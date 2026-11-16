@@ -1856,7 +1856,7 @@ async function readRatingsSnapshot() {
   const meta = metaSnap.data() || {};
   const builtAtMs = timestampToMs(meta.builtAt);
   if (!builtAtMs || Number(meta.version || 0) !== RATINGS_SNAPSHOT_VERSION) return null;
-  if (timestampToMs(meta.invalidatedAt) >= builtAtMs) return null;
+  if (timestampToMs(meta.invalidatedAt) >= builtAtMs) return { invalidated: true, staffDemotedIds: meta.staffDemotedIds };
   const storagePath = normalizeText(meta.storagePath);
   if (!storagePath) return null;
   if (ratingsCache.basePayload && ratingsCache.builtAt === builtAtMs && ratingsCache.storagePath === storagePath) {
@@ -1873,7 +1873,7 @@ async function readRatingsSnapshot() {
   return { payload: stored.ratings, builtAtMs, authorVoteUserIds: ratingsCache.authorVoteUserIds };
 }
 
-async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
+async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds, staffDemotedIds) {
   const storagePath = `${RATINGS_SNAPSHOT_PATH}/${builtAtMs}-${randomBytes(4).toString("hex")}.json`;
   await storage.bucket().file(storagePath).save(JSON.stringify({
     ratings: payload,
@@ -1893,6 +1893,7 @@ async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
       version: RATINGS_SNAPSHOT_VERSION,
       builtAt: new Date(builtAtMs),
       updatedBy: "server",
+      ...(staffDemotedIds ? { staffDemotedIds } : {}),
     }, { merge: true });
     return true;
   });
@@ -1903,7 +1904,7 @@ async function writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds) {
   ratingsCache.storagePath = storagePath;
 }
 
-async function rebuildRatingsSnapshot(reason, { refreshStaffDemotions = false } = {}) {
+async function rebuildRatingsSnapshot(reason, { refreshStaffDemotions = false, priorStaffDemotedIds = [] } = {}) {
   const builtAtMs = Date.now();
   const [votes, authorVoteUserIds] = await Promise.all([
     getAllVotes(reason),
@@ -1915,18 +1916,22 @@ async function rebuildRatingsSnapshot(reason, { refreshStaffDemotions = false } 
     return !time || time <= builtAtMs;
   });
   const payload = aggregateRatings(baseVotes, { authorVoteUserIds });
+  let staffDemotedIds;
   if (refreshStaffDemotions) {
     const users = await db.collection(COLLECTIONS.users)
       .select("roles", "email", "status", "automaticTeamAccess").get();
     const { staff } = staffReviewIdentities(users);
     const latest = latestStaffReviews(baseVotes, staff);
+    staffDemotedIds = [...latest].filter(([, reviews]) =>
+      crossesStaffNegativityThreshold(reviews.values())).map(([id]) => id);
+  }
+  const demoted = new Set(staffDemotedIds || priorStaffDemotedIds);
+  if (demoted.size) {
     for (const [id, rating] of Object.entries(payload)) {
-      if (crossesStaffNegativityThreshold(latest.get(normalizeKey(id))?.values() || [])) {
-        rating.staffDiscoveryDemoted = true;
-      }
+      if (demoted.has(normalizeKey(id))) rating.staffDiscoveryDemoted = true;
     }
   }
-  await writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds);
+  await writeRatingsSnapshot(payload, builtAtMs, authorVoteUserIds, staffDemotedIds);
   console.info("ratings_snapshot_rebuilt", { reason, voteCount: baseVotes.length, builtAtMs });
   return { payload, builtAtMs, authorVoteUserIds };
 }
@@ -1978,7 +1983,11 @@ async function getRatingsSummaryCached() {
   const generation = ratingsCache.generation;
   const inFlight = (async () => {
     let snapshot = await readRatingsSnapshot();
-    if (!snapshot) snapshot = await rebuildRatingsSnapshot("ratings_snapshot_bootstrap");
+    if (!snapshot || snapshot.invalidated) {
+      snapshot = await rebuildRatingsSnapshot("ratings_snapshot_bootstrap", {
+        priorStaffDemotedIds: snapshot?.staffDemotedIds || [],
+      });
+    }
     const recentVotes = await getVotesAfter(snapshot.builtAtMs);
     const delta = aggregateRatings(recentVotes, { authorVoteUserIds: snapshot.authorVoteUserIds });
     const payload = mergeRatingsSummaries(snapshot.payload, delta);
