@@ -51,9 +51,15 @@
       <button id="logout" type="button" hidden>Sign out</button>
     </header>
     <nav class="staff-nav" aria-label="Contest staff pages">
-      <span aria-current="page">Build contests</span>
+      <a id="nav-overview" data-workspace-hash="contest-overview" hidden>Overview</a>
+      <span aria-current="page">Build</span>
+      <a id="nav-entrants" data-workspace-hash="contest-entrants-panel" hidden>Entrants</a>
       <a id="nav-preview" target="_blank" rel="noopener" hidden>See entrant page</a>
-      <a id="nav-review" href="/contest-review.html?view=all">Review submissions</a>
+      <a id="nav-review" href="/contest-review.html?view=all">Judge</a>
+      <a id="nav-assignments" data-workspace-hash="admin-progress" hidden>Assignments</a>
+      <a id="nav-decisions" data-workspace-hash="final-selection" hidden>Decisions</a>
+      <a id="nav-graphics" data-workspace-hash="contest-graphics-panel" hidden>Graphics</a>
+      <a id="nav-emails" data-workspace-hash="contest-email-panel" hidden>Emails</a>
     </nav>
     <h1>Contest Builder</h1>
     <p>Create a live contest here: give it a name, set the opening and closing times, save, and share the link. Contest builders, Contest Admins, and admins can publish without an extra approval step.</p>
@@ -104,6 +110,8 @@
     });
     const $ = (id) => document.getElementById(id);
     let programs = [];
+    let canManageContest = false;
+    let canJudgeContest = false;
     let saving = false;
     function status(message,error) { $("status").textContent=message; $("status").className="status"+(error?" error":""); }
     async function api(path,options) {
@@ -132,6 +140,13 @@
       reviewUrl.searchParams.set("view","all");
       if (visible) reviewUrl.searchParams.set("program",id);
       $("nav-review").href=reviewUrl.href;
+      $("nav-review").hidden=!canJudgeContest;
+      document.querySelectorAll("[data-workspace-hash]").forEach((link) => {
+        const target = new URL(reviewUrl.href);
+        target.hash = link.dataset.workspaceHash;
+        link.href = target.href;
+        link.hidden = !visible || !canManageContest;
+      });
       $("nav-preview").hidden=!visible;
       if (!visible) return;
       const url=new URL("/contest-submit.html",location.origin);
@@ -171,6 +186,9 @@
       try {
         const data=await api("contest-builder/programs");
         programs=data.programs||[];
+        const me=await api("me");
+        canManageContest=(me.roles||[]).some((role)=>["admin","contest_admin"].includes(role));
+        canJudgeContest=(me.roles||[]).some((role)=>["admin","contest_admin","team"].includes(role));
         renderPrograms(new URLSearchParams(location.search).get("program")||$("program").value);
         $("editor").style.display="block";
         status("Ready.");
