@@ -155,6 +155,9 @@
       $("banner-preview").hidden=!(row&&row.bannerUrl);
       if (row&&row.bannerUrl) $("banner-preview").src=row.bannerUrl;
       share(row&&row.id);
+      const url=new URL(location.href);
+      if(id) url.searchParams.set("program",id); else url.searchParams.delete("program");
+      history.replaceState(null,"",url);
     }
     function renderPrograms(selected) {
       const selector=$("program");
@@ -168,7 +171,7 @@
       try {
         const data=await api("contest-builder/programs");
         programs=data.programs||[];
-        renderPrograms($("program").value);
+        renderPrograms(new URLSearchParams(location.search).get("program")||$("program").value);
         $("editor").style.display="block";
         status("Ready.");
       } catch(error) {

@@ -69,7 +69,7 @@
       </div>
     </div>
     <nav class="staff-nav" aria-label="Contest staff pages">
-      <a href="/contest-builder.html">Build contests</a>
+      <a id="review-builder-link" href="/contest-builder.html">Build contests</a>
       <a id="contest-submissions-link" href="/admin.html" hidden>Contest submissions</a>
       <a id="final-selection-nav" href="#final-selection" hidden>Final selection</a>
       <a id="graphics-results-nav" href="#contest-graphics-panel" hidden>Winning graphics</a>
@@ -262,7 +262,7 @@
         <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
       </details>
       </section>
-      <section class="admin-tool-group" aria-labelledby="review-outcomes"><h3 id="review-outcomes">Review outcomes</h3>
+      <details id="outcome-panel" class="admin-tool-group"><summary id="review-outcomes" style="cursor:pointer;font-size:1.2em;font-weight:700;">Review outcomes</summary>
       <label>Show submissions
         <select id="outcome-view">
           <option value="complete">3+ reviews</option>
@@ -288,9 +288,9 @@
         <div id="fourth-status" class="status"></div>
       </details>
       <div id="outcome-results" class="table-wrap"></div>
-      <details style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
+      <details id="submission-progress-panel" style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
       <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
-      </section>
+      </details>
     </details>
     <section id="review-card" class="card" hidden>
       <div class="topbar">
@@ -509,7 +509,7 @@
             '</td><td>' + row.reviewedAssigned + ' / ' + row.assigned + '</td><td>' + row.reviewedTotal + '</td></tr>').join("") +
           '</tbody></table>'
         : '<p>No reviews or assignments yet.</p>';
-      renderOutcomeViews();
+      if (document.getElementById("outcome-panel").open) renderOutcomeViews();
       renderFinalistProgress();
       const spotChecks = report.spotChecks || [];
       document.getElementById("spot-check-results").innerHTML = spotChecks.length
@@ -517,6 +517,12 @@
           spotChecks.map((row) => '<tr><td>' + escapeHtml(row.reviewerEmail) + '</td><td>' + row.sampleCount + ' of ' + row.eligibleCount + ' eligible</td><td>' + row.reviewedCount + ' / ' + row.sampleCount + ' · Y ' + row.yesCount + ' · M ' + row.maybeCount + ' · N ' + row.noCount + '</td><td>' +
             (row.status === "in_progress" ? "In progress" : row.status === "needs_attention" ? "Needs additional checking" : "No concerns found — admin review before archiving") + '</td></tr>').join("") + '</tbody></table>'
         : "<p>No spot checks assigned yet.</p>";
+      if (document.getElementById("submission-progress-panel").open) renderSubmissionProgress();
+    }
+
+    function renderSubmissionProgress() {
+      const report = state.adminProgress;
+      if (!report) return;
       document.getElementById("submission-progress").innerHTML =
         '<table class="progress-table"><thead><tr><th>Submission</th><th>Reviews</th><th>Reviewed by</th><th>Assigned to</th></tr></thead><tbody>' +
         report.submissions.map((row) => '<tr><td>' + escapeHtml(row.title) + (row.archived ? ' (archived)' : '') + '<br><small>' + escapeHtml(row.id) + '</small></td><td>' + row.reviewCount + ' / ' +
@@ -1485,6 +1491,7 @@
         } else if (["assignment-form", "spot-check-form", "reviewer-progress", "finalist-admin", "review-outcomes"].includes(targetId)) {
           panel.open = true;
           if (targetId === "finalist-admin") document.getElementById("finalist-admin").open = true;
+          if (targetId === "review-outcomes") document.getElementById("outcome-panel").open = true;
           requestAnimationFrame(() => document.getElementById(targetId).scrollIntoView({ block: "start" }));
         }
       } catch (error) {
@@ -1654,7 +1661,10 @@
     async function loadQueue(refreshProgress = true) {
       setStatus("Loading review queue...");
       try {
-        const payload = await api("team/contestSubmissions");
+        const requestedProgram = document.getElementById("program").value ||
+          (!state.filtersInitialized ? new URLSearchParams(location.search).get("program") || "" : "");
+        const payload = await api("team/contestSubmissions" +
+          (requestedProgram ? "?programId=" + encodeURIComponent(requestedProgram) : ""));
         state.programs = payload.programs || [];
         state.submissions = payload.submissions || [];
         const select = document.getElementById("program");
@@ -1665,6 +1675,8 @@
           '<option value="' + program.id + '">' + program.name + '</option>'
         ).join("");
         select.value = state.programs.some((program) => program.id === selected) ? selected : "";
+        document.getElementById("review-builder-link").href = "/contest-builder.html" +
+          (select.value ? "?program=" + encodeURIComponent(select.value) : "");
         if (firstLoad && ["unreviewed", "assigned", "spotcheck", "finalist", "reviewed"].includes(params.get("view"))) {
           document.getElementById("view").value = params.get("view");
         } else if (firstLoad && state.submissions.some((row) => row.finalistAssignedToMe && !row.finalistDecision)) {
@@ -1769,7 +1781,7 @@
       };
     }
 
-    document.getElementById("program").addEventListener("change", () => { invalidateFourthPreview(); invalidateFinalistPreview(); applyFilters(); loadProgress(); });
+    document.getElementById("program").addEventListener("change", () => { const url = new URL(location.href); const selected = document.getElementById("program").value; if (selected) url.searchParams.set("program", selected); else url.searchParams.delete("program"); history.replaceState(null, "", url); invalidateFourthPreview(); invalidateFinalistPreview(); loadQueue(); });
     document.getElementById("assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const programId = document.getElementById("program").value;
@@ -2016,6 +2028,14 @@
     });
     document.getElementById("download-progress").addEventListener("click", downloadProgress);
     document.getElementById("refresh-review-progress").addEventListener("click", loadProgress);
+    document.getElementById("outcome-panel").addEventListener("toggle", (event) => {
+      if (event.target.open) renderOutcomeViews();
+      else document.getElementById("outcome-results").replaceChildren();
+    });
+    document.getElementById("submission-progress-panel").addEventListener("toggle", (event) => {
+      if (event.target.open) renderSubmissionProgress();
+      else document.getElementById("submission-progress").replaceChildren();
+    });
 
     document.getElementById("outcome-view").addEventListener("change", () => { invalidateFourthPreview(); renderOutcomeViews(); });
     document.getElementById("outcome-results").addEventListener("click", async (event) => {
