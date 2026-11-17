@@ -26,6 +26,7 @@ import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, coun
 import { loadedSnapshotIsCurrent } from "./content-cache-policy.js";
 import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
+import { retitleGraphic, validRetitleItem, RETITLE_MAX_ITEMS } from "./graphic-retitle.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
@@ -10240,6 +10241,34 @@ app.post(getBoth("/internal/displayPreviews/reattachOriginals"), async (req, res
     }
   }
   console.log(JSON.stringify({ event: "reattach_graphic_originals", dryRun, results }));
+  res.json({ dryRun, results });
+});
+
+// Renames quote image records to the poem their image shows (see
+// graphic-retitle.js). The plan lives in docs/handoffs; old values are kept on
+// each record in ocrRetitle.before.
+const retitleDeps = {
+  getGraphic: restoreOriginalDeps.getGraphic,
+  updateGraphic: restoreOriginalDeps.updateGraphic,
+  deleteValue: FieldValue.delete(),
+  now: () => Date.now(),
+};
+app.post(getBoth("/internal/displayPreviews/retitle"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length || items.length > RETITLE_MAX_ITEMS || !items.every(validRetitleItem)) {
+    return res.status(400).json({ error: "invalid_items", maxItems: RETITLE_MAX_ITEMS });
+  }
+  const dryRun = req.body?.dryRun === true;
+  const results = [];
+  for (const item of items) {
+    try {
+      results.push(await retitleGraphic(item, retitleDeps, { dryRun }));
+    } catch (err) {
+      results.push({ id: item.id, status: "failed", error: String(err?.message || err).slice(0, 200) });
+    }
+  }
+  console.log(JSON.stringify({ event: "retitle_graphics", dryRun, results }));
   res.json({ dryRun, results });
 });
 
