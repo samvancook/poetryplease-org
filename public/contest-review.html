@@ -296,6 +296,7 @@
           <option value="champion">Finalist: 1+ Champion vote</option>
           <option value="champion-double">Finalist: 2+ Champion votes</option>
           <option value="possible">Finalist: Possible</option>
+          <option value="supplemental">Supplemental reads</option>
           <option value="instagram">By Instagram handle</option>
           <option value="active">All active submissions</option>
           <option value="all">All submissions</option>
@@ -481,7 +482,9 @@
       document.getElementById("regular-review-controls").hidden = finalistMode;
       const availability = document.getElementById("review-availability");
       let availabilityMessage = "";
-      if (row.currentReviewerDecision) {
+      if (row.currentReviewerSupplemental) {
+        availabilityMessage = "Your supplemental read was saved. The first three preliminary votes remain unchanged.";
+      } else if (row.currentReviewerDecision) {
         availabilityMessage = "You already voted on this poem. You can revise your vote or note.";
       } else if (!row.canReview && row.reviewCount >= row.requiredReviewCount) {
         availabilityMessage = "Voting is complete for this poem (" + row.reviewCount + " of " +
@@ -516,6 +519,7 @@
         '<span class="pill">' + report.reviewedAtLeastOnce + ' started</span>' +
         '<span class="pill">' + report.fullyReviewed + ' fully reviewed</span>' +
         '<span class="pill">' + (report.archivedCount || 0) + ' archived</span>' +
+        '<span class="pill">' + report.submissions.reduce((sum, row) => sum + (row.supplementalReads?.length || 0), 0) + ' supplemental reads</span>' +
         '<span class="pill">' + report.requiredReviewCount + ' initial reviews required per entry</span>';
       const active = report.submissions.filter((row) => !row.archived);
       const target = report.requiredReviewCount;
@@ -586,6 +590,7 @@
       const matching = report.submissions.filter((row) => {
         if (view === "all") return true;
         if (view === "archived") return row.archived;
+        if (view === "supplemental") return !!row.supplementalReads?.length;
         if (row.archived) return false;
         if (view === "instagram" || view === "active") return true;
         if (view === "strong") return row.reviewCount >= 3 && row.initialYesCount >= 2;
@@ -619,6 +624,9 @@
             '</td><td>' +
             escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ") || "—") +
             (row.finalistReads?.length ? '<br><small>Finalist: ' + escapeHtml(row.finalistReads.map((read) => read.decision || "waiting").join(", ")) + '</small>' : '') +
+            (row.supplementalReads?.length ? '<details><summary>Supplemental reads: ' + row.supplementalReads.length + '</summary>' +
+              row.supplementalReads.map((read) => '<p><strong>' + escapeHtml(read.decision) + '</strong> by ' +
+                escapeHtml(read.reviewerEmail) + (read.note ? '<br>' + escapeHtml(read.note) : '') + '</p>').join("") + '</details>' : '') +
             ' <small>(' + row.reviewCount + ' / ' + row.requiredReviewCount + ')</small></td><td>' +
             (row.archived ? '' : '<button type="button" data-open-submission="' + escapeHtml(row.id) + '">Open</button> ' +
               '<button type="button" data-extra-submission="' + escapeHtml(row.id) + '" ' + (row.reviewCount < report.requiredReviewCount ? 'disabled title="Initial reviews are not complete"' : '') + '>Queue extra reviewer</button> ') +
@@ -1473,7 +1481,8 @@
       document.getElementById("overview-metrics").innerHTML =
         '<span class="pill">' + report.totalSubmissions + ' submissions</span>' +
         '<span class="pill">' + report.fullyReviewed + ' fully reviewed</span>' +
-        '<span class="pill">' + (report.archivedCount || 0) + ' archived</span>';
+        '<span class="pill">' + (report.archivedCount || 0) + ' archived</span>' +
+        '<span class="pill">' + report.submissions.reduce((sum, row) => sum + (row.supplementalReads?.length || 0), 0) + ' supplemental reads</span>';
       const active = report.submissions.filter((row) => !row.archived);
       const missing = active.reduce((sum, row) => sum + Math.max(0, report.requiredReviewCount - row.reviewCount), 0);
       document.getElementById("overview-coverage").textContent = missing + " initial reads still needed across active submissions.";
@@ -1807,13 +1816,15 @@
       const nextId = state.filtered[state.index + 1]?.id || "";
       setStatus("Saving decision...");
       try {
-        await api("admin/contentSubmissions/" + encodeURIComponent(row.id) + "/contestDecision", {
+        const result = await api("admin/contentSubmissions/" + encodeURIComponent(row.id) + "/contestDecision", {
           method: "POST",
-          body: { decision, note: document.getElementById("note").value.trim() },
+          body: { decision, note: document.getElementById("note").value.trim(), observedReviewCount: row.reviewCount },
         });
         await loadQueue(false);
         state.noteDrafts.delete("regular:" + row.id);
-        setStatus("Vote and private note saved.");
+        setStatus(result.supplemental
+          ? "Your vote and note were saved as a supplemental read; the first three preliminary votes remain unchanged."
+          : "Vote and private note saved.");
         if (nextId) {
           const nextIndex = state.filtered.findIndex((candidate) => candidate.id === nextId);
           if (nextIndex >= 0) {
@@ -1822,7 +1833,11 @@
           }
         }
       } catch (error) {
-        setStatus(error.message, true);
+        if (["additional_review_not_assigned", "contest_review_complete"].includes(error.message)) {
+          setStatus("Another reviewer filled this poem's last preliminary slot. Your note is still here. Choose the next available poem.", true);
+        } else {
+          setStatus(error.message, true);
+        }
       }
     }
 
