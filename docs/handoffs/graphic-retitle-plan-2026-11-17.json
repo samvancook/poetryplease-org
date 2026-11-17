@@ -1,8 +1,8 @@
 {
  "generatedAt": "2026-11-17",
  "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
- "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before.",
- "count": 811,
+ "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'.",
+ "count": 818,
  "items": [
   {
    "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
@@ -5197,6 +5197,41 @@
    "expectTitle": "drowning as a magic trick",
    "title": "Abracadabra",
    "excerptRow": 31156
+  },
+  {
+   "id": "IFA-QI-VALUE-V24",
+   "expectTitle": "#VALUE!",
+   "title": "Primoris verb"
+  },
+  {
+   "id": "IFA-QI-VALUE-V25",
+   "expectTitle": "#VALUE!",
+   "title": "Relin noun"
+  },
+  {
+   "id": "IFA-QI-VALUE-V28",
+   "expectTitle": "#VALUE!",
+   "title": "Sepheegrum noun"
+  },
+  {
+   "id": "IFA-QI-VALUE-V29",
+   "expectTitle": "#VALUE!",
+   "title": "Skelt verb"
+  },
+  {
+   "id": "IFA-QI-VALUE-V30",
+   "expectTitle": "#VALUE!",
+   "title": "Solosum verb"
+  },
+  {
+   "id": "IFA-QI-VALUE-V31",
+   "expectTitle": "#VALUE!",
+   "title": "Vamri verb"
+  },
+  {
+   "id": "IFA-QI-VALUE-V8",
+   "expectTitle": "#VALUE!",
+   "title": "Coamplify verb"
   }
  ]
 }
