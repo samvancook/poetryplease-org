@@ -8956,7 +8956,13 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
         }
       }
       const result = await upsertContentLibraryItem("excerpts", item, actor);
-      results.push({ ok: true, id: result.item?.id || item.docId, created: !!result.created });
+      const id = result.item?.id || item.docId;
+      results.push({
+        ok: true, id, created: !!result.created,
+        sourceRecordId: item.sourceRecordId,
+        canonicalExcerptId: id,
+        canonicalVideoId: item.sourceContentId,
+      });
     } catch (err) {
       results.push({
         ok: false,
@@ -9948,9 +9954,52 @@ async function buildWeaverImportReconciliation(limit = 100) {
   };
 }
 
+async function readExactWeaverExcerptReceipt(sourceRecordId, importLedgerId) {
+  const [ledgerSnap, excerpts] = await Promise.all([
+    db.collection(COLLECTIONS.weaverImportLedger).doc(importLedgerId).get(),
+    db.collection(COLLECTIONS.excerpts).where("sourceRecordId", "==", sourceRecordId).limit(2).get(),
+  ]);
+  const ledger = ledgerSnap.data();
+  if (!ledger || !["completed", "completed_with_errors"].includes(ledger.status) ||
+      !isWeaverExcerptImportType(ledger.contentType)) return null;
+  if (excerpts.docs.length !== 1) return null;
+
+  const excerpt = excerpts.docs[0];
+  const item = excerpt.data();
+  const canonicalVideoId = normalizeText(item.sourceContentId);
+  if (item.sourceSystem !== "weaver" || !canonicalVideoId || canonicalVideoId.includes("/")) return null;
+  const outcomes = (ledger.outcomes || []).filter(row => row.contentId === excerpt.id &&
+    ["created", "updated"].includes(row.outcome) && !row.error);
+  if (outcomes.length !== 1) return null;
+  const outcome = outcomes[0];
+  const binding = { sourceRecordId, canonicalExcerptId: excerpt.id, canonicalVideoId };
+  if (Object.keys(binding).some(key => outcome[key] && outcome[key] !== binding[key])) return null;
+  if (!(await db.collection(COLLECTIONS.videos).doc(canonicalVideoId).get()).exists) return null;
+
+  const recorded = Object.keys(binding).every(key => outcome[key] === binding[key]);
+  return {
+    ok: true, received: true, ...binding, importLedgerId,
+    bindingEvidence: recorded ? "recorded_import_outcome" : "current_excerpt_and_completed_import_outcome",
+    originalOutcome: outcome,
+    author: item.author || "",
+    poem: item.poem || item.title || "",
+    excerpt: item.excerpt || "",
+  };
+}
+
 app.get(getBoth("/internal/weaverImportHealth"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
   try {
+    const { sourceRecordId, importLedgerId } = req.query;
+    if (sourceRecordId !== undefined || importLedgerId !== undefined) {
+      res.set("Cache-Control", "private, no-store");
+      if (typeof sourceRecordId !== "string" || !sourceRecordId.trim() || sourceRecordId.length > 512 ||
+          typeof importLedgerId !== "string" || !/^[A-Za-z0-9]{20}$/.test(importLedgerId)) {
+        return res.status(400).json({ error: "invalid_excerpt_receipt_lookup" });
+      }
+      const receipt = await readExactWeaverExcerptReceipt(sourceRecordId, importLedgerId);
+      return res.json(receipt || { ok: true, received: false, sourceRecordId, importLedgerId });
+    }
     res.json(await buildWeaverImportReconciliation(Math.max(1, Math.min(Number(req.query?.limit) || 100, 250))));
   } catch (err) {
     res.status(500).json({ error: "weaver_import_health_failed", message: err.message || "unknown_error" });
