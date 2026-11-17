@@ -48,28 +48,46 @@ export function buildAuthorRepairMessage({ name, title, book, reviewUrl, hadEarl
   };
 }
 
-export function buildContestAssignmentMessage({ programName, view, reviewUrl }) {
+export function buildContestAssignmentMessage({ programName, view, reviewUrl, assignmentCount, preliminaryCount, additionalCount }) {
   const label = {
-    assigned: "assigned review batch",
+    assigned: "review assignment",
     spotcheck: "spot check",
     finalist: "finalist pass",
   }[view];
   if (!label || !programName || !reviewUrl) throw new Error("invalid_contest_assignment_message");
+  const instructions = [];
+  if (view === "assigned") {
+    if (preliminaryCount > 0) {
+      instructions.push(`Initial reads — ${preliminaryCount} poems. Read each poem and vote Yes, Maybe, or No to help decide which pieces move forward.`);
+    }
+    if (additionalCount > 0) {
+      instructions.push(`Additional reads — ${additionalCount} poems. These need another opinion after their first three reviews. Vote Yes, Maybe, or No. A poem becomes available once its first three reviews are finished.`);
+    }
+    if (!instructions.length) instructions.push("Read each poem and vote Yes, Maybe, or No. Your queue shows the poems available for your review.");
+  }
+  if (view === "spotcheck") {
+    instructions.push("This is a random sample of poems that received three No votes. Give each a fresh read and vote Yes, Maybe, or No. Your responses help us check whether that group needs more attention before archiving.");
+  }
+  if (view === "finalist") {
+    instructions.push("Help us find the winners’ circle. Read each poem and choose Champion for a favorite you want to champion, Possible for one worth keeping in consideration, or Pass. You can add a short note with your choice.");
+  }
   return {
     subject: `Poetry Please: your ${label} for ${programName}`,
     text: [
-      "Hello,",
+      "Hi,",
       "",
-      `Your ${label} for ${programName} is ready in Poetry Please.`,
+      `Your ${label} for ${programName} is ready.`,
+      ...(Number.isInteger(assignmentCount) ? ["", `Your assigned set contains ${assignmentCount} poem${assignmentCount === 1 ? "" : "s"}, including any you have already completed. The linked queue shows what is still available to read.`] : []),
       "",
-      "Open your assigned review queue:",
+      ...instructions.flatMap((text) => [text, ""]),
+      "Open your review queue:",
       reviewUrl,
       "",
-      "Sign in with the Button Poetry email address that received this message. Use the linked queue to see your assigned work.",
+      "Sign in with the Button Poetry email address that received this message. Add any notes before voting so they save with your choice.",
       "",
-      "Questions or an assignment that looks wrong? Reply to this email before reviewing it.",
+      "Questions? Reply to this email.",
       "",
-      "Button Poetry Team",
+      "Button Poetry",
     ].join("\n"),
   };
 }
