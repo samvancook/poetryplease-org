@@ -30,17 +30,23 @@ on:
         #   restore-originals puts broken originals back (docs/handoffs/graphic-restore-plan-2026-11-14.json)
         #   reattach-dry-run  read-only: checks the re-attach plan (docs/handoffs/graphic-reattach-plan-2026-11-15.json)
         #   reattach-originals re-attaches graphics whose hosted upload is not an image, from Drive
+        #   excerpt-import-dry-run  read-only: checks <excerpt_batch> against the library's excerpts
+        #   excerpt-import   imports the picks in <excerpt_batch> that the library does not have yet
         #   signed-in-probe  not a backfill: runs only the signed_in_probe job, which measures
         #                    startup on the live site signed in as the test reader
         #   signed-in-probe-author  the same, with the test reader marked as an author
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, signed-in-probe, signed-in-probe-author]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, excerpt-import-dry-run, excerpt-import, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
         default: '25'
+      excerpt_batch:
+        description: Excerpt batch file under imports/ (excerpt-import choices only)
+        required: false
+        default: ''
 
 jobs:
   test_functions:
@@ -68,7 +74,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js content-cache-policy.test.js
+        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js excerpt-batch-import.test.js content-cache-policy.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
@@ -263,17 +269,17 @@ jobs:
       # Checkout must come before sign-in: it cleans the folder that holds
       # the credentials file.
       - name: Checkout (diagnose and restore only)
-        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals"]'), inputs.preview_backfill) }}
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
         uses: actions/checkout@v4
 
       - name: Set up Node (diagnose and restore only)
-        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals"]'), inputs.preview_backfill) }}
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Install function dependencies (diagnose and restore only)
-        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals"]'), inputs.preview_backfill) }}
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
         working-directory: functions
         run: npm install --no-audit --no-fund
 
@@ -288,6 +294,7 @@ jobs:
         env:
           ACTION: ${{ inputs.preview_backfill }}
           LIMIT: ${{ inputs.preview_limit }}
+          EXCERPT_BATCH: ${{ inputs.excerpt_batch }}
         run: |
           set -euo pipefail
           case "$LIMIT" in ''|*[!0-9]*) echo "limit must be a whole number"; exit 2;; esac
@@ -385,6 +392,20 @@ jobs:
                   | tee -a "$RUNNER_TEMP/restore-results.jsonl"
               done < "$RUNNER_TEMP/restore-items.jsonl"
               summarize_restore ;;
+            excerpt-import-dry-run|excerpt-import)
+              case "$EXCERPT_BATCH" in imports/*.json) ;; *) echo "excerpt_batch must be a .json file under imports/"; exit 2;; esac
+              case "$EXCERPT_BATCH" in *..*) echo "excerpt_batch must not contain .."; exit 2;; esac
+              test -f "$EXCERPT_BATCH" || { echo "$EXCERPT_BATCH not found"; exit 2; }
+              (cd functions && node excerpt-batch-import.mjs plan "../$EXCERPT_BATCH" "$RUNNER_TEMP/excerpt-payload.json")
+              count="$(jq '.records | length' "$RUNNER_TEMP/excerpt-payload.json")"
+              if [ "$ACTION" = excerpt-import-dry-run ] || [ "$count" -eq 0 ]; then echo "Nothing imported."; exit 0; fi
+              curl --fail-with-body --silent --show-error --max-time 58 -X POST \
+                -H "x-api-key: $poetry_key" -H "Content-Type: application/json" \
+                --data-binary @"$RUNNER_TEMP/excerpt-payload.json" \
+                "https://poetryplease.org/api/internal/weaverImport" \
+                | jq '{importLedgerId, createdCount, updatedCount, errorCount, results}'
+              echo "Checking again after the import:"
+              (cd functions && node excerpt-batch-import.mjs plan "../$EXCERPT_BATCH" "$RUNNER_TEMP/excerpt-payload-after.json") ;;
             diagnose-stalled)
               get "status?list=stalled-details" | jq -c '.stalledDetails[]' > "$RUNNER_TEMP/stalled.jsonl"
               (cd functions && node diagnose-display-previews.mjs "$RUNNER_TEMP/stalled.jsonl") ;;
