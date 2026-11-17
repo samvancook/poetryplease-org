@@ -53,6 +53,13 @@ function probeScript(mode, scenario) {
     if (event.message) startupErrors.push(event.message);
   });
   addEventListener('unhandledrejection', event => startupErrors.push(String(event.reason)));
+  // A slow connection: the first feed answer takes 2.5 s of page time.
+  if (${JSON.stringify(scenario === "slow-card")}) {
+    const realFetch = window.fetch.bind(window);
+    window.fetch = (input, init) => /bootstrap|fetchFiltered/.test(String(input?.url || input))
+      ? new Promise(resolve => setTimeout(resolve, 2500)).then(() => realFetch(input, init))
+      : realFetch(input, init);
+  }
   const check = setInterval(() => {
     const retry = document.getElementById('load-more');
     if (${JSON.stringify(scenario === "retry")} && retry && !retry.hidden && retry.textContent === 'Retry loading') {
@@ -65,6 +72,9 @@ function probeScript(mode, scenario) {
     const loader = document.getElementById('pp-loader');
     const blocked = loader && getComputedStyle(loader).display !== 'none'
       && getComputedStyle(loader).visibility !== 'hidden' && !loader.classList.contains('is-hidden');
+    if (document.getElementById('pp-welcome-choice')) {
+      document.documentElement.dataset[rendered ? 'startupWelcomeAfterCard' : 'startupWelcomeBeforeCard'] = 'true';
+    }
     if (rendered && !blocked) {
       document.documentElement.dataset.startupResult = 'ready';
       if (${JSON.stringify(scenario === "advance")}) {
@@ -72,7 +82,7 @@ function probeScript(mode, scenario) {
           document.documentElement.dataset.startupAdvanced = 'true';
           document.getElementById('load-button').click();
         }
-      } else if (${JSON.stringify(scenario !== "mobile-low")}) clearInterval(check);
+      } else if (${JSON.stringify(scenario !== "mobile-low" && scenario !== "slow-card")}) clearInterval(check);
     }
     // Classic mobile: vote through cards until few are left, which should start the full feed.
     if (${JSON.stringify(scenario === "mobile-low")} && rendered && !blocked) {
@@ -185,6 +195,8 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
       ["/mobile.html", "signed-in"],
       ["/mobile.html", "mobile-low"],
       ["/mobile.html", "ready"],
+      ["/mobile.html", "slow-card"],
+      ["/app?desktop=1", "slow-card"],
       ["/m", "ready"],
       ["/m?item=startup-fixture", "linked"],
       ["/m", "retry"],
@@ -223,6 +235,10 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
           assert.equal(seen.filter(p => p === "/api/bootstrap" || p === "/api/fetchFiltered").length, 1,
             route + " requested its first feed more than once while the account lookup was pending");
           assert.ok(seen.includes("/api/imageTypes"), route + " never loaded its filter lists after the first card");
+        }
+        if (scenario === "slow-card") {
+          assert.ok(!/data-startup-welcome-before-card="true"/.test(output), route + " showed the welcome prompt over a card that was still loading");
+          assert.ok(/data-startup-welcome-after-card="true"/.test(output), route + " never showed the welcome prompt after the slow first card");
         }
         if (scenario === "advance") {
           assert.equal(fullFeedRequests.length, 1, "Desktop did not request one full refill");
