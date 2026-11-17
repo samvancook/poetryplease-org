@@ -249,7 +249,7 @@
       </details>
       <div class="card" style="margin:12px 0;">
         <strong>Email a committed assignment via Mandrill</strong>
-        <p>Finalist notices send when you commit a batch. For an existing assignment that still needs a notice, choose the reviewer and queue below.</p>
+        <p>New assignments automatically email reviewers a link to their queue. Delivery results appear after assigning. For an existing assignment that needs a notice, choose the reviewer and queue below.</p>
         <form id="assignment-notice-form" class="assignment-form">
           <label>Reviewer’s Button Poetry email<input id="notice-email" type="email" required placeholder="name@buttonpoetry.com"></label>
           <label>Queue<select id="notice-view"><option value="assigned">Assigned batch or fourth reads</option><option value="spotcheck">Spot check</option><option value="finalist">Finalist pass</option></select></label>
@@ -306,9 +306,9 @@
       <p id="outcome-count"></p>
       <details style="margin:12px 0 18px;">
         <summary style="cursor:pointer;font-weight:700;">Act on filtered set: assign fourth reads</summary>
-        <p id="fourth-help">This acts on the submissions matching the filter above. One email gets every eligible fourth read; multiple emails split them roughly evenly. Preview shows the exact count and split without assigning anything. A queued fourth read becomes votable after the first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped; a reviewer cannot be assigned an entry they have already reviewed. This does not email reviewers.</p>
+        <p id="fourth-help">This acts on the submissions matching the filter above. One email gets every eligible fourth read; multiple emails split them roughly evenly. Preview shows the exact count and split without assigning anything. A queued fourth read becomes votable after the first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped; a reviewer cannot be assigned an entry they have already reviewed. Assigning sends each reviewer an email with a link to their queue.</p>
         <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" aria-describedby="fourth-help" title="One email receives all eligible fourth reads; multiple emails divide them roughly evenly." style="width:100%;margin:8px 0;"></label>
-        <div class="actions"><button id="preview-fourth" type="button" title="See the exact eligible count and reviewer split without assigning anything.">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" title="Queue the previewed fourth reads for the listed reviewers. No email is sent." hidden>Assign fourth reads</button></div>
+        <div class="actions"><button id="preview-fourth" type="button" title="See the exact eligible count and reviewer split without assigning anything.">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" title="Queue the previewed fourth reads and email the listed reviewers." hidden>Assign fourth reads</button></div>
         <div id="fourth-status" class="status"></div>
       </details>
       <div id="outcome-results" class="table-wrap"></div>
@@ -1895,6 +1895,23 @@
     }
 
     document.getElementById("program").addEventListener("change", () => { const url = new URL(location.href); const selected = document.getElementById("program").value; if (selected) url.searchParams.set("program", selected); else url.searchParams.delete("program"); history.replaceState(null, "", url); invalidateFourthPreview(); invalidateFinalistPreview(); loadQueue(); });
+    async function sendAssignmentNotices(programId, reviewerEmails, view) {
+      const results = [];
+      for (const reviewerEmail of [...new Set(reviewerEmails)]) {
+        try {
+          await api("admin/contestAssignmentNotices/send", {
+            method: "POST", body: { programId, reviewerEmail, view },
+          });
+          results.push("Email sent to " + reviewerEmail + ".");
+        } catch (error) {
+          results.push(error.message === "contest_notice_already_attempted"
+            ? "A notice for this queue was already attempted for " + reviewerEmail + "."
+            : "Assignment saved. Email unconfirmed for " + reviewerEmail + " (" + error.message + "). Check delivery before retrying.");
+        }
+      }
+      return results.join(" ");
+    }
+
     document.getElementById("assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const programId = document.getElementById("program").value;
@@ -1906,7 +1923,7 @@
       const email = document.getElementById("assignment-email").value.trim().toLowerCase();
       const size = Number(document.getElementById("assignment-size").value);
       const current = state.adminProgress?.reviewers.find((row) => row.email === email)?.assigned || 0;
-      if (!window.confirm("Add up to " + size + " assignments for " + email + "? They already have " + current + " assigned; this can bring the total to " + (current + size) + ".")) return;
+      if (!window.confirm("Add up to " + size + " assignments for " + email + "? They already have " + current + " assigned; this can bring the total to " + (current + size) + ". An assignment email will be sent.")) return;
       status.textContent = "Assigning entries...";
       try {
         const result = await api("admin/contestReviewAssignments", {
@@ -1923,6 +1940,7 @@
         if (result.assigned) {
           document.getElementById("notice-email").value = result.reviewerEmail;
           document.getElementById("notice-view").value = "assigned";
+          status.textContent += " " + await sendAssignmentNotices(programId, [result.reviewerEmail], "assigned");
         }
         await loadQueue();
       } catch (error) {
@@ -1969,7 +1987,7 @@
           method: "POST",
           body: { programId, reviewerEmail: document.getElementById("spot-check-email").value.trim() },
         });
-        status.textContent = "Assigned " + result.sampleCount + " of " + result.eligibleCount + " eligible three-No entries to " + result.reviewerEmail + ". Send them the reviewer link below.";
+        status.textContent = "Assigned " + result.sampleCount + " of " + result.eligibleCount + " eligible three-No entries to " + result.reviewerEmail + ". " + await sendAssignmentNotices(programId, [result.reviewerEmail], "spotcheck");
         document.getElementById("notice-email").value = result.reviewerEmail;
         document.getElementById("notice-view").value = "spotcheck";
         const link = document.getElementById("spot-check-link");
@@ -2026,18 +2044,19 @@
     document.getElementById("confirm-fourth").addEventListener("click", async () => {
       const preview = state.fourthPreview;
       if (!preview) return;
-      if (!window.confirm("Assign " + preview.eligibleCount + " fourth reads from this saved preview?")) return;
+      if (!window.confirm("Assign " + preview.eligibleCount + " fourth reads from this saved preview and email the assigned reviewers?")) return;
       const status = document.getElementById("fourth-status");
       status.textContent = "Assigning fourth reads...";
       try {
         const result = await api("admin/contestFourthReviewBatch", {
           method: "POST", body: { ...preview, commit: true },
         });
-        status.textContent = "Assigned " + result.assignedCount + " fourth reads. Send a separate Mandrill notice for each reviewer listed above.";
+        status.textContent = "Assigned " + result.assignedCount + " fourth reads.";
         const fourthRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
         if (fourthRecipients.length) {
           document.getElementById("notice-email").value = fourthRecipients[0];
           document.getElementById("notice-view").value = "assigned";
+          status.textContent += " " + await sendAssignmentNotices(preview.programId, fourthRecipients, "assigned");
         }
         state.fourthPreview = null;
         document.getElementById("confirm-fourth").hidden = true;
@@ -2163,7 +2182,8 @@
           const result = await api("admin/contentSubmissions/" + encodeURIComponent(button.dataset.extraSubmission) + "/additionalReviewer", {
             method: "POST", body: { reviewerEmail: reviewerEmail.trim() },
           });
-          status.textContent = "Queued review " + result.reviewTarget + " for " + result.reviewerEmail + ".";
+          status.textContent = "Queued review " + result.reviewTarget + " for " + result.reviewerEmail + ". " +
+            await sendAssignmentNotices(document.getElementById("program").value, [result.reviewerEmail], "assigned");
           await loadQueue();
         } catch (error) {
           status.textContent = "Could not queue additional review: " + error.message;
