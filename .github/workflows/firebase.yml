@@ -29,6 +29,7 @@ on:
         #   restore-dry-run  read-only: checks the first <preview_limit> rows of the restore plan
         #   restore-originals puts broken originals back (docs/handoffs/graphic-restore-plan-2026-11-14.json)
         #   reattach-dry-run  read-only: checks the re-attach plan (docs/handoffs/graphic-reattach-plan-2026-11-15.json)
+        #   retitle-dry-run / retitle-graphics rename quote images to the poem their image shows
         #   reattach-originals re-attaches graphics whose hosted upload is not an image, from Drive
         #   excerpt-import-dry-run  read-only: checks <excerpt_batch> against the library's excerpts
         #   excerpt-import   imports the picks in <excerpt_batch> that the library does not have yet
@@ -38,7 +39,7 @@ on:
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, excerpt-import-dry-run, excerpt-import, signed-in-probe, signed-in-probe-author]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, excerpt-import-dry-run, excerpt-import, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -74,7 +75,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js excerpt-batch-import.test.js content-cache-policy.test.js
+        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js excerpt-batch-import.test.js content-cache-policy.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
@@ -269,17 +270,17 @@ jobs:
       # Checkout must come before sign-in: it cleans the folder that holds
       # the credentials file.
       - name: Checkout (diagnose and restore only)
-        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","retitle-dry-run","retitle-graphics","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
         uses: actions/checkout@v4
 
       - name: Set up Node (diagnose and restore only)
-        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","retitle-dry-run","retitle-graphics","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Install function dependencies (diagnose and restore only)
-        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
+        if: ${{ contains(fromJSON('["diagnose-stalled","restore-dry-run","restore-originals","reattach-dry-run","reattach-originals","retitle-dry-run","retitle-graphics","excerpt-import-dry-run","excerpt-import"]'), inputs.preview_backfill) }}
         working-directory: functions
         run: npm install --no-audit --no-fund
 
@@ -344,6 +345,17 @@ jobs:
             reattach-dry-run|reattach-originals)
               dry="$([ "$ACTION" = reattach-dry-run ] && echo true || echo false)"
               post reattachOriginals "$(jq -c --argjson dry "$dry" '{dryRun: $dry, items: .items[:6]}' docs/handoffs/graphic-reattach-plan-2026-11-15.json)" | jq . ;;
+            retitle-dry-run|retitle-graphics)
+              # 50 records per call; each record is checked against the title in the plan first.
+              dry="$([ "$ACTION" = retitle-dry-run ] && echo true || echo false)"
+              jq -c --argjson dry "$dry" '.items as $all | range(0; $all | length; 50) | {dryRun: $dry, items: $all[.:. + 50]}' \
+                docs/handoffs/graphic-retitle-plan-2026-11-17.json > "$RUNNER_TEMP/retitle-batches.jsonl"
+              : > "$RUNNER_TEMP/retitle-results.jsonl"
+              while IFS= read -r batch; do
+                post retitle "$batch" | jq -c '.results[]' | tee -a "$RUNNER_TEMP/retitle-results.jsonl"
+              done < "$RUNNER_TEMP/retitle-batches.jsonl"
+              jq -s 'group_by(.status + ":" + (.reason // "")) | map({(.[0].status + (if .[0].reason then ":" + .[0].reason else "" end)): length}) | add' "$RUNNER_TEMP/retitle-results.jsonl"
+              if [ "$ACTION" = retitle-graphics ]; then post refreshFeed '{}' | jq -c .; fi ;;
             restore-dry-run)
               # Six graphics per call keeps each call inside Hosting's 60 s limit.
               jq -c --argjson limit "$LIMIT" \

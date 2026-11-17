@@ -1,0 +1,5272 @@
+{
+ "generatedAt": "2026-11-17",
+ "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
+ "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before.",
+ "count": 822,
+ "items": [
+  {
+   "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
+   "expectTitle": "Book Specific Quote Graphic - AEO 2",
+   "title": "Love Note",
+   "excerptRow": 16838
+  },
+  {
+   "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-1",
+   "expectTitle": "Book Specific Quote Graphic - AEO 1",
+   "title": "Cause of Death and Other Ordinary Things",
+   "excerptRow": 16820
+  },
+  {
+   "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-4",
+   "expectTitle": "Book Specific Quote Graphic - AEO 4",
+   "title": "Now Casting: The Ideal Victim®",
+   "excerptRow": 16853
+  },
+  {
+   "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-6",
+   "expectTitle": "Book Specific Quote Graphic - AEO 6",
+   "title": "CANNIBALISM IS SEXY",
+   "excerptRow": 16814
+  },
+  {
+   "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-5",
+   "expectTitle": "Book Specific Quote Graphic - AEO 5",
+   "title": "Dirty Talk",
+   "excerptRow": 16832
+  },
+  {
+   "id": "AFTE-QI-ALCHEMY-V2",
+   "expectTitle": "“ALCHEMY”",
+   "title": "Ariana Grande Cries While Performing in Front of Thousands in Mac Miller’s Hometown",
+   "excerptRow": 34681
+  },
+  {
+   "id": "AFTE-QI-MAYOR-DUKE-V2",
+   "expectTitle": "“MAYOR DUKE”",
+   "title": "Still",
+   "excerptRow": 34916
+  },
+  {
+   "id": "AFTE-QI-ON-SORROW-V3",
+   "expectTitle": "“ON SORROW”",
+   "title": "PALEONTOLOGY",
+   "excerptRow": 34897
+  },
+  {
+   "id": "APP-QI-A-WITNESS-CHOOSE-YOUR-OWN-ADVENTURE",
+   "expectTitle": "“A Witness: Choose Your Own Adventure”",
+   "title": "An Honest Question",
+   "excerptRow": 41187
+  },
+  {
+   "id": "APP-QI-BLACK-FOLK-DONT-HAVE-BIRTHDAYS",
+   "expectTitle": "BLACK FOLK DON’T HAVE BIRTHDAYS",
+   "title": "Comrade Brother Hampton Addresses The People",
+   "excerptRow": 41200
+  },
+  {
+   "id": "APP-QI-IMAGINED-ETYMOLOGY-29",
+   "expectTitle": "IMAGINED ETYMOLOGY #29",
+   "title": "In summer we sacrifice our boys to the sun",
+   "excerptRow": 41326
+  },
+  {
+   "id": "APP-QI-IMAGINED-ETYMOLOGY-29-V3",
+   "expectTitle": "“IMAGINED ETYMOLOGY #29”",
+   "title": "In summer we sacrifice our boys to the sun",
+   "excerptRow": 41325
+  },
+  {
+   "id": "APP-QI-IMAGINED-ETYMOLOGY-29-V4",
+   "expectTitle": "“IMAGINED ETYMOLOGY #29”",
+   "title": "In summer we sacrifice our boys to the sun",
+   "excerptRow": 41325
+  },
+  {
+   "id": "APP-QI-INSTEAD-OF-A-SUICIDE-NOTE-I-WROTE-THIS",
+   "expectTitle": "“Instead of a Suicide Note, I Wrote This”",
+   "title": "John Henry of Rustbelt (A Folklore)",
+   "excerptRow": 41343
+  },
+  {
+   "id": "APP-QI-MOMMA-SAYS-WE-SHOULD-PRAY-BEFORE-WE-LEAVE-FOR-THE-PROTEST",
+   "expectTitle": "“MOMMA SAYS WE SHOULD PRAY BEFORE WE LEAVE FOR THE PROTEST”",
+   "title": "An Honest Question",
+   "excerptRow": 41187
+  },
+  {
+   "id": "APP-QI-THE-FIRST-TIME-A-MAN-ATTEMPTS-TO-FIGHT-HIS-FATHER-A-FLASH-FICTION",
+   "expectTitle": "THE FIRST TIME A MAN ATTEMPTS TO FIGHT HIS FATHER (A FLASH FICTION)",
+   "title": "The Gangsta’s Ghazal",
+   "excerptRow": 41464
+  },
+  {
+   "id": "APP-QI-THE-HUSTLE-SPEAKS-MONOLOGUE",
+   "expectTitle": "“THE HUSTLE SPEAKS (MONOLOGUE)”",
+   "title": "THINGS TO DO WITH THE EVICTION NOTICE BESIDES LEAVE",
+   "excerptRow": 41488
+  },
+  {
+   "id": "APP-QI-WHEN-MY-INCOME-TAX-COME",
+   "expectTitle": "WHEN MY INCOME TAX COME",
+   "title": "WISHES FOR THE RICH ‘after Lucille Clifton’",
+   "excerptRow": 41506
+  },
+  {
+   "id": "ASAB-QI-CANONIZATION-AFTER-JEANANN-VERLEES-BRAWLER",
+   "expectTitle": "Canonization after Jeanann Verlee’s ‘Brawler’",
+   "title": "Carly Rae Jepsen Announces Her Next Album’s Release Date",
+   "excerptRow": 31465
+  },
+  {
+   "id": "ASAB-QI-CANONIZATION-AFTER-JEANANN-VERLEES-BRAWLER-V2",
+   "expectTitle": "Canonization after Jeanann Verlee’s ‘Brawler’",
+   "title": "Carly Rae Jepsen Announces Her Next Album’s Release Date",
+   "excerptRow": 31464
+  },
+  {
+   "id": "ASAB-QI-CANONIZATION-AFTER-JEANANN-VERLEES-BRAWLER-V4",
+   "expectTitle": "“Canonization after Jeanann Verlee’s ‘Brawler’”",
+   "title": "Carly Rae Jepsen Announces Her Next Album’s Release Date",
+   "excerptRow": 31463
+  },
+  {
+   "id": "ASAB-QI-COUPLES-THERAPY",
+   "expectTitle": "“Couples Therapy”",
+   "title": "December 27th, My Birthday",
+   "excerptRow": 31509
+  },
+  {
+   "id": "ASAB-QI-EVERYTHING-MY-BRAIN-KNOWS-IT-LEARNED-FROM-DRAG-V3",
+   "expectTitle": "“Everything My Brain Knows, It Learned from Drag”",
+   "title": "Fairy Tale",
+   "excerptRow": 31566
+  },
+  {
+   "id": "ASAB-QI-FAIRY-TALE",
+   "expectTitle": "Fairy Tale",
+   "title": "Ghazal for My Grandmother",
+   "excerptRow": 31599
+  },
+  {
+   "id": "ASAB-QI-GRAVITY",
+   "expectTitle": "Gravity",
+   "title": "Hocus Pocus",
+   "excerptRow": 31614
+  },
+  {
+   "id": "ASAB-QI-GRAVITY-V3",
+   "expectTitle": "Gravity",
+   "title": "Hocus Pocus",
+   "excerptRow": 31613
+  },
+  {
+   "id": "ASAB-QI-GRAVITY-V2",
+   "expectTitle": "Gravity",
+   "title": "Hocus Pocus",
+   "excerptRow": 31612
+  },
+  {
+   "id": "ASAB-QI-GRAVITY-V4",
+   "expectTitle": "Gravity",
+   "title": "Hocus Pocus",
+   "excerptRow": 31615
+  },
+  {
+   "id": "ASAB-QI-HOCUS-POCUS-V3",
+   "expectTitle": "Hocus Pocus",
+   "title": "Hudson",
+   "excerptRow": 31642
+  },
+  {
+   "id": "ASAB-QI-HOCUS-POCUS-V2",
+   "expectTitle": "Hocus Pocus",
+   "title": "Hudson",
+   "excerptRow": 31639
+  },
+  {
+   "id": "ASAB-QI-HUDSON",
+   "expectTitle": "Hudson",
+   "title": "Icarus after Bastille",
+   "excerptRow": 31648
+  },
+  {
+   "id": "ASAB-QI-IN-WHICH-I-MEET-MY-FATHER-FOR-THE-FIRST-TIME-SINCE-HIS-DEATH-V4",
+   "expectTitle": "In Which I Meet My Father for the First Time Since His Death",
+   "title": "In Which My Mother’s Prayers Teach Me about Joy",
+   "excerptRow": 31665
+  },
+  {
+   "id": "ASAB-QI-LAFAYETTE-STREET",
+   "expectTitle": "“Lafayette Street”",
+   "title": "Lazarus Taking My Antidepressants",
+   "excerptRow": 31705
+  },
+  {
+   "id": "ASAB-QI-LAZARUS-TAKING-MY-ANTIDEPRESSANTS-V2",
+   "expectTitle": "“Lazarus Taking My Antidepressants”",
+   "title": "Love Song",
+   "excerptRow": 31707
+  },
+  {
+   "id": "ASAB-QI-ODE-TO-STREETLIGHTS-AFTER-CARLY-RAE-JEPSEN",
+   "expectTitle": "“Ode to Streetlights (after Carly Rae Jepsen)”",
+   "title": "Ode to Vitamin D",
+   "excerptRow": 31772
+  },
+  {
+   "id": "ASAB-QI-ODE-TO-STREETLIGHTS-AFTER-CARLY-RAE-JEPSEN-V2",
+   "expectTitle": "“Ode to Streetlights (after Carly Rae Jepsen)”",
+   "title": "Ode to Vitamin D",
+   "excerptRow": 31770
+  },
+  {
+   "id": "ASAB-QI-ODE-TO-VITAMIN-D",
+   "expectTitle": "Ode to Vitamin D",
+   "title": "Open Letter to the Author",
+   "excerptRow": 31779
+  },
+  {
+   "id": "ASAB-QI-PRINCESS",
+   "expectTitle": "Princess",
+   "title": "Retcon",
+   "excerptRow": 31853
+  },
+  {
+   "id": "ASAB-QI-PRINCESS-V2",
+   "expectTitle": "Princess",
+   "title": "Retcon",
+   "excerptRow": 31854
+  },
+  {
+   "id": "ASAB-QI-SELF-PORTRAIT-AS-PIRANHA-PLANT-V3",
+   "expectTitle": "“Self-Portrait as Piranha Plant”",
+   "title": "Siri",
+   "excerptRow": 31901
+  },
+  {
+   "id": "ASAB-QI-THE-PERFECT-PANIC-ATTACK-NPS-2015",
+   "expectTitle": "“The Perfect Panic Attack” (NPS 2015)",
+   "title": "The Stranger ‘after Billy Joel’",
+   "excerptRow": 31934
+  },
+  {
+   "id": "AT-QI-BOGGY-CREEK-MUST-BE-A-TRIBUTARY-OF-THE-STYX",
+   "expectTitle": "Boggy Creek Must Be a Tributary of the Styx",
+   "title": "Chitin",
+   "book": "Our Numbered Days",
+   "bookFieldsFrom": "Neil - OND - Quote Image - At night she'd lay.png",
+   "excerptRow": 27736
+  },
+  {
+   "id": "AT-QI-ABLE-WAS-I-ERE-I-SAW-DES-MOINES",
+   "expectTitle": "ABLE WAS I ERE I SAW DES MOINES",
+   "title": "About Every 75 Years",
+   "excerptRow": 27618
+  },
+  {
+   "id": "AT-QI-DELUGE",
+   "expectTitle": "Deluge",
+   "title": "Despite",
+   "excerptRow": 27778
+  },
+  {
+   "id": "AT-QI-EKPHRASIS-SIBERIAN-BEAR-HUNTING-ARMOR-1800S",
+   "expectTitle": "Ekphrasis, Siberian Bear Hunting Armor, 1800s",
+   "title": "Enabling: a Love Song",
+   "book": "Our Numbered Days",
+   "bookFieldsFrom": "Neil - OND - Quote Image - At night she'd lay.png",
+   "excerptRow": 27795
+  },
+  {
+   "id": "AT-QI-FULL-REPROBATE-YEARS",
+   "expectTitle": "Full Reprobate Years",
+   "title": "Futility Machine",
+   "book": "The Future",
+   "bookFieldsFrom": "TF-QI-AGAINST-HUGS",
+   "excerptRow": 27878
+  },
+  {
+   "id": "AT-QI-INSIDE-OF-EVERY-TURDUCKEN-IS-A-TURD",
+   "expectTitle": "Inside of Every Turducken is a Turd",
+   "title": "Jackets",
+   "excerptRow": 28030
+  },
+  {
+   "id": "AT-QI-NEW-CHEMICAL",
+   "expectTitle": "New Chemical",
+   "title": "Next Exit",
+   "book": "The Future",
+   "bookFieldsFrom": "TF-QI-AGAINST-HUGS",
+   "excerptRow": 28285
+  },
+  {
+   "id": "AT-QI-NOT-AVOIDANT-JUST-TIRED",
+   "expectTitle": "Not Avoidant Just Tired",
+   "title": "Not Dead",
+   "book": "Our Numbered Days",
+   "bookFieldsFrom": "Neil - OND - Quote Image - At night she'd lay.png",
+   "excerptRow": 28314
+  },
+  {
+   "id": "AT-QI-RALEIGH-IN-A-SNOW-GLOBE",
+   "expectTitle": "Raleigh in a Snow Globe",
+   "title": "Rasp",
+   "excerptRow": 28577
+  },
+  {
+   "id": "AT-QI-STOP-ME",
+   "expectTitle": "Stop Me",
+   "title": "The Difference Between Doing and Being",
+   "excerptRow": 28707
+  },
+  {
+   "id": "AT-QI-UGH-FORGIVENESS",
+   "expectTitle": "Ugh Forgiveness",
+   "title": "Vocabulary",
+   "book": "The Future",
+   "bookFieldsFrom": "TF-QI-AGAINST-HUGS",
+   "excerptRow": 28894
+  },
+  {
+   "id": "AT-QI-WHEN-I-SAY-THAT-LOVING-ME-IS-LIKE-A-BRICK-WALL-FALLING-ON-YOUR-CAR-IN-THE-PARKING-LOT-OF-YOUR-OWN-DAMN-APARTMENT-COMPLEX",
+   "expectTitle": "When I say that loving me is like a brick wall falling on your car in the parking lot of your own damn apartment complex",
+   "title": "You Can Look",
+   "book": "Our Numbered Days",
+   "bookFieldsFrom": "Neil - OND - Quote Image - At night she'd lay.png",
+   "excerptRow": 28967
+  },
+  {
+   "id": "BOWMAN - SHAP - Quote Images - MY MOM SAYS THAT EVERYONE SHOULD TAKE THEIR SHOES OFF, STICK THEIR TOES IN THE EARTH 3.png",
+   "expectTitle": "MY MOM SAYS THAT EVERYONE SHOULD TAKE THEIR SHOES OFF, STICK THEIR TOES IN THE EARTH",
+   "title": "Life is Soup, I am Fork",
+   "excerptRow": 12120
+  },
+  {
+   "id": "BT-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-BT-1",
+   "expectTitle": "Book Specific Quote Graphic - BT 1",
+   "title": "Brentwood Bay, 1994",
+   "excerptRow": 45317
+  },
+  {
+   "id": "BT-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-BT-2",
+   "expectTitle": "Book Specific Quote Graphic - BT 2",
+   "title": "Dad",
+   "excerptRow": 45234
+  },
+  {
+   "id": "BT-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-BT-3",
+   "expectTitle": "Book Specific Quote Graphic - BT 3",
+   "title": "Instructions for falling in love",
+   "excerptRow": 46655
+  },
+  {
+   "id": "BT-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-BT-4",
+   "expectTitle": "Book Specific Quote Graphic - BT 4",
+   "title": "In your smallest months I want to throw you from every window",
+   "excerptRow": 45227
+  },
+  {
+   "id": "BT-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-BT-6",
+   "expectTitle": "Book Specific Quote Graphic - BT 6",
+   "title": "The month we get married",
+   "excerptRow": 45236
+  },
+  {
+   "id": "BT-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-BT-5",
+   "expectTitle": "Book Specific Quote Graphic - BT 5",
+   "title": "Maternal Instincts",
+   "excerptRow": 45312
+  },
+  {
+   "id": "BUTC-QI-A-POEM-TO-MARCUS",
+   "expectTitle": "“A Poem to Marcus”",
+   "title": "An Open Letter to Raven Symoné",
+   "excerptRow": 27011
+  },
+  {
+   "id": "BUTC-QI-ADVICE-FROM-MY-GRANDMOTHER",
+   "expectTitle": "Advice from my Grandmother",
+   "title": "An Open Letter to Raven Symoné",
+   "excerptRow": 27012
+  },
+  {
+   "id": "BUTC-QI-BLUE-IVY",
+   "expectTitle": "“Blue Ivy”",
+   "title": "Butcher",
+   "excerptRow": 27035
+  },
+  {
+   "id": "BUTC-QI-CHOPPED",
+   "expectTitle": "Chopped",
+   "title": "Correction",
+   "excerptRow": 27041
+  },
+  {
+   "id": "BUTC-QI-CORRECTION",
+   "expectTitle": "Correction",
+   "title": "Dear Kenneka Jenkins",
+   "excerptRow": 27044
+  },
+  {
+   "id": "BUTC-QI-CORRECTION-V2",
+   "expectTitle": "“Correction”",
+   "title": "Dear Kenneka Jenkins",
+   "excerptRow": 27046
+  },
+  {
+   "id": "BUTC-QI-DEAR-KENNEKA-JENKINS",
+   "expectTitle": "Dear Kenneka Jenkins",
+   "title": "Family Reunion",
+   "excerptRow": 27052
+  },
+  {
+   "id": "BUTC-QI-DEAR-KENNEKA-JENKINS-V2",
+   "expectTitle": "“Dear Kenneka Jenkins”",
+   "title": "Family Reunion",
+   "excerptRow": 27051
+  },
+  {
+   "id": "BUTC-QI-DEAR-KENNEKA-JENKINS-V3",
+   "expectTitle": "“Dear Kenneka Jenkins”",
+   "title": "Family Reunion",
+   "excerptRow": 27050
+  },
+  {
+   "id": "BUTC-QI-FAMILY-REUNION-V3",
+   "expectTitle": "Family Reunion",
+   "title": "Frank Ocean",
+   "excerptRow": 27071
+  },
+  {
+   "id": "BUTC-QI-HOW-TO-COME-OUT-AND-STAY-OUT-V4",
+   "expectTitle": "How to Come Out and Stay Out",
+   "title": "I Learned of Grief Too Late",
+   "excerptRow": 27114
+  },
+  {
+   "id": "BUTC-QI-I-LEARNED-OF-GRIEF-TOO-LATE",
+   "expectTitle": "I Learned of Grief Too Late",
+   "title": "I See You",
+   "excerptRow": 27129
+  },
+  {
+   "id": "BUTC-QI-HOW-TO-COME-OUT-AND-STAY-OUT-V5",
+   "expectTitle": "How to Come Out and Stay Out",
+   "title": "Grace and Grief",
+   "excerptRow": 27090
+  },
+  {
+   "id": "BUTC-QI-I-LEARNED-OF-GRIEF-TOO-LATE-V3",
+   "expectTitle": "I Learned of Grief Too Late",
+   "title": "I See You",
+   "excerptRow": 27127
+  },
+  {
+   "id": "BUTC-QI-INSOMNIA",
+   "expectTitle": "Insomnia",
+   "title": "Nobody’s Body Is a Crime",
+   "excerptRow": 27146
+  },
+  {
+   "id": "BUTC-QI-NOBODYS-BODY-IS-A-CRIME",
+   "expectTitle": "Nobody’s Body Is a Crime",
+   "title": "On Turning My Nephew Into a Vegan",
+   "excerptRow": 27156
+  },
+  {
+   "id": "BUTC-QI-SANGRIA-V4",
+   "expectTitle": "Sangria",
+   "title": "Ten Things You Sound Like When You say “all lives matter” in Response to Black Lives Matter",
+   "excerptRow": 27201
+  },
+  {
+   "id": "BUTC-QI-TEN-THINGS-YOU-SOUND-LIKE-WHEN-YOU-SAY-ALLLIVESMATTER-IN-RESPONSE-TO-BLACKLIVESMATTER",
+   "expectTitle": "Ten Things You Sound Like When You Say AllLivesMatter in Response to BlackLivesMatter”",
+   "title": "The Answer Is Kindness",
+   "excerptRow": 27214
+  },
+  {
+   "id": "BUTC-QI-TEN-THINGS-YOU-SOUND-LIKE-WHEN-YOU-SAY-ALLLIVESMATTER-IN-RESPONSE-TO-BLACKLIVESMATTER-V2",
+   "expectTitle": "Ten Things You Sound Like When You Say AllLivesMatter in Response to BlackLivesMatter”",
+   "title": "The Answer Is Kindness",
+   "excerptRow": 27215
+  },
+  {
+   "id": "BUTC-QI-THE-HOOD-BE-EATING-EVERYTHING-ALIVE",
+   "expectTitle": "“The Hood be Eating Everything Alive”",
+   "title": "The Meaning",
+   "excerptRow": 27233
+  },
+  {
+   "id": "BUTC-QI-THE-MEANING",
+   "expectTitle": "The Meaning",
+   "title": "The Other Black Man",
+   "excerptRow": 27239
+  },
+  {
+   "id": "BUTC-QI-THE-MEANING-V2",
+   "expectTitle": "“The Meaning”",
+   "title": "The Other Black Man",
+   "excerptRow": 27237
+  },
+  {
+   "id": "BUTC-QI-THE-OTHER-BLACK-MAN-RUSTBELT-2014",
+   "expectTitle": "The Other Black Man (Rustbelt 2014)",
+   "title": "The Playground Is Empty",
+   "excerptRow": 27256
+  },
+  {
+   "id": "BUTC-QI-THEY-SAY-V4",
+   "expectTitle": "“They Say”",
+   "title": "To Existing Being Enough",
+   "excerptRow": 27283
+  },
+  {
+   "id": "BUTC-QI-TO-EXISTING-BEING-ENOUGH-V4",
+   "expectTitle": "“To Existing Being Enough”",
+   "title": "Two Fires",
+   "excerptRow": 27290
+  },
+  {
+   "id": "BUTC-QI-UNEXPECTED",
+   "expectTitle": "Unexpected",
+   "title": "What Are the Consequences of Silence? (after Mahogany L. Browne)",
+   "excerptRow": 27298
+  },
+  {
+   "id": "BUTC-QI-UNEXPECTED-V2",
+   "expectTitle": "“Unexpected”",
+   "title": "What Are the Consequences of Silence? (after Mahogany L. Browne)",
+   "excerptRow": 27300
+  },
+  {
+   "id": "BUTC-QI-YOU-ARE-NOT-A-FIREARM",
+   "expectTitle": "“You are Not a Firearm”",
+   "title": "Your Son’s Smile",
+   "excerptRow": 27314
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-1",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 1",
+   "title": "¡Ya viene la lluuuvia!",
+   "excerptRow": 44755
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-2",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 2",
+   "title": "Sweet Blood and Zancudos",
+   "excerptRow": 44775
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-3",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 3",
+   "title": "Hija de todo lo sagrado",
+   "excerptRow": 44763
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-4",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 4",
+   "title": "Part V: 'I feel like I’ve heard this story before",
+   "excerptRow": 44771
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-5",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 5",
+   "title": "What I Remember",
+   "excerptRow": 44776
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-6",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 6",
+   "title": "In my dreams,",
+   "excerptRow": 44764
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-7",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 7",
+   "title": "Part II: 'still not fluent in Spanish (but I know all the bad words)",
+   "excerptRow": 44769
+  },
+  {
+   "id": "CIPO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-CIPO-8",
+   "expectTitle": "Book Specific Quote Graphic - CIPO 8",
+   "title": "La Amor",
+   "excerptRow": 44766
+  },
+  {
+   "id": "DBAT-QI-CONTRAPUNTAL-THE-HUNTER-SLASH-THE-ALCOHOLIC",
+   "expectTitle": "Contrapuntal: The Hunter (slash) The Alcoholic",
+   "title": "CONTROVERSIAL OPINION: IN DEFENSE OF SPEAKING ILL OF THE DEAD",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 29909
+  },
+  {
+   "id": "DBAT-QI-EVERYONE-TELLS-ME-THAT-MY-DAD-WILL-ALWAYS-BE-WATCHING-OVER-ME",
+   "expectTitle": "Everyone Tells Me That My Dad Will Always Be Watching Over Me",
+   "title": "EVERYTHING IS GORGEOUS BUT I AM ALWAYS STEPPING OUT OF THE SHOWER ALREADY DRENCHED IN SWEAT",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 29963
+  },
+  {
+   "id": "DBAT-QI-GOLDEN-SHOVEL-WITH-MICHAEL-LEE-S-THE-STUDY-OF-WORDS-AND-HEAVEN",
+   "expectTitle": "Golden Shovel with Michael Lee's 'The Study of Words and Heaven'",
+   "title": "GUILT",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30048
+  },
+  {
+   "id": "DBAT-QI-I-FIND-A-CHUNK-OF-BONE-THE-WIDTH-OF-MY-INDEX-FINGER",
+   "expectTitle": "I Find a Chunk of Bone the Width of My Index Finger",
+   "title": "i look so much like my father",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30123
+  },
+  {
+   "id": "DBAT-QI-SOMETIMES-I-WANT-TO-HURT-PEOPLE-WHO-HAVE-HURT-ME",
+   "expectTitle": "Sometimes I Want to Hurt People Who Have Hurt Me",
+   "title": "that’s what you swallow when you let your graves overflow",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30500
+  },
+  {
+   "id": "DDJ-QI-A-DARE",
+   "expectTitle": "“A Dare”",
+   "title": "a hand becomes",
+   "excerptRow": 29773
+  },
+  {
+   "id": "DDJ-QI-GAS-STATION-V2",
+   "expectTitle": "“GAS STATION”",
+   "title": "gay love is the only thing saving me",
+   "excerptRow": 30024
+  },
+  {
+   "id": "DDJ-QI-GAS-STATION",
+   "expectTitle": "GAS STATION",
+   "title": "gay love is the only thing saving me",
+   "excerptRow": 30025
+  },
+  {
+   "id": "DDJ-QI-HE-YELLS-FOR-ME-AND-I-GO-TO-HIM-V2",
+   "expectTitle": "“HE YELLS FOR ME, AND I GO TO HIM”",
+   "title": "his foot",
+   "excerptRow": 30060
+  },
+  {
+   "id": "DDJ-QI-HE-YELLS-FOR-ME-AND-I-GO-TO-HIM-V3",
+   "expectTitle": "“HE YELLS FOR ME, AND I GO TO HIM”",
+   "title": "his foot",
+   "excerptRow": 30060
+  },
+  {
+   "id": "DDJ-QI-HIS-FOOT",
+   "expectTitle": "“HIS FOOT”",
+   "title": "Home",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30067
+  },
+  {
+   "id": "DDJ-QI-I-NEVER-WANTED-TO-BELIEVE-IN-GHOSTS-V2",
+   "expectTitle": "“I NEVER WANTED TO BELIEVE IN GHOSTS”",
+   "title": "I THINK I HAVE ACCIDENTALLY BECOME AN OPTIMIST",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30151
+  },
+  {
+   "id": "DDJ-QI-I-WATCHED-HIM-DIE",
+   "expectTitle": "“I WATCHED HIM DIE”",
+   "title": "I Will Not Die From My Father's Illness",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30167
+  },
+  {
+   "id": "DDJ-QI-IT-IS-THE-NIGHT-BEFORE-THE-NIGHT-BEFORE",
+   "expectTitle": "“It is the Night Before the Night Before”",
+   "title": "it was the last day",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30270
+  },
+  {
+   "id": "DDJ-QI-PORN",
+   "expectTitle": "“Porn”",
+   "title": "prayer for the winter solstice",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30451
+  },
+  {
+   "id": "DDJ-QI-SOMETIMES-I-WANT-TO-HURT-PEOPLE-WHO-HAVE-HURT-ME",
+   "expectTitle": "Sometimes I want to Hurt People Who Have Hurt Me",
+   "title": "that’s what you swallow when you let your graves overflow",
+   "excerptRow": 30501
+  },
+  {
+   "id": "DDJ-QI-THE-BANDAID-IN-THE-POOL-FILTER",
+   "expectTitle": "“The Bandaid in the Pool Filter”",
+   "title": "THE DEER STAND",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30526
+  },
+  {
+   "id": "DDJ-QI-URN",
+   "expectTitle": "urn",
+   "title": "we are on a road trip",
+   "excerptRow": 30680
+  },
+  {
+   "id": "DDJ-QI-WE-ARE-ON-A-ROADTRIP",
+   "expectTitle": "“We Are on a Roadtrip”",
+   "title": "WE DRINK COFFEE BY THE LAKE",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30691
+  },
+  {
+   "id": "DDJ-QI-YET-ANOTHER-POEM-ABOUT-ROADKILL",
+   "expectTitle": "“YET ANOTHER POEM ABOUT ROADKILL”",
+   "title": "You Were Once a Boy",
+   "book": "Where I Dry the Flowers",
+   "bookFieldsFrom": "WIDT-QI-A-LIFE-LIKE-THAT-2",
+   "excerptRow": 30728
+  },
+  {
+   "id": "DT-QI-BEFORE-THE-INTERNET",
+   "expectTitle": "“Before the Internet”",
+   "title": "BEGINNING, MIDDLE & END",
+   "excerptRow": 32058
+  },
+  {
+   "id": "DT-QI-BEFORE-THE-INTERNET-V2",
+   "expectTitle": "“Before the Internet”",
+   "title": "BEGINNING, MIDDLE & END",
+   "excerptRow": 32059
+  },
+  {
+   "id": "DT-QI-BEFORE-THE-INTERNET-V3",
+   "expectTitle": "“Before the Internet”",
+   "title": "BEGINNING, MIDDLE & END",
+   "excerptRow": 32061
+  },
+  {
+   "id": "DT-QI-BURIAL",
+   "expectTitle": "“Burial”",
+   "title": "CAMARO",
+   "excerptRow": 32095
+  },
+  {
+   "id": "DT-QI-BURIAL-V2",
+   "expectTitle": "“Burial”",
+   "title": "CAMARO",
+   "excerptRow": 32096
+  },
+  {
+   "id": "DT-QI-MAYFLIES-FT-THE-WESTERLIES",
+   "expectTitle": "“Mayflies (ft. The Westerlies)”",
+   "title": "MR. JONES & ME",
+   "excerptRow": 32207
+  },
+  {
+   "id": "DT-QI-NUMBERS-MAN-V2",
+   "expectTitle": "NUMBERS MAN",
+   "title": "ON STARTING",
+   "excerptRow": 32230
+  },
+  {
+   "id": "DT-QI-NUMBERS-MAN-V3",
+   "expectTitle": "“NUMBERS MAN”",
+   "title": "ON STARTING",
+   "excerptRow": 32230
+  },
+  {
+   "id": "DT-QI-ON-STARTING",
+   "expectTitle": "“ON STARTING”",
+   "title": "PHANTOM LIMB",
+   "excerptRow": 32235
+  },
+  {
+   "id": "DT-QI-PRICELESS",
+   "expectTitle": "“Priceless”",
+   "title": "REFLECTIONS ON THE NEW GLASS",
+   "excerptRow": 32247
+  },
+  {
+   "id": "DT-QI-SICK-DAY",
+   "expectTitle": "SICK DAY",
+   "title": "SONG FOR THE DIRT",
+   "excerptRow": 32300
+  },
+  {
+   "id": "DT-QI-TEETH",
+   "expectTitle": "TEETH",
+   "title": "THE APPRECIATION MEDITATION",
+   "excerptRow": 32362
+  },
+  {
+   "id": "DT-QI-THE-INTERNET-SPEAKS-BACK-TO-THE-AUTHOR",
+   "expectTitle": "“The Internet Speaks Back to the Author”",
+   "title": "THE NEW APARTMENT",
+   "excerptRow": 32387
+  },
+  {
+   "id": "EMAI-QI-A-PRAYER-V2",
+   "expectTitle": "A Prayer",
+   "title": "A series of gentle reminders",
+   "excerptRow": 35902
+  },
+  {
+   "id": "EMAI-QI-AND-THE-ARTICLE-SAYS",
+   "expectTitle": "And the article says",
+   "title": "and the morning shows up",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36019
+  },
+  {
+   "id": "EMAI-QI-AND-THE-ARTICLE-SAYS-V2",
+   "expectTitle": "And the article says",
+   "title": "and the morning shows up",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36017
+  },
+  {
+   "id": "EMAI-QI-BECAUSE-THATS-HOW-WEVE-ALWAYS-DONE-IT",
+   "expectTitle": "BECAUSE THAT’S HOW WE’VE ALWAYS DONE IT",
+   "title": "Before, After and After That",
+   "excerptRow": 36038
+  },
+  {
+   "id": "EMAI-QI-CHAMELEON",
+   "expectTitle": "Chameleon",
+   "title": "Click",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36095
+  },
+  {
+   "id": "EMAI-QI-GRUDGE",
+   "expectTitle": "Grudge",
+   "title": "Haunted",
+   "book": "Helium",
+   "bookFieldsFrom": "HELI-QI-12-AM",
+   "excerptRow": 36291
+  },
+  {
+   "id": "EMAI-QI-HAVE-YOU-EVER-NOTICED",
+   "expectTitle": "Have you ever noticed",
+   "title": "Here I am today",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36304
+  },
+  {
+   "id": "EMAI-QI-HOPE-I-GOT-SOME-BROTHERS-THAT-OUTLIVE-ME-DRAKE-V2",
+   "expectTitle": "Hope I got some brothers that outlive me\" - Drake",
+   "title": "Horizon",
+   "book": "Helium",
+   "bookFieldsFrom": "HELI-QI-12-AM",
+   "excerptRow": 36353
+  },
+  {
+   "id": "EMAI-QI-HOPE-I-GOT-SOME-BROTHERS-THAT-OUTLIVE-ME-DRAKE-V3",
+   "expectTitle": "Hope I got some brothers that outlive me\"- Drake",
+   "title": "Horizon",
+   "book": "Helium",
+   "bookFieldsFrom": "HELI-QI-12-AM",
+   "excerptRow": 36355
+  },
+  {
+   "id": "EMAI-QI-HOW-THE-SAUSAGE-IS-MADE",
+   "expectTitle": "How the sausage is made",
+   "title": "I hope the camera gods bless you with a steady hand",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36380
+  },
+  {
+   "id": "EMAI-QI-I-JUST-TAKE-MY-TIME-WITH-ALL-THIS-I-STILL-BELIEVE-THAT-DRAKE",
+   "expectTitle": "\"I just take my. time with all this; I still believe that\" - Drake",
+   "title": "I learned working with negatives can make for better pictures.\" - Drake",
+   "excerptRow": 36392
+  },
+  {
+   "id": "EMAI-QI-I-LEARNED-WORKING-WITH-THE-NEGATIVES-CAN-MAKE-FOR-BETTER-PICTURES",
+   "expectTitle": "“I learned working with the negatives can make for better pictures”",
+   "title": "I once held on to a grudge",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36401
+  },
+  {
+   "id": "EMAI-QI-I-M-JUST-SAYING-YOU-COULD-DO-BETTER",
+   "expectTitle": "I'm Just Saying, You Could Do Better",
+   "title": "I’m the kind of person",
+   "excerptRow": 36481
+  },
+  {
+   "id": "EMAI-QI-I-ONCE-FELT-SAD-ABOUT-FALLING-STARS",
+   "expectTitle": "I once felt sad about falling stars",
+   "title": "I once held on to a grudge",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36404
+  },
+  {
+   "id": "EMAI-QI-I-SAY-BLACK-FATHERHOOD",
+   "expectTitle": "“I Say Black Fatherhood”",
+   "title": "I want the kind of happiness",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36441
+  },
+  {
+   "id": "EMAI-QI-I-THINK-I-M-READY-TO-SIDE-WITH-TOMMY",
+   "expectTitle": "I think I'm ready to side with Tommy",
+   "title": "I want the kind of happiness",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36444
+  },
+  {
+   "id": "EMAI-QI-I-THINK-I-M-READY-TO-SIDE-WITH-TOMMY-V2",
+   "expectTitle": "I think I'm ready to side with Tommy",
+   "title": "I want the kind of happiness",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36448
+  },
+  {
+   "id": "EMAI-QI-LEGEND-HAS-IT",
+   "expectTitle": "Legend has it",
+   "title": "Let’s just say",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36588
+  },
+  {
+   "id": "EMAI-QI-MY-FATHER-S-HOUSE-V4",
+   "expectTitle": "My Father's House",
+   "title": "My friends",
+   "excerptRow": 36727
+  },
+  {
+   "id": "EMAI-QI-MY-HOOP-DREAMS-V2",
+   "expectTitle": "My hoop dreams",
+   "title": "My parents",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36835
+  },
+  {
+   "id": "EMAI-QI-ODE-TO-SUMMER",
+   "expectTitle": "Ode to Summer",
+   "title": "Ode to the Block Button",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36942
+  },
+  {
+   "id": "EMAI-QI-PEACE-LILY",
+   "expectTitle": "Peace Lily",
+   "title": "Perhaps I told you I was leaving",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37107
+  },
+  {
+   "id": "EMAI-QI-RUDY-FRANCISCO-3",
+   "expectTitle": "Rudy Francisco",
+   "title": "Things I Strongly Believe",
+   "excerptRow": 37475
+  },
+  {
+   "id": "EMAI-QI-SO-MY-GRANDMOTHER-ONCE-TOLD-ME",
+   "expectTitle": "So my grandmother once told me",
+   "title": "So, let them",
+   "excerptRow": 37374
+  },
+  {
+   "id": "EMAI-QI-THE-PHOTO",
+   "expectTitle": "The Photo",
+   "title": "The poem where I lie about everything",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37419
+  },
+  {
+   "id": "EMAI-QI-THE-PHOTO-V2",
+   "expectTitle": "The Photo",
+   "title": "The poem where I lie about everything",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37417
+  },
+  {
+   "id": "EMAI-QI-THINGS-I-STRONGLY-BELIEVE",
+   "expectTitle": "Things I Strongly Believe",
+   "title": "This is how I scare the dirt",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37489
+  },
+  {
+   "id": "EMAI-QI-THINGS-I-STRONGLY-BELIEVE-NOT-IN-BOOK",
+   "expectTitle": "“Things I Strongly Believe” (not in book)",
+   "title": "This is how I scare the dirt",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37486
+  },
+  {
+   "id": "EMAI-QI-THINGS-I-STRONGLY-BELIEVE-NOT-IN-BOOK-V2",
+   "expectTitle": "“Things I Strongly Believe” (not in book)",
+   "title": "This is how I scare the dirt",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37487
+  },
+  {
+   "id": "EMAI-QI-THIS-SONG-MAKES-ME-CRY-WANNA-HEAR-IT-MOV",
+   "expectTitle": "This song makes me cry. Wanna hear it?.mov",
+   "title": "Throughout most of my childhood",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37523
+  },
+  {
+   "id": "EMAI-QI-UNTITLED",
+   "expectTitle": "Untitled",
+   "title": "Uwani",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37608
+  },
+  {
+   "id": "EPHE-QI-LOVE-POEMS-WITH-APOLOGIES",
+   "expectTitle": "Love Poems with Apologies",
+   "title": "MY FIRST, SECOND-CARRIED",
+   "excerptRow": 40685
+  },
+  {
+   "id": "ETSA-QI-2015-2016",
+   "expectTitle": "“2015/2016”",
+   "title": "A GOOD SAINT WORSHIPS AND SACRIFICES",
+   "excerptRow": 34256
+  },
+  {
+   "id": "ETSA-QI-AFTER-CHURCH-SHE-GETS-HIGH-AGAIN",
+   "expectTitle": "“AFTER CHURCH SHE GETS HIGH AGAIN”",
+   "title": "AN OLD PHOTO",
+   "excerptRow": 34287
+  },
+  {
+   "id": "ETSA-QI-BLUE-RIBBON-V3",
+   "expectTitle": "BLUE RIBBON",
+   "title": "CHURCH GIRL ANSWERS WHAT IS SADNESS",
+   "excerptRow": 34308
+  },
+  {
+   "id": "ETSA-QI-BLUE-RIBBON-V4",
+   "expectTitle": "BLUE RIBBON",
+   "title": "CHURCH GIRL ANSWERS WHAT IS SADNESS",
+   "excerptRow": 34305
+  },
+  {
+   "id": "ETSA-QI-BLUE-RIBBON-V5",
+   "expectTitle": "BLUE RIBBON",
+   "title": "CHURCH GIRL ANSWERS WHAT IS SADNESS",
+   "excerptRow": 34306
+  },
+  {
+   "id": "ETSA-QI-BLUE-RIBBON-V6",
+   "expectTitle": "BLUE RIBBON",
+   "title": "CHURCH GIRL ANSWERS WHAT IS SADNESS",
+   "excerptRow": 34307
+  },
+  {
+   "id": "ETSA-QI-CHURCH-GIRL-RAPS-TO-HERSELF-UNDER-THE-COVERS",
+   "expectTitle": "CHURCH GIRL RAPS TO HERSELF UNDER THE COVERS",
+   "title": "CHURCH GIRL’S FIRST SINNER FRIEND",
+   "excerptRow": 34352
+  },
+  {
+   "id": "ETSA-QI-EVEN-MY-NAILS-HURT-ME",
+   "expectTitle": "“EVEN MY NAILS HURT ME”",
+   "title": "FOR GINGER ALE",
+   "excerptRow": 34375
+  },
+  {
+   "id": "ETSA-QI-FOR-THE-BLACK-GIRL-WHO-DOESNT-KNOW-HOW-TO-BRAID-HAIR",
+   "expectTitle": "FOR THE BLACK GIRL WHO DOESN’T KNOW HOW TO BRAID HAIR",
+   "title": "FROM THE BROKEN FINGERNAIL",
+   "excerptRow": 34398
+  },
+  {
+   "id": "ETSA-QI-FOR-THE-BLACK-GIRL-WHO-DOESNT-KNOW-HOW-TO-BRAID-HAIR-V3",
+   "expectTitle": "FOR THE BLACK GIRL WHO DOESN’T KNOW HOW TO BRAID HAIR",
+   "title": "FROM THE BROKEN FINGERNAIL",
+   "excerptRow": 34397
+  },
+  {
+   "id": "ETSA-QI-FOR-THE-BLACK-GIRL-WHO-DOESNT-KNOW-HOW-TO-BRAID-HAIR-V2",
+   "expectTitle": "FOR THE BLACK GIRL WHO DOESN’T KNOW HOW TO BRAID HAIR",
+   "title": "FROM THE BROKEN FINGERNAIL",
+   "excerptRow": 34399
+  },
+  {
+   "id": "ETSA-QI-I-ASK-WHERE-DO-CHILDREN-GO-WHEN-THEY-DIE-IN-SUNDAY-SCHOOL",
+   "expectTitle": "I ASK WHERE DO CHILDREN GO WHEN THEY DIE? IN SUNDAY SCHOOL",
+   "title": "I SEE MY BULLY A DECADE LATER",
+   "excerptRow": 34461
+  },
+  {
+   "id": "ETSA-QI-I-SEE-MY-BULLY-A-DECADE-LATER",
+   "expectTitle": "I SEE MY BULLY A DECADE LATER",
+   "title": "I THANK THE CHURCH FOR BLESSING MY MOTHER’S WOMB",
+   "excerptRow": 34469
+  },
+  {
+   "id": "ETSA-QI-I-SEE-MY-BULLY-A-DECADE-LATER-V2",
+   "expectTitle": "I SEE MY BULLY A DECADE LATER",
+   "title": "I THANK THE CHURCH FOR BLESSING MY MOTHER’S WOMB",
+   "excerptRow": 34470
+  },
+  {
+   "id": "ETSA-QI-ILL-SLEEP-NEXT-TO-AFTER",
+   "expectTitle": "“I’LL SLEEP NEXT TO AFTER”",
+   "title": "IT IS WRITTEN",
+   "excerptRow": 34479
+  },
+  {
+   "id": "ETSA-QI-I-THANK-THE-CHURCH-FOR-BLESSING-MY-MOTHERS-WOMB-V3",
+   "expectTitle": "I THANK THE CHURCH FOR BLESSING MY MOTHER’S WOMB",
+   "title": "I’LL SLEEP NEXT TO _________ AFTER",
+   "excerptRow": 34476
+  },
+  {
+   "id": "ETSA-QI-IT-IS-WRITTEN",
+   "expectTitle": "“It is Written!”",
+   "title": "IT WASN’T ALL BAD, I BARELY EVER HAVE STAGE FRIGHT NOW",
+   "excerptRow": 34491
+  },
+  {
+   "id": "ETSA-QI-ODE-TO-THE-BALD-SPOTS-ABOVE-MY-EARS",
+   "expectTitle": "ODE TO THE BALD SPOTS ABOVE MY EARS",
+   "title": "ON JOB (i)",
+   "excerptRow": 34535
+  },
+  {
+   "id": "ETSA-QI-PERIOD-RULES",
+   "expectTitle": "Period Rules",
+   "title": "PRAYING IN TERROR",
+   "excerptRow": 34580
+  },
+  {
+   "id": "ETSA-QI-PERIOD-RULES-V2",
+   "expectTitle": "Period Rules",
+   "title": "PRAYING IN TERROR",
+   "excerptRow": 34581
+  },
+  {
+   "id": "ETSA-QI-PERIOD-RULES-V3",
+   "expectTitle": "Period Rules",
+   "title": "PRAYING IN TERROR",
+   "excerptRow": 34582
+  },
+  {
+   "id": "ETSA-QI-TOUCHING-V2",
+   "expectTitle": "“TOUCHING”",
+   "title": "WASTED GROOMING",
+   "excerptRow": 34667
+  },
+  {
+   "id": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY",
+   "expectTitle": "10 HONEST THOUGHTS ON BEING LOVED BY A SKINNY BOY",
+   "title": "A Green Book for My Niece",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33186
+  },
+  {
+   "id": "FGFS-QI-BLOOD-TONGUE",
+   "expectTitle": "BLOOD TONGUE",
+   "title": "BRASS KNUCKLES",
+   "excerptRow": 33309
+  },
+  {
+   "id": "FGFS-QI-BLOOD-TONGUE-V2",
+   "expectTitle": "BLOOD TONGUE",
+   "title": "BRASS KNUCKLES",
+   "excerptRow": 33308
+  },
+  {
+   "id": "FGFS-QI-BLOOD-TONGUE-V3",
+   "expectTitle": "BLOOD TONGUE",
+   "title": "BRASS KNUCKLES",
+   "excerptRow": 33311
+  },
+  {
+   "id": "FGFS-QI-COERCION-V2",
+   "expectTitle": "COERCION",
+   "title": "CONVERSATIONS WITH MY FATHER IN A DUNK TANK",
+   "excerptRow": 33367
+  },
+  {
+   "id": "FGFS-QI-DAYLIGHT-FOR-THE-16-YEAR-OLD-GIRL-WHO-EMAILED-ME-BECAUSE-SHE-NO-LONGER-WANTS-TO-LEAVE-HER-HOUSE",
+   "expectTitle": "“DAYLIGHT” For the 16-year-old girl who emailed me because she no longer wants to leave her house",
+   "title": "Deep Conditioning",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33413
+  },
+  {
+   "id": "FGFS-QI-DRY-CAKE-WISHES-AND-TAP-WATER-DREAMS-NPS-2015-V3",
+   "expectTitle": "Dry Cake Wishes and Tap Water Dreams (NPS 2015)",
+   "title": "Excuses",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33440
+  },
+  {
+   "id": "FGFS-QI-FEMME-VISIBILITY",
+   "expectTitle": "“Femme Visibility”",
+   "title": "Float",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33483
+  },
+  {
+   "id": "FGFS-QI-FOR-NICHOLAS-WHO-IS-SO-CONCERNED",
+   "expectTitle": "FOR NICHOLAS WHO IS SO CONCERNED",
+   "title": "Ghost Me, I’ll Write Your Eulogy",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33513
+  },
+  {
+   "id": "FGFS-QI-GLASS-HALF-FULL",
+   "expectTitle": "GLASS HALF FULL",
+   "title": "Glory in Two Parts",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33528
+  },
+  {
+   "id": "FGFS-QI-GLASS-HALF-FULL-V2",
+   "expectTitle": "GLASS HALF FULL",
+   "title": "Glory in Two Parts",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33526
+  },
+  {
+   "id": "FGFS-QI-GRAVE-ROBBER",
+   "expectTitle": "Grave Robber",
+   "title": "Grief",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33583
+  },
+  {
+   "id": "FGFS-QI-MARY-THE-ELEPHANT-WOWPS-2014",
+   "expectTitle": "Mary The Elephant (WoWPS 2014)",
+   "title": "Misguided Little Unforgivable Hierarchies",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33709
+  },
+  {
+   "id": "FGFS-QI-MY-WHITENESS-HITS-ON-ME-IN-A-BAR-V2",
+   "expectTitle": "“My Whiteness Hits On Me In A Bar”",
+   "title": "NAKED ATONEMENT",
+   "excerptRow": 33735
+  },
+  {
+   "id": "FGFS-QI-MY-WHITENESS-HITS-ON-ME-IN-A-BAR",
+   "expectTitle": "“My Whiteness Hits On Me In A Bar”",
+   "title": "NAKED ATONEMENT",
+   "excerptRow": 33738
+  },
+  {
+   "id": "FGFS-QI-NAKED-ATONEMENT",
+   "expectTitle": "NAKED ATONEMENT",
+   "title": "New Moon, Who This?",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33747
+  },
+  {
+   "id": "FGFS-QI-NO-ONE-S",
+   "expectTitle": "“No One's”",
+   "title": "Notes on Depression",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33758
+  },
+  {
+   "id": "FGFS-QI-ODE-TO-TRACY-TURNBLAD",
+   "expectTitle": "ODE TO TRACY TURNBLAD",
+   "title": "ON SIGHT” For Dez",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33137
+  },
+  {
+   "id": "FGFS-QI-PADLOCKS-DAUGHTER",
+   "expectTitle": "PADLOCK’S DAUGHTER",
+   "title": "PAPER BABIES",
+   "excerptRow": 33785
+  },
+  {
+   "id": "FGFS-QI-POEM-FOR-SUSAN-BOOMER-JENKINS-V2",
+   "expectTitle": "“Poem for Susan Boomer Jenkins”",
+   "title": "PRAISE TO THE LONGEST NIGHT OF THE YEAR",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33819
+  },
+  {
+   "id": "FGFS-QI-POEM-FOR-SUSAN-BOOMER-JENKINS",
+   "expectTitle": "“Poem for Susan Boomer Jenkins”",
+   "title": "PRAISE TO THE LONGEST NIGHT OF THE YEAR",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33822
+  },
+  {
+   "id": "FGFS-QI-PRE-FLIGHT-PRAYER-OF-A-FAT-GIRL",
+   "expectTitle": "PRE-FLIGHT PRAYER OF A FAT GIRL",
+   "title": "Prime Cuts",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33836
+  },
+  {
+   "id": "FGFS-QI-REVENGE-BODY",
+   "expectTitle": "“Revenge Body”",
+   "title": "SAFETY SPELL FOR SEA MONSTERS” For Leo",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33139
+  },
+  {
+   "id": "FGFS-QI-QUESTIONS-FOR-YOKO-ONO-WHEN-MY-LOVE-DECIDES-WE-NEED-A-BREAK-V2",
+   "expectTitle": "QUESTIONS FOR YOKO ONO WHEN MY LOVE DECIDES WE NEED A BREAK",
+   "title": "Red Herring",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33896
+  },
+  {
+   "id": "FGFS-QI-REVENGE-BODY-V2",
+   "expectTitle": "“Revenge Body”",
+   "title": "SAFETY SPELL FOR SEA MONSTERS” For Leo",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33138
+  },
+  {
+   "id": "FGFS-QI-REVENGE-BODY-V3",
+   "expectTitle": "“Revenge Body”",
+   "title": "SAFETY SPELL FOR SEA MONSTERS” For Leo",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33142
+  },
+  {
+   "id": "FGFS-QI-SUNDAY-MORNING-CASINO-SERVICE",
+   "expectTitle": "SUNDAY MORNING CASINO SERVICE",
+   "title": "THAT SUMMER",
+   "excerptRow": 33956
+  },
+  {
+   "id": "FGFS-QI-THE-FAT-JOKE",
+   "expectTitle": "“The Fat Joke”",
+   "title": "The Leaving",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33984
+  },
+  {
+   "id": "FGFS-QI-THAT-SUMMER",
+   "expectTitle": "THAT SUMMER",
+   "title": "The Art of Riding a Tandem Bike Alone",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33962
+  },
+  {
+   "id": "FGFS-QI-THE-MOTHER-RIDDLE",
+   "expectTitle": "“The Mother Riddle”",
+   "title": "The Opposite of Up",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 34007
+  },
+  {
+   "id": "FGFS-QI-THE-USUAL",
+   "expectTitle": "The Usual",
+   "title": "The Way Back",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 34028
+  },
+  {
+   "id": "FGFS-QI-THINNER",
+   "expectTitle": "“Thinner”",
+   "title": "Thirty-Six",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 34058
+  },
+  {
+   "id": "FGFS-QI-VENOM-V2",
+   "expectTitle": "Venom",
+   "title": "Waiting for the End of the World",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 34098
+  },
+  {
+   "id": "FGFS-QI-VENOM",
+   "expectTitle": "Venom",
+   "title": "Waiting for the End of the World",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 34097
+  },
+  {
+   "id": "FGFS-QI-WAND-10-2-3-UNKNOWN-DRIFTWOOD-WITH-A-MERMAID-HAIR-CORE",
+   "expectTitle": "“Wand: 10 & 2/3 Unknown Driftwood with a Mermaid Hair Core”",
+   "title": "Want Not",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 34107
+  },
+  {
+   "id": "FN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-FN-1",
+   "expectTitle": "Book Specific Quote Graphic - FN 1",
+   "title": "HEARTH FIRE",
+   "excerptRow": 14117
+  },
+  {
+   "id": "FN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-FN-3",
+   "expectTitle": "Book Specific Quote Graphic - FN 3",
+   "title": "SHE LIVES",
+   "excerptRow": 14034
+  },
+  {
+   "id": "FN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-FN-2",
+   "expectTitle": "Book Specific Quote Graphic - FN 2",
+   "title": "MONOLOGUING",
+   "excerptRow": 14100
+  },
+  {
+   "id": "FORT-QI-CERTAINLY",
+   "expectTitle": "CERTAINLY",
+   "title": "CHARISMA",
+   "excerptRow": 27429
+  },
+  {
+   "id": "FORT-QI-BEGATS-III",
+   "expectTitle": "BEGATS III",
+   "title": "CERTAINLY",
+   "excerptRow": 27421
+  },
+  {
+   "id": "FORT-QI-CERTAINLY-V2",
+   "expectTitle": "CERTAINLY",
+   "title": "CHARISMA",
+   "excerptRow": 27430
+  },
+  {
+   "id": "FORT-QI-GENERATION-V2",
+   "expectTitle": "“GENERATION”",
+   "title": "GOD OF SUICIDES",
+   "excerptRow": 27456
+  },
+  {
+   "id": "FORT-QI-EARTHQUAKE",
+   "expectTitle": "“EARTHQUAKE”",
+   "title": "GENERATION",
+   "excerptRow": 27449
+  },
+  {
+   "id": "FORT-QI-GENERATION",
+   "expectTitle": "“GENERATION”",
+   "title": "GOD OF SUICIDES",
+   "excerptRow": 27455
+  },
+  {
+   "id": "FORT-QI-HOLY-COMMITTEE",
+   "expectTitle": "HOLY COMMITTEE",
+   "title": "ITERATION",
+   "excerptRow": 27466
+  },
+  {
+   "id": "FORT-QI-LANDING",
+   "expectTitle": "LANDING",
+   "title": "MATERIALS",
+   "excerptRow": 27478
+  },
+  {
+   "id": "FORT-QI-RECOGNITION-V2",
+   "expectTitle": "RECOGNITION",
+   "title": "RECOVERY",
+   "excerptRow": 27498
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "How to Make Love Stay (after Tom Robbins)",
+   "excerptRow": 17364
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V10",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Silence",
+   "excerptRow": 17531
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V11",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Silence",
+   "excerptRow": 17529
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V12",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Silence",
+   "excerptRow": 17530
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V13",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Silence",
+   "excerptRow": 17528
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V14",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "The Engineer Makes a Flow Chart",
+   "excerptRow": 17561
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V15",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "The Engineer Makes a Flow Chart",
+   "excerptRow": 17563
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V16",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "The Engineer Makes a Flow Chart",
+   "excerptRow": 17572
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V17",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "The Engineer Makes a Flow Chart",
+   "excerptRow": 17564
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V18",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "The Engineer Makes a Flow Chart",
+   "excerptRow": 17574
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V19",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Fat Man Dancing",
+   "excerptRow": 17305
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V2",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Why I Will Never Learn to Play the Cello",
+   "excerptRow": 17676
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V20",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Just Take a Shower",
+   "excerptRow": 17425
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V5",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "How to Make Love Stay (after Tom Robbins)",
+   "excerptRow": 17356
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V3",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "The Engineer Makes a Flow Chart",
+   "excerptRow": 17577
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V4",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "How to Make Love Stay (after Tom Robbins)",
+   "excerptRow": 17354
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V6",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "How to Make Love Stay (after Tom Robbins)",
+   "excerptRow": 17360
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V7",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "How to Make Love Stay (after Tom Robbins)",
+   "excerptRow": 17361
+  },
+  {
+   "id": "FYTT-QI-JARED-SINGER-V9",
+   "expectTitle": "Jared ( ) Singer",
+   "title": "Silence",
+   "excerptRow": 17527
+  },
+  {
+   "id": "GLAN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-GLAN-1",
+   "expectTitle": "Book Specific Quote Graphic - GLAN 1",
+   "title": "Finding My Boyfriend in Bed with a Stranger, 1993",
+   "excerptRow": 45190
+  },
+  {
+   "id": "GLAN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-GLAN-2",
+   "expectTitle": "Book Specific Quote Graphic - GLAN 2",
+   "title": "Prostate Hierophany",
+   "excerptRow": 45180
+  },
+  {
+   "id": "GLAN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-GLAN-3",
+   "expectTitle": "Book Specific Quote Graphic - GLAN 3",
+   "title": "Vigilance",
+   "excerptRow": 45228
+  },
+  {
+   "id": "GLAN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-GLAN-4",
+   "expectTitle": "Book Specific Quote Graphic - GLAN 4",
+   "title": "Masturbating for My Life",
+   "excerptRow": 45215
+  },
+  {
+   "id": "HELI-QI-98",
+   "expectTitle": "98",
+   "title": "12 am",
+   "excerptRow": 35818
+  },
+  {
+   "id": "HELI-QI-AND-THEN-AFTER",
+   "expectTitle": "And Then After",
+   "title": "Because that's how we've always done it",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36027
+  },
+  {
+   "id": "HELI-QI-COOKOUT",
+   "expectTitle": "Cookout",
+   "title": "Correctly",
+   "excerptRow": 36158
+  },
+  {
+   "id": "HELI-QI-CORRECTLY",
+   "expectTitle": "Correctly",
+   "title": "Dear PTSD",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36166
+  },
+  {
+   "id": "HELI-QI-DRIVE",
+   "expectTitle": "Drive",
+   "title": "Drowning Fish",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36185
+  },
+  {
+   "id": "HELI-QI-DRIVE-V2",
+   "expectTitle": "Drive",
+   "title": "Drowning Fish",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36186
+  },
+  {
+   "id": "HELI-QI-DRIVE-V4",
+   "expectTitle": "“Drive”",
+   "title": "Drowning Fish",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36187
+  },
+  {
+   "id": "HELI-QI-HORIZON",
+   "expectTitle": "Horizon",
+   "title": "How",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36358
+  },
+  {
+   "id": "HELI-QI-IF-I-WAS-A-LOVE-POET",
+   "expectTitle": "If I Was A Love Poet",
+   "title": "If you find yourself",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36515
+  },
+  {
+   "id": "HELI-QI-IN-THE-VOICE-OF-HIP-HOP",
+   "expectTitle": "In The Voice Of Hip-Hop",
+   "title": "In the voice of my mother’s wedding ring",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36524
+  },
+  {
+   "id": "HELI-QI-LOPSIDED",
+   "expectTitle": "Lopsided",
+   "title": "Love can be a reckless child",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36611
+  },
+  {
+   "id": "HELI-QI-LOPSIDED-V2",
+   "expectTitle": "Lopsided",
+   "title": "Love can be a reckless child",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 36610
+  },
+  {
+   "id": "HELI-QI-MARGIN",
+   "expectTitle": "Margin",
+   "title": "Maybe You Left the Bookstore Right Before I Got There",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36666
+  },
+  {
+   "id": "HELI-QI-MARGIN-V2",
+   "expectTitle": "Margin",
+   "title": "Maybe You Left the Bookstore Right Before I Got There",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36666
+  },
+  {
+   "id": "HELI-QI-SIP",
+   "expectTitle": "“Sip”",
+   "title": "Skelt",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37367
+  },
+  {
+   "id": "HELI-QI-TO-HIM",
+   "expectTitle": "To Him",
+   "title": "To the Black Donald Trump Supporters",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 37531
+  },
+  {
+   "id": "HELI-QI-TO-THE-MAN-STANDING-ON-THE-CORNER-HOLDING-THE-SIGN-THAT-SAID-GOD-HATES-GAYS",
+   "expectTitle": "To the Man Standing on the Corner Holding the Sign That Said ‘God Hates Gays’",
+   "title": "Scars/To the New Boyfriend",
+   "excerptRow": 37294
+  },
+  {
+   "id": "HELI-QI-WHEN-PEOPLE-ASK-HOW-IM-DOING-V2",
+   "expectTitle": "“When People Ask How I’m Doing”",
+   "title": "When you walk into the room",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "IFA-QI-ABNERMEDIUM",
+   "excerptRow": 37657
+  },
+  {
+   "id": "HFTG-QI-MY-FIRST-DATE",
+   "expectTitle": "My First Date",
+   "title": "oh homophobia! up yours!",
+   "excerptRow": 39415
+  },
+  {
+   "id": "HFTG-QI-VILLANELLE-FOR-THE-WOUND",
+   "expectTitle": "villanelle for the wound",
+   "title": "while you’ve been away",
+   "excerptRow": 39530
+  },
+  {
+   "id": "HFTG-QI-UNTITLED-V2",
+   "expectTitle": "барские шалости",
+   "title": "подвиг 'for Maxim Lapunov",
+   "excerptRow": 39588
+  },
+  {
+   "id": "HFTG-QI-WHITE-PHOSPHORUS",
+   "expectTitle": "white phosphorus",
+   "title": "who we are (after Ke$ha)",
+   "excerptRow": 39540
+  },
+  {
+   "id": "HTME-QI-AFTER-V3",
+   "expectTitle": "“AFTER”",
+   "title": "After All the Unpleasantness, Arms Have Something To Say for Themselves",
+   "excerptRow": 35428
+  },
+  {
+   "id": "HTME-QI-AFTER-V4",
+   "expectTitle": "“AFTER”",
+   "title": "After All the Unpleasantness, Arms Have Something To Say for Themselves",
+   "excerptRow": 35428
+  },
+  {
+   "id": "HTME-QI-AS-ALWAYS-V3",
+   "expectTitle": "“AS ALWAYS”",
+   "title": "Assateague",
+   "excerptRow": 35455
+  },
+  {
+   "id": "HTME-QI-AS-ALWAYS-V2",
+   "expectTitle": "“AS ALWAYS”",
+   "title": "Assateague",
+   "excerptRow": 35455
+  },
+  {
+   "id": "HTME-QI-AT-THE-COFFEESHOP-ON-ROGERS",
+   "expectTitle": "“AT THE COFFEESHOP ON ROGERS”",
+   "title": "At the End of Before",
+   "excerptRow": 35467
+  },
+  {
+   "id": "HTME-QI-I-KEEP-HAVING-THIS-FALSE-MEMORY-V3",
+   "expectTitle": "“I KEEP HAVING THIS FALSE MEMORY”",
+   "title": "In Praise of Lying to Children Specifically",
+   "excerptRow": 35492
+  },
+  {
+   "id": "HTME-QI-ON-ACCOUNT-OF-GETTING-HIS-LEG-BROKE-BY-NEW-YORK-CITY",
+   "expectTitle": "ON ACCOUNT OF GETTING HIS LEG BROKE BY NEW YORK CITY",
+   "title": "ON SILENT ‘after Jamaal May’",
+   "excerptRow": 35522
+  },
+  {
+   "id": "IFA-QI-AND-THE-MORNING-SHOWS-UP",
+   "expectTitle": "“and the morning shows up”",
+   "title": "And Then After",
+   "book": "Helium",
+   "bookFieldsFrom": "HELI-QI-12-AM",
+   "excerptRow": 36023
+  },
+  {
+   "id": "IFA-QI-BREVIS-VERB",
+   "expectTitle": "Brevis verb",
+   "title": "Capacity",
+   "book": "Helium",
+   "bookFieldsFrom": "HELI-QI-12-AM",
+   "excerptRow": 36067
+  },
+  {
+   "id": "IFA-QI-DEAR-PTSD",
+   "expectTitle": "“Dear PTSD”",
+   "title": "Divorce is a stubborn grease fire",
+   "excerptRow": 36171
+  },
+  {
+   "id": "IFA-QI-DROWNING-FISH-V4",
+   "expectTitle": "“Drowning Fish”",
+   "title": "Every day, I give up",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36238
+  },
+  {
+   "id": "IFA-QI-DROWNING-FISH-V5",
+   "expectTitle": "“Drowning Fish”",
+   "title": "Yes",
+   "book": "Helium",
+   "bookFieldsFrom": "HELI-QI-12-AM",
+   "excerptRow": 36237
+  },
+  {
+   "id": "IFA-QI-HOW",
+   "expectTitle": "“How”",
+   "title": "How do you know this is love?",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36364
+  },
+  {
+   "id": "IFA-QI-I-HOPE-THE-CAMERA-GODS-BLESS-YOU-WITH-A-STEADY-HAND",
+   "expectTitle": "I hope the camera gods bless you with a steady hand",
+   "title": "I just take my time with all this; I still believe in all that\" - Drake",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36386
+  },
+  {
+   "id": "IFA-QI-I-HOPE-THE-CAMERA-GODS-BLESS-YOU-WITH-A-STEADY-HAND-V2",
+   "expectTitle": "“I hope the camera gods bless you with a steady hand”",
+   "title": "I just take my time with all this; I still believe in all that\" - Drake",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36383
+  },
+  {
+   "id": "IFA-QI-I-WISH-YOU-A-CHECKERED-FLAG",
+   "expectTitle": "“I wish you a checkered flag”",
+   "title": "I’m just saying, you could do better",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36470
+  },
+  {
+   "id": "IFA-QI-INSTRUCTIONS-FOR-BLACK-PEOPLE",
+   "expectTitle": "Instructions for black people",
+   "title": "It is the year 2036",
+   "excerptRow": 36546
+  },
+  {
+   "id": "IFA-QI-INSTRUCTIONS-FOR-BLACK-PEOPLE-V2",
+   "expectTitle": "Instructions for black people",
+   "title": "It is the year 2036",
+   "excerptRow": 36547
+  },
+  {
+   "id": "IFA-QI-IT-IS-THE-YEAR-2036",
+   "expectTitle": "It is the year 2036",
+   "title": "It usually happens",
+   "excerptRow": 36555
+  },
+  {
+   "id": "IFA-QI-LASALLE",
+   "expectTitle": "Lasalle",
+   "title": "Legend has it",
+   "excerptRow": 36582
+  },
+  {
+   "id": "IFA-QI-LEGEND-HAS-IT",
+   "expectTitle": "Legend has it",
+   "title": "Let’s just say",
+   "excerptRow": 36589
+  },
+  {
+   "id": "IFA-QI-MAMA-SABE-ASKS",
+   "expectTitle": "“Mama Sabe asks”",
+   "title": "Margin",
+   "book": "Helium",
+   "bookFieldsFrom": "HELI-QI-12-AM",
+   "excerptRow": 36662
+  },
+  {
+   "id": "IFA-QI-ODE-TO-THE-CARDIGAN",
+   "expectTitle": "Ode to the Cardigan",
+   "title": "Ode to the fresh haircut",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 36988
+  },
+  {
+   "id": "IFA-QI-ODIT-NOUN",
+   "expectTitle": "Odit noun",
+   "title": "Of all the hoods",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 37002
+  },
+  {
+   "id": "IFA-QI-SOMETIMES-IM-THE-MESS",
+   "expectTitle": "“Sometimes I’m the mess”",
+   "title": "Speak",
+   "excerptRow": 37385
+  },
+  {
+   "id": "IFA-QI-THE-YOUTH-CHOIR-SINGS-I-BELIEVE-I-CAN-FLY",
+   "expectTitle": "The youth choir sings ‘I believe I can fly",
+   "title": "There are people",
+   "excerptRow": 37448
+  },
+  {
+   "id": "IFA-QI-THE-YOUTH-CHOIR-SINGS-I-BELIEVE-I-CAN-FLY-V2",
+   "expectTitle": "The youth choir sings ‘I believe I can fly",
+   "title": "There are people",
+   "excerptRow": 37449
+  },
+  {
+   "id": "IFA-QI-UWANI",
+   "expectTitle": "“Uwani”",
+   "title": "",
+   "excerptRow": 37170
+  },
+  {
+   "id": "IFA-QI-UNSOLICITED-ADVICE",
+   "expectTitle": "Unsolicited advice",
+   "title": "Untitled",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 37603
+  },
+  {
+   "id": "IFA-QI-VALUE-V10",
+   "expectTitle": "#VALUE!",
+   "title": "Culi",
+   "excerptRow": 36164
+  },
+  {
+   "id": "IFA-QI-VALUE-V11",
+   "expectTitle": "#VALUE!",
+   "title": "Felenter",
+   "excerptRow": 36267
+  },
+  {
+   "id": "IFA-QI-VALUE-V12",
+   "expectTitle": "#VALUE!",
+   "title": "Grest",
+   "excerptRow": 36283
+  },
+  {
+   "id": "IFA-QI-VALUE-V13",
+   "expectTitle": "#VALUE!",
+   "title": "Grusic",
+   "excerptRow": 36289
+  },
+  {
+   "id": "IFA-QI-VALUE-V14",
+   "expectTitle": "#VALUE!",
+   "title": "Kelvet",
+   "excerptRow": 36573
+  },
+  {
+   "id": "IFA-QI-VALUE-V15",
+   "expectTitle": "#VALUE!",
+   "title": "Mendle",
+   "excerptRow": 36676
+  },
+  {
+   "id": "IFA-QI-VALUE-V16",
+   "expectTitle": "#VALUE!",
+   "title": "Mortaprime",
+   "excerptRow": 36681
+  },
+  {
+   "id": "IFA-QI-VALUE-V17",
+   "expectTitle": "#VALUE!",
+   "title": "Mutanom",
+   "excerptRow": 36695
+  },
+  {
+   "id": "IFA-QI-VALUE-V19",
+   "expectTitle": "#VALUE!",
+   "title": "Nolexi",
+   "excerptRow": 36868
+  },
+  {
+   "id": "IFA-QI-VALUE-V18",
+   "expectTitle": "#VALUE!",
+   "title": "Nescium",
+   "excerptRow": 36866
+  },
+  {
+   "id": "IFA-QI-VALUE-V20",
+   "expectTitle": "#VALUE!",
+   "title": "Nomortice",
+   "excerptRow": 36870
+  },
+  {
+   "id": "IFA-QI-VALUE-V21",
+   "expectTitle": "#VALUE!",
+   "title": "I want the kind of happiness",
+   "excerptRow": 36447
+  },
+  {
+   "id": "IFA-QI-VALUE-V23",
+   "expectTitle": "#VALUE!",
+   "title": "Perdit verb",
+   "excerptRow": 37105
+  },
+  {
+   "id": "IFA-QI-VALUE-V22",
+   "expectTitle": "#VALUE!",
+   "title": "Parlee",
+   "excerptRow": 37099
+  },
+  {
+   "id": "IFA-QI-VALUE-V24",
+   "expectTitle": "#VALUE!",
+   "title": "",
+   "excerptRow": 37163
+  },
+  {
+   "id": "IFA-QI-VALUE-V25",
+   "expectTitle": "#VALUE!",
+   "title": "",
+   "excerptRow": 37164
+  },
+  {
+   "id": "IFA-QI-VALUE-V27",
+   "expectTitle": "#VALUE!",
+   "title": "Have you ever noticed",
+   "excerptRow": 36300
+  },
+  {
+   "id": "IFA-QI-VALUE-V26",
+   "expectTitle": "#VALUE!",
+   "title": "Repensist noun",
+   "excerptRow": 37187
+  },
+  {
+   "id": "IFA-QI-VALUE-V28",
+   "expectTitle": "#VALUE!",
+   "title": "",
+   "excerptRow": 37167
+  },
+  {
+   "id": "IFA-QI-VALUE-V29",
+   "expectTitle": "#VALUE!",
+   "title": "",
+   "excerptRow": 37168
+  },
+  {
+   "id": "IFA-QI-VALUE-V31",
+   "expectTitle": "#VALUE!",
+   "title": "",
+   "excerptRow": 37170
+  },
+  {
+   "id": "IFA-QI-VALUE-V30",
+   "expectTitle": "#VALUE!",
+   "title": "",
+   "excerptRow": 37169
+  },
+  {
+   "id": "IFA-QI-VALUE-V5",
+   "expectTitle": "#VALUE!",
+   "title": "Beldin",
+   "excerptRow": 36059
+  },
+  {
+   "id": "IFA-QI-VALUE-V6",
+   "expectTitle": "#VALUE!",
+   "title": "Bresil",
+   "excerptRow": 36060
+  },
+  {
+   "id": "IFA-QI-VALUE-V7",
+   "expectTitle": "#VALUE!",
+   "title": "Brevis",
+   "excerptRow": 36062
+  },
+  {
+   "id": "IFA-QI-VALUE-V8",
+   "expectTitle": "#VALUE!",
+   "title": "",
+   "excerptRow": 37147
+  },
+  {
+   "id": "IFA-QI-VALUE-V9",
+   "expectTitle": "#VALUE!",
+   "title": "Coliber",
+   "excerptRow": 36108
+  },
+  {
+   "id": "IFA-QI-WHAT-I-KNOW-IS-THIS",
+   "expectTitle": "“What I know is this’”",
+   "title": "What is progress?",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
+   "excerptRow": 37636
+  },
+  {
+   "id": "IFA-QI-WHEN-YOU-WALK-INTO-THE-ROOM-V2",
+   "expectTitle": "“When you walk into the room”",
+   "title": "Whoever said a choir",
+   "excerptRow": 37663
+  },
+  {
+   "id": "IRBD-QI-15-SECONDS",
+   "expectTitle": "15 Seconds",
+   "title": "A list of rituals to invoke Hypnos, the God of Sleep",
+   "excerptRow": 44289
+  },
+  {
+   "id": "IRBD-QI-I-GRAB-A-LOOSE-THREAD-AND-PULL",
+   "expectTitle": "I Grab a Loose Thread and Pull",
+   "title": "Incantation",
+   "excerptRow": 44384
+  },
+  {
+   "id": "ISST-QI-AFTER-JAMES-BROWN",
+   "expectTitle": "“After James Brown”",
+   "title": "aladdin's genie on emancipation",
+   "excerptRow": 32619
+  },
+  {
+   "id": "ISST-QI-AFTER-JAMES-BROWN-V2",
+   "expectTitle": "“After James Brown”",
+   "title": "aladdin's genie on emancipation",
+   "excerptRow": 32620
+  },
+  {
+   "id": "ISST-QI-AFTER-JAMES-BROWN-V3",
+   "expectTitle": "“After James Brown”",
+   "title": "aladdin's genie on emancipation",
+   "excerptRow": 32621
+  },
+  {
+   "id": "ISST-QI-ALADDIN-S-GENIE-ON-EMANCIPATION",
+   "expectTitle": "aladdin's genie on emancipation",
+   "title": "BLACK SPELLS",
+   "excerptRow": 32628
+  },
+  {
+   "id": "ISST-QI-BEYONCE-BE-LIKE",
+   "expectTitle": "“Beyoncé be like…”",
+   "title": "continent from the latin continēre meaning to contain",
+   "excerptRow": 32631
+  },
+  {
+   "id": "ISST-QI-BLACK-SPELLS",
+   "expectTitle": "“BLACK SPELLS”",
+   "title": "continent from the latin continēre meaning to contain",
+   "excerptRow": 32631
+  },
+  {
+   "id": "ISST-QI-FINDING-A-BLACK-QUEER-WOMAN-LOVE-WITH-WHOM-YOU-ARE-COMPATIBLE-IS-LIKE-FINDING-A-WATERMELON-SEED-LODGED-IN-THE-PUPIL-OF-WHOLE-FRIED-CHICKEN",
+   "expectTitle": "“finding a black queer woman love with whom you are compatible is like finding a watermelon seed lodged in the pupil of whole fried chicken”",
+   "title": "footnotes on coming of age poor, girl, and black on the southside of chicago",
+   "excerptRow": 32664
+  },
+  {
+   "id": "ISST-QI-FOOTNOTES-ON-COMING-OF-AGE-POOR-GIRL-AND-BLACK-ON-THE-SOUTHSIDE-OF-CHICAGO-V4",
+   "expectTitle": "footnotes on coming of age poor, girl, and black on the southside of chicago",
+   "title": "ghazal for the chicago two-step",
+   "excerptRow": 32680
+  },
+  {
+   "id": "ISST-QI-GHAZAL-FOR-THE-CHICAGO-TWO-STEP-V2",
+   "expectTitle": "“ghazal for the chicago two-step”",
+   "title": "God is Good All the time",
+   "excerptRow": 32684
+  },
+  {
+   "id": "ISST-QI-GHAZAL-FOR-THE-CHICAGO-TWO-STEP-V3",
+   "expectTitle": "ghazal for the chicago two-step",
+   "title": "God is Good All the time",
+   "excerptRow": 32685
+  },
+  {
+   "id": "ISST-QI-HAD-MY-PARENTS-NOT-BEEN-SEPARATED",
+   "expectTitle": "“Had My Parents Not Been Separated...”",
+   "title": "i am neither the poem, nor the words, nor the letters, nor the images they elicit",
+   "excerptRow": 32705
+  },
+  {
+   "id": "ISST-QI-HAD-MY-PARENTS-NOT-BEEN-SEPARATED-V2",
+   "expectTitle": "“Had My Parents Not Been Separated...”",
+   "title": "i am neither the poem, nor the words, nor the letters, nor the images they elicit",
+   "excerptRow": 32707
+  },
+  {
+   "id": "ISST-QI-I-FEEL-LEAST-ALONE-V7",
+   "expectTitle": "i feel least alone",
+   "title": "I Milly Rock on Any Block",
+   "excerptRow": 32733
+  },
+  {
+   "id": "ISST-QI-I-FEEL-LEAST-ALONE-V6",
+   "expectTitle": "i feel least alone",
+   "title": "I Milly Rock on Any Block",
+   "excerptRow": 32732
+  },
+  {
+   "id": "ISST-QI-I-M-THE-TYPE-OF-FANCIFUL-WARLOCK-WHO-COOKS-UP-IRRATIONAL-FEARS-IN-MY-IDLE-MIND-WITH-A-CRACK-PLASTERED-BETWEEN-MY-CHEEKS",
+   "expectTitle": "i'm the type of fanciful warlock who cooks up irrational fears in my idle mind with a crack plastered between my cheeks.”",
+   "title": "(again)",
+   "excerptRow": 32605
+  },
+  {
+   "id": "ISST-QI-INTERLUDE-AT-A-NEIGHBORHOOD-GAS-STATION-2001",
+   "expectTitle": "“Interlude at a Neighborhood Gas Station: 2001”",
+   "title": "listen: my right hand is covered in blood",
+   "excerptRow": 32747
+  },
+  {
+   "id": "ISST-QI-INTERLUDE-AT-A-NEIGHBORHOOD-GAS-STATION-2001-V2",
+   "expectTitle": "“Interlude at a Neighborhood Gas Station: 2001”",
+   "title": "listen: my right hand is covered in blood",
+   "excerptRow": 32748
+  },
+  {
+   "id": "ISST-QI-MEMORY-LOSS-V9",
+   "expectTitle": "memory / loss",
+   "title": "my brother ghost writes this poem",
+   "excerptRow": 32772
+  },
+  {
+   "id": "ISST-QI-ODE-TO-MY-MOUTH",
+   "expectTitle": "“Ode to My Mouth”",
+   "title": "Parable",
+   "excerptRow": 32839
+  },
+  {
+   "id": "ISST-QI-SOUTHSIDE-APOCALYPSE",
+   "expectTitle": "southside apocalypse",
+   "title": "Tangled a.k.a Rapunzel a.k.a. long-hair-don't-care and what",
+   "excerptRow": 32875
+  },
+  {
+   "id": "ISST-QI-TWERK-VILLANELLE-FOR-VALENTINE",
+   "expectTitle": "“TWERK VILLANELLE” for Valentine",
+   "title": "UN-NAMED",
+   "excerptRow": 32969
+  },
+  {
+   "id": "ISST-QI-TWERK-VILLANELLE-FOR-VALENTINE-V2",
+   "expectTitle": "“TWERK VILLANELLE” for Valentine",
+   "title": "UN-NAMED",
+   "excerptRow": 32959
+  },
+  {
+   "id": "ISST-QI-UNNAMED",
+   "expectTitle": "“Unnamed”",
+   "title": "WATER",
+   "excerptRow": 32975
+  },
+  {
+   "id": "NABF-QI-AT-THE-OWL-V2",
+   "expectTitle": "At The Owl",
+   "title": "Backpedal",
+   "excerptRow": 29380
+  },
+  {
+   "id": "NABF-QI-JORDAN-CONVINCED-ME-THAT-PADS-ARE-DISGUSTING",
+   "expectTitle": "Jordan Convinced Me That Pads Are Disgusting",
+   "title": "The Scholar",
+   "excerptRow": 29686
+  },
+  {
+   "id": "NABF-QI-LIBERTY",
+   "expectTitle": "“Liberty”",
+   "title": "Like Us",
+   "excerptRow": 29482
+  },
+  {
+   "id": "NABF-QI-LIKE-US",
+   "expectTitle": "Like Us",
+   "title": "Manic Pixie Dream Girl",
+   "excerptRow": 29491
+  },
+  {
+   "id": "NABF-QI-LIKE-US-V2",
+   "expectTitle": "“Like Us”",
+   "title": "Manic Pixie Dream Girl",
+   "excerptRow": 29493
+  },
+  {
+   "id": "NABF-QI-LONG-ISLAND",
+   "expectTitle": "Long Island",
+   "title": "Manic Pixie Dream Girl",
+   "excerptRow": 29494
+  },
+  {
+   "id": "NABF-QI-ODE-TO-ELISE-IN-EIGHTH-GRADE-HEALTH-CLASS",
+   "expectTitle": "Ode to Elise in Eighth Grade Health Class",
+   "title": "Ode to My Bitch Face",
+   "excerptRow": 29562
+  },
+  {
+   "id": "NABF-QI-ODE-TO-MY-LOVER-S-LEFT-HAND",
+   "expectTitle": "“Ode to My Lover's Left Hand”",
+   "title": "Ode to My Period Underwear",
+   "excerptRow": 29595
+  },
+  {
+   "id": "NABF-QI-ODE-TO-THE-WOMEN-ON-LONG-ISLAND",
+   "expectTitle": "Ode to the Women on Long Island",
+   "title": "Port of Spain",
+   "excerptRow": 29633
+  },
+  {
+   "id": "NABF-QI-SUMMER-OF-2008-AT-ALTURA-PARK-V2",
+   "expectTitle": "Summer of 2008 at Altura Park",
+   "title": "The Anthem I Have Sung",
+   "excerptRow": 29648
+  },
+  {
+   "id": "NABF-QI-THE-ANTHEM-I-HAVE-SUNG",
+   "expectTitle": "The Anthem I Have Sung",
+   "title": "The Autocross",
+   "excerptRow": 29655
+  },
+  {
+   "id": "NABF-QI-THE-FIRST-SHAVE",
+   "expectTitle": "The First Shave",
+   "title": "The Only Thing I Brought From America",
+   "excerptRow": 29672
+  },
+  {
+   "id": "NABF-QI-THE-RITUAL-V5",
+   "expectTitle": "“The Ritual”",
+   "title": "The Scholar",
+   "excerptRow": 29688
+  },
+  {
+   "id": "NABF-QI-THE-SCHOLAR",
+   "expectTitle": "“The Scholar”",
+   "title": "What Sex Becomes",
+   "excerptRow": 29705
+  },
+  {
+   "id": "NIO-QI-BUT-THEY-SAY-I-WILL-NOT-MAKE-IT",
+   "expectTitle": "But They Say I Will Not Make It",
+   "title": "COERCION",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33361
+  },
+  {
+   "id": "NIO-QI-EXPECT-CUM-PATRONUS-ANOTHER-CLIMMERICK",
+   "expectTitle": "Expect-Cum Patronus - Another Climmerick",
+   "title": "Fat Joke",
+   "excerptRow": 33460
+  },
+  {
+   "id": "NIO-QI-FAT-JOKE-V2",
+   "expectTitle": "Fat Joke",
+   "title": "Femme Fatale",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33473
+  },
+  {
+   "id": "NIO-QI-FAT-JOKE-V3",
+   "expectTitle": "Fat Joke",
+   "title": "Femme Fatale",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33474
+  },
+  {
+   "id": "NIO-QI-FOR-FAT-GIRLS-WHO-CONSIDERED-STARVATION-WHEN-BULIMIA-WASNT-ENOUGH",
+   "expectTitle": "For Fat Girls Who Considered Starvation When Bulimia Wasn’t Enough",
+   "title": "FOR NICHOLAS WHO IS SO CONCERNED",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33504
+  },
+  {
+   "id": "NIO-QI-FOR-FAT-GIRLS-WHO-CONSIDERED-STARVATION-WHEN-BULIMIA-WASNT-ENOUGH-V2",
+   "expectTitle": "For Fat Girls Who Considered Starvation When Bulimia Wasn’t Enough",
+   "title": "FOR NICHOLAS WHO IS SO CONCERNED",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33506
+  },
+  {
+   "id": "NIO-QI-FORM-LETTER-TO-MY-EXES-TO-PREPARE-THEM-FOR-AN-ONCOMING-PLAGUE-OF-GIRLS-WHO-WERE-JUST-SO-SURE",
+   "expectTitle": "Form Letter to My Exes… (to Prepare Them for an Oncoming Plague of Girls Who Were Just So Sure)",
+   "title": "Ghost Me, I’ll Write Your Eulogy",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33514
+  },
+  {
+   "id": "NIO-QI-GLORY-IN-TWO-PARTS-V2",
+   "expectTitle": "Glory in Two Parts",
+   "title": "GORGON",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33550
+  },
+  {
+   "id": "NIO-QI-HOROSCOPE-FOR-THE-PREMATURE-SCORPIO-MARCH-2013",
+   "expectTitle": "“Horoscope for the Premature Scorpio: March 2013”",
+   "title": "How My Feminism Learned to Talk",
+   "excerptRow": 33634
+  },
+  {
+   "id": "NIO-QI-HOW-MY-FEMINISM-LEARNED-TO-TALK",
+   "expectTitle": "How My Feminism Learned to Talk",
+   "title": "HOW TO BECOME A HERETIC",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33641
+  },
+  {
+   "id": "NIO-QI-HOW-MY-FEMINISM-LEARNED-TO-TALK-V2",
+   "expectTitle": "How My Feminism Learned to Talk",
+   "title": "HOW TO BECOME A HERETIC",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33638
+  },
+  {
+   "id": "NIO-QI-INCANTATION-FOR-AUTONOMY",
+   "expectTitle": "Incantation for Autonomy",
+   "title": "INTERSECTIONAL FEMINISM (AKA ACTUAL FUCKING FEMINISM) PLAYS THE DOZENS WITH WHITE FEMINISM",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33666
+  },
+  {
+   "id": "NIO-QI-LETTER-TO-MY-CAT-EXPLORING-MY-IMPENDING-SPINSTERHOOD-V2",
+   "expectTitle": "Letter to My Cat Exploring My Impending Spinsterhood",
+   "title": "LOVE LETTER TO MY BODY # 10” a love note from 1 body to another",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33136
+  },
+  {
+   "id": "NIO-QI-LETTER-TO-MY-CAT-EXPLORING-MY-IMPENDING-SPINSTERHOOD",
+   "expectTitle": "Letter to My Cat Exploring My Impending Spinsterhood",
+   "title": "TRAGEDY",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 34079
+  },
+  {
+   "id": "NIO-QI-LETTER-TO-MY-CAT-EXPLORING-MY-IMPENDING-SPINSTERHOOD-V3",
+   "expectTitle": "“Letter to My Cat Exploring My Impending Spinsterhood”",
+   "title": "LOVE LETTER TO MY BODY # 10” a love note from 1 body to another",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33133
+  },
+  {
+   "id": "NIO-QI-NOTES-ON-DEPRESSION",
+   "expectTitle": "Notes on Depression",
+   "title": "Ode to the Invisible Girl",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33768
+  },
+  {
+   "id": "NIO-QI-ODE-TO-ALL-THE-MOTHERS-I-BORROWED",
+   "expectTitle": "Ode to All the Mothers I Borrowed",
+   "title": "ODE TO TRACY TURNBLAD",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33771
+  },
+  {
+   "id": "NIO-QI-SLEEPING-GIANTS",
+   "expectTitle": "Sleeping Giants",
+   "title": "Solidarity With Miss Colombia 2015 (after the host of the 2015 Miss Universe competition, Steve Harvey, crowned Miss Colombia, Ariadna Gutiérrez, the winner in error)",
+   "excerptRow": 33942
+  },
+  {
+   "id": "NIO-QI-THE-LEAVING",
+   "expectTitle": "The Leaving",
+   "title": "THE MOTHER RIDDLE",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33988
+  },
+  {
+   "id": "NIO-QI-THE-LEAVING-V2",
+   "expectTitle": "The Leaving",
+   "title": "THE MOTHER RIDDLE",
+   "book": "Revenge Body",
+   "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
+   "excerptRow": 33989
+  },
+  {
+   "id": "NIO-QI-THE-OPPOSITE-OF-UP-V3",
+   "expectTitle": "The Opposite of Up",
+   "title": "THE UNBEARABLE LIKENESS OF BEING ON OKCUPID” in 5 Haik",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33144
+  },
+  {
+   "id": "NIO-QI-THE-OPPOSITE-OF-UP-V5",
+   "expectTitle": "“The Opposite of Up”",
+   "title": "THE UNBEARABLE LIKENESS OF BEING ON OKCUPID” in 5 Haik",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33143
+  },
+  {
+   "id": "NIO-QI-WHEN-WE-WERE-KINGS-ONE-DAY",
+   "expectTitle": "“When We Were Kings, One Day”",
+   "title": "WIFE MATERIAL",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 34150
+  },
+  {
+   "id": "OND-QI-ALL-HARVESTMEN-ARE-MISSING-A-LEG",
+   "expectTitle": "All Harvestmen Are Missing a Leg",
+   "title": "Alternate Universe in Which My Father Did Not Leave but Died",
+   "book": "The Future",
+   "bookFieldsFrom": "TF-QI-AGAINST-HUGS",
+   "excerptRow": 27643
+  },
+  {
+   "id": "OND-QI-MOVING-DAY-V2",
+   "expectTitle": "Moving Day",
+   "title": "MSP PHI LGA ALB PHI MSP",
+   "excerptRow": 28268
+  },
+  {
+   "id": "OND-QI-OCD-V4",
+   "expectTitle": "OCD",
+   "title": "Ode to Brain Injuries",
+   "book": "The Future",
+   "bookFieldsFrom": "TF-QI-AGAINST-HUGS",
+   "excerptRow": 28393
+  },
+  {
+   "id": "OND-QI-OCD-V5",
+   "expectTitle": "OCD",
+   "title": "Ode to Brain Injuries",
+   "book": "The Future",
+   "bookFieldsFrom": "TF-QI-AGAINST-HUGS",
+   "excerptRow": 28393
+  },
+  {
+   "id": "OND-QI-OUR-NUMBERED-DAYS-VII",
+   "expectTitle": "Our Numbered Days (vii)",
+   "title": "Parking Meter Theory",
+   "excerptRow": 28515
+  },
+  {
+   "id": "PATR-QI-AFTER-ZUKO-V3",
+   "expectTitle": "PATRICIDE",
+   "title": "AFTER ZUKO",
+   "excerptRow": 9513
+  },
+  {
+   "id": "PATR-QI-DAVID-AND-V2",
+   "expectTitle": "PATRICIDE",
+   "title": "DAVID AND",
+   "excerptRow": 9542
+  },
+  {
+   "id": "PATR-QI-DAVID-AND-V3",
+   "expectTitle": "PATRICIDE",
+   "title": "DAVID AND",
+   "excerptRow": 9543
+  },
+  {
+   "id": "PATR-QI-DAVID-AND-V5",
+   "expectTitle": "PATRICIDE",
+   "title": "DAVID AND",
+   "excerptRow": 9548
+  },
+  {
+   "id": "PATR-QI-IN-CASUAL-CONVERSATION-THE-HOOD-IN-ME-SLIPS-OUT-AND-SAYS",
+   "expectTitle": "PATRICIDE",
+   "title": "In Casual Conversation, the Hood in Me Slips Out and Says",
+   "excerptRow": 9579
+  },
+  {
+   "id": "PATR-QI-IPHONE-NOTES-FOR-A-POWERFUL-POEM-V2",
+   "expectTitle": "PATRICIDE",
+   "title": "IPHONE NOTES FOR A POWERFUL POEM",
+   "excerptRow": 9597
+  },
+  {
+   "id": "PATR-QI-NEST-V2",
+   "expectTitle": "PATRICIDE",
+   "title": "NEST",
+   "excerptRow": 9612
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V10",
+   "expectTitle": "PATRICIDE",
+   "title": "TO THE EXTENT X BODY INCLUDING ITS FISTS CONSTITUTE ‘WEAPONS’",
+   "excerptRow": 9705
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V11",
+   "expectTitle": "PATRICIDE",
+   "title": "TO THE EXTENT X BODY INCLUDING ITS FISTS CONSTITUTE ‘WEAPONS’",
+   "excerptRow": 9706
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V12",
+   "expectTitle": "PATRICIDE",
+   "title": "PREPARING A MEAL",
+   "excerptRow": 9629
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V13",
+   "expectTitle": "PATRICIDE",
+   "title": "BARS POETICA: A DISS TRACK",
+   "excerptRow": 9520
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V14",
+   "expectTitle": "PATRICIDE",
+   "title": "MY MOTHER TELLS ME MY FATHER WAS A GORILLA",
+   "excerptRow": 9606
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V15",
+   "expectTitle": "PATRICIDE",
+   "title": "PREPARING A MEAL",
+   "excerptRow": 9626
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V16",
+   "expectTitle": "PATRICIDE",
+   "title": "UNIVERSAL EXPERIENCES",
+   "excerptRow": 9730
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V17",
+   "expectTitle": "PATRICIDE",
+   "title": "SELF-PORTRAIT AS FUCKBOY",
+   "excerptRow": 9641
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V18",
+   "expectTitle": "PATRICIDE",
+   "title": "THE BARBER SHOP AFTER PRINCE DIED",
+   "excerptRow": 9684
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V19",
+   "expectTitle": "PATRICIDE",
+   "title": "MY MOTHER SINGS LUTHER VANDROSS WHEN THE FRIDGE IS EMPTY",
+   "excerptRow": 9602
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V20",
+   "expectTitle": "PATRICIDE",
+   "title": "MY MOTHER SINGS LUTHER VANDROSS WHEN THE FRIDGE IS EMPTY",
+   "excerptRow": 9603
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V21",
+   "expectTitle": "PATRICIDE",
+   "title": "I HAVEN’T KILLED MY FATHER YET",
+   "excerptRow": 9566
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V22",
+   "expectTitle": "PATRICIDE",
+   "title": "AFTER PICCOLO",
+   "excerptRow": 9505
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V23",
+   "expectTitle": "PATRICIDE",
+   "title": "BISCUITS",
+   "excerptRow": 9524
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V24",
+   "expectTitle": "PATRICIDE",
+   "title": "I NEVER THANKED THE BEES",
+   "excerptRow": 9568
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V25",
+   "expectTitle": "PATRICIDE",
+   "title": "TURBULENCE",
+   "excerptRow": 9717
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V26",
+   "expectTitle": "PATRICIDE",
+   "title": "69TH STREET MOVIE THEATRE",
+   "excerptRow": 9501
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V27",
+   "expectTitle": "PATRICIDE",
+   "title": "AFTER ZUKO",
+   "excerptRow": 9508
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V28",
+   "expectTitle": "PATRICIDE",
+   "title": "IN CATHOLIC SCHOOL, GOD WAS WHITE AS HIS ROBES",
+   "excerptRow": 9592
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V29",
+   "expectTitle": "PATRICIDE",
+   "title": "AFTER ZUKO",
+   "excerptRow": 9509
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V30",
+   "expectTitle": "PATRICIDE",
+   "title": "PREPARING A MEAL",
+   "excerptRow": 9627
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V31",
+   "expectTitle": "PATRICIDE",
+   "title": "THE BARBER SHOP AFTER PRINCE DIED",
+   "excerptRow": 9683
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V33",
+   "expectTitle": "PATRICIDE",
+   "title": "THE BARBER SHOP AFTER PRINCE DIED",
+   "excerptRow": 9685
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V32",
+   "expectTitle": "PATRICIDE",
+   "title": "I NEVER THANKED THE BEES",
+   "excerptRow": 9569
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V34",
+   "expectTitle": "PATRICIDE",
+   "title": "THE BARBER SHOP AFTER PRINCE DIED",
+   "excerptRow": 9681
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V35",
+   "expectTitle": "PATRICIDE",
+   "title": "MY MOTHER SINGS LUTHER VANDROSS WHEN THE FRIDGE IS EMPTY",
+   "excerptRow": 9605
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V36",
+   "expectTitle": "PATRICIDE",
+   "title": "I HAVEN’T KILLED MY FATHER YET",
+   "excerptRow": 9559
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V37",
+   "expectTitle": "PATRICIDE",
+   "title": "ON LEAVING",
+   "excerptRow": 9613
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V39",
+   "expectTitle": "PATRICIDE",
+   "title": "WHEN I SAY I’M AFRAID OF GOING BALD WHAT I MEAN IS",
+   "excerptRow": 9740
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V38",
+   "expectTitle": "PATRICIDE",
+   "title": "IPHONE NOTES FOR A POWERFUL POEM",
+   "excerptRow": 9595
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V40",
+   "expectTitle": "PATRICIDE",
+   "title": "AFTER PICCOLO",
+   "excerptRow": 9506
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V41",
+   "expectTitle": "PATRICIDE",
+   "title": "I NEVER THANKED THE BEES",
+   "excerptRow": 9570
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V42",
+   "expectTitle": "PATRICIDE",
+   "title": "UNIVERSAL EXPERIENCES",
+   "excerptRow": 9737
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V43",
+   "expectTitle": "PATRICIDE",
+   "title": "TURBULENCE",
+   "excerptRow": 9711
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V44",
+   "expectTitle": "PATRICIDE",
+   "title": "MY MOTHER TELLS ME MY FATHER WAS A GORILLA",
+   "excerptRow": 9607
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V45",
+   "expectTitle": "PATRICIDE",
+   "title": "THE BARBER SHOP AFTER PRINCE DIED",
+   "excerptRow": 9687
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V46",
+   "expectTitle": "PATRICIDE",
+   "title": "My train",
+   "excerptRow": 9610
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V47",
+   "expectTitle": "PATRICIDE",
+   "title": "PREPARING A MEAL",
+   "excerptRow": 9639
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V5",
+   "expectTitle": "PATRICIDE",
+   "title": "AFTER PICCOLO",
+   "excerptRow": 9507
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V6",
+   "expectTitle": "PATRICIDE",
+   "title": "IN CATHOLIC SCHOOL, GOD WAS WHITE AS HIS ROBES",
+   "excerptRow": 9591
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V7",
+   "expectTitle": "PATRICIDE",
+   "title": "AFTER PICCOLO",
+   "excerptRow": 9504
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V8",
+   "expectTitle": "PATRICIDE",
+   "title": "SELF-PORTRAIT AS FUCKBOY",
+   "excerptRow": 9640
+  },
+  {
+   "id": "PATR-QI-PATRICIDE-V9",
+   "expectTitle": "PATRICIDE",
+   "title": "PREPARING A MEAL",
+   "excerptRow": 9630
+  },
+  {
+   "id": "PATR-QI-TO-THE-EXTENT-X-BODY-INCLUDING-ITS-FISTS-CONSTITUTE-WEAPONS-V3",
+   "expectTitle": "PATRICIDE",
+   "title": "TO THE EXTENT X BODY INCLUDING ITS FISTS CONSTITUTE ‘WEAPONS’",
+   "excerptRow": 9707
+  },
+  {
+   "id": "PATR-QI-TO-THE-EXTENT-X-BODY-INCLUDING-ITS-FISTS-CONSTITUTE-WEAPONS-V5",
+   "expectTitle": "PATRICIDE",
+   "title": "TO THE EXTENT X BODY INCLUDING ITS FISTS CONSTITUTE ‘WEAPONS’",
+   "excerptRow": 9691
+  },
+  {
+   "id": "POMB-QI-ARS-POETICA-VI-I-PROMISE-I-HAVE-BETTER-THINGS-TO-SAY-THAN-THIS-FT-STEFAN-HOPWOOD",
+   "expectTitle": "Ars Poetica VI: I Promise I Have Better Things to Say than This (ft. Stefan Hopwood)",
+   "title": "Before",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42609
+  },
+  {
+   "id": "POMB-QI-CALL-ME-BEFORE-YOU-LEAVE-AGAIN",
+   "expectTitle": "Call Me Before You Leave Again",
+   "title": "Dear Monsoon",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42619
+  },
+  {
+   "id": "POMB-QI-DREAM-SEQUENCE",
+   "expectTitle": "Dream Sequence",
+   "title": "Event Horizon",
+   "excerptRow": 42634
+  },
+  {
+   "id": "POMB-QI-HEALING-IS",
+   "expectTitle": "Healing Is",
+   "title": "High Specific Heat",
+   "excerptRow": 42651
+  },
+  {
+   "id": "POMB-QI-EVENT-HORIZON",
+   "expectTitle": "Event Horizon",
+   "title": "Ghost Field, 1999",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42638
+  },
+  {
+   "id": "POMB-QI-HIGH-SPECIFIC-HEAT",
+   "expectTitle": "High Specific Heat",
+   "title": "I Found a New World Across the Sea",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42653
+  },
+  {
+   "id": "POMB-QI-HIGH-SPECIFIC-HEAT-V2",
+   "expectTitle": "High Specific Heat",
+   "title": "I Found a New World Across the Sea",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42654
+  },
+  {
+   "id": "POMB-QI-IF-THE-BODY-IS-AN-ARTEFACT",
+   "expectTitle": "If the Body Is an Artefact",
+   "title": "In a Dream You Saw a Way to Survive ‘after Jenny Holzer’",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42663
+  },
+  {
+   "id": "POMB-QI-IN-YOUR-ABSENSE",
+   "expectTitle": "In Your Absense",
+   "title": "July",
+   "excerptRow": 42674
+  },
+  {
+   "id": "POMB-QI-MONOTHEIST",
+   "expectTitle": "Monotheist",
+   "title": "New York City Probably Has an Anxiety Disorder",
+   "excerptRow": 42696
+  },
+  {
+   "id": "POMB-QI-MONOTHEIST-V2",
+   "expectTitle": "Monotheist",
+   "title": "No Accident",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42699
+  },
+  {
+   "id": "POMB-QI-PACK",
+   "expectTitle": "Pack",
+   "title": "Panic Attack as Airplane Departure Time",
+   "excerptRow": 42722
+  },
+  {
+   "id": "POMB-QI-NEW-YORK-CITY-PROBABLY-HAS-AN-ANXIETY-DISORDER",
+   "expectTitle": "New York City Probably Has an Anxiety Disorder",
+   "title": "No Accident",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42700
+  },
+  {
+   "id": "POMB-QI-THE-NIGHT-YOU-ARE-DIAGNOSED",
+   "expectTitle": "The Night You Are Diagnosed",
+   "title": "The Psychiatrist Said I Would Outgrow My Violences",
+   "excerptRow": 42830
+  },
+  {
+   "id": "POMB-QI-TRIGGER",
+   "expectTitle": "Trigger",
+   "title": "Trust Exercise",
+   "excerptRow": 42850
+  },
+  {
+   "id": "POMB-QI-WHERE-ARE-YOU-REALLY-FROM",
+   "expectTitle": "Where Are You Really From?",
+   "title": "जनम् भमू ि (Ten-Week Confessional)",
+   "book": "So, Stranger",
+   "bookFieldsFrom": "SS-QI-2-A-M-THE-EVE-OF-NEW-YEAR-S-EVE",
+   "excerptRow": 42885
+  },
+  {
+   "id": "RB-QI-EXCUSES",
+   "expectTitle": "EXCUSES",
+   "title": "Executive Functioning",
+   "excerptRow": 33446
+  },
+  {
+   "id": "RB-QI-EXECUTIVE-FUNCTIONING",
+   "expectTitle": "EXECUTIVE FUNCTIONING",
+   "title": "EXILIUM ANXIETATEM: A COUNTER CURSE FOR WITCHES WITH UNSETTLED SPIRITS RIDING THEIR SHOULDERS",
+   "excerptRow": 33454
+  },
+  {
+   "id": "RB-QI-EXILIUM-ANXIETATEM-A-COUNTER-CURSE-FOR-WITCHES-WITH-UNSETTLED-SPIRITS-RIDING-THEIR-SHOULDERS",
+   "expectTitle": "EXILIUM ANXIETATEM: A COUNTER CURSE FOR WITCHES WITH UNSETTLED SPIRITS RIDING THEIR SHOULDERS",
+   "title": "Fat Joke",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33458
+  },
+  {
+   "id": "RB-QI-EXILIUM-ANXIETATEM-A-COUNTER-CURSE-FOR-WITCHES-WITH-UNSETTLED-SPIRITS-RIDING-THEIR-SHOULDERS-V2",
+   "expectTitle": "“EXILIUM ANXIETATEM: A COUNTER CURSE FOR WITCHES WITH UNSETTLED SPIRITS RIDING THEIR SHOULDERS”",
+   "title": "Fat Joke",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33459
+  },
+  {
+   "id": "RB-QI-GLOW",
+   "expectTitle": "GLOW",
+   "title": "GORGON",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33553
+  },
+  {
+   "id": "RB-QI-HANDSOME-OR-IN-WHICH-NEITHER-OF-US-IS-THE-MAN-V4",
+   "expectTitle": "“HANDSOME, OR IN WHICH NEITHER OF US IS ‘THE MAN’”",
+   "title": "What We Were",
+   "excerptRow": 33605
+  },
+  {
+   "id": "RB-QI-INTERSECTIONAL-FEMINISM-AKA-ACTUAL-FUCKING-FEMINISM-PLAYS-THE-DOZENS-WITH-WHITE-FEMINISM",
+   "expectTitle": "INTERSECTIONAL FEMINISM (AKA ACTUAL FUCKING FEMINISM) PLAYS THE DOZENS WITH WHITE FEMINISM",
+   "title": "Letter to My Cat Exploring My Impending Spinsterhood",
+   "book": "Nothing Is Okay",
+   "bookFieldsFrom": "NIO-QI-A-GREEN-BOOK-FOR-MY-NIECE",
+   "excerptRow": 33681
+  },
+  {
+   "id": "RB-QI-ODE-TO-THE-INVISIBLE-GIRL",
+   "expectTitle": "ODE TO THE INVISIBLE GIRL",
+   "title": "ODE TO TRACY TURNBLAD",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33772
+  },
+  {
+   "id": "RB-QI-PEACHES",
+   "expectTitle": "PEACHES",
+   "title": "POEM FOR SUSAN ‘BOOMER’ JENKINS From the Australian TV Show Wentworth",
+   "excerptRow": 33810
+  },
+  {
+   "id": "RB-QI-PRAISE-TO-THE-LONGEST-NIGHT-OF-THE-YEAR",
+   "expectTitle": "PRAISE TO THE LONGEST NIGHT OF THE YEAR",
+   "title": "PRE-FLIGHT PRAYER OF A FAT GIRL",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33827
+  },
+  {
+   "id": "RB-QI-PRAISE-TO-THE-LONGEST-NIGHT-OF-THE-YEAR-V2",
+   "expectTitle": "“PRAISE TO THE LONGEST NIGHT OF THE YEAR”",
+   "title": "PRE-FLIGHT PRAYER OF A FAT GIRL",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33826
+  },
+  {
+   "id": "RB-QI-QUESTIONNAIRE-FOR-FUTURE-POTENTIAL-PARTNERS",
+   "expectTitle": "“QUESTIONNAIRE FOR FUTURE POTENTIAL PARTNERS”",
+   "title": "QUESTIONS FOR YOKO ONO WHEN MY LOVE DECIDES WE NEED A BREAK",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33884
+  },
+  {
+   "id": "RB-QI-THEORY-OF-THE-ORIGIN-OF-WHITENESS",
+   "expectTitle": "THEORY OF THE ORIGIN OF WHITENESS",
+   "title": "THERE USED TO BE A FOTOMAT HERE",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 34046
+  },
+  {
+   "id": "RB-QI-THIRTY-SIX-V2",
+   "expectTitle": "“THIRTY-SIX”",
+   "title": "THIS IS JUST TO SAY” After William Carlos William",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 33146
+  },
+  {
+   "id": "RB-QI-THIRTY-SIX-V3",
+   "expectTitle": "“THIRTY-SIX”",
+   "title": "THREE HEART MONTY",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 34066
+  },
+  {
+   "id": "RB-QI-TO-THE-GIRL-IN-BLACKFACE-ON-HALLOWEEN-2012",
+   "expectTitle": "TO THE GIRL IN BLACKFACE ON HALLOWEEN 2012",
+   "title": "TRAGEDY",
+   "book": "Fat Girl Finishing School",
+   "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
+   "excerptRow": 34080
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-1",
+   "expectTitle": "Book Specific Quote Graphic - SD 1",
+   "title": "Lineage: A Desert Prayer",
+   "excerptRow": 9047
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-2",
+   "expectTitle": "Book Specific Quote Graphic - SD 2",
+   "title": "English Literature",
+   "excerptRow": 9034
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-3",
+   "expectTitle": "Book Specific Quote Graphic - SD 3",
+   "title": "Petrichor",
+   "excerptRow": 9052
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-5",
+   "expectTitle": "Book Specific Quote Graphic - SD 5",
+   "title": "E1 Buck Private: Amarillo, Texas, 1963",
+   "excerptRow": 9029
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-6",
+   "expectTitle": "Book Specific Quote Graphic - SD 6",
+   "title": "Waiting",
+   "excerptRow": 9070
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-7",
+   "expectTitle": "Book Specific Quote Graphic - SD 7",
+   "title": "Bath Riots, 1917",
+   "excerptRow": 9005
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-8",
+   "expectTitle": "Book Specific Quote Graphic - SD 8",
+   "title": "Riverless",
+   "excerptRow": 9056
+  },
+  {
+   "id": "SRH-QI-FRAGILE-V2",
+   "expectTitle": "FRAGILE",
+   "title": "GOD BLESS DELI SPEAKS TO MY GENTRIFIED NEIGHBORHOOD",
+   "excerptRow": 43339
+  },
+  {
+   "id": "SRH-QI-NYC-SESTINA",
+   "expectTitle": "NYC SESTINA",
+   "title": "ODE TO JACKSON HEIGHTS",
+   "excerptRow": 43402
+  },
+  {
+   "id": "SRH-QI-SHORT-LIST-OF-LIFE-S-LESSONS-BROUGHT-TO-YOU-BY-WORLD-WRESTLING-ENTERTAINMENT",
+   "expectTitle": "Short List of Life's Lessons Brought to You by World Wrestling Entertainment",
+   "title": "THE AUTOBIOGRAPHY OF MY EYEBROWS",
+   "excerptRow": 43472
+  },
+  {
+   "id": "SRH-QI-WATERFALL-V5",
+   "expectTitle": "WATERFALL",
+   "title": "WHERE ARE YOU REALLY FROM?",
+   "excerptRow": 43549
+  },
+  {
+   "id": "SS-QI-ARS-POETICA-VI-I-PROMISE-I-HAVE-BETTER-THINGS-TO-SAY-THAN-THIS-FOR-NATALIE",
+   "expectTitle": "Ars Poetica VI: I Promise I Have Better Things to Say Than This ‘for Natalie’",
+   "title": "Before",
+   "excerptRow": 42607
+  },
+  {
+   "id": "SS-QI-ARS-POETICA-VI-I-PROMISE-I-HAVE-BETTER-THINGS-TO-SAY-THAN-THIS-FOR-NATALIE-V2",
+   "expectTitle": "“Ars Poetica VI: I Promise I Have Better Things to Say Than This ‘for Natalie’”",
+   "title": "Before",
+   "excerptRow": 42607
+  },
+  {
+   "id": "SS-QI-BEFORE",
+   "expectTitle": "Before",
+   "title": "Call Me Before You Leave Again",
+   "book": "Portrait of My Body as a Crime I'm Still Committing",
+   "bookFieldsFrom": "POMB-QI-ARS-POETICA-IV-STILL-LIFE-AS-LOVER-UNARMED",
+   "excerptRow": 42615
+  },
+  {
+   "id": "SS-QI-BIRKSHIRE-LANE",
+   "expectTitle": "“Birkshire Lane”",
+   "title": "Dear Monsoon",
+   "excerptRow": 42617
+  },
+  {
+   "id": "SS-QI-GHOST-FIELD-1999",
+   "expectTitle": "“Ghost Field, 1999”",
+   "title": "Guidebook for Wild Things Wishing to be Tamed",
+   "excerptRow": 42643
+  },
+  {
+   "id": "SS-QI-I-FOUND-A-NEW-WORLD-ACROSS-THE-SEA",
+   "expectTitle": "I Found a New World Across the Sea",
+   "title": "If the Body is an Artifact",
+   "book": "Portrait of My Body as a Crime I'm Still Committing",
+   "bookFieldsFrom": "POMB-QI-ARS-POETICA-IV-STILL-LIFE-AS-LOVER-UNARMED",
+   "excerptRow": 42658
+  },
+  {
+   "id": "SS-QI-IN-A-DREAM-YOU-SAW-A-WAY-TO-SURVIVE-AFTER-JENNY-HOLZER",
+   "expectTitle": "In a Dream You Saw a Way to Survive ‘after Jenny Holzer’",
+   "title": "In Your Absence",
+   "excerptRow": 42668
+  },
+  {
+   "id": "SS-QI-NOTES-ON-ARRIVAL",
+   "expectTitle": "Notes on Arrival",
+   "title": "OCD Litany",
+   "excerptRow": 42710
+  },
+  {
+   "id": "SS-QI-OCD-LITANY-V2",
+   "expectTitle": "“OCD Litany”",
+   "title": "On the First Day of Planting, My Grandmother Becomes Her Garden",
+   "excerptRow": 42715
+  },
+  {
+   "id": "SS-QI-SEVENTEEN-FOR-GAI",
+   "expectTitle": "“Seventeen ‘for Gai’”",
+   "title": "Ship",
+   "excerptRow": 42777
+  },
+  {
+   "id": "SS-QI-SEVENTY-TWO-HOURS",
+   "expectTitle": "SEVENTY-TWO HOURS",
+   "title": "Ship",
+   "excerptRow": 42778
+  },
+  {
+   "id": "SS-QI-SO-STRANGER",
+   "expectTitle": "So, Stranger",
+   "title": "Still",
+   "book": "Portrait of My Body as a Crime I'm Still Committing",
+   "bookFieldsFrom": "POMB-QI-ARS-POETICA-IV-STILL-LIFE-AS-LOVER-UNARMED",
+   "excerptRow": 42799
+  },
+  {
+   "id": "SS-QI-TAME",
+   "expectTitle": "“Tame”",
+   "title": "That Summer I Wrote the Same Poem Over & Over",
+   "excerptRow": 42806
+  },
+  {
+   "id": "SS-QI-THAT-SUMMER-I-WROTE-THE-SAME-POEM-OVER-AND-OVER",
+   "expectTitle": "“That Summer I Wrote the Same Poem Over and Over”",
+   "title": "The Night You Are Diagnosed",
+   "book": "Portrait of My Body as a Crime I'm Still Committing",
+   "bookFieldsFrom": "POMB-QI-ARS-POETICA-IV-STILL-LIFE-AS-LOVER-UNARMED",
+   "excerptRow": 42827
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - HELLO 40.png",
+   "expectTitle": "HAVING A BALL",
+   "title": "Hello",
+   "excerptRow": 24660
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - LABYRINTH: A MAZE DIFFICULT TO SOLVE 3.png",
+   "expectTitle": "HELLO",
+   "title": "Labyrinth: A Maze Difficult to Solve",
+   "excerptRow": 24664
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - NOTE TO SELF 20.png",
+   "expectTitle": "LABYRINTH: A MAZE DIFFICULT TO SOLVE",
+   "title": "Note to Self",
+   "excerptRow": 12110
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - NUMBER ONE FAN 10.png",
+   "expectTitle": "NOTE TO SELF",
+   "title": "Number One Fan",
+   "excerptRow": 24669
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - SINGLE 14.png",
+   "expectTitle": "NUMBER ONE FAN",
+   "title": "Single",
+   "excerptRow": 24671
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - SISTER SISTER 19.png",
+   "expectTitle": "SINGLE",
+   "title": "Sister Sister",
+   "excerptRow": 24677
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - STALEMATE 12.png",
+   "expectTitle": "SISTER SISTER",
+   "title": "Stalemate",
+   "excerptRow": 24679
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - STRETCH MARKS 36.png",
+   "expectTitle": "STALEMATE",
+   "title": "Stretch Marks",
+   "excerptRow": 24681
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - SUPER NOVA 34.png",
+   "expectTitle": "SUMMER",
+   "title": "SUPER NOVA",
+   "excerptRow": 26848
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - THE BODY MOUTH MARRIAGE 6.png",
+   "expectTitle": "SUPER NOVA",
+   "title": "The Body Mouth Marriage",
+   "excerptRow": 26849
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - SUMMER 22.png",
+   "expectTitle": "STRETCH MARKS",
+   "title": "Summer",
+   "excerptRow": 24683
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - TOMBOY 1.png",
+   "expectTitle": "THE BODY MOUTH MARRIAGE",
+   "title": "Tomboy",
+   "excerptRow": 26856
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - TWITTER GIRL W%2FFINGERS 13.png",
+   "expectTitle": "TOMBOY",
+   "title": "Twitter Girl W/Fingers",
+   "excerptRow": 26857
+  },
+  {
+   "id": "STEWART - WASH - Quote Images - WASH 15.png",
+   "expectTitle": "TWITTER GIRL W/FINGERS",
+   "title": "Wash",
+   "excerptRow": 26861
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Online Dating Profile",
+   "excerptRow": 41561
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V10",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Online Dating Profile",
+   "excerptRow": 41563
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V11",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "The Good House",
+   "excerptRow": 41599
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V13",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "New Year's Day Poem",
+   "excerptRow": 41550
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V12",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Lousy Elegy for Ben Chalmers",
+   "excerptRow": 41547
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V14",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Hair of the Dog",
+   "excerptRow": 41532
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V16",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "New Year’s Day Poem",
+   "excerptRow": 41552
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V2",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "The Good House",
+   "excerptRow": 41597
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V3",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Quitters",
+   "excerptRow": 41575
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V4",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Online Dating Profile",
+   "excerptRow": 41562
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V5",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Safety Dreams",
+   "excerptRow": 41591
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V6",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Queen of Ashley River",
+   "excerptRow": 41573
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V7",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Against Desire",
+   "excerptRow": 41513
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V9",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "Against Desire",
+   "excerptRow": 41514
+  },
+  {
+   "id": "SW-QI-SADNESS-WORKSHOP-V8",
+   "expectTitle": "“Sadness Workshop”",
+   "title": "But Nothing's Fair After Love",
+   "excerptRow": 41519
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V10",
+   "expectTitle": "Swallowtail",
+   "title": "I Guess I’ll Tell It Like This",
+   "excerptRow": 6590
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V11",
+   "expectTitle": "Swallowtail",
+   "title": "Fantastic Breasts and Where to Find Them",
+   "excerptRow": 6522
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V12",
+   "expectTitle": "Swallowtail",
+   "title": "The Problems with First Dates, or How to Really Really Really Not Get Laid",
+   "excerptRow": 6765
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V13",
+   "expectTitle": "Swallowtail",
+   "title": "Anxiety: A Ghost Story",
+   "excerptRow": 6475
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V14",
+   "expectTitle": "Swallowtail",
+   "title": "I Guess I’ll Tell It Like This",
+   "excerptRow": 6592
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V15",
+   "expectTitle": "Swallowtail",
+   "title": "When I Say, ‘I Don’t Trust Myself around You’",
+   "excerptRow": 6840
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V16",
+   "expectTitle": "Swallowtail",
+   "title": "Mondegreen",
+   "excerptRow": 6674
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V17",
+   "expectTitle": "Swallowtail",
+   "title": "Conversations about Top Chef",
+   "excerptRow": 6495
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V18",
+   "expectTitle": "Swallowtail",
+   "title": "That Awful Month I Can Only Write Poems about Leaving, and/or about Limp Bizkit",
+   "excerptRow": 6726
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V19",
+   "expectTitle": "Swallowtail",
+   "title": "When I Say I Forgive You, Know This",
+   "excerptRow": 6835
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V20",
+   "expectTitle": "Swallowtail",
+   "title": "The Fisherman Takes the Fish Home & Tells Her He Loves Her",
+   "excerptRow": 6754
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V21",
+   "expectTitle": "Swallowtail",
+   "title": "Another Rape Poem (IWPS 2014)",
+   "excerptRow": 6467
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V22",
+   "expectTitle": "Swallowtail",
+   "title": "On Kissing the Next Boy",
+   "excerptRow": 6691
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V23",
+   "expectTitle": "Swallowtail",
+   "title": "I Am Not Clinically Crazy Anymore",
+   "excerptRow": 6570
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V25",
+   "expectTitle": "Swallowtail",
+   "title": "In Which I Do Not Fear Harvey Dent",
+   "excerptRow": 6632
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V24",
+   "expectTitle": "Swallowtail",
+   "title": "In Which I Do Not Fear Harvey Dent",
+   "excerptRow": 6628
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V26",
+   "expectTitle": "Swallowtail",
+   "title": "To the Guy in the Back of the Room Complaining about Reading Another Rape Poem",
+   "excerptRow": 6787
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V27",
+   "expectTitle": "Swallowtail",
+   "title": "The Fisherman Takes the Fish Home & Tells Her He Loves Her",
+   "excerptRow": 6743
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V28",
+   "expectTitle": "Swallowtail",
+   "title": "A Coworker Asks Me If I Am Sad, Still",
+   "excerptRow": 6461
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V29",
+   "expectTitle": "Swallowtail",
+   "title": "When I Say, ‘I Don’t Trust Myself around You’",
+   "excerptRow": 6838
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V3",
+   "expectTitle": "Swallowtail",
+   "title": "Mondegreen",
+   "excerptRow": 6675
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V30",
+   "expectTitle": "Swallowtail",
+   "title": "Little Red Riding Hood",
+   "excerptRow": 6662
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V31",
+   "expectTitle": "Swallowtail",
+   "title": "Fantastic Breasts and Where to Find Them",
+   "excerptRow": 6519
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V33",
+   "expectTitle": "Swallowtail",
+   "title": "Shell Game",
+   "excerptRow": 6705
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V34",
+   "expectTitle": "Swallowtail",
+   "title": "What I Mean When I Say Survivor",
+   "excerptRow": 6814
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V35",
+   "expectTitle": "Swallowtail",
+   "title": "Little Red Riding Hood",
+   "excerptRow": 6660
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V36",
+   "expectTitle": "Swallowtail",
+   "title": "Touchdown Jesus",
+   "excerptRow": 6800
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V37",
+   "expectTitle": "Swallowtail",
+   "title": "It Has Been Too Long Since Anyone Has Seen Me Naked",
+   "excerptRow": 6645
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V38",
+   "expectTitle": "Swallowtail",
+   "title": "January",
+   "excerptRow": 6651
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V39",
+   "expectTitle": "Swallowtail",
+   "title": "Fantastic Breasts and Where to Find Them",
+   "excerptRow": 6520
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V4",
+   "expectTitle": "Swallowtail",
+   "title": "The Author’s Mother Writes a Grocery List",
+   "excerptRow": 6732
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V40",
+   "expectTitle": "Swallowtail",
+   "title": "Colfax",
+   "excerptRow": 6487
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V41",
+   "expectTitle": "Swallowtail",
+   "title": "Consider This Your Only Warning",
+   "excerptRow": 6490
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V42",
+   "expectTitle": "Swallowtail",
+   "title": "January",
+   "excerptRow": 6654
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V43",
+   "expectTitle": "Swallowtail",
+   "title": "The Peaches Shrivel on the Counter",
+   "excerptRow": 6760
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V44",
+   "expectTitle": "Swallowtail",
+   "title": "A Coworker Asks Me If I Am Sad, Still",
+   "excerptRow": 6460
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V45",
+   "expectTitle": "Swallowtail",
+   "title": "On Seeing Photos of His New Girlfriend on Facebook",
+   "excerptRow": 6696
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V46",
+   "expectTitle": "Swallowtail",
+   "title": "Consider This Your Only Warning",
+   "excerptRow": 6489
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V47",
+   "expectTitle": "Swallowtail",
+   "title": "In Which I Do Not Fear Harvey Dent",
+   "excerptRow": 6609
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V48",
+   "expectTitle": "Swallowtail",
+   "title": "Fantastic Breasts and Where to Find Them",
+   "excerptRow": 6529
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V49",
+   "expectTitle": "Swallowtail",
+   "title": "Little Red Riding Hood",
+   "excerptRow": 6661
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V5",
+   "expectTitle": "Swallowtail",
+   "title": "In Which I Do Not Fear Harvey Dent",
+   "excerptRow": 6610
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V50",
+   "expectTitle": "Swallowtail",
+   "title": "I Guess I’ll Tell It Like This",
+   "excerptRow": 6593
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V51",
+   "expectTitle": "Swallowtail",
+   "title": "I Guess I’ll Tell It Like This",
+   "excerptRow": 6591
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V53",
+   "expectTitle": "Swallowtail",
+   "title": "It Has Been Too Long Since Anyone Has Seen Me Naked",
+   "excerptRow": 6643
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V52",
+   "expectTitle": "Swallowtail",
+   "title": "In Which I Do Not Fear Harvey Dent",
+   "excerptRow": 6618
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V54",
+   "expectTitle": "Swallowtail",
+   "title": "Conversations about Top Chef",
+   "excerptRow": 6500
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V55",
+   "expectTitle": "Swallowtail",
+   "title": "When The Crazy Came Back",
+   "excerptRow": 6848
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V56",
+   "expectTitle": "Swallowtail",
+   "title": "Anxiety: A Ghost Story",
+   "excerptRow": 6474
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V57",
+   "expectTitle": "Swallowtail",
+   "title": "What I’ve Learned about Trauma",
+   "excerptRow": 6821
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V58",
+   "expectTitle": "Swallowtail",
+   "title": "I Swore I Wouldn’t Do This Again",
+   "excerptRow": 6603
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V59",
+   "expectTitle": "Swallowtail",
+   "title": "Another Rape Poem (IWPS 2014)",
+   "excerptRow": 6466
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V60",
+   "expectTitle": "Swallowtail",
+   "title": "To the Guy in the Back of the Room Complaining about Reading Another Rape Poem",
+   "excerptRow": 6788
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V6",
+   "expectTitle": "Swallowtail",
+   "title": "Someone Lives in Apartment Four",
+   "excerptRow": 6709
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V61",
+   "expectTitle": "Swallowtail",
+   "title": "Hey, Jeff Probst! I Wanna Be on Your Show",
+   "excerptRow": 6560
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V62",
+   "expectTitle": "Swallowtail",
+   "title": "When He Tells the Story",
+   "excerptRow": 6831
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V64",
+   "expectTitle": "Swallowtail",
+   "title": "Little Red Riding Hood",
+   "excerptRow": 6659
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V63",
+   "expectTitle": "Swallowtail",
+   "title": "I Do",
+   "excerptRow": 6583
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V7",
+   "expectTitle": "Swallowtail",
+   "title": "He Has Another Woman’s Name Tattooed On The Inside of His Left Wrist",
+   "excerptRow": 6545
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V8",
+   "expectTitle": "Swallowtail",
+   "title": "Hey, Jeff Probst! I Wanna Be on Your Show",
+   "excerptRow": 6561
+  },
+  {
+   "id": "SWAL-QI-SWALLOWTAIL-V9",
+   "expectTitle": "Swallowtail",
+   "title": "Anxiety: A Ghost Story",
+   "excerptRow": 6472
+  },
+  {
+   "id": "TART-QI-HOW-WE-HUNT-V3",
+   "expectTitle": "How We Hunt",
+   "title": "I Cannot Be Your Martin Luther",
+   "excerptRow": 43132
+  },
+  {
+   "id": "TART-QI-HOW-WE-HUNT-V2",
+   "expectTitle": "How We Hunt",
+   "title": "I Cannot Be Your Martin Luther",
+   "excerptRow": 43131
+  },
+  {
+   "id": "TART-QI-I-CANNOT-BE-YOUR-MARTIN-LUTHER",
+   "expectTitle": "I Cannot Be Your Martin Luther",
+   "title": "In Minneapolis",
+   "excerptRow": 43136
+  },
+  {
+   "id": "TART-QI-PANTHEON",
+   "expectTitle": "PANTHEON",
+   "title": "Tartarus",
+   "excerptRow": 43188
+  },
+  {
+   "id": "TART-QI-PANTHEON-V2",
+   "expectTitle": "PANTHEON",
+   "title": "Tartarus",
+   "excerptRow": 43188
+  },
+  {
+   "id": "TART-QI-SANGUINE-TEMPLE",
+   "expectTitle": "Sanguine Temple",
+   "title": "Scrawled Across the Wall of a College Bar Bathroom: Don’t Date Rappers.",
+   "excerptRow": 43174
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Pete Wentz, Ending in Tyler’s Funeral",
+   "excerptRow": 15635
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V10",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "My Wife Says that Everyone Our Age Right Now Is Listening",
+   "excerptRow": 15489
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V11",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "The Music or the Misery",
+   "excerptRow": 15896
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V12",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "I Mean Maybe None of Us Are Actually from Anywhere",
+   "excerptRow": 15433
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V13",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "In Defense of that Winter Where I Listened to the First Taking Back Sunday Album Every Day Until the Snow Peeled Itself Back from the Grass and I Found My College Sweatshirt Again",
+   "excerptRow": 15474
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V14",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Hunger",
+   "excerptRow": 15682
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V16",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "The Story of The Last Punk Rock Show Before the City Tore Down Little Brother’s",
+   "excerptRow": 15911
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V17",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Pete Wentz, Ending in Tyler’s Funeral",
+   "excerptRow": 15636
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V19",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "My Wife Says that Everyone Our Age Right Now Is Listening",
+   "excerptRow": 15488
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V20",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Sainthood",
+   "excerptRow": 15714
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V2",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ok, I’m Finally Ready to Say I’m Sorry for that One Summer",
+   "excerptRow": 15666
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V21",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "The Year My Brother Stopped Listening to Hip-Hop",
+   "excerptRow": 15929
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V22",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "At My First Punk Show Ever, 1998",
+   "excerptRow": 15325
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V23",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "When We Were 13, Jeff’s Father Left The Needle Down On A Journey Record Before Leaving The House One Morning And Never Coming Back",
+   "excerptRow": 15989
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V24",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "At the House Party Where We Found Out Whitney Houston Was Dead",
+   "excerptRow": 15344
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V26",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Pete Wentz, Ending in Tyler’s Funeral",
+   "excerptRow": 15637
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V28",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "The Author Explains good kid, m.A.A.d. city to His White Friend While Driving Through Southeast Ohio",
+   "excerptRow": 15802
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V27",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "At the House Party Where We Found Out Whitney Houston Was Dead",
+   "excerptRow": 15342
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V3",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "At My First Punk Show Ever, 1998",
+   "excerptRow": 15323
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V29",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Pete Wentz, Ending in Tyler’s Funeral",
+   "excerptRow": 15639
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V31",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Elliott Smith, Ending in the First Snowfall of 2003",
+   "excerptRow": 15559
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V33",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Sainthood",
+   "excerptRow": 15712
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V35",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Drake, Ending with Blood in a Field",
+   "excerptRow": 15550
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V34",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Sainthood",
+   "excerptRow": 15713
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V37",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Hunger",
+   "excerptRow": 15679
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V36",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "I Don’t Remember the Whole Summer When ‘Do The Right Thing’ Dropped",
+   "excerptRow": 15416
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V38",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "In Defense of ‘Moist",
+   "excerptRow": 15464
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V39",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Hunger",
+   "excerptRow": 15681
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V40",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "At My First Punk Show Ever, 1998",
+   "excerptRow": 15323
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V4",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Sheridan Avenue, 2002",
+   "excerptRow": 15771
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V41",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "1995. After the Streetlights Drink Whatever Darkness Is Left",
+   "excerptRow": 15210
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V42",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "1995. After the Streetlights Drink Whatever Darkness Is Left",
+   "excerptRow": 15212
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V43",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Hunger",
+   "excerptRow": 15680
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V44",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "All the Gang Bangers Forgot about the Drive-By",
+   "excerptRow": 15283
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V45",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "I Don’t Remember the Whole Summer When ‘Do The Right Thing’ Dropped",
+   "excerptRow": 15415
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V47",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Windsor Terrace, 1990",
+   "excerptRow": 16028
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V46",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "When We Were 13, Jeff’s Father Left The Needle Down On A Journey Record Before Leaving The House One Morning And Never Coming Back",
+   "excerptRow": 15988
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V48",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Hunger",
+   "excerptRow": 15685
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V49",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "All the Gang Bangers Forgot about the Drive-By",
+   "excerptRow": 15280
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V5",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Jay-Z, Ending in the Rattle of a Fiend’s Teeth",
+   "excerptRow": 15569
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V50",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "When We Were 13, Jeff’s Father Left The Needle Down On A Journey Record Before Leaving The House One Morning And Never Coming Back",
+   "excerptRow": 15991
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V52",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "I Don’t Remember the Whole Summer When ‘Do The Right Thing’ Dropped",
+   "excerptRow": 15417
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V51",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Hunger",
+   "excerptRow": 15684
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V54",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Drake, Ending with Blood in a Field",
+   "excerptRow": 15544
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V56",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "On Hunger",
+   "excerptRow": 15678
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V55",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "At My First Punk Show Ever, 1998",
+   "excerptRow": 15329
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V58",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Drake, Ending with Blood in a Field",
+   "excerptRow": 15542
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V57",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "In Defense of ‘Moist",
+   "excerptRow": 15460
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V59",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "In Defense of that Winter Where I Listened to the First Taking Back Sunday Album Every Day Until the Snow Peeled Itself Back from the Grass and I Found My College Sweatshirt Again",
+   "excerptRow": 15475
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V6",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "The Author Explains good kid, m.A.A.d. city to His White Friend While Driving Through Southeast Ohio",
+   "excerptRow": 15803
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V60",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "XVI",
+   "excerptRow": 16062
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V61",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "XVI",
+   "excerptRow": 16059
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V62",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Kanye",
+   "excerptRow": 15590
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V63",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Windsor Terrace, 1990",
+   "excerptRow": 16030
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V64",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Windsor Terrace, 1990",
+   "excerptRow": 16029
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V65",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "The Year My Brother Stopped Listening to Hip-Hop",
+   "excerptRow": 15930
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V66",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "I Mean Maybe None of Us Are Actually from Anywhere",
+   "excerptRow": 15432
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V67",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "All the White Boys on the Eastside Loved Larry Bird",
+   "excerptRow": 15304
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V68",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "In Defense of that Winter Where I Listened to the First Taking Back Sunday Album Every Day Until the Snow Peeled Itself Back from the Grass and I Found My College Sweatshirt Again",
+   "excerptRow": 15478
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V69",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "When I Say that Loving Me Is Kind of Like Being a Chicago Bulls Fan",
+   "excerptRow": 15978
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V7",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "The Story of The Last Punk Rock Show Before the City Tore Down Little Brother’s",
+   "excerptRow": 15915
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V70",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Kanye",
+   "excerptRow": 15588
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V71",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "I Mean Maybe None of Us Are Actually from Anywhere",
+   "excerptRow": 15436
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V72",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Elliott Smith, Ending in the First Snowfall of 2003",
+   "excerptRow": 15560
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V73",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "When I Say that Loving Me Is Kind of Like Being a Chicago Bulls Fan",
+   "excerptRow": 15981
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V74",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Elliott Smith, Ending in the First Snowfall of 2003",
+   "excerptRow": 15558
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V75",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "All of the Black Boys Finally Stopped Packing Switchblades",
+   "excerptRow": 15252
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V76",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "My Wife Says that There Are So Many Songs",
+   "excerptRow": 15513
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V77",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "College Avenue, Halloween, 2002",
+   "excerptRow": 15359
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V79",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Sheridan Avenue, 2002",
+   "excerptRow": 15784
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V78",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Sheridan Avenue, 2002",
+   "excerptRow": 15777
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V8",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Kanye West in Two Parts, Ending in a Chain of Mothers Rising from the River",
+   "excerptRow": 15603
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V80",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "Ode to Kanye",
+   "excerptRow": 15588
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V81",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "All of the Black Boys Finally Stopped Packing Switchblades",
+   "excerptRow": 15253
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V9",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "A Genealogy",
+   "excerptRow": 15223
+  },
+  {
+   "id": "TF-QI-GET-UP-EARLY-GET-TO-THE-DOCK",
+   "expectTitle": "Get Up Early, Get to the Dock",
+   "title": "Going to Texas",
+   "excerptRow": 27914
+  },
+  {
+   "id": "TF-QI-KARINA",
+   "expectTitle": "“Karina”",
+   "title": "Kisses",
+   "excerptRow": 28065
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V10",
+   "expectTitle": "The Future",
+   "title": "Alternate Universe in Which My Father Did Not Leave but Died",
+   "excerptRow": 27641
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V12",
+   "expectTitle": "The Future",
+   "title": "Vocabulary",
+   "excerptRow": 28898
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V11",
+   "expectTitle": "The Future",
+   "title": "Revenge Sexy",
+   "excerptRow": 28613
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V13",
+   "expectTitle": "The Future",
+   "title": "Rust Belt",
+   "excerptRow": 28627
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V14",
+   "expectTitle": "The Future",
+   "title": "Big Gold Jukebox",
+   "excerptRow": 27711
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V15",
+   "expectTitle": "The Future",
+   "title": "The Door",
+   "excerptRow": 28714
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V16",
+   "expectTitle": "The Future",
+   "title": "Vocabulary",
+   "excerptRow": 28894
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V17",
+   "expectTitle": "The Future",
+   "title": "We’re supposed to take things slow, and we will, we’ll talk slow, we’ll eat slow, reveal everything we’ve kept hidden, just like that, slow.",
+   "excerptRow": 27580
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V19",
+   "expectTitle": "The Future",
+   "title": "I Don’t Need to Have a Better Day, I Need to Feel Better About This One",
+   "excerptRow": 27994
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V18",
+   "expectTitle": "The Future",
+   "title": "Vocabulary",
+   "excerptRow": 28895
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V20",
+   "expectTitle": "The Future",
+   "title": "Karina",
+   "excerptRow": 28063
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V22",
+   "expectTitle": "The Future",
+   "title": "Two Days in Williamsport, PA",
+   "excerptRow": 28883
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V23",
+   "expectTitle": "The Future",
+   "title": "Two Days in Williamsport, PA",
+   "excerptRow": 28883
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V24",
+   "expectTitle": "The Future",
+   "title": "Futility Machine",
+   "excerptRow": 27878
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V25",
+   "expectTitle": "The Future",
+   "title": "Blood in My Sock",
+   "excerptRow": 27726
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V28",
+   "expectTitle": "The Future",
+   "title": "Ode to Me, from My Denim Vest",
+   "excerptRow": 28397
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V29",
+   "expectTitle": "The Future",
+   "title": "Move-In Day",
+   "excerptRow": 28246
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V30",
+   "expectTitle": "The Future",
+   "title": "Against Hugs",
+   "excerptRow": 27624
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V31",
+   "expectTitle": "The Future",
+   "title": "Next Exit",
+   "excerptRow": 28287
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V32",
+   "expectTitle": "The Future",
+   "title": "Ode to The Gaslight Anthem, Ending in the End of Childhood",
+   "excerptRow": 28405
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V34",
+   "expectTitle": "The Future",
+   "title": "Move-In Day",
+   "excerptRow": 28247
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V33",
+   "expectTitle": "The Future",
+   "title": "Blood in My Sock",
+   "excerptRow": 27722
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V35",
+   "expectTitle": "The Future",
+   "title": "For Henry",
+   "excerptRow": 27821
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V36",
+   "expectTitle": "The Future",
+   "title": "For Henry",
+   "excerptRow": 27828
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V38",
+   "expectTitle": "The Future",
+   "title": "For Henry",
+   "excerptRow": 27820
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V39",
+   "expectTitle": "The Future",
+   "title": "Ode to The Gaslight Anthem, Ending in the End of Childhood",
+   "excerptRow": 28407
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V4",
+   "expectTitle": "The Future",
+   "title": "I Don’t Need to Have a Better Day, I Need to Feel Better About This One",
+   "excerptRow": 28010
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V41",
+   "expectTitle": "The Future",
+   "title": "Psalm 12, in Which the Author Alienates His Audience",
+   "excerptRow": 28549
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V40",
+   "expectTitle": "The Future",
+   "title": "For Henry",
+   "excerptRow": 27832
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V42",
+   "expectTitle": "The Future",
+   "title": "Going to Texas",
+   "excerptRow": 27915
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V44",
+   "expectTitle": "The Future",
+   "title": "Me, But Happy",
+   "excerptRow": 28189
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V46",
+   "expectTitle": "The Future",
+   "title": "Going to Texas",
+   "excerptRow": 27914
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V48",
+   "expectTitle": "The Future",
+   "title": "Me, But Happy",
+   "excerptRow": 28218
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V49",
+   "expectTitle": "The Future",
+   "title": "Me, But Happy",
+   "excerptRow": 28202
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V5",
+   "expectTitle": "The Future",
+   "title": "The Door",
+   "excerptRow": 28725
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V6",
+   "expectTitle": "The Future",
+   "title": "Vocabulary",
+   "excerptRow": 28896
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V7",
+   "expectTitle": "The Future",
+   "title": "I Don’t Need to Have a Better Day, I Need to Feel Better About This One",
+   "excerptRow": 27995
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V8",
+   "expectTitle": "The Future",
+   "title": "The Door",
+   "excerptRow": 28733
+  },
+  {
+   "id": "TF-QI-TWO-DAYS-IN-WILLIAMSPORT-PA-V3",
+   "expectTitle": "“Two Days in Williamsport, PA”",
+   "title": "Ugh Forgiveness",
+   "book": "About Time",
+   "bookFieldsFrom": "AT-QI-A-TIRADE-AGAINST-HOT-TUBS-GIVING-WAY-TO-THE-UNIVERSAL-CONSCIOUSNESS",
+   "excerptRow": 28889
+  },
+  {
+   "id": "TFLE-QI-BIG-GOLD-JUKEBOX",
+   "expectTitle": "Big Gold Jukebox",
+   "title": "Blood in My Sock",
+   "excerptRow": 27722
+  },
+  {
+   "id": "TFLE-QI-DELUGE",
+   "expectTitle": "Deluge",
+   "title": "Despite",
+   "book": "About Time",
+   "bookFieldsFrom": "AT-QI-A-TIRADE-AGAINST-HOT-TUBS-GIVING-WAY-TO-THE-UNIVERSAL-CONSCIOUSNESS",
+   "excerptRow": 27776
+  },
+  {
+   "id": "TFLE-QI-FUTURE-TENSE",
+   "expectTitle": "FUTURE TENSE",
+   "title": "Get Up Early, Get to the Dock",
+   "excerptRow": 27910
+  },
+  {
+   "id": "TFLE-QI-GET-UP-EARLY-GET-TO-THE-DOCK",
+   "expectTitle": "Get Up Early, Get to the Dock",
+   "title": "Going to Texas",
+   "excerptRow": 27915
+  },
+  {
+   "id": "TFLE-QI-HISTORY-OF-PUNK-ROCK",
+   "expectTitle": "“History of Punk Rock”",
+   "title": "How Do You Sleep with an IV In?",
+   "excerptRow": 27980
+  },
+  {
+   "id": "TFLE-QI-JOEY-FORGETS",
+   "expectTitle": "“Joey Forgets”",
+   "title": "Karina",
+   "excerptRow": 28063
+  },
+  {
+   "id": "TFLE-QI-NEW-CHEMICAL",
+   "expectTitle": "New Chemical",
+   "title": "Next Exit",
+   "excerptRow": 28287
+  },
+  {
+   "id": "TFLE-QI-PSALM-12-IN-WHICH-THE-AUTHOR-ALIENATES-HIS-AUDIENCE",
+   "expectTitle": "“Psalm 12, in Which the Author Alienates His Audience”",
+   "title": "Going to Texas",
+   "excerptRow": 27914
+  },
+  {
+   "id": "TFLE-QI-UGH-FORGIVENESS",
+   "expectTitle": "Ugh Forgiveness",
+   "title": "Vocabulary",
+   "excerptRow": 28894
+  },
+  {
+   "id": "TFLE-QI-UGH-FORGIVENESS-V2",
+   "expectTitle": "Ugh Forgiveness",
+   "title": "Vocabulary",
+   "excerptRow": 28895
+  },
+  {
+   "id": "TFLE-QI-VOCABULARY",
+   "expectTitle": "Vocabulary",
+   "title": "Water Is Distantly Related to All Other Water",
+   "book": "About Time",
+   "bookFieldsFrom": "AT-QI-A-TIRADE-AGAINST-HOT-TUBS-GIVING-WAY-TO-THE-UNIVERSAL-CONSCIOUSNESS",
+   "excerptRow": 28911
+  },
+  {
+   "id": "TFLE-QI-WHAT-S-GOOD",
+   "expectTitle": "What's Good",
+   "title": "When I say that loving me is like a brick wall falling on your car in the parking lot of your own damn apartment complex",
+   "book": "About Time",
+   "bookFieldsFrom": "AT-QI-A-TIRADE-AGAINST-HOT-TUBS-GIVING-WAY-TO-THE-UNIVERSAL-CONSCIOUSNESS",
+   "excerptRow": 28959
+  },
+  {
+   "id": "URBA-QI-ATLANTIS-DISCOVERED",
+   "expectTitle": "Atlantis, Discovered",
+   "title": "Coughing",
+   "excerptRow": 40066
+  },
+  {
+   "id": "URBA-QI-FOR-CLEVELAND-OHIO-MY-HOME",
+   "expectTitle": "“For Cleveland, Ohio, My Home”",
+   "title": "Grinding",
+   "excerptRow": 40085
+  },
+  {
+   "id": "URBA-QI-FOR-CLEVELAND-OHIO-MY-HOME-V2",
+   "expectTitle": "“For Cleveland, Ohio, My Home”",
+   "title": "Haint Blue",
+   "excerptRow": 40088
+  },
+  {
+   "id": "URBA-QI-HOW-CLEOPATRA-MIGHTVE-FELT-IN-CLEVELAND-OHIO-V2",
+   "expectTitle": "How Cleopatra Might’ve Felt in Cleveland, Ohio",
+   "title": "I Met Urbanshee & She Gave Me a Name",
+   "excerptRow": 40159
+  },
+  {
+   "id": "URBA-QI-HOW-THE-ROMANS-MUST-HAVE-TREATED-CLEOPATRA-IN-EGYPT",
+   "expectTitle": "How the Romans Must Have Treated Cleopatra in Egypt",
+   "title": "I Wish I Could Have Kissed Devon Wilson on the Mouth",
+   "excerptRow": 40162
+  },
+  {
+   "id": "URBA-QI-I-WISH-I-COULD-HAVE-KISSED-DEVON-WILSON-ON-THE-MOUTH",
+   "expectTitle": "I Wish I Could Have Kissed Devon Wilson on the Mouth",
+   "title": "Haint Glitter",
+   "excerptRow": 40095
+  },
+  {
+   "id": "URBA-QI-I-WONDER-WHAT-HAPPENS-TO-THE-LITTLE-BLACK-GIRL-FROM-KILL-BILL-VOL-2",
+   "expectTitle": "“I Wonder What Happens to the Little Black Girl from ‘Kill Bill Vol. 2’”",
+   "title": "In Attempts to Bring You Back",
+   "excerptRow": 40169
+  },
+  {
+   "id": "URBA-QI-IN-ATTEMPTS-TO-BRING-YOU-BACK",
+   "expectTitle": "In Attempts to Bring You Back",
+   "title": "Haint Red",
+   "excerptRow": 40102
+  },
+  {
+   "id": "URBA-QI-ON-GLORIFICATION",
+   "expectTitle": "“On Glorification\"",
+   "title": "Coughing",
+   "excerptRow": 40066
+  },
+  {
+   "id": "URBA-QI-ON-THE-DAY-I-LEARNED-MY-FATHER-WAS-MURDERED-I-LEARNED-V2",
+   "expectTitle": "“On the Day I Learned My Father Was Murdered, I Learned”",
+   "title": "Coughing",
+   "excerptRow": 40071
+  },
+  {
+   "id": "URBA-QI-ONCE-YOU-KNOW-WHAT-YOUR-FATHERS-BRAIN-LOOKS-LIKE",
+   "expectTitle": "Once You Know What Your Father’s Brain Looks Like",
+   "title": "Orange Is the New Blood",
+   "excerptRow": 40206
+  },
+  {
+   "id": "URBA-QI-POP-QUIZ-DO-YOU-UNDERSTAND-WHAT-YOU-ARE-READING-V2",
+   "expectTitle": "Pop Quiz: Do You Understand What You Are Reading?",
+   "title": "Started from the Bottom Now I’m Sula",
+   "excerptRow": 40244
+  },
+  {
+   "id": "URBA-QI-STARTED-FROM-THE-BOTTOM-NOW-IM-SULA",
+   "expectTitle": "Started from the Bottom Now I’m Sula",
+   "title": "I Wonder What Happens to the Little Black Girl from Kill Bill Vol. 2",
+   "excerptRow": 40166
+  },
+  {
+   "id": "URBA-QI-THE-DRUG-DEALER-S-DAUGHTER",
+   "expectTitle": "The Drug Dealer's Daughter",
+   "title": "The One Night",
+   "excerptRow": 40256
+  },
+  {
+   "id": "URBA-QI-THE-DRUG-DEALER-S-DAUGHTER-RUSTBELT-2014",
+   "expectTitle": "The Drug Dealer's Daughter (Rustbelt 2014)",
+   "title": "The One Night",
+   "excerptRow": 40257
+  },
+  {
+   "id": "URBA-QI-URBAN-BOY-LIVES-FOR-MARSHAWN-MCCARREL",
+   "expectTitle": "“Urban Boy Lives ‘For Marshawn McCarrel’”",
+   "title": "Urban Girl ‘After Terrance Hayes, Angel Nafis & Natasha ‘T’ Miller’",
+   "excerptRow": 40318
+  },
+  {
+   "id": "URBA-QI-URBAN-GIRL-FINALLY-RESPONDS-TO-THE-YO-MAMA-JOKES-V3",
+   "expectTitle": "“Urban Girl Finally Responds to the ‘Yo Mama’ Jokes”",
+   "title": "Grinding",
+   "excerptRow": 40086
+  },
+  {
+   "id": "URBA-QI-URBAN-GIRL-IN-FOUR-NON-OSCAR-NOMINATED-PARTS-PART-3-SO-WHATS-THE-PROCEDURE-WHEN-YOU-HAVE-A-GUN-TO-YOUR-HEAD-FRANKIE",
+   "expectTitle": "Urban Girl in Four Non-Oscar-Nominated Parts Part 3: ‘So, What’s the Procedure When You Have a Gun to Your Head?’ // Frankie",
+   "title": "Unfortunate",
+   "excerptRow": 40310
+  },
+  {
+   "id": "URBA-QI-URBANSHEE-PREDICTS-THE-BIRTH-OF-TONI-MORRISON-WRITES-HER-A-LETTER",
+   "expectTitle": "Urbanshee Predicts the Birth of Toni Morrison & Writes Her a Letter",
+   "title": "Waste(full)",
+   "excerptRow": 40385
+  },
+  {
+   "id": "URBA-QI-WASTE-FULL",
+   "expectTitle": "Waste(full)",
+   "title": "I Wish I Could Have Kissed Devon Wilson on the Mouth",
+   "excerptRow": 40164
+  },
+  {
+   "id": "URBA-QI-WE-KNOW-ITS-RUDE-TO-ASK-FOR-AMBER-ROSE",
+   "expectTitle": "“We Know It’s Rude to Ask ‘For Amber Rose’”",
+   "title": "Things I Learned in the Hood before Turning",
+   "excerptRow": 40301
+  },
+  {
+   "id": "URBA-QI-WE-SAID-I-LOVE-YOU-BUT-I-THINK-WE-WERE-BOTH-TRYING-TO-GET-THE-LAST-WORD",
+   "expectTitle": "“We Said ‘I Love You,’ But I Think We Were Both Trying To Get the Last Word”",
+   "title": "Unfortunate",
+   "excerptRow": 40306
+  },
+  {
+   "id": "URBA-QI-WORLD-IN-WHICH-THE-WORD-FATHER-IS-REPLACED-BY-HOOD",
+   "expectTitle": "World in Which the Word ‘Father’ Is Replaced by ‘Hood’",
+   "title": "Necromancy Explains the Author",
+   "excerptRow": 40187
+  },
+  {
+   "id": "W-H-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-WH-1",
+   "expectTitle": "Book Specific Quote Graphic - WH 1",
+   "title": "MY MOTHER ASKS ME TO EXPLAIN MY DEPRESSION TO HER LIKE IT IS A BONE THAT IS BROKEN.",
+   "excerptRow": 9039
+  },
+  {
+   "id": "W-H-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-WH-2",
+   "expectTitle": "Book Specific Quote Graphic - WH 2",
+   "title": "HOW",
+   "excerptRow": 9028
+  },
+  {
+   "id": "W-H-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-WH-3",
+   "expectTitle": "Book Specific Quote Graphic - WH 3",
+   "title": "THE FIRST TIME I KISSED A WOMAN IT WAS NOT A POLITICAL STATEMENT.",
+   "excerptRow": 9060
+  },
+  {
+   "id": "W-H-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-WH-4",
+   "expectTitle": "Book Specific Quote Graphic - WH 4",
+   "title": "WHAT IS YOUR WORST MEMORY?",
+   "excerptRow": 11840
+  },
+  {
+   "id": "W-H-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-WH-6",
+   "expectTitle": "Book Specific Quote Graphic - WH 6",
+   "title": "MY MOTHER ASKS ME TO EXPLAIN MY DEPRESSION TO HER LIKE IT IS A BONE THAT IS BROKEN.",
+   "excerptRow": 9038
+  },
+  {
+   "id": "WIDT-QI-A-LIFE-LIKE-THAT",
+   "expectTitle": "A LIFE LIKE THAT",
+   "title": "A Love Letter to Staying",
+   "excerptRow": 29813
+  },
+  {
+   "id": "WIDT-QI-DADDY",
+   "expectTitle": "DADDY",
+   "title": "DEAD DAD JOKES",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 29760
+  },
+  {
+   "id": "WIDT-QI-FORGIVENESS",
+   "expectTitle": "FORGIVENESS",
+   "title": "gas station",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30020
+  },
+  {
+   "id": "WIDT-QI-FORGIVENESS-V2",
+   "expectTitle": "FORGIVENESS",
+   "title": "gay love is the only thing saving me",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30023
+  },
+  {
+   "id": "WIDT-QI-GUILT",
+   "expectTitle": "GUILT",
+   "title": "As The Feminist Saying Goes",
+   "excerptRow": 29865
+  },
+  {
+   "id": "WIDT-QI-I-BUY-MY-GRIEF-SECOND-HAND-AT-THE-GOODWILL-PAY-BY-THE-POUND",
+   "expectTitle": "I BUY MY GRIEF SECOND HAND AT THE GOODWILL PAY BY THE POUND",
+   "title": "i find a chunk of bone the width of my index finger",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30111
+  },
+  {
+   "id": "WIDT-QI-I-MAKE-UP-NEW-COLORS-FOR-GRIEF-V2",
+   "expectTitle": "I MAKE UP NEW COLORS FOR GRIEF",
+   "title": "i never wanted to believe in ghosts",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30141
+  },
+  {
+   "id": "WIDT-QI-I-MAKE-UP-NEW-COLORS-FOR-GRIEF-V3",
+   "expectTitle": "I make up new colors for grief",
+   "title": "i never wanted to believe in ghosts",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30140
+  },
+  {
+   "id": "WIDT-QI-I-MAKE-UP-NEW-COLORS-FOR-THE-GRIEF",
+   "expectTitle": "i make up new colors for the grief",
+   "title": "i never wanted to believe in ghosts",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30142
+  },
+  {
+   "id": "WIDT-QI-I-WAS-NEVER-PROMISED-JOY",
+   "expectTitle": "I WAS NEVER PROMISED JOY",
+   "title": "i watched him die",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30162
+  },
+  {
+   "id": "WIDT-QI-IF-I-KNEW-WHAT-WOULD-HAPPEN",
+   "expectTitle": "If I knew what would happen",
+   "title": "IF IT WAS A 'BLESSING IN DISGUISE",
+   "excerptRow": 30198
+  },
+  {
+   "id": "WIDT-QI-IF-IT-WAS-A-BLESSING-IN-DISGUISE",
+   "expectTitle": "IF IT WAS A BLESSING IN DISGUISE",
+   "title": "if the cells that make up hair are already dead",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30202
+  },
+  {
+   "id": "WIDT-QI-IF-YOU-OPENED-ME-UP",
+   "expectTitle": "If you opened me up",
+   "title": "IN MY DREAMS HE ALWAYS COMES BACK TO LIFE",
+   "excerptRow": 30227
+  },
+  {
+   "id": "WIDT-QI-IN-MY-DREAMS-HE-ALWAYS-COMES-BACK-TO-LIFE-V2",
+   "expectTitle": "in my dreams he always comes back to life",
+   "title": "in the moments when we had been alone",
+   "excerptRow": 30237
+  },
+  {
+   "id": "WIDT-QI-LAST-NIGHT-THE-APARTMENT-ACROSS-THE-STREET-WAS-ON-FIRE",
+   "expectTitle": "LAST NIGHT THE APARTMENT ACROSS THE STREET WAS ON FIRE",
+   "title": "maybe being sad was the easy part",
+   "excerptRow": 30311
+  },
+  {
+   "id": "WIDT-QI-MY-HEART-LIVES-IN-THE-CRAWL-SPACE-JUST-BIG-ENOUGH-FOR-A-BODY-ON-THE-UPPER-DECK-OF-A-JAYCO-JAY-HITCH-CAMPER",
+   "expectTitle": "MY HEART LIVES IN THE CRAWL SPACE JUST BIG ENOUGH FOR A BODY ON THE UPPER DECK OF A JAYCO JAY HITCH CAMPER",
+   "title": "My Therapist Says My Dad Was Lucky to Have Me as a Daughter",
+   "excerptRow": 30384
+  },
+  {
+   "id": "WIDT-QI-THE-FIREPIT",
+   "expectTitle": "THE FIREPIT",
+   "title": "the first birthday he is not alive",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30534
+  },
+  {
+   "id": "WIDT-QI-THE-FIREPIT-V2",
+   "expectTitle": "the firepit",
+   "title": "the first birthday he is not alive",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30533
+  },
+  {
+   "id": "WIDT-QI-THE-MONTHS-AFTER-MY-FATHERS-DEATH-IN-10-PLAGUES",
+   "expectTitle": "THE MONTHS AFTER MY FATHER’S DEATH, IN 10 PLAGUES",
+   "title": "the quarry, sandstone, mn",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30586
+  },
+  {
+   "id": "WIDT-QI-URN-V2",
+   "expectTitle": "URN",
+   "title": "we are on a road trip",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30679
+  },
+  {
+   "id": "WIDT-QI-URN-V3",
+   "expectTitle": "urn",
+   "title": "we are on a road trip",
+   "book": "Dead Dad Jokes",
+   "bookFieldsFrom": "DDJ-QI-A-HAND-BECOMES",
+   "excerptRow": 30679
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - All Praise to the Wolf Moon of 2023 - 10.png",
+   "expectTitle": "A BLACK GIRL’S INCANTATION FOR FREEDOM AND LIBERATION",
+   "title": "All Praise to the Wolf Moon of 2023",
+   "excerptRow": 7634
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - But The Memories - 20.png",
+   "expectTitle": "black woman vs. death in the U.S. Supreme Court  (remote due to COVID-19), 2022",
+   "title": "but the memories",
+   "excerptRow": 7651
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - Epistle For Adelphia Asiya - 13.png",
+   "expectTitle": "But The Memories",
+   "title": "epistle for adelphia asiya",
+   "excerptRow": 7658
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - Eruption Imminent - 23.png",
+   "expectTitle": "Epistle For Adelphia Asiya",
+   "title": "eruption imminent",
+   "excerptRow": 7659
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - From The Rubble - 19.png",
+   "expectTitle": "First Stake",
+   "title": "From The Rubble",
+   "excerptRow": 7663
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - Good Mo(u)rning - 14.png",
+   "expectTitle": "generational curse retold",
+   "title": "good mo(u)rning",
+   "excerptRow": 7666
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - John 11:35 [Unrevised] - 5.png",
+   "expectTitle": "Introducing…",
+   "title": "John 11:35 [Unrevised",
+   "excerptRow": 7674
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - ON MEN WITH INFERIORITY COMPLEXES WHO PURSUE FIRE-FORGED WOMEN: AN ABECEDARIAN  - 25.png",
+   "expectTitle": "Mirror, Mirror",
+   "title": "On Men With Inferiority Complexes Who Pursue Fire-Forged Women: An Abecedarian",
+   "excerptRow": 7692
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - Mirror, Mirror - 15.png",
+   "expectTitle": "life story #24",
+   "title": "mirror, mirror",
+   "excerptRow": 7690
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - To The Eight-Year-Old Girl Who No Longer Wanted To Be Exceptional - 21.png",
+   "expectTitle": "sweet tooth",
+   "title": "TO THE EIGHT-YEAR-OLD GIRL WHO NO LONGER WANTED TO BE EXCEPTIONAL",
+   "excerptRow": 9000
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - black woman vs. death in the U.S. Supreme Court  (remote due to COVID-19), 2022 - 3.png",
+   "expectTitle": "All Praise to the Wolf Moon of 2023",
+   "title": "black woman vs. death in the U.S. Supreme Court (remote due to COVID-19), 2022",
+   "excerptRow": 7641
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - Wine Drunk - 18.png",
+   "expectTitle": "vanishing act",
+   "title": "Wine Drunk",
+   "excerptRow": 9007
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - first stake - 1.png",
+   "expectTitle": "Eruption Imminent",
+   "title": "first stake",
+   "excerptRow": 7660
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - generational curse retold - 28.png",
+   "expectTitle": "From The Rubble",
+   "title": "generational curse retold",
+   "excerptRow": 7664
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - life story #11 - 8.png",
+   "expectTitle": "John 11:35 [Unrevised]",
+   "title": "life story #11",
+   "excerptRow": 7678
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - sweet tooth - 24.png",
+   "expectTitle": "ON MEN WITH INFERIORITY COMPLEXES WHO PURSUE FIRE-FORGED WOMEN: AN ABECEDARIAN",
+   "title": "sweet tooth",
+   "excerptRow": 8994
+  },
+  {
+   "id": "WILLIAMS - OADW - Quote Images  - vanishing act - 4.png",
+   "expectTitle": "To The Eight-Year-Old Girl Who No Longer Wanted To Be Exceptional",
+   "title": "vanishing act",
+   "excerptRow": 9006
+  },
+  {
+   "id": "WSH-QI-ONE-TWO",
+   "expectTitle": "“One Two”",
+   "title": "OUT",
+   "book": "Ephemera",
+   "bookFieldsFrom": "EPHE-QI-42-YEARS",
+   "excerptRow": 40729
+  },
+  {
+   "id": "WWAS-QI-ACCORDING-TO-UBERFACTS-ON-TWITTER",
+   "expectTitle": "According to @Uberfacts on twitter",
+   "title": "After’s After Party",
+   "excerptRow": 30834
+  },
+  {
+   "id": "WWAS-QI-AFTERS-AFTER-PARTY",
+   "expectTitle": "“After’s After Party”",
+   "title": "Against The World",
+   "excerptRow": 30838
+  },
+  {
+   "id": "WWAS-QI-ANATOMY-OF-A-PRAYER-V3",
+   "expectTitle": "“Anatomy Of a Prayer”",
+   "title": "Colonization",
+   "excerptRow": 30890
+  },
+  {
+   "id": "WWAS-QI-COLONIZATION",
+   "expectTitle": "Colonization",
+   "title": "Copper",
+   "excerptRow": 30895
+  },
+  {
+   "id": "WWAS-QI-COLONIZATION-V2",
+   "expectTitle": "“Colonization”",
+   "title": "Copper",
+   "excerptRow": 30894
+  },
+  {
+   "id": "WWAS-QI-ECHO-OF-AN-EPILOGUE",
+   "expectTitle": "Echo of an Epilogue",
+   "title": "Eventually Somebody Has To Be The Last Of Us",
+   "excerptRow": 30949
+  },
+  {
+   "id": "WWAS-QI-ECHO-OF-AN-EPILOGUE-V3",
+   "expectTitle": "Echo of an Epilogue",
+   "title": "El Dorado Is A Taste, Not A Place",
+   "excerptRow": 30947
+  },
+  {
+   "id": "WWAS-QI-EVENTUALLY-SOMEBODY-HAS-TO-BE-THE-LAST-OF-US",
+   "expectTitle": "Eventually Somebody Has To Be The Last Of Us",
+   "title": "Ever Wonder What Happens When Someone Says “All Lives Matter” Five Times Into A Mirror",
+   "excerptRow": 30954
+  },
+  {
+   "id": "WWAS-QI-EVENTUALLY-SOMEBODY-HAS-TO-BE-THE-LAST-OF-US-V2",
+   "expectTitle": "Eventually Somebody Has To Be The Last Of Us",
+   "title": "Ever Wonder What Happens When Someone Says “All Lives Matter” Five Times Into A Mirror",
+   "excerptRow": 30956
+  },
+  {
+   "id": "WWAS-QI-FOR-THOSE-WHO-NEED-BOTH-HANDS-TO-LIFT-MJOLNIR",
+   "expectTitle": "For Those Who Need Both Hands To Lift Mjölnir",
+   "title": "Gallows Humor",
+   "excerptRow": 30967
+  },
+  {
+   "id": "WWAS-QI-NIGGAS-IN-MIDDLE-EARTH-V4",
+   "expectTitle": "“Niggas in Middle-Earth”",
+   "title": "Nominee For Best Picture Of The Year",
+   "excerptRow": 31033
+  },
+  {
+   "id": "WWAS-QI-OCCELUS",
+   "expectTitle": "Occelus",
+   "title": "Part II",
+   "excerptRow": 31047
+  },
+  {
+   "id": "WWAS-QI-ON-THE-GOOD-DAYS",
+   "expectTitle": "On The Good Days",
+   "title": "Part II",
+   "excerptRow": 31049
+  },
+  {
+   "id": "WWAS-QI-PART-II",
+   "expectTitle": "Part II",
+   "title": "Precious Little Life",
+   "excerptRow": 31053
+  },
+  {
+   "id": "WWAS-QI-PRECIOUS-LITTLE-LIFE",
+   "expectTitle": "Precious Little Life",
+   "title": "Pretty Women Love Puns: Epilogue",
+   "excerptRow": 31067
+  },
+  {
+   "id": "WWAS-QI-PRECIOUS-LITTLE-LIFE-V2",
+   "expectTitle": "“Precious Little Life”",
+   "title": "Prelude: So We Hear This Commercial About A Toaster",
+   "excerptRow": 31065
+  },
+  {
+   "id": "WWAS-QI-PRETTY-WOMEN-LOVE-PUNS-EPILOGUE",
+   "expectTitle": "Pretty Women Love Puns: Epilogue",
+   "title": "Such is Genetics",
+   "excerptRow": 31072
+  },
+  {
+   "id": "WWAS-QI-SUCH-IS-GENETICS",
+   "expectTitle": "“Such is Genetics”",
+   "title": "The 4C Complex",
+   "excerptRow": 31075
+  },
+  {
+   "id": "WWAS-QI-THE-4C-COMPLEX",
+   "expectTitle": "The 4C Complex",
+   "title": "The Blackest Night Of My Life",
+   "excerptRow": 31080
+  },
+  {
+   "id": "WWAS-QI-THE-4C-COMPLEX-V3",
+   "expectTitle": "“The 4C Complex”",
+   "title": "The Blackest Night Of My Life",
+   "excerptRow": 31081
+  },
+  {
+   "id": "WWAS-QI-THE-HEART-IS-JUST-A-PLAY-IN-TWO-PARTS",
+   "expectTitle": "“The Heart Is Just a Play in Two Parts”",
+   "title": "The Illusion of Better",
+   "excerptRow": 31087
+  },
+  {
+   "id": "pig-1787324428323",
+   "expectTitle": "drowning as a magic trick",
+   "title": "Abracadabra",
+   "excerptRow": 31156
+  }
+ ]
+}
