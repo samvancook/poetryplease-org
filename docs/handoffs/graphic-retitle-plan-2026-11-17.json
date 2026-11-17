@@ -2,7 +2,7 @@
  "generatedAt": "2026-11-17",
  "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
  "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before.",
- "count": 822,
+ "count": 811,
  "items": [
   {
    "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
@@ -895,12 +895,6 @@
    "excerptRow": 36380
   },
   {
-   "id": "EMAI-QI-I-JUST-TAKE-MY-TIME-WITH-ALL-THIS-I-STILL-BELIEVE-THAT-DRAKE",
-   "expectTitle": "\"I just take my. time with all this; I still believe that\" - Drake",
-   "title": "I learned working with negatives can make for better pictures.\" - Drake",
-   "excerptRow": 36392
-  },
-  {
    "id": "EMAI-QI-I-LEARNED-WORKING-WITH-THE-NEGATIVES-CAN-MAKE-FOR-BETTER-PICTURES",
    "expectTitle": "“I learned working with the negatives can make for better pictures”",
    "title": "I once held on to a grudge",
@@ -1317,7 +1311,7 @@
   {
    "id": "FGFS-QI-ODE-TO-TRACY-TURNBLAD",
    "expectTitle": "ODE TO TRACY TURNBLAD",
-   "title": "ON SIGHT” For Dez",
+   "title": "ON SIGHT",
    "book": "Revenge Body",
    "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
    "excerptRow": 33137
@@ -1355,7 +1349,7 @@
   {
    "id": "FGFS-QI-REVENGE-BODY",
    "expectTitle": "“Revenge Body”",
-   "title": "SAFETY SPELL FOR SEA MONSTERS” For Leo",
+   "title": "SAFETY SPELL FOR SEA MONSTERS",
    "book": "Revenge Body",
    "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
    "excerptRow": 33139
@@ -1371,7 +1365,7 @@
   {
    "id": "FGFS-QI-REVENGE-BODY-V2",
    "expectTitle": "“Revenge Body”",
-   "title": "SAFETY SPELL FOR SEA MONSTERS” For Leo",
+   "title": "SAFETY SPELL FOR SEA MONSTERS",
    "book": "Revenge Body",
    "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
    "excerptRow": 33138
@@ -1379,7 +1373,7 @@
   {
    "id": "FGFS-QI-REVENGE-BODY-V3",
    "expectTitle": "“Revenge Body”",
-   "title": "SAFETY SPELL FOR SEA MONSTERS” For Leo",
+   "title": "SAFETY SPELL FOR SEA MONSTERS",
    "book": "Revenge Body",
    "bookFieldsFrom": "RB-QI-ALL-AT-ONCE",
    "excerptRow": 33142
@@ -1915,22 +1909,6 @@
    "excerptRow": 36364
   },
   {
-   "id": "IFA-QI-I-HOPE-THE-CAMERA-GODS-BLESS-YOU-WITH-A-STEADY-HAND",
-   "expectTitle": "I hope the camera gods bless you with a steady hand",
-   "title": "I just take my time with all this; I still believe in all that\" - Drake",
-   "book": "Excuse Me As I Kiss The Sky",
-   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
-   "excerptRow": 36386
-  },
-  {
-   "id": "IFA-QI-I-HOPE-THE-CAMERA-GODS-BLESS-YOU-WITH-A-STEADY-HAND-V2",
-   "expectTitle": "“I hope the camera gods bless you with a steady hand”",
-   "title": "I just take my time with all this; I still believe in all that\" - Drake",
-   "book": "Excuse Me As I Kiss The Sky",
-   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER",
-   "excerptRow": 36383
-  },
-  {
    "id": "IFA-QI-I-WISH-YOU-A-CHECKERED-FLAG",
    "expectTitle": "“I wish you a checkered flag”",
    "title": "I’m just saying, you could do better",
@@ -2009,12 +1987,6 @@
    "expectTitle": "The youth choir sings ‘I believe I can fly",
    "title": "There are people",
    "excerptRow": 37449
-  },
-  {
-   "id": "IFA-QI-UWANI",
-   "expectTitle": "“Uwani”",
-   "title": "",
-   "excerptRow": 37170
   },
   {
    "id": "IFA-QI-UNSOLICITED-ADVICE",
@@ -2109,18 +2081,6 @@
    "excerptRow": 37099
   },
   {
-   "id": "IFA-QI-VALUE-V24",
-   "expectTitle": "#VALUE!",
-   "title": "",
-   "excerptRow": 37163
-  },
-  {
-   "id": "IFA-QI-VALUE-V25",
-   "expectTitle": "#VALUE!",
-   "title": "",
-   "excerptRow": 37164
-  },
-  {
    "id": "IFA-QI-VALUE-V27",
    "expectTitle": "#VALUE!",
    "title": "Have you ever noticed",
@@ -2131,30 +2091,6 @@
    "expectTitle": "#VALUE!",
    "title": "Repensist noun",
    "excerptRow": 37187
-  },
-  {
-   "id": "IFA-QI-VALUE-V28",
-   "expectTitle": "#VALUE!",
-   "title": "",
-   "excerptRow": 37167
-  },
-  {
-   "id": "IFA-QI-VALUE-V29",
-   "expectTitle": "#VALUE!",
-   "title": "",
-   "excerptRow": 37168
-  },
-  {
-   "id": "IFA-QI-VALUE-V31",
-   "expectTitle": "#VALUE!",
-   "title": "",
-   "excerptRow": 37170
-  },
-  {
-   "id": "IFA-QI-VALUE-V30",
-   "expectTitle": "#VALUE!",
-   "title": "",
-   "excerptRow": 37169
   },
   {
    "id": "IFA-QI-VALUE-V5",
@@ -2173,12 +2109,6 @@
    "expectTitle": "#VALUE!",
    "title": "Brevis",
    "excerptRow": 36062
-  },
-  {
-   "id": "IFA-QI-VALUE-V8",
-   "expectTitle": "#VALUE!",
-   "title": "",
-   "excerptRow": 37147
   },
   {
    "id": "IFA-QI-VALUE-V9",
@@ -2529,7 +2459,7 @@
   {
    "id": "NIO-QI-LETTER-TO-MY-CAT-EXPLORING-MY-IMPENDING-SPINSTERHOOD-V2",
    "expectTitle": "Letter to My Cat Exploring My Impending Spinsterhood",
-   "title": "LOVE LETTER TO MY BODY # 10” a love note from 1 body to another",
+   "title": "LOVE LETTER TO MY BODY # 10",
    "book": "Fat Girl Finishing School",
    "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
    "excerptRow": 33136
@@ -2545,7 +2475,7 @@
   {
    "id": "NIO-QI-LETTER-TO-MY-CAT-EXPLORING-MY-IMPENDING-SPINSTERHOOD-V3",
    "expectTitle": "“Letter to My Cat Exploring My Impending Spinsterhood”",
-   "title": "LOVE LETTER TO MY BODY # 10” a love note from 1 body to another",
+   "title": "LOVE LETTER TO MY BODY # 10",
    "book": "Fat Girl Finishing School",
    "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
    "excerptRow": 33133
@@ -2591,7 +2521,7 @@
   {
    "id": "NIO-QI-THE-OPPOSITE-OF-UP-V3",
    "expectTitle": "The Opposite of Up",
-   "title": "THE UNBEARABLE LIKENESS OF BEING ON OKCUPID” in 5 Haik",
+   "title": "THE UNBEARABLE LIKENESS OF BEING ON OKCUPID",
    "book": "Fat Girl Finishing School",
    "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
    "excerptRow": 33144
@@ -2599,7 +2529,7 @@
   {
    "id": "NIO-QI-THE-OPPOSITE-OF-UP-V5",
    "expectTitle": "“The Opposite of Up”",
-   "title": "THE UNBEARABLE LIKENESS OF BEING ON OKCUPID” in 5 Haik",
+   "title": "THE UNBEARABLE LIKENESS OF BEING ON OKCUPID",
    "book": "Fat Girl Finishing School",
    "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
    "excerptRow": 33143
@@ -3173,7 +3103,7 @@
   {
    "id": "RB-QI-THIRTY-SIX-V2",
    "expectTitle": "“THIRTY-SIX”",
-   "title": "THIS IS JUST TO SAY” After William Carlos William",
+   "title": "THIS IS JUST TO SAY",
    "book": "Fat Girl Finishing School",
    "bookFieldsFrom": "FGFS-QI-10-HONEST-THOUGHTS-ON-BEING-LOVED-BY-A-SKINNY-BOY-FROM-FGFS",
    "excerptRow": 33146
@@ -3276,8 +3206,8 @@
    "id": "SS-QI-BEFORE",
    "expectTitle": "Before",
    "title": "Call Me Before You Leave Again",
-   "book": "Portrait of My Body as a Crime I'm Still Committing",
-   "bookFieldsFrom": "POMB-QI-ARS-POETICA-IV-STILL-LIFE-AS-LOVER-UNARMED",
+   "book": "Portrait of my Body as a Crime I'm Still Committing",
+   "bookFieldsFrom": "POMB-QI-POINTS-OF-FAITH",
    "excerptRow": 42615
   },
   {
@@ -3334,8 +3264,8 @@
    "id": "SS-QI-SO-STRANGER",
    "expectTitle": "So, Stranger",
    "title": "Still",
-   "book": "Portrait of My Body as a Crime I'm Still Committing",
-   "bookFieldsFrom": "POMB-QI-ARS-POETICA-IV-STILL-LIFE-AS-LOVER-UNARMED",
+   "book": "Portrait of my Body as a Crime I'm Still Committing",
+   "bookFieldsFrom": "POMB-QI-POINTS-OF-FAITH",
    "excerptRow": 42799
   },
   {
@@ -3348,8 +3278,8 @@
    "id": "SS-QI-THAT-SUMMER-I-WROTE-THE-SAME-POEM-OVER-AND-OVER",
    "expectTitle": "“That Summer I Wrote the Same Poem Over and Over”",
    "title": "The Night You Are Diagnosed",
-   "book": "Portrait of My Body as a Crime I'm Still Committing",
-   "bookFieldsFrom": "POMB-QI-ARS-POETICA-IV-STILL-LIFE-AS-LOVER-UNARMED",
+   "book": "Portrait of my Body as a Crime I'm Still Committing",
+   "bookFieldsFrom": "POMB-QI-POINTS-OF-FAITH",
    "excerptRow": 42827
   },
   {
