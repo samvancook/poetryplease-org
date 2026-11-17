@@ -13320,6 +13320,16 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
     .flatMap((doc) => view === "spotcheck" ? doc.data()?.sampleIds || []
       : view === "finalist" ? [doc.id] : doc.data()?.submissionIds || []))].sort();
   if (!ids.length) return res.status(409).json({ error: "no_committed_assignment_for_reviewer" });
+  let preliminaryCount = 0;
+  let additionalCount = 0;
+  if (view === "assigned") {
+    const submissions = await db.getAll(...ids.map((id) => db.collection(COLLECTIONS.contentSubmissions).doc(id)));
+    const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+    for (const submission of submissions) {
+      if (Number(submission.data()?.contestReviewTarget) > requiredReviewCount) additionalCount += 1;
+      else preliminaryCount += 1;
+    }
+  }
   const fingerprint = createHash("sha256").update(JSON.stringify([programId, reviewerEmail, view, ids])).digest("hex");
   const noticeRef = db.collection(COLLECTIONS.contestAssignmentNotices).doc(fingerprint);
   const reserved = await db.runTransaction(async (transaction) => {
@@ -13335,7 +13345,8 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   if (!reserved) return res.status(409).json({ error: "contest_notice_already_attempted" });
   const reviewUrl = `https://poetryplease.org/contest-review.html?program=${encodeURIComponent(programId)}&view=${view}`;
   const message = buildContestAssignmentMessage({
-    programName: normalizeText(programSnap.data()?.name || programSnap.data()?.title || programId), view, reviewUrl,
+    programName: normalizeText(programSnap.data()?.name || programSnap.data()?.title || programId),
+    view, reviewUrl, assignmentCount: ids.length, preliminaryCount, additionalCount,
   });
   try {
     const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment", ...mailIdentity });
