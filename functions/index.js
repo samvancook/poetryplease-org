@@ -12594,7 +12594,7 @@ app.get(getBoth("/team/contestSubmissions"), async (req, res) => {
       const reviewCount = decisions.length;
       const extraAssigned = row.contestExtraReviewerEmails.some((email) => normalizeText(email).toLowerCase() === reviewerEmail);
       const finalistRead = finalistBySubmission.get(row.id) || null;
-      const canReview = !!ownPreliminaryDecision || (reviewCount < requiredReviewCount && !extraAssigned) || (reviewCount >= requiredReviewCount && reviewCount < reviewTarget && extraAssigned);
+      const canReview = !!ownPreliminaryDecision || (!ownSupplementalDecision && ((reviewCount < requiredReviewCount && !extraAssigned) || (reviewCount >= requiredReviewCount && reviewCount < reviewTarget && extraAssigned)));
       return {
         id: row.id,
         title: row.title || "Untitled",
