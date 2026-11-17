@@ -197,3 +197,40 @@ test("Weaver video intake de-duplicates review IDs for idempotent reimport", () 
   assert.equal(result.ok, true);
   assert.equal(result.item.weaverReviews.length, 1);
 });
+
+test("exact excerpt receipt verifies the live binding and preserves the historical outcome", async () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("async function readExactWeaverExcerptReceipt(");
+  const end = source.indexOf('app.get(getBoth("/internal/weaverImportHealth")', start);
+  const legacy = { contentId: "excerpt", outcome: "created", sourceRecordId: "", canonicalVideoId: "" };
+  const ledger = { status: "completed", contentType: "EXC", outcomes: [legacy] };
+  const item = { sourceSystem: "weaver", sourceContentId: "video" };
+  const excerpt = { id: "excerpt", data: () => item };
+  let duplicates = false;
+  let parentExists = true;
+  const db = {
+    collection: name => {
+      if (name === "ledger") return { doc: () => ({ get: async () => ({ data: () => ledger }) }) };
+      if (name === "videos") return { doc: () => ({ get: async () => ({ exists: parentExists }) }) };
+      return { where: () => ({ limit: () => ({ get: async () => ({ docs: duplicates ? [excerpt, excerpt] : [excerpt] }) }) }) };
+    },
+  };
+  const read = runInNewContext(source.slice(start, end) + ";readExactWeaverExcerptReceipt", {
+    db, COLLECTIONS: { weaverImportLedger: "ledger", videos: "videos", excerpts: "excerpts" },
+    normalizeText: value => String(value || "").trim(), isWeaverExcerptImportType: type => type === "EXC",
+  });
+  const result = await read("weaver:source", "ledger-id");
+  assert.equal(result.bindingEvidence, "current_excerpt_and_completed_import_outcome");
+  assert.equal(result.sourceRecordId, "weaver:source");
+  assert.equal(result.canonicalExcerptId, "excerpt");
+  assert.equal(result.canonicalVideoId, "video");
+  assert.equal(result.originalOutcome.sourceRecordId, "");
+  ledger.outcomes = [{ ...legacy, sourceRecordId: "weaver:other" }];
+  assert.equal(await read("weaver:source", "ledger-id"), null);
+  ledger.outcomes = [legacy];
+  duplicates = true;
+  assert.equal(await read("weaver:source", "ledger-id"), null);
+  duplicates = false;
+  parentExists = false;
+  assert.equal(await read("weaver:source", "ledger-id"), null);
+});
