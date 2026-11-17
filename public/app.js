@@ -1255,9 +1255,21 @@ function scheduleWelcomeChoice() {
   window.setTimeout(() => {
     if (!window.__pp_authResolved) return;
     if (currentItem || getVisibleUser()) return;
-    showWelcomeChoice();
+    // The first card is still loading. Hold the prompt until that card is
+    // showing, so it never covers a loading placeholder. If no card arrives
+    // (empty or failed feed), show it anyway after the maximum wait.
+    let shown = false;
+    const showOnce = () => {
+      if (shown) return;
+      shown = true;
+      showWelcomeChoice();
+    };
+    if (firstCardSettled) { showOnce(); return; }
+    firstCardWaiters.push(showOnce);
+    window.setTimeout(showOnce, WELCOME_CHOICE_MAX_WAIT_MS);
   }, 1400);
 }
+const WELCOME_CHOICE_MAX_WAIT_MS = 8000;
 
 // ===== Anonymous ID helper (local only, no API) =====
 async function getOrCreateAnonId() {
