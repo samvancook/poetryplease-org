@@ -185,6 +185,7 @@
       <label>Show submissions
         <select id="outcome-view">
           <option value="finalists">All finalists</option>
+          <option value="passes-two">2+ Passes — pending reviews allowed</option>
           <option value="passes">3 Passes — no positive or pending reads</option>
           <option value="champion">1+ Champion vote</option>
           <option value="champion-double">2+ Champion votes</option>
@@ -194,7 +195,7 @@
         </select>
       </label>
       <p id="outcome-count"></p>
-      <p class="muted">Only Finals qualifiers and poems with finalist assignments appear here. The 3 Passes filter requires at least three completed finalist reads, all Pass, with no pending read.</p>
+      <p class="muted">Only Finals qualifiers and poems with finalist assignments appear here. The 2+ Passes filter includes pending reviews and other votes. The 3 Passes filter requires at least three completed finalist reads, all Pass, with no pending read.</p>
       <button id="archive-finalist-passes" type="button" hidden>Archive these 3-Pass finalists</button>
       <p id="finalist-archive-status" class="status" aria-live="polite"></p>
       <details hidden style="margin:12px 0 18px;">
@@ -985,6 +986,7 @@
         if (!isFinalistSubmission(row)) return false;
         if (view === "archived") return row.archived;
         if (row.archived) return false;
+        if (view === "passes-two") return (row.finalistReads || []).filter((read) => read.decision === "pass").length >= 2;
         if (view === "passes") return hasThreeFinalistPasses(row);
         if (view === "champion-double") return row.finalistReads?.filter((read) => read.decision === "champion").length >= 2;
         if (view === "champion" || view === "possible") return row.finalistReads?.some((read) => read.decision === view);
