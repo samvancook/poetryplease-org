@@ -141,10 +141,10 @@
         <form id="semis-form">
           <div class="controls">
             <label>Assign from<select id="semis-source"><option value="positive">2-Yes Spot Check — shared full-group read</option><option value="negative">3-No Spot Check — 10% per reviewer</option></select></label>
-            <label>Action<select id="semis-action"><option value="assign">Assign reads</option><option value="followup">Assign follow-up reads only</option><option value="unassign">Unassign pending reads</option></select></label>
+            <label>Action<select id="semis-action"><option value="assign">Assign follow-up reads</option><option value="followup">Only poems needing another eye</option><option value="unassign">Unassign pending reads</option></select></label>
           </div>
           <label>Reviewers to share the work (comma-separated emails)<input id="semis-emails" type="text" required placeholder="name@buttonpoetry.com, name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
-          <p>For the 2-Yes Spot Check, divide one new read per eligible poem across the listed reviewers. For the 3-No Spot Check, each reviewer gets a separate random 10% of the full three-No group, rounded up. Sets do not overlap, and previously assigned or checked poems are skipped. If too few eligible poems remain, the preview shows the smaller set. Choose “Assign follow-up reads only” to assign poems needing another eye without starting a new sample. Assigning emails each reviewer their queue link.</p>
+          <p>For the 2-Yes Spot Check, divide one follow-up read per eligible poem across the listed reviewers. For the 3-No Spot Check, each reviewer gets a separate random 10% of the full three-No group, rounded up. Sets do not overlap, and previously assigned or checked poems are skipped. If too few eligible poems remain, the preview shows the smaller set. Choose “Assign follow-up reads only” to assign poems needing another eye without starting a new sample. Assigning emails each reviewer their queue link.</p>
           <button type="submit">Preview change</button>
           <button id="semis-commit" type="button" hidden>Confirm previewed change</button>
           <p id="semis-plan-status" class="status" aria-live="polite"></p>
@@ -153,7 +153,7 @@
           <label>View<select id="semis-results-view"><option value="reviewers">Assignments by reviewer</option><option value="poems">Poems and outcomes</option></select></label>
           <label>Show results<select id="additional-set"><option value="all">Both spot check groups</option><option value="positive">2-Yes Spot Check</option><option value="negative">3-No Spot Check</option></select></label>
           <label>Reviewer<select id="semis-reviewer"><option value="">All reviewers</option></select></label>
-          <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">2-Yes needs fourth read</option><option value="unsampled">3-No not sampled</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
+          <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">2-Yes needs follow-up assignment</option><option value="unsampled">3-No not sampled</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
           <button type="button" id="additional-refresh">Refresh results</button>
         </div>
         <div id="additional-summary" class="status"></div>
@@ -691,17 +691,15 @@
       }
       semisPlan = { programId: document.getElementById("program").value, action, plan };
       const counts = emails.map((email) => email + " — " + plan.filter((item) => item.email === email).length).join("; ");
-      const firstReads = plan.filter((item) => !sourceRows.find((row) => row.row.id === item.id)?.reads.length).length;
-      const followUpReads = plan.length - firstReads;
       const sourceName = source === "positive" ? "2-Yes Spot Check" : "3-No Spot Check";
       const needsFirst = sourceRows.filter((item) => ["unassigned", "unsampled"].includes(item.next)).length;
       const needsFollowUp = sourceRows.filter((item) => ["another", "editor"].includes(item.next)).length;
       const waiting = sourceRows.filter((item) => item.next === "waiting").length;
       const finished = sourceRows.length - needsFirst - needsFollowUp - waiting;
       status.textContent = sourceName + " — " + sourceRows.length + " poems = " +
-        needsFirst + (source === "negative" ? " not sampled" : " needing a fourth read") + " + " + waiting +
-        " waiting for a reader + " + needsFollowUp + " needing follow-up + " + finished + " with a Semis result. " +
-        (action === "assign" ? "Proposed: " + plan.length + " new reads = " + firstReads + " fourth reads + " + followUpReads + " follow-up reads. " :
+        needsFirst + (source === "negative" ? " not sampled" : " needing a follow-up assignment") + " + " + waiting +
+        " waiting for a reader + " + needsFollowUp + " needing another eye + " + finished + " with a Semis result. " +
+        (action === "assign" ?  "Proposed: assign " + plan.length + " follow-up reads. " :
           "Proposed: unassign " + plan.length + " pending reads. ") +
         (action === "assign" && !followUpOnly && source === "negative" && !semisSingleId ? "10% target: " + Math.ceil(sourceRows.length * 0.1) + " distinct poems per reviewer. " : "") +
         "Per reviewer: " + counts + ".";
@@ -776,7 +774,7 @@
       const status = document.getElementById("additional-status").value;
       const reviewer = document.getElementById("semis-reviewer").value;
       const matching = rows.filter((item) => (status === "all" || item.next === status) && (!reviewer || item.reads.some((read) => read.reviewerEmail === reviewer) || item.pending.includes(reviewer)));
-      const labels = { unassigned: "Needs fourth read", unsampled: "Not sampled", waiting: "Waiting for reader", advance: "Ready to advance",
+      const labels = { unassigned: "Needs follow-up assignment", unsampled: "Not sampled", waiting: "Waiting for reader", advance: "Ready to advance",
         another: "Needs another eye", editor: "Editor decision needed", closed: "Check closed", advanced: "Advanced to finalist consideration" };
       const summaryGroups = [
         { name: "2-Yes Spot Check", items: rows.filter((item) => item.row.initialYesCount >= 2) },
