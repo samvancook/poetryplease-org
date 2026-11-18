@@ -92,7 +92,6 @@
           <option value="assigned">My assigned batch</option>
           <option value="spotcheck">My spot check</option>
           <option value="finalist">My finalist pass</option>
-          <option value="finalist-results" hidden>Finalist results review</option>
           <option value="reviewed">Reviewed by me</option>
           <option value="all">All available</option>
         </select>
@@ -384,7 +383,6 @@
         <span id="position"></span>
       </div>
       <div id="poem" class="poem"></div>
-      <div id="finalist-result-details" hidden></div>
       <div id="regular-review-controls">
         <p id="review-availability" class="muted" aria-live="polite" hidden></p>
         <label>Private reviewer note
@@ -470,7 +468,6 @@
         if (view === "assigned") return row.assignedToMe && row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
         if (view === "spotcheck") return row.spotCheckAssignedToMe && row.canReview && !row.currentReviewerDecision && !row.reviewComplete;
         if (view === "finalist") return row.finalistAssignedToMe;
-        if (view === "finalist-results") return filteredOutcomeRows().some((candidate) => candidate.id === row.id);
         if (view === "reviewed") return !!row.currentReviewerDecision;
         return true;
       });
@@ -540,16 +537,7 @@
       document.getElementById("poem").textContent = row.text;
       document.getElementById("position").textContent = (state.index + 1) + " of " + state.filtered.length;
       const finalistMode = document.getElementById("view").value === "finalist";
-      const resultsMode = view === "finalist-results";
-      document.getElementById("regular-review-controls").hidden = finalistMode || resultsMode;
-      const resultDetails = document.getElementById("finalist-result-details");
-      resultDetails.hidden = !resultsMode;
-      if (resultsMode) {
-        const result = state.adminProgress?.submissions.find((candidate) => candidate.id === row.id);
-        resultDetails.innerHTML = "<h3>Finalist reads</h3>" + ((result?.finalistReads || []).map((read) =>
-          "<p><strong>" + escapeHtml(read.decision || "Waiting") + "</strong> — " + escapeHtml(read.reviewerEmail) +
-          (read.note ? "<br>" + escapeHtml(read.note) : "") + "</p>").join("") || "<p>No finalist reads assigned yet.</p>");
-      }
+      document.getElementById("regular-review-controls").hidden = finalistMode;
       const availability = document.getElementById("review-availability");
       let availabilityMessage = "";
       if (row.currentReviewerSupplemental) {
@@ -2623,7 +2611,7 @@
       else document.getElementById("submission-progress").replaceChildren();
     });
 
-    document.getElementById("outcome-view").addEventListener("change", () => { invalidateFourthPreview(); renderOutcomeViews(); if (document.getElementById("view").value === "finalist-results") applyFilters(); });
+    document.getElementById("outcome-view").addEventListener("change", () => { invalidateFourthPreview(); renderOutcomeViews(); });
     document.getElementById("archive-finalist-passes").addEventListener("click", async (event) => {
       if (document.getElementById("outcome-view").value !== "passes") return;
       const ids = filteredOutcomeRows().filter((row) => hasThreeFinalistPasses(row) &&
@@ -2683,7 +2671,7 @@
         return;
       }
       if (!button.dataset.openSubmission) return;
-      document.getElementById("view").value = "finalist-results";
+      document.getElementById("view").value = "all";
       applyFilters();
       const index = state.filtered.findIndex((row) => row.id === button.dataset.openSubmission);
       if (index < 0) return setStatus("Submission not found in this review queue.", true);
