@@ -215,6 +215,10 @@ let contentCache = {
   sourcePath: "",
   inFlight: null,
   inFlightGeneration: null,
+  // When this instance first served content older than the shared generation.
+  staleSince: 0,
+  staleLoad: null,
+  lastBuildFailedAt: 0,
 };
 let flaggedContentCache = {
   builtAt: 0,
@@ -575,16 +579,31 @@ async function getAllContent() {
   return [...g, ...e, ...fp, ...v];
 }
 
-async function invalidateContentCache() {
+// Every invalidation records what asked for it, on the write it already makes,
+// so a feed rebuild in the logs can be traced back to its cause at no extra read.
+function contentInvalidationCaller() {
+  const frames = String(new Error().stack || "").split("\n").slice(3, 5);
+  return frames.map((line) => line.trim().replace(/^at\s+/, "")).join(" < ").slice(0, 300);
+}
+
+async function invalidateContentCache(options = {}) {
+  const reason = normalizeText(typeof options === "string" ? options : options?.reason) || "unspecified";
+  const caller = contentInvalidationCaller();
+  const service = normalizeText(globalThis.process?.env?.K_SERVICE || globalThis.process?.env?.FUNCTION_TARGET || "");
+  // The payload already in memory stays: it keeps serving until the rebuild
+  // has finished, so feed requests never wait on one.
   contentCache.builtAt = 0;
   contentCache.generation = null;
-  contentCache.payload = null;
   contentCache.sourcePath = "";
   contentCache.inFlight = null;
   contentCache.inFlightGeneration = null;
+  console.info(JSON.stringify({ event: "content_cache_invalidated", reason, caller, service }));
   await db.collection(COLLECTIONS.systemState).doc(CONTENT_SNAPSHOT_DOC_ID).set({
     generation: FieldValue.increment(1),
     invalidatedAt: FieldValue.serverTimestamp(),
+    invalidationReason: reason,
+    invalidatedBy: service || "unknown",
+    invalidationCaller: caller,
     builtAt: null,
   }, { merge: true });
 }
@@ -594,12 +613,7 @@ async function readContentCacheMetadata() {
   return snap.data() || {};
 }
 
-async function readContentSnapshot(meta) {
-  if (!meta) meta = await readContentCacheMetadata();
-  const builtAtMs = timestampToMs(meta.builtAt);
-  const storagePath = normalizeText(meta.storagePath || CONTENT_SNAPSHOT_PATH);
-  if (!builtAtMs || !storagePath || Number(meta.version || 0) !== CONTENT_SNAPSHOT_VERSION) return null;
-
+async function downloadContentSnapshot(storagePath) {
   const [buffer] = await storage.bucket().file(storagePath).download();
   const payload = JSON.parse(buffer.toString("utf8"));
   if (!Array.isArray(payload)) return null;
@@ -610,7 +624,36 @@ async function readContentSnapshot(meta) {
     console.warn("Content snapshot missing identifiers; rebuilding from Firestore");
     return null;
   }
-  return { payload, builtAtMs, storagePath };
+  return payload;
+}
+
+async function readContentSnapshot(meta) {
+  if (!meta) meta = await readContentCacheMetadata();
+  const builtAtMs = timestampToMs(meta.builtAt);
+  const storagePath = normalizeText(meta.storagePath || CONTENT_SNAPSHOT_PATH);
+  if (!builtAtMs || !storagePath || Number(meta.version || 0) !== CONTENT_SNAPSHOT_VERSION) return null;
+  const payload = await downloadContentSnapshot(storagePath);
+  return payload ? { payload, builtAtMs, storagePath } : null;
+}
+
+function contentSnapshotIsUsable(meta, now) {
+  const builtAtMs = timestampToMs(meta.builtAt);
+  return !!builtAtMs && Number(meta.version || 0) === CONTENT_SNAPSHOT_VERSION && (now - builtAtMs) < CONTENT_SNAPSHOT_TTL_MS;
+}
+
+// An invalidation clears builtAt but leaves storagePath naming the last good
+// snapshot, whose bytes stay in place until a newer one is published. A fresh
+// instance (a deploy, a scale-out) serves those while it rebuilds.
+async function loadStaleContentSnapshot(meta) {
+  const storagePath = normalizeText(meta.storagePath || "");
+  if (!storagePath || Number(meta.version || 0) !== CONTENT_SNAPSHOT_VERSION) return null;
+  try {
+    const payload = await downloadContentSnapshot(storagePath);
+    return payload ? payload.map(canonicalizeContentRecord) : null;
+  } catch (err) {
+    console.warn("Stale content snapshot read failed", err?.message || err);
+    return null;
+  }
 }
 
 async function writeContentSnapshot(payload, generation) {
@@ -649,7 +692,97 @@ async function writeContentSnapshot(payload, generation) {
   return true;
 }
 
-async function getAllContentCached({ forceRefresh = false } = {}) {
+// Requests keep getting the last good content for at most this long while a
+// rebuild runs. Past it they wait for the rebuild, as before.
+const CONTENT_MAX_STALE_MS = 10 * 60 * 1000;
+// After a failed rebuild, stale content is served this long before retrying.
+const CONTENT_REBUILD_RETRY_MS = 60 * 1000;
+
+function contentRebuildTrigger({ forceRefresh, generation }) {
+  if (forceRefresh) return "force_refresh";
+  if (!contentCache.payload) return "cold_start";
+  if (contentCache.generation !== generation) return "invalidated";
+  return "ttl_expired";
+}
+
+function startContentBuild(meta, generation, { forceRefresh, trigger }) {
+  const now = Date.now();
+  const cause = {
+    trigger,
+    generation,
+    invalidationReason: normalizeText(meta.invalidationReason || ""),
+    invalidatedBy: normalizeText(meta.invalidatedBy || ""),
+    invalidationCaller: normalizeText(meta.invalidationCaller || ""),
+    invalidatedAtMs: timestampToMs(meta.invalidatedAt) || null,
+  };
+  const build = (async () => {
+    const startedAt = Date.now();
+    let payload = null;
+    let sourcePath = "";
+    let source = "snapshot";
+    if (!forceRefresh) {
+      try {
+        const snapshot = await readContentSnapshot(meta);
+        if (snapshot && (now - snapshot.builtAtMs) < CONTENT_SNAPSHOT_TTL_MS) {
+          payload = snapshot.payload.map(canonicalizeContentRecord);
+          sourcePath = snapshot.storagePath;
+        }
+      } catch (err) {
+        console.warn("Content snapshot read failed; falling back to Firestore", err);
+      }
+    }
+
+    if (!payload) {
+      source = "firestore";
+      console.info(JSON.stringify({ event: "content_cache_rebuild_started", ...cause }));
+      payload = (await getAllContent()).map(canonicalizeContentRecord);
+      try {
+        if (!await writeContentSnapshot(payload, generation)) {
+          return getAllContentCached({ allowStale: false });
+        }
+      } catch (err) {
+        console.warn("Content snapshot write failed", err);
+      }
+    }
+    // A repair can be accepted while the snapshot download or rebuild runs.
+    // Discard that generation instead of publishing its old content locally.
+    const current = await readContentCacheMetadata();
+    if (Number(current.generation || 0) !== generation) {
+      return getAllContentCached({ allowStale: false });
+    }
+    const staleForMs = contentCache.staleSince ? Date.now() - contentCache.staleSince : 0;
+    contentCache.payload = payload;
+    contentCache.builtAt = Date.now();
+    contentCache.generation = generation;
+    contentCache.staleSince = 0;
+    contentCache.lastBuildFailedAt = 0;
+    // After a rebuild from Firestore the metadata names the snapshot just published.
+    contentCache.sourcePath = sourcePath || normalizeText(current.storagePath || "");
+    console.info(JSON.stringify({
+      event: "content_cache_loaded", ...cause, source, count: payload.length,
+      durationMs: Date.now() - startedAt, staleForMs,
+    }));
+    return payload;
+  })().finally(() => {
+    if (contentCache.inFlight === build) {
+      contentCache.inFlight = null;
+      contentCache.inFlightGeneration = null;
+    }
+  });
+  // Requests served stale content do not await this build; a failure is logged here.
+  build.catch((err) => {
+    contentCache.lastBuildFailedAt = Date.now();
+    console.warn(JSON.stringify({ event: "content_cache_rebuild_failed", ...cause, error: String(err?.message || err).slice(0, 300) }));
+  });
+  contentCache.inFlight = build;
+  contentCache.inFlightGeneration = generation;
+  return build;
+}
+
+// Stale-while-revalidate: when the content changed or aged out, the last good
+// content keeps serving while one rebuild runs, and the swap happens only once
+// that rebuild has finished. forceRefresh and allowStale: false wait for it.
+async function getAllContentCached({ forceRefresh = false, allowStale = true } = {}) {
   // This single shared-document read also checks warm instances. A local
   // invalidation alone cannot refresh the other instances serving the feed.
   const meta = await readContentCacheMetadata();
@@ -670,57 +803,39 @@ async function getAllContentCached({ forceRefresh = false } = {}) {
     contentCache.builtAt = now;
     return contentCache.payload;
   }
-  if (!forceRefresh && contentCache.inFlightGeneration === generation && contentCache.inFlight) {
-    return contentCache.inFlight;
-  }
-  const build = (async () => {
-    const startedAt = Date.now();
-    let payload = null;
-    let sourcePath = "";
-    if (!forceRefresh) {
-      try {
-        const snapshot = await readContentSnapshot(meta);
-        if (snapshot && (now - snapshot.builtAtMs) < CONTENT_SNAPSHOT_TTL_MS) {
-          payload = snapshot.payload.map(canonicalizeContentRecord);
-          sourcePath = snapshot.storagePath;
-        }
-      } catch (err) {
-        console.warn("Content snapshot read failed; falling back to Firestore", err);
-      }
-    }
+  const serveStale = allowStale && !forceRefresh;
+  const reuseInFlight = !forceRefresh && contentCache.inFlightGeneration === generation && contentCache.inFlight;
+  const retryWait = serveStale && contentCache.payload && !reuseInFlight
+    && contentCache.lastBuildFailedAt && (now - contentCache.lastBuildFailedAt) < CONTENT_REBUILD_RETRY_MS;
+  if (retryWait) return contentCache.payload;
+  const build = reuseInFlight
+    ? contentCache.inFlight
+    : startContentBuild(meta, generation, { forceRefresh, trigger: contentRebuildTrigger({ forceRefresh, generation }) });
+  if (!serveStale) return build;
 
-    if (!payload) {
-      payload = (await getAllContent()).map(canonicalizeContentRecord);
-      try {
-        if (!await writeContentSnapshot(payload, generation)) {
-          return getAllContentCached();
-        }
-      } catch (err) {
-        console.warn("Content snapshot write failed", err);
+  if (contentCache.payload) {
+    if (!contentCache.staleSince) contentCache.staleSince = now;
+    if ((now - contentCache.staleSince) < CONTENT_MAX_STALE_MS) return contentCache.payload;
+    console.warn(JSON.stringify({ event: "content_cache_stale_limit", generation, staleForMs: now - contentCache.staleSince }));
+    return build;
+  }
+  // A fresh instance with a usable snapshot only downloads it, which is quick.
+  if (contentSnapshotIsUsable(meta, now)) return build;
+  if (!contentCache.staleLoad) {
+    contentCache.staleLoad = loadStaleContentSnapshot(meta).then((stale) => {
+      // The rebuild may have finished first; never replace its content.
+      if (stale && !contentCache.payload) {
+        contentCache.payload = stale;
+        contentCache.builtAt = 0;
+        contentCache.generation = null;
+        contentCache.sourcePath = "";
+        contentCache.staleSince = Date.now();
       }
-    }
-    // A repair can be accepted while the snapshot download or rebuild runs.
-    // Discard that generation instead of publishing its old content locally.
-    const current = await readContentCacheMetadata();
-    if (Number(current.generation || 0) !== generation) {
-      return getAllContentCached();
-    }
-    contentCache.payload = payload;
-    contentCache.builtAt = Date.now();
-    contentCache.generation = generation;
-    // After a rebuild from Firestore the metadata names the snapshot just published.
-    contentCache.sourcePath = sourcePath || normalizeText(current.storagePath || "");
-    console.info("Content cache loaded", { count: payload.length, durationMs: Date.now() - startedAt });
-    return payload;
-  })().finally(() => {
-    if (contentCache.inFlight === build) {
-      contentCache.inFlight = null;
-      contentCache.inFlightGeneration = null;
-    }
-  });
-  contentCache.inFlight = build;
-  contentCache.inFlightGeneration = generation;
-  return build;
+      return stale;
+    }).finally(() => { contentCache.staleLoad = null; });
+  }
+  await contentCache.staleLoad;
+  return contentCache.payload || build;
 }
 
 async function findContentRecordByImageId(imageId) {
@@ -2865,7 +2980,7 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
     });
   }
   if (results.some((row) => row.ok)) {
-    await invalidateContentCache();
+    await invalidateContentCache("pig_id_hygiene");
     await invalidateScoreboardSnapshot("pig_id_hygiene");
   }
   return results;
@@ -7813,7 +7928,7 @@ app.post(getBoth("/admin/contentQuarantine/:imageId/review"), async (req, res) =
     }, { merge: true });
   }
 
-  await invalidateContentCache();
+  await invalidateContentCache(`system_quarantine_${decision}:${imageId}`);
   await invalidateScoreboardSnapshot(`system_quarantine_${decision}:${imageId}`);
   res.json({ ok: true, imageId, decision });
 });
@@ -8000,7 +8115,7 @@ app.post(getBoth("/admin/storageAsset/delete"), async (req, res) => {
       });
     }
     await storage.bucket().file(inspection.storagePath).delete({ ignoreNotFound: true });
-    await invalidateContentCache();
+    await invalidateContentCache("storage_asset_delete:" + inspection.storagePath);
     await invalidateScoreboardSnapshot("storage_asset_delete:" + inspection.storagePath);
     res.json({
       ok: true,
@@ -8137,7 +8252,7 @@ app.post(getBoth("/admin/contentLibrary/upsert"), async (req, res) => {
       uid: ctx.decoded.uid,
       email: ctx.decoded.email,
     });
-    await invalidateContentCache();
+    await invalidateContentCache(`content_upsert:${normalizeKey(result?.item?.id || "")}`);
     await invalidateScoreboardSnapshot(`content_upsert:${normalizeKey(result?.item?.id || "")}`);
     res.json(result);
   } catch (err) {
@@ -8256,7 +8371,7 @@ app.post(getBoth("/admin/contentLibrary/bulkUpsert"), async (req, res) => {
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    await invalidateContentCache();
+    await invalidateContentCache(`content_bulk_upsert:${type}`);
     await invalidateScoreboardSnapshot(`content_bulk_upsert:${type}`);
   }
   res.json({ ok: true, createdCount, updatedCount, errorCount, results });
@@ -8608,7 +8723,7 @@ async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor =
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    await invalidateContentCache();
+    await invalidateContentCache("content_weaver_import:graphics");
     await invalidateScoreboardSnapshot("content_weaver_import:graphics");
   }
 
@@ -8977,7 +9092,7 @@ async function importWeaverExcerptsPayload(rawPayload, actor = {}) {
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    await invalidateContentCache();
+    await invalidateContentCache("content_weaver_import:excerpts");
     await invalidateScoreboardSnapshot("content_weaver_import:excerpts");
   }
 
@@ -9021,7 +9136,7 @@ async function importWeaverFullPoemsPayload(rawPayload, actor = {}) {
   const updatedCount = results.filter((row) => row.ok && !row.created).length;
   const errorCount = results.filter((row) => !row.ok).length;
   if (createdCount || updatedCount) {
-    await invalidateContentCache();
+    await invalidateContentCache("content_weaver_import:fullpoems");
     await invalidateScoreboardSnapshot("content_weaver_import:fullpoems");
   }
 
@@ -9276,7 +9391,7 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
           catch (err) { results.push({ id: mapping.id, ok: false, error: err.message }); break; }
         }
         if (results.some(result => result.ok && !result.alreadyCurrent)) {
-          await invalidateContentCache();
+          await invalidateContentCache("catalog_key_mapping");
           await invalidateScoreboardSnapshot("catalog_key_mapping");
         }
       }
@@ -9363,7 +9478,7 @@ app.post(getBoth("/internal/catalogFullPoemSync"), async (req, res) => {
         results.push({ id: item.docId, created: !!result.created });
       }
       if (results.length) {
-        await invalidateContentCache();
+        await invalidateContentCache("catalog_full_poem_sync");
         if (planned.updates.length) {
           invalidateFlaggedContentCache();
           invalidateRatingsSnapshot();
@@ -9576,7 +9691,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       durableCopy = { status: "queue_failed", queued: false, error: copyError.message || "durable_copy_queue_failed" };
     }
 
-    await invalidateContentCache();
+    await invalidateContentCache("content_weaver_import:video");
     await invalidateScoreboardSnapshot("content_weaver_import:video");
     await ledgerRef.set({
       status: "completed",
@@ -9792,7 +9907,7 @@ async function runWeaverVideoDurableCopyTask(data = {}) {
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     });
-    await invalidateContentCache();
+    await invalidateContentCache(`weaver_video_durable_copy:${canonicalVideoId}`);
     await invalidateScoreboardSnapshot(`weaver_video_durable_copy:${canonicalVideoId}`);
     return { ok: true, canonicalVideoId, storagePath: copied.storagePath, byteCount: copied.fileSize, checksum: copied.checksum };
   } catch (err) {
@@ -10049,7 +10164,7 @@ app.post(getBoth("/internal/repairWaguespackSpelling"), async (req, res) => {
   }
   updatedByCollection[COLLECTIONS.authorProfiles] = profileMatches.length;
   updatedCount += profileMatches.length;
-  await invalidateContentCache();
+  await invalidateContentCache("repair_waguespack_spelling");
   await invalidateScoreboardSnapshot("repair_waguespack_spelling");
   res.json({ ok: true, correctedAuthor, updatedCount, updatedByCollection });
 });
@@ -10277,7 +10392,7 @@ app.post(getBoth("/internal/displayPreviews/retitle"), async (req, res) => {
 app.post(getBoth("/internal/displayPreviews/refreshFeed"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
   try {
-    await invalidateContentCache();
+    await invalidateContentCache("display_previews_refresh_feed");
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message || "display_preview_refresh_failed" });
@@ -10693,7 +10808,7 @@ app.post(getBoth("/admin/contentRepairRequests/:requestId/review"), async (req, 
     return res.status(reviewResult.status).json({ error: reviewResult.error });
   }
   if (decision === "accepted" && !reviewResult.alreadyReviewed) {
-    await invalidateContentCache();
+    await invalidateContentCache(`repair_replacement_accepted:${requestId}`);
     invalidateFlaggedContentCache();
     if (reviewResult.supersededAuthorVoteCount) invalidateRatingsSnapshot();
     await invalidateScoreboardSnapshot(`repair_replacement_accepted:${requestId}`);
@@ -11103,7 +11218,7 @@ app.post(getBoth("/internal/resolveExcerptDuplicates"), async (req, res) => {
   }
 
   if (deletedExcerptCount || migratedVoteCount || removedRedundantVoteCount) {
-    await invalidateContentCache();
+    await invalidateContentCache("catalog_excerpt_duplicate_cleanup");
     ratingsCache.builtAt = 0;
     ratingsCache.payload = null;
     ratingsCache.inFlight = null;
@@ -11144,7 +11259,7 @@ app.post(getBoth("/admin/contentLibrary/deleteByIds"), async (req, res) => {
     deleted.push(id);
   }
   if (deleted.length) {
-    await invalidateContentCache();
+    await invalidateContentCache(`content_delete:${type}`);
     await invalidateScoreboardSnapshot(`content_delete:${type}`);
   }
   res.json({ ok: true, deletedCount: deleted.length, missingCount: missing.length, deleted, missing });
@@ -11171,7 +11286,7 @@ app.post(getBoth("/admin/contentLibrary/deleteByDate"), async (req, res) => {
 
   await Promise.all(matches.map((doc) => doc.ref.delete()));
   if (matches.length) {
-    await invalidateContentCache();
+    await invalidateContentCache(`content_delete_by_date:${type}:${targetDate}`);
     await invalidateScoreboardSnapshot(`content_delete_by_date:${type}:${targetDate}`);
   }
   res.json({ ok: true, deletedCount: matches.length, targetDate });
@@ -11281,7 +11396,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/editText"), async (req, res) => {
     }
     throw err;
   }
-  await invalidateContentCache();
+  await invalidateContentCache(`flag_text_edited:${flag.imageId || flagId}`);
   invalidateFlaggedContentCache();
   if (supersededVoteCount) invalidateRatingsSnapshot();
   await invalidateScoreboardSnapshot(`flag_text_edited:${flag.imageId || flagId}`);
@@ -11376,7 +11491,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/review"), async (req, res) => {
 
   if (decision === "delete" && contentRecord) {
     await db.collection(contentRecord.collection).doc(contentRecord.docId).delete();
-    await invalidateContentCache();
+    await invalidateContentCache(`flag_review_delete:${flagData.imageId || flagId}`);
   }
 
   const matchingFlags = await db.collection(COLLECTIONS.contentFlags)
@@ -11525,7 +11640,7 @@ app.post(getBoth("/admin/contentFlags/:flagId/uploadReplacement"), async (req, r
     }
     throw err;
   }
-  await invalidateContentCache();
+  await invalidateContentCache(`flag_replaced:${flag.imageId || flagId}`);
   invalidateFlaggedContentCache();
   if (supersededVoteCount) invalidateRatingsSnapshot();
   await invalidateScoreboardSnapshot(`flag_replaced:${flag.imageId || flagId}`);
@@ -14876,7 +14991,7 @@ export const graphicdisplaypreview = onDocumentWritten({
     // existed, so the feed would keep serving the full-size original until
     // its next rebuild. Backfill requests refresh the feed once, by hand.
     if (shouldRefreshFeedAfterPreview(result, { requested })) {
-      await invalidateContentCache().catch((err) => {
+      await invalidateContentCache(`display_preview_ready:${docId}`).catch((err) => {
         console.warn(JSON.stringify({ event: "display_preview_feed_refresh_failed", docId, error: String(err?.message || err).slice(0, 300) }));
       });
     }

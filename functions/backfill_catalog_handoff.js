@@ -115,8 +115,8 @@ if (arg('--make-sync-undo')) {
     writeFileSync(arg('--backup'),JSON.stringify(backup,null,2),{mode:0o600});
   }
   if (changes.length) {
-    await db.collection('systemState').doc('content-feed').set({generation:FieldValue.increment(1),invalidatedAt:FieldValue.serverTimestamp(),builtAt:null},{merge:true});
-    await db.collection('systemState').doc('scoreboard').set({invalidatedAt:FieldValue.serverTimestamp(),builtAt:null},{merge:true});
+    await db.collection('systemState').doc('content-feed').set({generation:FieldValue.increment(1),invalidatedAt:FieldValue.serverTimestamp(),builtAt:null,invalidationReason:"script:backfill_catalog_handoff",invalidatedBy:"script",invalidationCaller:""},{merge:true});
+    await db.collection('systemState').doc('scoreboard').set({invalidatedAt:FieldValue.serverTimestamp(),builtAt:null,invalidationReason:"script:backfill_catalog_handoff",invalidatedBy:"script"},{merge:true});
     if (undo&&changes.some(({doc})=>doc.ref.path.startsWith('votes/'))) {
       await db.collection('systemState').doc('ratings-summary').set({invalidatedAt:FieldValue.serverTimestamp()},{merge:true});
     }
