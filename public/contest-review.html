@@ -151,6 +151,7 @@
           <p id="semis-plan-status" class="status" aria-live="polite"></p>
         </form>
         <div class="controls">
+          <label>View<select id="semis-results-view"><option value="reviewers">Assignments by reviewer</option><option value="poems">Poems and outcomes</option></select></label>
           <label>Show results<select id="additional-set"><option value="all">All Semis poems</option><option value="positive">Two or more initial Yeses</option><option value="negative">Three initial Nos</option></select></label>
           <label>Reviewer<select id="semis-reviewer"><option value="">All reviewers</option></select></label>
           <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">Needs assignment</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
@@ -790,6 +791,35 @@
       document.getElementById("additional-assign").hidden = true;
       document.getElementById("additional-sample").hidden = true;
       document.getElementById("additional-advance").disabled = !matching.some((item) => item.next === "advance");
+      if (document.getElementById("semis-results-view").value === "reviewers") {
+        const groups = new Map();
+        for (const item of matching) {
+          const source = item.row.initialNoCount === 3 ? "negative" : "positive";
+          for (const email of new Set([...item.reads.map((read) => read.reviewerEmail), ...item.pending])) {
+            if (reviewer && email !== reviewer) continue;
+            const key = source + "|" + email;
+            if (!groups.has(key)) groups.set(key, { source, email, assigned: 0, completed: 0, yes: 0, maybe: 0, no: 0 });
+            const group = groups.get(key);
+            group.assigned += 1;
+            const vote = item.reads.find((read) => read.reviewerEmail === email);
+            if (vote) {
+              group.completed += 1;
+              if (["yes", "maybe", "no"].includes(vote.decision)) group[vote.decision] += 1;
+            }
+          }
+        }
+        const assignments = [...groups.values()].sort((a, b) => a.source.localeCompare(b.source) || a.email.localeCompare(b.email));
+        document.getElementById("additional-results").innerHTML = assignments.length
+          ? '<table class="progress-table"><thead><tr><th>Source</th><th>Reviewer</th><th>Assigned</th><th>Completed</th><th>Waiting</th><th>Yes / Maybe / No</th><th>Actions</th></tr></thead><tbody>' +
+            assignments.map((group) => '<tr><td>' + (group.source === "negative" ? "Three-No spot check" : "2+ Yes Semis reads") +
+              '</td><td>' + escapeHtml(group.email) + '</td><td>' + group.assigned + '</td><td>' + group.completed +
+              '</td><td>' + (group.assigned - group.completed) + '</td><td>' + group.yes + ' / ' + group.maybe + ' / ' + group.no +
+              '</td><td><button type="button" data-semis-reader="' + escapeHtml(group.email) + '" data-source="' + group.source + '">See poems and outcomes</button> ' +
+              (group.assigned > group.completed ? '<button type="button" data-additional-unassign="' + escapeHtml(group.email) + '" data-source="' + group.source + '">Unassign pending reads</button>' : '') +
+              '</td></tr>').join("") + '</tbody></table>'
+          : '<p>No reviewer assignments match these filters. Choose Poems and outcomes to see poems still needing assignment.</p>';
+        return;
+      }
       document.getElementById("additional-results").innerHTML = matching.length
         ? '<table class="progress-table"><thead><tr><th>Poem</th><th>Additional readers and votes</th><th>Next step</th><th>Actions</th></tr></thead><tbody>' +
           matching.map(({ row, reads, pending, next }) => '<tr><td>' + escapeHtml(row.title) +
@@ -808,7 +838,7 @@
       if (event.target.open) renderAdditionalReviews();
       else document.getElementById("additional-results").replaceChildren();
     });
-    ["additional-set", "additional-status", "semis-reviewer"].forEach((id) => document.getElementById(id).addEventListener("change", renderAdditionalReviews));
+    ["additional-set", "additional-status", "semis-reviewer", "semis-results-view"].forEach((id) => document.getElementById(id).addEventListener("change", renderAdditionalReviews));
     document.getElementById("additional-refresh").addEventListener("click", loadProgress);
     document.getElementById("additional-assign").addEventListener("click", () => {
       document.getElementById("outcome-panel").open = true;
@@ -851,6 +881,13 @@
     document.getElementById("additional-results").addEventListener("click", async (event) => {
       const button = event.target.closest("button");
       if (!button) return;
+      if (button.dataset.semisReader) {
+        document.getElementById("additional-set").value = button.dataset.source;
+        document.getElementById("semis-reviewer").value = button.dataset.semisReader;
+        document.getElementById("semis-results-view").value = "poems";
+        renderAdditionalReviews();
+        return;
+      }
       const id = button.dataset.additionalOpen || button.dataset.additionalAdvance || button.dataset.additionalAssign;
       if (button.dataset.additionalUnassign || button.dataset.additionalAssign) {
         resetSemisPlan();
