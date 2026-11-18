@@ -237,6 +237,20 @@
       </form>
       <p>Each click adds this many to the reviewer’s existing queue. Check their current assigned count below before adding more.</p>
       <div id="assignment-status" class="status"></div>
+      <details id="unassign-panel"><summary>Unassign pending reads</summary>
+        <p>Remove this reviewer’s unfinished assignments in the selected contest. Completed votes and notes are kept.</p>
+        <form id="unassign-form" class="assignment-form">
+          <label>Reviewer’s Button Poetry email<input id="unassign-email" type="email" required placeholder="name@buttonpoetry.com"></label>
+          <label>Assignment type<select id="unassign-type">
+            <option value="spotcheck">Spot checks</option>
+            <option value="initial">Initial reads</option>
+            <option value="additional">Additional reads</option>
+            <option value="finalist">Finalist reads</option>
+          </select></label>
+          <button type="submit">Unassign pending reads</button>
+        </form>
+        <div id="unassign-status" class="status" aria-live="polite"></div>
+      </details>
       <details id="resize-assignment-panel"><summary>Reduce a reviewer’s assignment queue</summary>
         <p>This keeps completed reviews and the earliest pending assignments. Preview the exact change before applying it; no votes are deleted.</p>
         <form id="resize-assignment-form" class="assignment-form">
@@ -542,7 +556,9 @@
       document.getElementById("spot-check-results").innerHTML = spotChecks.length
         ? '<table class="progress-table"><thead><tr><th>Spot checker</th><th>Sample</th><th>Votes</th><th>Result</th></tr></thead><tbody>' +
           spotChecks.map((row) => '<tr><td>' + escapeHtml(row.reviewerEmail) + '</td><td>' + row.sampleCount + ' of ' + row.eligibleCount + ' eligible</td><td>' + row.reviewedCount + ' / ' + row.sampleCount + ' · Y ' + row.yesCount + ' · M ' + row.maybeCount + ' · N ' + row.noCount + '</td><td>' +
-            (row.status === "in_progress" ? "In progress" : row.status === "needs_attention" ? "Needs additional checking" : "No concerns found — admin review before archiving") + '</td></tr>').join("") + '</tbody></table>'
+            (row.status === "unassigned" ? "Unassigned" : row.status === "in_progress" ? "In progress" : row.status === "needs_attention" ? "Needs additional checking" : "No concerns found — admin review before archiving") +
+            (row.unassignedCount ? "<br>" + row.unassignedCount + " reads unassigned" : "") +
+            (row.reviewedCount < row.sampleCount ? '<br><button type="button" data-unassign-spot="' + escapeHtml(row.reviewerEmail) + '">Unassign pending spot checks</button>' : "") + '</td></tr>').join("") + '</tbody></table>'
         : "<p>No spot checks assigned yet.</p>";
       if (document.getElementById("submission-progress-panel").open) renderSubmissionProgress();
     }
@@ -577,7 +593,7 @@
           [...byReader.values()].sort((a, b) => a.email.localeCompare(b.email)).map((row) =>
             '<tr><td>' + escapeHtml(row.email) + '</td><td>' + row.completed + ' / ' + row.assigned +
             '</td><td>' + row.champion + '</td><td>' + row.possible + '</td><td>' + row.pass + '</td><td>' +
-            (row.assigned > row.completed ? '<button type="button" data-remove-finalist="' + escapeHtml(row.email) + '">Remove ' + (row.assigned - row.completed) + ' pending</button>' : '—') +
+            (row.assigned > row.completed ? '<button type="button" data-remove-finalist="' + escapeHtml(row.email) + '">Unassign ' + (row.assigned - row.completed) + ' pending</button>' : '—') +
             '</td></tr>').join("") +
           '</tbody></table>'
         : '<p>No finalist reads assigned yet.</p>';
@@ -1947,6 +1963,44 @@
         status.textContent = "Could not assign entries: " + error.message;
       }
     });
+    document.getElementById("spot-check-results").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-unassign-spot]");
+      if (!button) return;
+      document.getElementById("unassign-panel").open = true;
+      document.getElementById("unassign-email").value = button.dataset.unassignSpot;
+      document.getElementById("unassign-type").value = "spotcheck";
+      document.getElementById("unassign-panel").scrollIntoView({ block: "center" });
+    });
+    document.getElementById("unassign-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const programId = document.getElementById("program").value;
+      const reviewerEmail = document.getElementById("unassign-email").value.trim().toLowerCase();
+      const type = document.getElementById("unassign-type").value;
+      const status = document.getElementById("unassign-status");
+      if (!programId) return void (status.textContent = "Choose a contest first.");
+      if (!window.confirm("Unassign all pending " + type + " reads for " + reviewerEmail + " in this contest? Completed votes and notes will be kept.")) return;
+      const button = event.target.querySelector("button");
+      button.disabled = true;
+      let total = 0;
+      try {
+        let more;
+        do {
+          status.textContent = "Unassigning pending reads… " + total + " removed.";
+          const result = await api(type === "finalist" ? "admin/contestFinalistAssignments" : "admin/contestAssignments/unassign", {
+            method: "POST", body: { programId, reviewerEmail, type },
+          });
+          total += result.removedCount;
+          more = result.more === true;
+        } while (more);
+        await loadQueue();
+        status.textContent = "Unassigned " + total + " pending reads for " + reviewerEmail + ". Completed votes and notes were kept.";
+      } catch (error) {
+        status.textContent = "Removed " + total + " pending reads. Could not finish: " + error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
     let resizePreview = null;
     document.getElementById("resize-assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
