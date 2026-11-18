@@ -137,7 +137,7 @@
       </details>
       <details id="additional-review-panel" class="admin-tool-group">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Semis</summary>
-        <p>One fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
+        <p>Three preliminary Yes votes qualify directly for Finals; no Semis read is required. The 2-Yes Spot Check covers exactly two preliminary Yes votes. For the spot check groups, one fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
         <form id="semis-form">
           <div class="controls">
             <label>Assign from<select id="semis-source"><option value="positive">2-Yes Spot Check — shared full-group read</option><option value="negative">3-No Spot Check — 10% per reviewer</option></select></label>
@@ -151,7 +151,7 @@
         </form>
         <div class="controls">
           <label>View<select id="semis-results-view"><option value="reviewers">Assignments by reviewer</option><option value="poems">Poems and outcomes</option></select></label>
-          <label>Show results<select id="additional-set"><option value="all">Both spot check groups</option><option value="positive">2-Yes Spot Check</option><option value="negative">3-No Spot Check</option></select></label>
+          <label>Show results<select id="additional-set"><option value="all">All advancement groups</option><option value="unanimous">3-Yes — direct to Finals</option><option value="positive">2-Yes Spot Check</option><option value="negative">3-No Spot Check</option></select></label>
           <label>Reviewer<select id="semis-reviewer"><option value="">All reviewers</option></select></label>
           <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">2-Yes needs follow-up assignment</option><option value="unsampled">3-No not sampled</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
           <button type="button" id="additional-refresh">Refresh results</button>
@@ -164,9 +164,9 @@
       </details>
       <details id="finalist-admin" style="margin:22px 0;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finals</summary>
-        <p>Assign the poems advanced from Semis for Champion / Possible / Pass reads. Choose one to three independent readers per poem. Assigning emails each reader a queue link. Use Decisions to compare finalists, build the winners’ circle, and select the winner.</p>
+        <p>Assign unanimous 3-Yes poems and poems advanced from Semis for Champion / Possible / Pass reads. Choose one to three independent readers per poem. Assigning emails each reader a queue link. Use Decisions to compare finalists, build the winners’ circle, and select the winner.</p>
         <div class="assignment-form">
-          <label>Set<select id="finalist-tier"><option value="shortlist">Advanced from Semis</option><option value="strong">All 2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
+          <label>Set<select id="finalist-tier"><option value="shortlist">Finals qualifiers — 3-Yes and advanced from Semis</option><option value="strong">All 2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
           <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option><option value="3">3 independent reads</option></select></label>
         </div>
         <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
@@ -642,7 +642,7 @@
       const source = document.getElementById("semis-source").value;
       return (state.adminProgress?.submissions || []).filter((row) => !row.archived &&
         row.reviewCount >= state.adminProgress.requiredReviewCount &&
-        (source === "positive" ? row.initialYesCount >= 2 : row.initialNoCount === 3)).map(additionalReviewState);
+        (source === "positive" ? row.initialYesCount === 2 : row.initialNoCount === 3)).map(additionalReviewState);
     }
     document.getElementById("semis-form").addEventListener("submit", (event) => {
       event.preventDefault();
@@ -753,7 +753,7 @@
       const pending = (row.extraReviewerEmails || []).filter((email) => !completed.has(email));
       let next;
       if (row.shortlisted || ["circle", "winner"].includes(row.outcomeStatus)) next = "advanced";
-      else if (reads.some((read) => read.decision === "yes")) next = "advance";
+      else if (row.initialYesCount === 3 || reads.some((read) => read.decision === "yes")) next = "advance";
       else if (pending.length) next = "waiting";
       else if (!reads.length) next = row.initialNoCount === 3 ? "unsampled" : "unassigned";
       else if (reads[0].decision === "maybe" && reads.length === 1) next = "another";
@@ -765,7 +765,7 @@
     function additionalReviewRows() {
       const set = document.getElementById("additional-set").value;
       return (state.adminProgress?.submissions || []).filter((row) => !row.archived &&
-        (set === "positive" ? row.reviewCount >= state.adminProgress.requiredReviewCount && row.initialYesCount >= 2 : set === "negative" ? row.initialNoCount === 3 :
+        (set === "unanimous" ? row.initialYesCount === 3 : set === "positive" ? row.reviewCount >= state.adminProgress.requiredReviewCount && row.initialYesCount === 2 : set === "negative" ? row.initialNoCount === 3 :
           (row.reviewCount >= state.adminProgress.requiredReviewCount && (row.initialYesCount >= 2 || row.initialNoCount === 3)) || row.additionalReads?.length || row.extraReviewerEmails?.length)).map(additionalReviewState);
     }
 
@@ -777,7 +777,8 @@
       const labels = { unassigned: "Needs follow-up assignment", unsampled: "Not sampled", waiting: "Waiting for reader", advance: "Ready to advance",
         another: "Needs another eye", editor: "Editor decision needed", closed: "Check closed", advanced: "Advanced to finalist consideration" };
       const summaryGroups = [
-        { name: "2-Yes Spot Check", items: rows.filter((item) => item.row.initialYesCount >= 2) },
+        { name: "3-Yes — direct to Finals", items: rows.filter((item) => item.row.initialYesCount === 3) },
+        { name: "2-Yes Spot Check", items: rows.filter((item) => item.row.initialYesCount === 2) },
         { name: "3-No Spot Check", items: rows.filter((item) => item.row.initialNoCount === 3) },
         { name: "Other additional reads", items: rows.filter((item) => item.row.initialYesCount < 2 && item.row.initialNoCount !== 3) },
       ];
@@ -802,7 +803,7 @@
       if (document.getElementById("semis-results-view").value === "reviewers") {
         const groups = new Map();
         for (const item of matching) {
-          const source = item.row.initialNoCount === 3 ? "negative" : "positive";
+          const source = item.row.initialYesCount === 3 ? "unanimous" : item.row.initialNoCount === 3 ? "negative" : "positive";
           for (const email of new Set([...item.reads.map((read) => read.reviewerEmail), ...item.pending])) {
             if (reviewer && email !== reviewer) continue;
             const key = source + "|" + email;
@@ -819,7 +820,7 @@
         const assignments = [...groups.values()].sort((a, b) => a.source.localeCompare(b.source) || a.email.localeCompare(b.email));
         document.getElementById("additional-results").innerHTML = assignments.length
           ? '<table class="progress-table"><thead><tr><th>Source</th><th>Reviewer</th><th>Assigned</th><th>Completed</th><th>Waiting</th><th>Yes / Maybe / No</th><th>Actions</th></tr></thead><tbody>' +
-            assignments.map((group) => '<tr><td>' + (group.source === "negative" ? "3-No Spot Check" : "2-Yes Spot Check") +
+            assignments.map((group) => '<tr><td>' + (group.source === "unanimous" ? "3-Yes — direct to Finals" : group.source === "negative" ? "3-No Spot Check" : "2-Yes Spot Check") +
               '</td><td>' + escapeHtml(group.email) + '</td><td>' + group.assigned + '</td><td>' + group.completed +
               '</td><td>' + (group.assigned - group.completed) + '</td><td>' + group.yes + ' / ' + group.maybe + ' / ' + group.no +
               '</td><td><button type="button" data-semis-reader="' + escapeHtml(group.email) + '" data-source="' + group.source + '">See poems and outcomes</button> ' +
