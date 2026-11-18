@@ -13376,7 +13376,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   const readsPerEntry = Number(req.body?.readsPerEntry || 1);
   const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
     .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
-  if (!programId || !["strong", "rescue"].includes(tier) || ![1, 2, 3].includes(readsPerEntry)) {
+  if (!programId || !["shortlist", "strong", "rescue"].includes(tier) || ![1, 2, 3].includes(readsPerEntry)) {
     return res.status(400).json({ error: "invalid_finalist_batch" });
   }
   if (!reviewerEmails.length || reviewerEmails.length > 20 ||
@@ -13414,7 +13414,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
     .filter((item) => {
       const yesCount = initialContestDecisions(item.votes, requiredReviewCount)
         .filter((vote) => normalizeKey(vote.decision || "") === "yes").length;
-      return tier === "strong" ? yesCount >= 2 : yesCount === 1;
+      return tier === "shortlist" ? item.doc.data()?.contestShortlisted === true : tier === "strong" ? yesCount >= 2 : yesCount === 1;
     })
     .sort((a, b) => a.doc.id.localeCompare(b.doc.id));
   const snapshot = matching.map(({ doc, votes, reads }) => [
@@ -13623,8 +13623,9 @@ app.post(getBoth("/admin/contestAssignments/unassign"), async (req, res) => {
   const programId = normalizeText(req.body?.programId || "");
   const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
   const type = normalizeKey(req.body?.type || "");
+  const selectedIds = Array.isArray(req.body?.submissionIds) ? new Set(req.body.submissionIds.map(normalizeText)) : null;
   if (!programId || !/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail) ||
-      !["initial", "additional", "spotcheck"].includes(type)) {
+      !["initial", "additional", "spotcheck", "semis"].includes(type)) {
     return res.status(400).json({ error: "invalid_unassignment" });
   }
   const assignmentId = createHash("sha256").update(programId + "|" + reviewerEmail).digest("hex").slice(0, 40);
@@ -13645,9 +13646,10 @@ app.post(getBoth("/admin/contestAssignments/unassign"), async (req, res) => {
     }).map((doc) => doc.data().submissionId));
     const selected = submissions.docs.filter((doc) => {
       const data = doc.data();
-      if (data.contestSubmission !== true || completedIds.has(doc.id)) return false;
+      if (data.contestSubmission !== true || completedIds.has(doc.id) || (selectedIds && !selectedIds.has(doc.id))) return false;
       const extra = (data.contestExtraReviewerEmails || []).includes(reviewerEmail);
       const spot = normalizeText(data.contestSpotCheckReviewerEmail || "").toLowerCase() === reviewerEmail;
+      if (type === "semis") return extra || spot;
       if (type === "spotcheck") return spot;
       if (type === "additional") return extra && !spot;
       return assignedIds.has(doc.id) && !extra && !spot;
@@ -13668,14 +13670,14 @@ app.post(getBoth("/admin/contestAssignments/unassign"), async (req, res) => {
       transaction.update(doc.ref, {
         contestExtraReviewerEmails: FieldValue.arrayRemove(reviewerEmail),
         contestReviewTarget: target,
-        ...(type === "spotcheck" ? { contestSpotCheckBatchId: "", contestSpotCheckReviewerEmail: "" } : {}),
+        ...(normalizeText(data.contestSpotCheckReviewerEmail || "").toLowerCase() === reviewerEmail ? { contestSpotCheckBatchId: "", contestSpotCheckReviewerEmail: "" } : {}),
         judgingStatus: complete ? "reviewed" : "in_review",
         contestScore: complete ? votes.reduce((score, vote) => score + (vote.decision === "yes" ? 1 : vote.decision === "no" ? -1 : 0), 0) : null,
         contestReviewCompleteAt: complete ? FieldValue.serverTimestamp() : null,
         updatedBy: ctx.decoded.uid, updatedAt: FieldValue.serverTimestamp(),
       });
     }
-    if (type === "spotcheck") {
+    if (type === "spotcheck" || type === "semis") {
       for (const spot of spots.docs) {
         if (normalizeText(spot.data()?.reviewerEmail || "").toLowerCase() !== reviewerEmail) continue;
         const removed = (spot.data()?.sampleIds || []).filter((id) => ids.includes(id));
