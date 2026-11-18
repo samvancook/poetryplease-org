@@ -85,24 +85,37 @@ A read-only check of Fall 2026 records on November 18 found 72 poems with two or
 
 The present Finals source dropdown still exposes legacy groups, including exactly one initial Yes. Its existence does not establish that the option was used. Removing that dropdown in favor of the actual qualifying set is on the roadmap.
 
-## Proposed flatter qualification system — latest discussion, not approved
+## Agreed next-contest qualification route — not implemented
 
-### Binary qualification reads
+Agreed in the November 18 discussion: routinely run the two-Yes qualification round; open the one-Yes route only if that completed round leaves too few finalists. Keep three independent Yes votes as the qualification line. This supersedes the earlier proposal allowing one initial Yes plus one fresh Yes to qualify.
 
-The latest user proposal (November 18) gives stronger preliminary support more opportunities, rather than applying a uniform total-Yes threshold. Consider removing Maybe from **prelims and qualification reads**, leaving Yes / No. This is a discussion proposal; the live tool still offers Maybe.
+The working preset is **5% of the original eligible contest field**, rounded up. Other presets such as 10% were discussed, but are not the working default. Snapshot the denominator after intake reconciliation; do not let later archives or finalist eliminations continually reopen qualification.
 
-| Preliminary Yes count (three readers) | Proposed opportunity | Route to Finals |
+| Preliminary Yes count (three readers) | Normal opportunity | Route to Finals |
 |---|---|---|
 | 3 | No qualification reread | Direct qualification. |
-| 2 | Up to two new independent readers | Either fresh Yes qualifies the poem. Stop once it qualifies; if the first fresh read is No, offer the second shot. Two fresh Nos close this route. |
-| 1 | One new independent reader | A fresh Yes qualifies the poem. A fresh No closes this route. |
-| 0 | Random quality-audit sample | First positive signal starts independent confirmation, not automatic qualification. Rescue threshold remains undecided. |
+| 2 | Routinely offer up to two fresh independent reads | Either Yes supplies the third Yes and qualifies. Stop after success. If the first is No, offer the second; two Nos close the route. |
+| 1 | Open a declared batch only if the completed two-Yes round leaves Finals below the preset target | One fresh Yes earns another independent read. Another Yes reaches three total and qualifies. A No closes this route. |
+| 0 | Quality-audit sample only | No routine advancement route. A failed audit triggers a defined expansion/reread process, which still needs approval. |
 
-A one-Yes poem can qualify with two total Yes votes; a two-Yes poem needs at least three total Yes votes but gets two chances to find the extra support. This is intentional unequal opportunity based on preliminary strength, not an identical numerical support threshold. Review and explicitly approve that tradeoff before implementing it.
+### Round boundaries and the percentage gate
 
-All poems already have three prelim reads. The fresh qualification reads above are fourth or later reads, not a missing third prelim read.
+1. Qualify all unanimous-Yes poems.
+2. Complete the routine two-Yes round, including earned second opportunities and any already assigned reads.
+3. Count the distinct qualifying poems. If the count meets or exceeds the preset, do not open the one-Yes round.
+4. If below target, open a declared one-Yes batch using a fair selection rule. Every included poem receives its earned opportunities.
+5. Finish the whole opened batch even if it takes the pool over the target. Check again before opening another batch.
+6. Once qualification closes, later finalist Passes or archiving do not automatically reopen qualification.
 
-If the two-Yes route is assigned sequentially, stop after its first Yes to save work. Decide whether faster parallel assignment is worth a possibly unnecessary second read. Do not count the same person twice, disclose previous votes, or keep adding readers until a poem eventually qualifies.
+Five percent is an expansion trigger, not a hard finalist cap. Do not stop individual opportunities according to reviewer speed or poem order. Batch selection and batch size still need an explicit product decision; random selection is a candidate, not a silently approved rule.
+
+All poems already have three prelim reads. The fresh qualification reads above are fourth or later reads, not a missing third prelim read. Use independent readers and stop a successful poem’s qualification route rather than accumulating unnecessary votes.
+
+### Historical sizing check
+
+Original fields: Fall 2026 had 926 poems (5% target 47), with five unanimous-Yes and 67 exactly-two-Yes poems. November had 933 poems (target 47), with eight unanimous-Yes and 58 exactly-two-Yes poems before later archiving. November’s existing positive qualification results supplied 36 of those 58, for 44 qualifiers excluding three-No rescues; three further successes among the remaining two-Yes poems would have reached 47. The proposed second-shot votes were not all cast, so neither contest proves whether the one-Yes route would have opened under this exact policy. Fall’s Champion/Possible/Pass reads must not be recoded as hypothetical Yes/No qualification votes.
+
+At a 10% preset, the targets would be 93 and 94; even every two-plus-Yes poem qualifying would leave both contests short, requiring expansion.
 
 ### What dropping Maybe resolves
 
@@ -114,11 +127,11 @@ Decide what to do with existing Maybe records if a policy is ever changed mid-co
 
 ### No-Yes audits and confirmation
 
-Under binary prelims, every one-Yes poem already has two Nos and receives its defined fresh read. A zero-Yes poem has three Nos and is sampled to test the screening process, not to give it a more generous advancement route.
+Under binary prelims, a one-Yes poem already has two Nos and enters qualification only when the target-triggered one-Yes round opens. A zero-Yes poem has three Nos and is sampled to test screening, not to give it a more generous advancement route.
 
 If Maybe remains available, include mixed no-Yes groups too: three No, two No plus Maybe, one No plus two Maybe, and three Maybe. Track strata separately and define how they enter qualification. Do not keep auditing only unanimous Nos while overlooking uncertain exclusions.
 
-A candidate rule for discussion is requiring **two fresh independent Yes votes** to rescue a sampled zero-Yes poem. The first Yes would request the confirmation read. This is not approved; compare it against the one-Yes route and expected reader workload before settling it. Earlier proposals allowing Yes/Maybe confirmations and a three-total-Yes threshold are alternatives, not additional rules to combine.
+The latest direction gives zero-Yes audit samples **no normal path into Finals**. An audit failure should trigger a defined expansion/reread process. Decide its thresholds, scope, and eventual qualification rules explicitly; do not silently retain the earlier one-positive rescue rule or combine prior Yes/Maybe rescue proposals with this route.
 
 Audit reviewers should be independent of previous readers. Consider hiding previous decisions, reviewer names, scores, and cohort labels, with neutral assignment emails. Administrators retain cohort and audit visibility.
 
@@ -153,9 +166,9 @@ Build the circle from the comparison, then pick a winner if desired. A chosen wi
 
 ## Decisions still needed before the next redesign
 
-1. Approve or revise the latest 3-Yes direct / 2-Yes two shots / 1-Yes one shot proposal.
+1. Implement the agreed three-Yes line: routine two-Yes two-shot round, then target-triggered one-Yes batches with earned sequential reads. Set batch selection/size and snapshot the target before the contest.
 2. Decide whether to remove Maybe from prelims and qualification reads while retaining finalist Possible.
-3. Decide sequential versus parallel two-shot allocation, zero-Yes rescue support, and any editor-override/stopping rules.
+3. Set audit-failure thresholds and expansion/reread behavior, plus any explicit editor override. Zero-Yes samples have no routine finalist route.
 4. Approve no-Yes audit strata, sample sizes, mandatory expansion triggers, and reviewer blinding.
 5. Approve Finals coverage and when preliminary tie-break information becomes visible.
 6. Resolve shortlist/candidate/finalist/archive states and consolidate overlapping panels.
