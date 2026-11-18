@@ -13329,13 +13329,32 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
     .flatMap((doc) => view === "spotcheck" ? doc.data()?.sampleIds || []
       : view === "finalist" ? [doc.id] : doc.data()?.submissionIds || []))].sort();
   if (!ids.length) return res.status(409).json({ error: "no_committed_assignment_for_reviewer" });
+  const addedCount = req.body?.addedCount;
+  if (addedCount !== undefined && (!Number.isInteger(addedCount) || addedCount < 0 || addedCount > ids.length)) {
+    return res.status(400).json({ error: "invalid_added_assignment_count" });
+  }
   let preliminaryCount = 0;
   let additionalCount = 0;
-  if (view === "assigned") {
-    const submissions = await db.getAll(...ids.map((id) => db.collection(COLLECTIONS.contentSubmissions).doc(id)));
-    const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
+  let remainingCount = 0;
+  const submissions = await db.getAll(...ids.map((id) => db.collection(COLLECTIONS.contentSubmissions)
+    .doc(view === "finalist" ? snap.docs.find((doc) => doc.id === id)?.data()?.submissionId || id : id)));
+  if (view === "finalist") {
+    const activeIds = new Set(submissions.filter((doc) => doc.exists && doc.data()?.contestArchived !== true).map((doc) => doc.id));
+    remainingCount = snap.docs.filter((doc) => ids.includes(doc.id) &&
+      activeIds.has(doc.data()?.submissionId) && !normalizeKey(doc.data()?.decision || "")).length;
+  } else {
+    const responses = await db.collection(COLLECTIONS.submissionResponses).where("submissionProgramId", "==", programId).get();
+    const completedIds = new Set(responses.docs.filter((doc) => {
+      const data = doc.data() || {};
+      return ["contest_review", "contest_supplemental_review"].includes(data.responseType) &&
+        normalizeText(data.reviewerEmail || "").toLowerCase() === reviewerEmail;
+    }).map((doc) => doc.data().submissionId));
     for (const submission of submissions) {
-      if (Number(submission.data()?.contestReviewTarget) > requiredReviewCount) additionalCount += 1;
+      if (!submission.exists || submission.data()?.contestArchived === true || completedIds.has(submission.id)) continue;
+      remainingCount += 1;
+      const extra = (submission.data()?.contestExtraReviewerEmails || []).some((email) =>
+        normalizeText(email).toLowerCase() === reviewerEmail);
+      if (extra || view === "spotcheck") additionalCount += 1;
       else preliminaryCount += 1;
     }
   }
@@ -13355,13 +13374,13 @@ app.post(getBoth("/admin/contestAssignmentNotices/send"), async (req, res) => {
   const reviewUrl = `https://poetryplease.org/contest-review.html?program=${encodeURIComponent(programId)}&view=${view}`;
   const message = buildContestAssignmentMessage({
     programName: normalizeText(programSnap.data()?.name || programSnap.data()?.title || programId),
-    view, reviewUrl, assignmentCount: ids.length, preliminaryCount, additionalCount,
+    view, reviewUrl, addedCount, remainingCount, preliminaryCount, additionalCount,
   });
   try {
     const delivery = await sendAuthorInviteWithMandrill({ apiKey, email: reviewerEmail, message, tag: "poetry-please-contest-assignment", ...mailIdentity });
     await noticeRef.set({ deliveryStatus: "sent", deliveryMessageId: delivery.messageId,
       deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    return res.json({ ok: true, reviewerEmail, view, reviewUrl, assignmentCount: ids.length, delivery });
+    return res.json({ ok: true, reviewerEmail, view, reviewUrl, assignmentCount: ids.length, addedCount, remainingCount, delivery });
   } catch (error) {
     await noticeRef.set({ deliveryStatus: "uncertain", deliveryUpdatedAt: FieldValue.serverTimestamp() }, { merge: true });
     return res.status(502).json({ error: "contest_notice_send_unconfirmed" });
