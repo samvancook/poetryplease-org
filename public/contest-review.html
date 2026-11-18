@@ -274,10 +274,25 @@
       <h3>Reviewer progress</h3>
       <div id="reviewer-progress" class="table-wrap"></div>
       </section>
+      <details id="additional-review-panel" class="admin-tool-group">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Additional review — assignments and next steps</summary>
+        <p>One fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
+        <div class="controls">
+          <label>Set<select id="additional-set"><option value="positive">Two or more initial Yeses</option><option value="negative">Three initial Nos</option><option value="all">All additional reads</option></select></label>
+          <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">Needs assignment</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
+          <button type="button" id="additional-refresh">Refresh results</button>
+        </div>
+        <div id="additional-summary" class="status"></div>
+        <p id="additional-guidance"></p>
+        <div class="actions"><button type="button" id="additional-assign">Assign fourth reads to the two-plus-Yes set</button><button type="button" id="additional-sample">Set up random three-No sample</button><button type="button" id="additional-advance">Advance all ready poems in this set</button></div>
+        <p id="additional-action-status" class="status" aria-live="polite"></p>
+        <div id="additional-results" class="table-wrap"></div>
+      </details>
       <section class="admin-tool-group" aria-labelledby="spot-check-heading"><h3 id="spot-check-heading">Spot check: three No votes</h3>
-      <p>Randomly assign 10% of eligible three-No entries (at least 30, or all if fewer). The spot checker must not be one of the original reviewers. This adds a fourth blinded vote to each sampled entry; it does not archive anything automatically.</p>
+      <p>Randomly assign 10% or 20% of eligible three-No entries (at least 30, or all if fewer). The spot checker must not be one of the original reviewers. This adds a fourth blinded vote to each sampled entry; it does not archive anything automatically.</p>
       <form id="spot-check-form" class="assignment-form">
         <label>Spot checker’s Button Poetry email<input id="spot-check-email" type="email" required placeholder="name@buttonpoetry.com"></label>
+        <label>Sample of eligible poems<select id="spot-check-percent"><option value="10">10%</option><option value="20">20%</option></select></label>
         <button type="submit">Assign random spot check</button>
       </form>
       <div id="spot-check-status" class="status"></div>
@@ -552,6 +567,7 @@
         : '<p>No reviews or assignments yet.</p>';
       if (document.getElementById("outcome-panel").open) renderOutcomeViews();
       renderFinalistProgress();
+      if (document.getElementById("additional-review-panel").open) renderAdditionalReviews();
       const spotChecks = report.spotChecks || [];
       document.getElementById("spot-check-results").innerHTML = spotChecks.length
         ? '<table class="progress-table"><thead><tr><th>Spot checker</th><th>Sample</th><th>Votes</th><th>Result</th></tr></thead><tbody>' +
@@ -562,6 +578,140 @@
         : "<p>No spot checks assigned yet.</p>";
       if (document.getElementById("submission-progress-panel").open) renderSubmissionProgress();
     }
+
+    function additionalReviewState(row) {
+      const reads = row.additionalReads || [];
+      const completed = new Set(row.reviewers.map((vote) => vote.reviewerEmail));
+      const pending = (row.extraReviewerEmails || []).filter((email) => !completed.has(email));
+      let next;
+      if (row.shortlisted || ["circle", "winner"].includes(row.outcomeStatus)) next = "advanced";
+      else if (reads.some((read) => read.decision === "yes")) next = "advance";
+      else if (pending.length) next = "waiting";
+      else if (!reads.length) next = "unassigned";
+      else if (reads[0].decision === "maybe" && reads.length === 1) next = "another";
+      else if (reads[0].decision === "maybe" && reads[1]?.decision === "maybe") next = "editor";
+      else next = "closed";
+      return { row, reads, pending, next };
+    }
+
+    function additionalReviewRows() {
+      const set = document.getElementById("additional-set").value;
+      return (state.adminProgress?.submissions || []).filter((row) => !row.archived &&
+        (set === "positive" ? row.reviewCount >= state.adminProgress.requiredReviewCount && row.initialYesCount >= 2 : set === "negative" ? row.initialNoCount === 3 :
+          row.additionalReads?.length || row.extraReviewerEmails?.length)).map(additionalReviewState);
+    }
+
+    function renderAdditionalReviews() {
+      const rows = additionalReviewRows();
+      const status = document.getElementById("additional-status").value;
+      const matching = rows.filter((item) => status === "all" || item.next === status);
+      const labels = { unassigned: "Needs assignment", waiting: "Waiting for reader", advance: "Ready to advance",
+        another: "Needs another eye", editor: "Editor decision needed", closed: "Check closed", advanced: "Advanced to finalist consideration" };
+      const counts = Object.fromEntries(Object.keys(labels).map((key) => [key, rows.filter((item) => item.next === key).length]));
+      document.getElementById("additional-summary").textContent = rows.length + " poems. " +
+        Object.keys(labels).map((key) => labels[key] + ": " + counts[key]).join(" · ");
+      const negative = document.getElementById("additional-set").value === "negative";
+      const sampled = rows.filter((item) => item.reads.length || item.pending.length);
+      const rescues = rows.filter((item) => item.reads.some((read) => read.decision === "yes")).length;
+      document.getElementById("additional-guidance").textContent = negative
+        ? sampled.length + " of " + rows.length + " poems sampled (" + (rows.length ? Math.round(sampled.length / rows.length * 100) : 0) +
+          "%). " + rescues + " have a fresh Yes. " +
+          (rescues >= 2 ? "Multiple rescues found: expand the sample toward 20% and review the results before archiving the group." :
+            "Review each rescued poem. A clean sample supports an editorial decision about the remaining group; it does not guarantee every promising poem was found.")
+        : "Review the full two-plus-Yes set. Use the next-step filter to find pending assignments, positive results, and poems needing another eye.";
+      document.getElementById("additional-assign").hidden = negative;
+      document.getElementById("additional-sample").hidden = !negative;
+      document.getElementById("additional-advance").disabled = !matching.some((item) => item.next === "advance");
+      document.getElementById("additional-results").innerHTML = matching.length
+        ? '<table class="progress-table"><thead><tr><th>Poem</th><th>Additional readers and votes</th><th>Next step</th><th>Actions</th></tr></thead><tbody>' +
+          matching.map(({ row, reads, pending, next }) => '<tr><td>' + escapeHtml(row.title) +
+            '<br><small>Initial: ' + row.initialYesCount + ' Yes · ' + row.initialNoCount + ' No</small></td><td>' +
+            reads.map((read) => escapeHtml(read.reviewerEmail) + ' — ' + escapeHtml(read.decision)).join('<br>') +
+            pending.map((email) => '<br>' + escapeHtml(email) + ' — waiting').join('') +
+            (!reads.length && !pending.length ? 'No additional reader assigned' : '') + '</td><td>' + labels[next] +
+            '</td><td><button type="button" data-additional-open="' + escapeHtml(row.id) + '">Read poem</button> ' +
+            (next === "advance" ? '<button type="button" data-additional-advance="' + escapeHtml(row.id) + '">Advance to finalist consideration</button> ' : '') +
+            (["another", "editor", "unassigned"].includes(next) ? '<button type="button" data-additional-assign="' + escapeHtml(row.id) + '">Assign another reader</button> ' : '') +
+            (pending.length ? '<button type="button" data-additional-unassign="' + escapeHtml(pending[0]) + '" data-spot="' + !!row.spotCheckBatchId + '">Unassign pending reads</button>' : '') +
+            '</td></tr>').join('') + '</tbody></table>' : '<p>No poems match this next step.</p>';
+    }
+
+    document.getElementById("additional-review-panel").addEventListener("toggle", (event) => {
+      if (event.target.open) renderAdditionalReviews();
+      else document.getElementById("additional-results").replaceChildren();
+    });
+    ["additional-set", "additional-status"].forEach((id) => document.getElementById(id).addEventListener("change", renderAdditionalReviews));
+    document.getElementById("additional-refresh").addEventListener("click", loadProgress);
+    document.getElementById("additional-assign").addEventListener("click", () => {
+      document.getElementById("outcome-panel").open = true;
+      document.getElementById("outcome-view").value = "strong";
+      invalidateFourthPreview();
+      renderOutcomeViews();
+      document.getElementById("preview-fourth").closest("details").open = true;
+      document.getElementById("fourth-reviewer-emails").focus();
+      document.getElementById("preview-fourth").scrollIntoView({ block: "center" });
+    });
+    document.getElementById("additional-sample").addEventListener("click", () => {
+      document.getElementById("spot-check-email").focus();
+      document.getElementById("spot-check-form").scrollIntoView({ block: "center" });
+    });
+
+    async function advanceAdditionalPoems(ids) {
+      const status = document.getElementById("additional-action-status");
+      let saved = 0;
+      try {
+        for (const id of ids) {
+          await api("admin/contentSubmissions/" + encodeURIComponent(id) + "/shortlist", {
+            method: "POST", body: { shortlisted: true },
+          });
+          saved += 1;
+          status.textContent = "Advanced " + saved + " of " + ids.length + " poems.";
+        }
+        await loadProgress();
+        status.textContent = "Advanced " + saved + " poems. Open Decisions to compare the shortlist and assign finalist reads as needed.";
+      } catch (error) {
+        status.textContent = "Advanced " + saved + " poems. Could not finish: " + error.message + ". Refresh results before retrying.";
+      }
+    }
+    document.getElementById("additional-advance").addEventListener("click", async (event) => {
+      const status = document.getElementById("additional-status").value;
+      const ids = additionalReviewRows().filter((item) => item.next === "advance" && (status === "all" || item.next === status)).map((item) => item.row.id);
+      if (!ids.length || !window.confirm("Advance " + ids.length + " poems to finalist consideration?")) return;
+      event.target.disabled = true;
+      await advanceAdditionalPoems(ids);
+    });
+    document.getElementById("additional-results").addEventListener("click", async (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      const id = button.dataset.additionalOpen || button.dataset.additionalAdvance || button.dataset.additionalAssign;
+      if (button.dataset.additionalUnassign) {
+        document.getElementById("unassign-panel").open = true;
+        document.getElementById("unassign-email").value = button.dataset.additionalUnassign;
+        document.getElementById("unassign-type").value = button.dataset.spot === "true" ? "spotcheck" : "additional";
+        document.getElementById("unassign-panel").scrollIntoView({ block: "center" });
+      } else if (button.dataset.additionalOpen) {
+        document.getElementById("view").value = "all";
+        applyFilters();
+        const index = state.filtered.findIndex((row) => row.id === id);
+        if (index >= 0) { state.index = index; render(); document.getElementById("review-card").scrollIntoView({ block: "start" }); }
+      } else if (button.dataset.additionalAdvance) {
+        button.disabled = true;
+        await advanceAdditionalPoems([id]);
+      } else if (button.dataset.additionalAssign) {
+        const reviewerEmail = window.prompt("Button Poetry email for a fresh reader:");
+        if (!reviewerEmail) return;
+        button.disabled = true;
+        const status = document.getElementById("additional-action-status");
+        try {
+          const result = await api("admin/contentSubmissions/" + encodeURIComponent(id) + "/additionalReviewer", {
+            method: "POST", body: { reviewerEmail: reviewerEmail.trim() },
+          });
+          const notice = await sendAssignmentNotices(document.getElementById("program").value, [result.reviewerEmail], "assigned");
+          await loadProgress();
+          status.textContent = "Additional reader assigned. " + notice;
+        } catch (error) { button.disabled = false; status.textContent = "Could not assign reader: " + error.message; }
+      }
+    });
 
     function renderSubmissionProgress() {
       const report = state.adminProgress;
@@ -2039,7 +2189,7 @@
       try {
         const result = await api("admin/contestSpotChecks", {
           method: "POST",
-          body: { programId, reviewerEmail: document.getElementById("spot-check-email").value.trim() },
+          body: { programId, reviewerEmail: document.getElementById("spot-check-email").value.trim(), samplePercent: Number(document.getElementById("spot-check-percent").value) },
         });
         status.textContent = "Assigned " + result.sampleCount + " of " + result.eligibleCount + " eligible three-No entries to " + result.reviewerEmail + ". " + await sendAssignmentNotices(programId, [result.reviewerEmail], "spotcheck");
         document.getElementById("notice-email").value = result.reviewerEmail;

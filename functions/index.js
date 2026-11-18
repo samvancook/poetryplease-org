@@ -12746,6 +12746,8 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
   const rows = submissions.map((row) => {
     const decisions = decisionsBySubmission.get(row.id) || [];
     const supplementalReads = supplementalBySubmission.get(row.id) || [];
+    const initialVotes = initialContestDecisions(decisions, requiredReviewCount);
+    const initialVoteSet = new Set(initialVotes);
     const assignedTo = assignedBySubmission.get(row.id) || [];
     for (const decision of decisions) {
       if (!decision.reviewerEmail) continue;
@@ -12768,7 +12770,13 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
       requiredReviewCount: Math.max(requiredReviewCount, Number(row.contestReviewTarget) || 0),
       reviewers: decisions.map(({ reviewerEmail, decision }) => ({ reviewerEmail, decision })),
       supplementalReads,
-      initialYesCount: initialContestDecisions(decisions, requiredReviewCount).filter((vote) => vote.decision === "yes").length,
+      initialYesCount: initialVotes.filter((vote) => vote.decision === "yes").length,
+      initialNoCount: initialVotes.filter((vote) => vote.decision === "no").length,
+      additionalReads: decisions.filter((vote) => !initialVoteSet.has(vote)).sort((a, b) =>
+        (a.reviewedAt?.toMillis?.() || 0) - (b.reviewedAt?.toMillis?.() || 0))
+        .map(({ reviewerEmail, decision }) => ({ reviewerEmail, decision })),
+      extraReviewerEmails: row.contestExtraReviewerEmails || [],
+      spotCheckBatchId: row.contestSpotCheckBatchId || "",
       finalistReads: finalistBySubmission.get(row.id) || [],
       assignedTo,
     };
@@ -13939,7 +13947,8 @@ app.post(getBoth("/admin/contestSpotChecks"), async (req, res) => {
       !assignedIds.has(doc.id);
   });
   if (!eligible.length) return res.status(409).json({ error: "no_eligible_three_no_entries" });
-  const sampleCount = Math.min(eligible.length, Math.max(30, Math.ceil(eligible.length * 0.1)));
+  const samplePercent = Number(req.body?.samplePercent) === 20 ? 0.2 : 0.1;
+  const sampleCount = Math.min(eligible.length, Math.max(30, Math.ceil(eligible.length * samplePercent)));
   if (sampleCount > 450) return res.status(409).json({ error: "spot_check_batch_too_large" });
   for (let i = eligible.length - 1; i > 0; i -= 1) {
     const j = randomInt(i + 1);
