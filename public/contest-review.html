@@ -140,17 +140,18 @@
         <p>One fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
         <form id="semis-form">
           <div class="controls">
+            <label>Assign from<select id="semis-source"><option value="positive">2+ initial Yes — full Semis read</option><option value="negative">3 initial No — spot check</option></select></label>
             <label>Action<select id="semis-action"><option value="assign">Assign reads</option><option value="unassign">Unassign pending reads</option></select></label>
-            <label>Amount<select id="semis-amount"><option value="all">All eligible poems</option><option value="10">Random 10% sample</option><option value="20">Random 20% sample</option></select></label>
+            <label>Amount<select id="semis-amount" disabled><option value="all">All poems needing a read</option></select></label>
           </div>
           <label>Reviewer emails<input id="semis-emails" type="text" required placeholder="name@buttonpoetry.com, name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
-          <p>Choose the source set and next step below, then preview. Assignments split across the listed fresh readers and email them their queue links. Unassignment removes only unfinished reads matching those filters.</p>
+          <p>The 2+ Yes group gets a full read. The three-No group gets a random 10% check; a second check uses different poems. Each sample is 10% of the full three-No group. Assignments split across fresh readers and email their queue links. The filters below adjust the results table.</p>
           <button type="submit">Preview change</button>
           <button id="semis-commit" type="button" hidden>Apply change</button>
           <p id="semis-plan-status" class="status" aria-live="polite"></p>
         </form>
         <div class="controls">
-          <label>Set<select id="additional-set"><option value="all">All Semis poems</option><option value="positive">Two or more initial Yeses</option><option value="negative">Three initial Nos</option></select></label>
+          <label>Show results<select id="additional-set"><option value="all">All Semis poems</option><option value="positive">Two or more initial Yeses</option><option value="negative">Three initial Nos</option></select></label>
           <label>Reviewer<select id="semis-reviewer"><option value="">All reviewers</option></select></label>
           <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">Needs assignment</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
           <button type="button" id="additional-refresh">Refresh results</button>
@@ -631,12 +632,29 @@
       document.getElementById("semis-commit").hidden = true;
       document.getElementById("semis-plan-status").textContent = "";
     }
-    ["semis-action", "semis-amount", "semis-emails", "additional-set", "additional-status", "semis-reviewer"].forEach((id) =>
+    ["semis-source", "semis-action", "semis-amount", "semis-emails"].forEach((id) =>
       document.getElementById(id).addEventListener(id === "semis-emails" ? "input" : "change", () => {
         const selectedPoem = semisSingleId;
         resetSemisPlan();
         if (["semis-action", "semis-amount", "semis-emails"].includes(id)) semisSingleId = selectedPoem;
       }));
+    function semisSourceRows() {
+      const source = document.getElementById("semis-source").value;
+      return (state.adminProgress?.submissions || []).filter((row) => !row.archived &&
+        row.reviewCount >= state.adminProgress.requiredReviewCount &&
+        (source === "positive" ? row.initialYesCount >= 2 : row.initialNoCount === 3)).map(additionalReviewState);
+    }
+    function updateSemisAmount() {
+      const sample = document.getElementById("semis-source").value === "negative";
+      const select = document.getElementById("semis-amount");
+      select.innerHTML = sample
+        ? '<option value="10">One random 10% check</option><option value="20">Two random 10% checks (20% total)</option>'
+        : '<option value="all">All poems needing a read</option>';
+      select.disabled = !sample || document.getElementById("semis-action").value === "unassign";
+      resetSemisPlan();
+    }
+    document.getElementById("semis-source").addEventListener("change", updateSemisAmount);
+    document.getElementById("semis-action").addEventListener("change", updateSemisAmount);
     document.getElementById("semis-form").addEventListener("submit", (event) => {
       event.preventDefault();
       const status = document.getElementById("semis-plan-status");
@@ -646,23 +664,31 @@
         return;
       }
       const action = document.getElementById("semis-action").value;
-      let rows = semisMatchingRows();
+      const source = document.getElementById("semis-source").value;
+      const sourceRows = semisSourceRows();
+      let rows = sourceRows.filter((item) => !semisSingleId || item.row.id === semisSingleId);
       const plan = [];
       if (action === "assign") {
-        rows = rows.filter((item) => ["unassigned", "another", "editor"].includes(item.next));
-        const amount = document.getElementById("semis-amount").value;
+        rows = rows.filter((item) => semisSingleId
+          ? ["unassigned", "another", "editor"].includes(item.next)
+          : source === "negative" ? item.next === "unassigned" : ["unassigned", "another", "editor"].includes(item.next));
+        const occupiedById = new Map(rows.map((item) => [item.row.id, new Set([
+          ...item.row.reviewers.map((vote) => vote.reviewerEmail),
+          ...(item.row.extraReviewerEmails || []),
+          ...(item.row.supplementalReads || []).map((read) => read.reviewerEmail),
+        ])]));
+        rows = rows.filter((item) => emails.some((email) => !occupiedById.get(item.row.id).has(email)));
+        const amount = semisSingleId || source === "positive" ? "all" : document.getElementById("semis-amount").value;
         if (amount !== "all") {
           for (let i = rows.length - 1; i > 0; i -= 1) {
             const j = Math.floor(Math.random() * (i + 1));
             [rows[i], rows[j]] = [rows[j], rows[i]];
           }
-          rows = rows.slice(0, Math.ceil(rows.length * Number(amount) / 100));
+          rows = rows.slice(0, Math.ceil(sourceRows.length * Number(amount) / 100));
         }
         const loads = new Map(emails.map((email) => [email, 0]));
         for (const item of rows) {
-          const occupied = new Set([...item.row.reviewers.map((vote) => vote.reviewerEmail), ...(item.row.extraReviewerEmails || []), ...(item.row.supplementalReads || []).map((read) => read.reviewerEmail)]);
-          const email = emails.filter((email) => !occupied.has(email)).sort((a, b) => loads.get(a) - loads.get(b))[0];
-          if (!email) continue;
+          const email = emails.filter((email) => !occupiedById.get(item.row.id).has(email)).sort((a, b) => loads.get(a) - loads.get(b))[0];
           plan.push({ id: item.row.id, email });
           loads.set(email, loads.get(email) + 1);
         }
@@ -673,7 +699,9 @@
       }
       semisPlan = { programId: document.getElementById("program").value, action, plan };
       const counts = emails.map((email) => email + " — " + plan.filter((item) => item.email === email).length).join("; ");
-      status.textContent = (action === "assign" ? "Assign " : "Unassign ") + plan.length + " reads. " + counts + ".";
+      status.textContent = (source === "positive" ? "2+ Yes" : "Three-No") + " set: " + sourceRows.length + " poems; " +
+        sourceRows.filter((item) => item.pending.length || item.reads.length).length + " already have an additional reader or completed read. " +
+        (action === "assign" ? "Assign " : "Unassign ") + plan.length + " reads. " + counts + ".";
       document.getElementById("semis-commit").hidden = !plan.length;
     });
     document.getElementById("semis-commit").addEventListener("click", async (event) => {
@@ -772,7 +800,7 @@
             '</td><td><button type="button" data-additional-open="' + escapeHtml(row.id) + '">Read poem</button> ' +
             (next === "advance" ? '<button type="button" data-additional-advance="' + escapeHtml(row.id) + '">Advance to finalist consideration</button> ' : '') +
             (["another", "editor", "unassigned"].includes(next) ? '<button type="button" data-additional-assign="' + escapeHtml(row.id) + '">Assign another reader</button> ' : '') +
-            (pending.length ? '<button type="button" data-additional-unassign="' + escapeHtml(pending[0]) + '" data-spot="' + !!row.spotCheckBatchId + '">Unassign pending reads</button>' : '') +
+            (pending.length ? '<button type="button" data-additional-unassign="' + escapeHtml(pending[0]) + '" data-source="' + (row.initialNoCount === 3 ? "negative" : "positive") + '">Unassign pending reads</button>' : '') +
             '</td></tr>').join('') + '</tbody></table>' : '<p>No poems match this next step.</p>';
     }
 
@@ -829,8 +857,11 @@
         document.getElementById("semis-action").value = button.dataset.additionalUnassign ? "unassign" : "assign";
         document.getElementById("semis-amount").value = "all";
         if (button.dataset.additionalUnassign) document.getElementById("semis-emails").value = button.dataset.additionalUnassign;
+        const sourceRow = state.adminProgress?.submissions.find((row) => row.id === id);
+        document.getElementById("semis-source").value = button.dataset.additionalUnassign ? button.dataset.source : sourceRow?.initialNoCount === 3 ? "negative" : "positive";
+        updateSemisAmount();
         semisSingleId = button.dataset.additionalAssign ? id : "";
-        document.getElementById("semis-plan-status").textContent = semisSingleId ? "Selected poem for another read. Enter a fresh reviewer and preview." : "Choose the source and next-step filters, then preview this reviewer's pending reads.";
+        document.getElementById("semis-plan-status").textContent = semisSingleId ? "Selected poem for another read. Enter a fresh reviewer and preview." : "Preview this reviewer's pending reads in the selected assignment source.";
         document.getElementById("semis-form").scrollIntoView({ block: "center" });
         document.getElementById("semis-emails").focus();
       } else if (button.dataset.additionalOpen) {
