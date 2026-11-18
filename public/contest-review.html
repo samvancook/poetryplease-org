@@ -119,11 +119,96 @@
       <p id="contest-entrants-status" class="status" aria-live="polite">Open this section to load entrants.</p>
       <div id="contest-entrants-results" class="table-wrap"></div>
     </details>
-    <details id="final-selection" class="card" hidden>
+    
+    <details id="admin-progress" class="card" hidden>
+      <summary class="admin-progress-summary">Judging workspace</summary>
+      <button id="phase-refresh" type="button">Refresh judging progress</button>
+      <details id="prelims-panel" class="admin-tool-group">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Prelims</summary>
+        <p>Give each poem three Yes / Maybe / No reads. Assign a batch or remove a reviewer’s pending initial reads here.</p>
+        <div id="prelims-coverage" class="status"></div>
+        <form id="assignment-form" class="assignment-form">
+        <label>Reviewer’s Button Poetry email<input id="assignment-email" type="email" required placeholder="name@buttonpoetry.com"></label>
+        <label>New assignments to add (1–100)<input id="assignment-size" type="number" min="1" max="100" value="50" required></label>
+        <label>Action<select id="prelims-action"><option value="assign">Assign initial reads</option><option value="unassign">Unassign pending initial reads</option></select></label><button type="submit" class="primary">Apply</button>
+      </form>
+        <div id="prelims-status" class="status" aria-live="polite"></div>
+        <div id="prelims-reviewers" class="table-wrap"></div>
+      </details>
+      <details id="additional-review-panel" class="admin-tool-group">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Semis</summary>
+        <p>One fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
+        <form id="semis-form">
+          <div class="controls">
+            <label>Action<select id="semis-action"><option value="assign">Assign reads</option><option value="unassign">Unassign pending reads</option></select></label>
+            <label>Amount<select id="semis-amount"><option value="all">All eligible poems</option><option value="10">Random 10% sample</option><option value="20">Random 20% sample</option></select></label>
+          </div>
+          <label>Reviewer emails<input id="semis-emails" type="text" required placeholder="name@buttonpoetry.com, name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
+          <p>Choose the source set and next step below, then preview. Assignments split across the listed fresh readers and email them their queue links. Unassignment removes only unfinished reads matching those filters.</p>
+          <button type="submit">Preview change</button>
+          <button id="semis-commit" type="button" hidden>Apply change</button>
+          <p id="semis-plan-status" class="status" aria-live="polite"></p>
+        </form>
+        <div class="controls">
+          <label>Set<select id="additional-set"><option value="all">All Semis poems</option><option value="positive">Two or more initial Yeses</option><option value="negative">Three initial Nos</option></select></label>
+          <label>Reviewer<select id="semis-reviewer"><option value="">All reviewers</option></select></label>
+          <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">Needs assignment</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
+          <button type="button" id="additional-refresh">Refresh results</button>
+        </div>
+        <div id="additional-summary" class="status"></div>
+        <p id="additional-guidance"></p>
+        <div class="actions"><button type="button" id="additional-assign" hidden>Assign fourth reads to the two-plus-Yes set</button><button type="button" id="additional-sample" hidden>Set up random three-No sample</button><button type="button" id="additional-advance">Advance all ready poems in this set</button></div>
+        <p id="additional-action-status" class="status" aria-live="polite"></p>
+        <div id="additional-results" class="table-wrap"></div>
+      </details>
+      <details id="finalist-admin" style="margin:22px 0;">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finals</summary>
+        <p>Assign the poems advanced from Semis for Champion / Possible / Pass reads. Choose one to three independent readers per poem. Assigning emails each reader a queue link. Use Decisions to compare finalists, build the winners’ circle, and select the winner.</p>
+        <div class="assignment-form">
+          <label>Set<select id="finalist-tier"><option value="shortlist">Advanced from Semis</option><option value="strong">All 2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
+          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option><option value="3">3 independent reads</option></select></label>
+        </div>
+        <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
+        <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
+        <div id="finalist-status" class="status"></div>
+        <div id="finalist-progress" class="table-wrap"></div>
+        <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
+      
+<details id="final-selection" class="card" hidden>
       <summary class="admin-progress-summary">Final selection</summary>
       <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
       <div id="final-selection-status" class="status" aria-live="polite"></div>
       <div id="final-selection-content"></div>
+<details id="outcome-panel" class="admin-tool-group"><summary id="review-outcomes" style="cursor:pointer;font-size:1.2em;font-weight:700;">Submission records and archive</summary>
+      <label>Show submissions
+        <select id="outcome-view">
+          <option value="complete">3+ reviews</option>
+          <option value="positive">3+ Yes reviews</option>
+          <option value="negative">3+ No reviews</option>
+          <option value="strong">2+ initial Yes votes</option>
+          <option value="rescue">Exactly 1 initial Yes vote</option>
+          <option value="champion">Finalist: 1+ Champion vote</option>
+          <option value="champion-double">Finalist: 2+ Champion votes</option>
+          <option value="possible">Finalist: Possible</option>
+          <option value="supplemental">Supplemental reads</option>
+          <option value="instagram">By Instagram handle</option>
+          <option value="active">All active submissions</option>
+          <option value="all">All submissions</option>
+          <option value="archived">Archived submissions</option>
+        </select>
+      </label>
+      <p id="outcome-count"></p>
+      <details hidden style="margin:12px 0 18px;">
+        <summary style="cursor:pointer;font-weight:700;">Act on filtered set: assign fourth reads</summary>
+        <p id="fourth-help">This acts on the submissions matching the filter above. One email gets every eligible fourth read; multiple emails split them roughly evenly. Preview shows the exact count and split without assigning anything. A queued fourth read becomes votable after the first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped; a reviewer cannot be assigned an entry they have already reviewed. Assigning sends each reviewer an email with a link to their queue.</p>
+        <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" aria-describedby="fourth-help" title="One email receives all eligible fourth reads; multiple emails divide them roughly evenly." style="width:100%;margin:8px 0;"></label>
+        <div class="actions"><button id="preview-fourth" type="button" title="See the exact eligible count and reviewer split without assigning anything.">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" title="Queue the previewed fourth reads and email the listed reviewers." hidden>Assign fourth reads</button></div>
+        <div id="fourth-status" class="status"></div>
+      </details>
+      <div id="outcome-results" class="table-wrap"></div>
+      <details id="submission-progress-panel" style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
+      <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
+      </details>
       <details id="contest-graphics-panel" style="margin-top:18px;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Winning graphics and links</summary>
         <p>Review each imported graphic and the full contest collection before sending either link. An import receipt does not confirm public visibility.</p>
@@ -140,6 +225,34 @@
       <details id="contest-email-panel" style="margin-top:18px;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Entrant emails</summary>
         <p>Edit and save this contest’s winner, winners-circle, rejection, and past-submitter announcement drafts here. Saving or previewing sends nothing. Sending requires a fresh recipient preview and explicit confirmation; availability is shown below.</p>
+        <details id="contest-mail-settings-panel" style="margin-top:18px;">
+              <summary style="font-weight:700;cursor:pointer;">Email sender and replies</summary>
+              <p>These settings apply to this contest’s assignment notices and outcome emails. Saving sends no email.</p>
+              <form id="contest-mail-settings-form">
+                <fieldset id="contest-mail-settings-fields" disabled style="border:0;padding:0;min-width:0;">
+                  <div class="controls">
+                    <label>Send as — name <input id="contest-mail-from-name" maxlength="100" required /></label>
+                    <div>
+                      <label for="contest-mail-from-email">Send as — email</label>
+                      <select id="contest-mail-from-email" required aria-describedby="contest-mail-from-help"></select>
+                      <label id="contest-mail-from-email-custom-label" hidden>New sender address
+                        <input id="contest-mail-from-email-custom" type="email" maxlength="254" disabled />
+                      </label>
+                    </div>
+                    <div>
+                      <label for="contest-mail-reply-to">Replies go to</label>
+                      <select id="contest-mail-reply-to" required></select>
+                      <label id="contest-mail-reply-to-custom-label" hidden>New reply address
+                        <input id="contest-mail-reply-to-custom" type="email" maxlength="254" disabled />
+                      </label>
+                    </div>
+                  </div>
+                  <p id="contest-mail-from-help">Defaults: send from no-reply@buttonpoetry.com; replies go to support@buttonpoetry.com. Choose “Add another address…” to save another choice for this contest. Sender addresses must use @buttonpoetry.com; replies should go to a monitored mailbox.</p>
+                  <button id="contest-mail-settings-save" type="submit">Save sender and replies</button>
+                </fieldset>
+              </form>
+              <div id="contest-mail-settings-status" class="status" aria-live="polite">Open to load this contest’s email settings.</div>
+            </details>
         <p><button id="contest-mail-settings-open" type="button">Sender and reply settings</button></p>
         <details id="contest-email-template-editor" style="margin:12px 0 18px;">
           <summary style="cursor:pointer;font-weight:700;">Edit this contest’s email drafts</summary>
@@ -195,46 +308,16 @@
         <div id="contest-email-preview-body" class="status" aria-live="polite">No preview loaded.</div>
       </details>
     </details>
-    <details id="admin-progress" class="card" hidden>
+</details>
+      <div id="phase-legacy-tools" hidden>    <div>
       <summary class="admin-progress-summary">Assignments and review progress</summary>
       <div id="progress-metrics" class="metric-row"></div>
       <div id="coverage-summary" class="status" aria-live="polite"></div>
       <button id="refresh-review-progress" type="button">Refresh progress</button>
       <section class="admin-tool-group" aria-labelledby="initial-reads-heading"><h3 id="initial-reads-heading">Initial reads and assignments</h3>
       <p>Assign the next available entries in batches. After an entry has its first three reviews, use Queue extra reviewer beside that entry to request another named review.</p>
-            <details id="contest-mail-settings-panel" style="margin-top:18px;">
-              <summary style="font-weight:700;cursor:pointer;">Email sender and replies</summary>
-              <p>These settings apply to this contest’s assignment notices and outcome emails. Saving sends no email.</p>
-              <form id="contest-mail-settings-form">
-                <fieldset id="contest-mail-settings-fields" disabled style="border:0;padding:0;min-width:0;">
-                  <div class="controls">
-                    <label>Send as — name <input id="contest-mail-from-name" maxlength="100" required /></label>
-                    <div>
-                      <label for="contest-mail-from-email">Send as — email</label>
-                      <select id="contest-mail-from-email" required aria-describedby="contest-mail-from-help"></select>
-                      <label id="contest-mail-from-email-custom-label" hidden>New sender address
-                        <input id="contest-mail-from-email-custom" type="email" maxlength="254" disabled />
-                      </label>
-                    </div>
-                    <div>
-                      <label for="contest-mail-reply-to">Replies go to</label>
-                      <select id="contest-mail-reply-to" required></select>
-                      <label id="contest-mail-reply-to-custom-label" hidden>New reply address
-                        <input id="contest-mail-reply-to-custom" type="email" maxlength="254" disabled />
-                      </label>
-                    </div>
-                  </div>
-                  <p id="contest-mail-from-help">Defaults: send from no-reply@buttonpoetry.com; replies go to support@buttonpoetry.com. Choose “Add another address…” to save another choice for this contest. Sender addresses must use @buttonpoetry.com; replies should go to a monitored mailbox.</p>
-                  <button id="contest-mail-settings-save" type="submit">Save sender and replies</button>
-                </fieldset>
-              </form>
-              <div id="contest-mail-settings-status" class="status" aria-live="polite">Open to load this contest’s email settings.</div>
-            </details>
-      <form id="assignment-form" class="assignment-form">
-        <label>Reviewer’s Button Poetry email<input id="assignment-email" type="email" required placeholder="name@buttonpoetry.com"></label>
-        <label>New assignments to add (1–100)<input id="assignment-size" type="number" min="1" max="100" value="50" required></label>
-        <button type="submit" class="primary">Assign next batch</button>
-      </form>
+            
+      
       <p>Each click adds this many to the reviewer’s existing queue. Check their current assigned count below before adding more.</p>
       <div id="assignment-status" class="status"></div>
       <details id="unassign-panel"><summary>Unassign pending reads</summary>
@@ -274,20 +357,7 @@
       <h3>Reviewer progress</h3>
       <div id="reviewer-progress" class="table-wrap"></div>
       </section>
-      <details id="additional-review-panel" class="admin-tool-group">
-        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Additional review — assignments and next steps</summary>
-        <p>One fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
-        <div class="controls">
-          <label>Set<select id="additional-set"><option value="positive">Two or more initial Yeses</option><option value="negative">Three initial Nos</option><option value="all">All additional reads</option></select></label>
-          <label>Next step<select id="additional-status"><option value="all">All</option><option value="unassigned">Needs assignment</option><option value="waiting">Waiting for reader</option><option value="advance">Ready to advance</option><option value="another">Needs another eye</option><option value="editor">Editor decision needed</option><option value="closed">Check closed</option><option value="advanced">Advanced to finalist consideration</option></select></label>
-          <button type="button" id="additional-refresh">Refresh results</button>
-        </div>
-        <div id="additional-summary" class="status"></div>
-        <p id="additional-guidance"></p>
-        <div class="actions"><button type="button" id="additional-assign">Assign fourth reads to the two-plus-Yes set</button><button type="button" id="additional-sample">Set up random three-No sample</button><button type="button" id="additional-advance">Advance all ready poems in this set</button></div>
-        <p id="additional-action-status" class="status" aria-live="polite"></p>
-        <div id="additional-results" class="table-wrap"></div>
-      </details>
+      
       <section class="admin-tool-group" aria-labelledby="spot-check-heading"><h3 id="spot-check-heading">Spot check: three No votes</h3>
       <p>Randomly assign 10% or 20% of eligible three-No entries (at least 30, or all if fewer). The spot checker must not be one of the original reviewers. This adds a fourth blinded vote to each sampled entry; it does not archive anything automatically.</p>
       <form id="spot-check-form" class="assignment-form">
@@ -300,50 +370,11 @@
       <div id="spot-check-results" class="table-wrap"></div>
       </section>
       <section class="admin-tool-group" aria-label="Finalist reads">
-      <details id="finalist-admin" style="margin:22px 0;">
-        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Assign finalist reads</summary>
-        <p>Separate from ordinary Yes / Maybe / No votes. First assign completed poems with 2+ initial Yes votes for a shortlist pass. Later, use the 1-Yes rescue pass. One reader per poem is the default; choose two or three independent readers for more opinions. Original voters are skipped for that poem. Committing new assignments emails the assigned readers.</p>
-        <div class="assignment-form">
-          <label>Set<select id="finalist-tier"><option value="strong">2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
-          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option><option value="3">3 independent reads</option></select></label>
-        </div>
-        <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
-        <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
-        <div id="finalist-status" class="status"></div>
-        <div id="finalist-progress" class="table-wrap"></div>
-        <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
-      </details>
+      
       </section>
-      <details id="outcome-panel" class="admin-tool-group"><summary id="review-outcomes" style="cursor:pointer;font-size:1.2em;font-weight:700;">Review outcomes</summary>
-      <label>Show submissions
-        <select id="outcome-view">
-          <option value="complete">3+ reviews</option>
-          <option value="positive">3+ Yes reviews</option>
-          <option value="negative">3+ No reviews</option>
-          <option value="strong">2+ initial Yes votes</option>
-          <option value="rescue">Exactly 1 initial Yes vote</option>
-          <option value="champion">Finalist: 1+ Champion vote</option>
-          <option value="champion-double">Finalist: 2+ Champion votes</option>
-          <option value="possible">Finalist: Possible</option>
-          <option value="supplemental">Supplemental reads</option>
-          <option value="instagram">By Instagram handle</option>
-          <option value="active">All active submissions</option>
-          <option value="all">All submissions</option>
-          <option value="archived">Archived submissions</option>
-        </select>
-      </label>
-      <p id="outcome-count"></p>
-      <details style="margin:12px 0 18px;">
-        <summary style="cursor:pointer;font-weight:700;">Act on filtered set: assign fourth reads</summary>
-        <p id="fourth-help">This acts on the submissions matching the filter above. One email gets every eligible fourth read; multiple emails split them roughly evenly. Preview shows the exact count and split without assigning anything. A queued fourth read becomes votable after the first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped; a reviewer cannot be assigned an entry they have already reviewed. Assigning sends each reviewer an email with a link to their queue.</p>
-        <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" aria-describedby="fourth-help" title="One email receives all eligible fourth reads; multiple emails divide them roughly evenly." style="width:100%;margin:8px 0;"></label>
-        <div class="actions"><button id="preview-fourth" type="button" title="See the exact eligible count and reviewer split without assigning anything.">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" title="Queue the previewed fourth reads and email the listed reviewers." hidden>Assign fourth reads</button></div>
-        <div id="fourth-status" class="status"></div>
-      </details>
-      <div id="outcome-results" class="table-wrap"></div>
-      <details id="submission-progress-panel" style="margin-top:18px;"><summary>See who reviewed each submission</summary><div id="submission-progress" class="table-wrap"></div></details>
-      <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
-      </details>
+      
+    </div>
+</div>
     </details>
     <section id="review-card" class="card" hidden>
       <div class="topbar">
@@ -567,6 +598,12 @@
         : '<p>No reviews or assignments yet.</p>';
       if (document.getElementById("outcome-panel").open) renderOutcomeViews();
       renderFinalistProgress();
+      renderPrelims();
+      const reviewerSelect = document.getElementById("semis-reviewer");
+      const selectedReviewer = reviewerSelect.value;
+      const extraEmails = [...new Set(report.submissions.flatMap((row) => [...(row.extraReviewerEmails || []), ...(row.additionalReads || []).map((read) => read.reviewerEmail)]))].sort();
+      reviewerSelect.innerHTML = '<option value="">All reviewers</option>' + extraEmails.map((email) => '<option value="' + escapeHtml(email) + '">' + escapeHtml(email) + '</option>').join("");
+      reviewerSelect.value = extraEmails.includes(selectedReviewer) ? selectedReviewer : "";
       if (document.getElementById("additional-review-panel").open) renderAdditionalReviews();
       const spotChecks = report.spotChecks || [];
       document.getElementById("spot-check-results").innerHTML = spotChecks.length
@@ -578,6 +615,108 @@
         : "<p>No spot checks assigned yet.</p>";
       if (document.getElementById("submission-progress-panel").open) renderSubmissionProgress();
     }
+
+    let semisPlan = null;
+    let semisSingleId = "";
+    function semisMatchingRows() {
+      const next = document.getElementById("additional-status").value;
+      const reviewer = document.getElementById("semis-reviewer").value;
+      return additionalReviewRows().filter((item) => (!semisSingleId || item.row.id === semisSingleId) &&
+        (next === "all" || item.next === next) &&
+        (!reviewer || item.reads.some((read) => read.reviewerEmail === reviewer) || item.pending.includes(reviewer)));
+    }
+    function resetSemisPlan() {
+      semisPlan = null;
+      semisSingleId = "";
+      document.getElementById("semis-commit").hidden = true;
+      document.getElementById("semis-plan-status").textContent = "";
+    }
+    ["semis-action", "semis-amount", "semis-emails", "additional-set", "additional-status", "semis-reviewer"].forEach((id) =>
+      document.getElementById(id).addEventListener(id === "semis-emails" ? "input" : "change", () => {
+        const selectedPoem = semisSingleId;
+        resetSemisPlan();
+        if (["semis-action", "semis-amount", "semis-emails"].includes(id)) semisSingleId = selectedPoem;
+      }));
+    document.getElementById("semis-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const status = document.getElementById("semis-plan-status");
+      const emails = [...new Set(document.getElementById("semis-emails").value.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean))];
+      if (!emails.length || emails.some((email) => !/^[^@\s]+@buttonpoetry\.com$/.test(email))) {
+        status.textContent = "Enter Button Poetry reviewer emails, separated by commas.";
+        return;
+      }
+      const action = document.getElementById("semis-action").value;
+      let rows = semisMatchingRows();
+      const plan = [];
+      if (action === "assign") {
+        rows = rows.filter((item) => ["unassigned", "another", "editor"].includes(item.next));
+        const amount = document.getElementById("semis-amount").value;
+        if (amount !== "all") {
+          for (let i = rows.length - 1; i > 0; i -= 1) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [rows[i], rows[j]] = [rows[j], rows[i]];
+          }
+          rows = rows.slice(0, Math.ceil(rows.length * Number(amount) / 100));
+        }
+        const loads = new Map(emails.map((email) => [email, 0]));
+        for (const item of rows) {
+          const occupied = new Set([...item.row.reviewers.map((vote) => vote.reviewerEmail), ...(item.row.extraReviewerEmails || []), ...(item.row.supplementalReads || []).map((read) => read.reviewerEmail)]);
+          const email = emails.filter((email) => !occupied.has(email)).sort((a, b) => loads.get(a) - loads.get(b))[0];
+          if (!email) continue;
+          plan.push({ id: item.row.id, email });
+          loads.set(email, loads.get(email) + 1);
+        }
+      } else {
+        for (const item of rows) for (const email of emails) {
+          if (item.pending.includes(email)) plan.push({ id: item.row.id, email });
+        }
+      }
+      semisPlan = { programId: document.getElementById("program").value, action, plan };
+      const counts = emails.map((email) => email + " — " + plan.filter((item) => item.email === email).length).join("; ");
+      status.textContent = (action === "assign" ? "Assign " : "Unassign ") + plan.length + " reads. " + counts + ".";
+      document.getElementById("semis-commit").hidden = !plan.length;
+    });
+    document.getElementById("semis-commit").addEventListener("click", async (event) => {
+      const preview = semisPlan;
+      if (!preview || preview.programId !== document.getElementById("program").value) return resetSemisPlan();
+      if (!window.confirm((preview.action === "assign" ? "Assign and email " : "Unassign ") + preview.plan.length + " pending Semis reads?")) return;
+      event.target.disabled = true;
+      const status = document.getElementById("semis-plan-status");
+      let done = 0;
+      const notified = new Set();
+      const failed = [];
+      try {
+        if (preview.action === "assign") {
+          for (const item of preview.plan) {
+            try {
+              await api("admin/contentSubmissions/" + encodeURIComponent(item.id) + "/additionalReviewer", {
+                method: "POST", body: { reviewerEmail: item.email },
+              });
+              done += 1;
+              notified.add(item.email);
+            } catch (error) { failed.push(error.message); }
+            status.textContent = "Assigned " + done + " of " + preview.plan.length + " reads.";
+          }
+        } else {
+          for (const email of [...new Set(preview.plan.map((item) => item.email))]) {
+            const submissionIds = preview.plan.filter((item) => item.email === email).map((item) => item.id);
+            let more;
+            do {
+              const result = await api("admin/contestAssignments/unassign", {
+                method: "POST", body: { programId: preview.programId, reviewerEmail: email, type: "semis", submissionIds },
+              });
+              done += result.removedCount;
+              more = result.more;
+            } while (more);
+          }
+        }
+        const notices = notified.size ? await sendAssignmentNotices(preview.programId, [...notified], "assigned") : "";
+        await loadQueue();
+        status.textContent = (preview.action === "assign" ? "Assigned " : "Unassigned ") + done + " reads. " + notices +
+          (failed.length ? " " + failed.length + " could not be assigned (" + [...new Set(failed)].join(", ") + "). Refresh and preview again." : "");
+      } catch (error) { status.textContent = "Processed " + done + " reads. Could not finish: " + error.message; }
+      finally { semisPlan = null; semisSingleId = ""; event.target.hidden = true; event.target.disabled = false; }
+    });
 
     function additionalReviewState(row) {
       const reads = row.additionalReads || [];
@@ -598,13 +737,14 @@
       const set = document.getElementById("additional-set").value;
       return (state.adminProgress?.submissions || []).filter((row) => !row.archived &&
         (set === "positive" ? row.reviewCount >= state.adminProgress.requiredReviewCount && row.initialYesCount >= 2 : set === "negative" ? row.initialNoCount === 3 :
-          row.additionalReads?.length || row.extraReviewerEmails?.length)).map(additionalReviewState);
+          (row.reviewCount >= state.adminProgress.requiredReviewCount && (row.initialYesCount >= 2 || row.initialNoCount === 3)) || row.additionalReads?.length || row.extraReviewerEmails?.length)).map(additionalReviewState);
     }
 
     function renderAdditionalReviews() {
       const rows = additionalReviewRows();
       const status = document.getElementById("additional-status").value;
-      const matching = rows.filter((item) => status === "all" || item.next === status);
+      const reviewer = document.getElementById("semis-reviewer").value;
+      const matching = rows.filter((item) => (status === "all" || item.next === status) && (!reviewer || item.reads.some((read) => read.reviewerEmail === reviewer) || item.pending.includes(reviewer)));
       const labels = { unassigned: "Needs assignment", waiting: "Waiting for reader", advance: "Ready to advance",
         another: "Needs another eye", editor: "Editor decision needed", closed: "Check closed", advanced: "Advanced to finalist consideration" };
       const counts = Object.fromEntries(Object.keys(labels).map((key) => [key, rows.filter((item) => item.next === key).length]));
@@ -619,8 +759,8 @@
           (rescues >= 2 ? (sampled.length < rows.length * 0.2 ? "Multiple rescues found: expand the sample toward 20% and review the results before archiving the group." : "Multiple rescues found. At least 20% is already assigned: finish the pending sample and have an editor decide whether the remaining group needs a broader review before archiving.") :
             "Review each rescued poem. A clean sample supports an editorial decision about the remaining group; it does not guarantee every promising poem was found.")
         : "Review the full two-plus-Yes set. Use the next-step filter to find pending assignments, positive results, and poems needing another eye.";
-      document.getElementById("additional-assign").hidden = negative;
-      document.getElementById("additional-sample").hidden = !negative;
+      document.getElementById("additional-assign").hidden = true;
+      document.getElementById("additional-sample").hidden = true;
       document.getElementById("additional-advance").disabled = !matching.some((item) => item.next === "advance");
       document.getElementById("additional-results").innerHTML = matching.length
         ? '<table class="progress-table"><thead><tr><th>Poem</th><th>Additional readers and votes</th><th>Next step</th><th>Actions</th></tr></thead><tbody>' +
@@ -640,7 +780,7 @@
       if (event.target.open) renderAdditionalReviews();
       else document.getElementById("additional-results").replaceChildren();
     });
-    ["additional-set", "additional-status"].forEach((id) => document.getElementById(id).addEventListener("change", renderAdditionalReviews));
+    ["additional-set", "additional-status", "semis-reviewer"].forEach((id) => document.getElementById(id).addEventListener("change", renderAdditionalReviews));
     document.getElementById("additional-refresh").addEventListener("click", loadProgress);
     document.getElementById("additional-assign").addEventListener("click", () => {
       document.getElementById("outcome-panel").open = true;
@@ -675,7 +815,7 @@
     }
     document.getElementById("additional-advance").addEventListener("click", async (event) => {
       const status = document.getElementById("additional-status").value;
-      const ids = additionalReviewRows().filter((item) => item.next === "advance" && (status === "all" || item.next === status)).map((item) => item.row.id);
+      const ids = semisMatchingRows().filter((item) => item.next === "advance").map((item) => item.row.id);
       if (!ids.length || !window.confirm("Advance " + ids.length + " poems to finalist consideration?")) return;
       event.target.disabled = true;
       await advanceAdditionalPoems(ids);
@@ -684,11 +824,15 @@
       const button = event.target.closest("button");
       if (!button) return;
       const id = button.dataset.additionalOpen || button.dataset.additionalAdvance || button.dataset.additionalAssign;
-      if (button.dataset.additionalUnassign) {
-        document.getElementById("unassign-panel").open = true;
-        document.getElementById("unassign-email").value = button.dataset.additionalUnassign;
-        document.getElementById("unassign-type").value = button.dataset.spot === "true" ? "spotcheck" : "additional";
-        document.getElementById("unassign-panel").scrollIntoView({ block: "center" });
+      if (button.dataset.additionalUnassign || button.dataset.additionalAssign) {
+        resetSemisPlan();
+        document.getElementById("semis-action").value = button.dataset.additionalUnassign ? "unassign" : "assign";
+        document.getElementById("semis-amount").value = "all";
+        if (button.dataset.additionalUnassign) document.getElementById("semis-emails").value = button.dataset.additionalUnassign;
+        semisSingleId = button.dataset.additionalAssign ? id : "";
+        document.getElementById("semis-plan-status").textContent = semisSingleId ? "Selected poem for another read. Enter a fresh reviewer and preview." : "Choose the source and next-step filters, then preview this reviewer's pending reads.";
+        document.getElementById("semis-form").scrollIntoView({ block: "center" });
+        document.getElementById("semis-emails").focus();
       } else if (button.dataset.additionalOpen) {
         document.getElementById("view").value = "all";
         applyFilters();
@@ -697,19 +841,7 @@
       } else if (button.dataset.additionalAdvance) {
         button.disabled = true;
         await advanceAdditionalPoems([id]);
-      } else if (button.dataset.additionalAssign) {
-        const reviewerEmail = window.prompt("Button Poetry email for a fresh reader:");
-        if (!reviewerEmail) return;
-        button.disabled = true;
-        const status = document.getElementById("additional-action-status");
-        try {
-          const result = await api("admin/contentSubmissions/" + encodeURIComponent(id) + "/additionalReviewer", {
-            method: "POST", body: { reviewerEmail: reviewerEmail.trim() },
-          });
-          const notice = await sendAssignmentNotices(document.getElementById("program").value, [result.reviewerEmail], "assigned");
-          await loadProgress();
-          status.textContent = "Additional reader assigned. " + notice;
-        } catch (error) { button.disabled = false; status.textContent = "Could not assign reader: " + error.message; }
+
       }
     });
 
@@ -1703,7 +1835,10 @@
       const targetId = location.hash.slice(1);
       const panel = document.getElementById(targetId);
       if (!panel || panel.hidden) return;
-      if (["contest-overview", "contest-entrants-panel", "admin-progress", "final-selection"].includes(targetId)) panel.open = true;
+      for (let parent = panel.parentElement; parent; parent = parent.parentElement) {
+        if (parent.tagName === "DETAILS") parent.open = true;
+      }
+      if (["contest-overview", "contest-entrants-panel", "admin-progress", "prelims-panel", "additional-review-panel", "finalist-admin", "final-selection"].includes(targetId)) panel.open = true;
       if (["contest-graphics-panel", "contest-email-panel"].includes(targetId)) {
         document.getElementById("final-selection").open = true;
         panel.open = true;
@@ -1722,6 +1857,7 @@
     window.addEventListener("hashchange", openContestSection);
 
     async function loadProgress() {
+      resetSemisPlan();
       clearRemainingPreview();
       clearContestEmailPreview();
       const panel = document.getElementById("admin-progress");
@@ -2078,40 +2214,60 @@
       return results.join(" ");
     }
 
+    function renderPrelims() {
+      const report = state.adminProgress;
+      if (!report) return;
+      document.getElementById("prelims-coverage").textContent = document.getElementById("coverage-summary").textContent;
+      const summaries = new Map();
+      const get = (email) => {
+        if (!summaries.has(email)) summaries.set(email, { assigned: 0, completed: 0, voted: 0 });
+        return summaries.get(email);
+      };
+      for (const row of report.submissions.filter((row) => !row.archived)) {
+        const extraEmails = new Set([...(row.extraReviewerEmails || []), ...(row.additionalReads || []).map((read) => read.reviewerEmail)]);
+        const votes = row.reviewers.filter((vote) => !extraEmails.has(vote.reviewerEmail));
+        votes.forEach((vote) => get(vote.reviewerEmail).voted += 1);
+        for (const email of row.assignedTo.filter((email) => !extraEmails.has(email))) {
+          get(email).assigned += 1;
+          if (votes.some((vote) => vote.reviewerEmail === email)) get(email).completed += 1;
+        }
+      }
+      document.getElementById("prelims-reviewers").innerHTML = '<table class="progress-table"><thead><tr><th>Reviewer</th><th>Assigned</th><th>Completed assigned reads</th><th>Total prelim reads</th></tr></thead><tbody>' +
+        [...summaries].sort(([a], [b]) => a.localeCompare(b)).map(([email, row]) => '<tr><td>' + escapeHtml(email) + '</td><td>' + row.assigned + '</td><td>' + row.completed + '</td><td>' + row.voted + '</td></tr>').join("") + '</tbody></table>';
+    }
+    document.getElementById("phase-refresh").addEventListener("click", loadProgress);
+    document.getElementById("prelims-action").addEventListener("change", (event) => {
+      document.getElementById("assignment-size").disabled = event.target.value === "unassign";
+    });
     document.getElementById("assignment-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       const programId = document.getElementById("program").value;
-      const status = document.getElementById("assignment-status");
-      if (!programId) {
-        status.textContent = "Choose a contest first.";
-        return;
-      }
-      const email = document.getElementById("assignment-email").value.trim().toLowerCase();
-      const size = Number(document.getElementById("assignment-size").value);
-      const current = state.adminProgress?.reviewers.find((row) => row.email === email)?.assigned || 0;
-      if (!window.confirm("Add up to " + size + " assignments for " + email + "? They already have " + current + " assigned; this can bring the total to " + (current + size) + ". An assignment email will be sent.")) return;
-      status.textContent = "Assigning entries...";
+      const reviewerEmail = document.getElementById("assignment-email").value.trim().toLowerCase();
+      const action = document.getElementById("prelims-action").value;
+      const status = document.getElementById("prelims-status");
+      if (!programId || !window.confirm(action === "assign" ? "Assign initial reads and email " + reviewerEmail + "?" : "Unassign pending initial reads for " + reviewerEmail + "?")) return;
+      const button = event.target.querySelector("button");
+      button.disabled = true;
+      let count = 0;
       try {
-        const result = await api("admin/contestReviewAssignments", {
-          method: "POST",
-          body: {
-            programId,
-            reviewerEmail: document.getElementById("assignment-email").value.trim(),
-            batchSize: Number(document.getElementById("assignment-size").value),
-          },
-        });
-        status.textContent = result.assigned
-          ? "Added " + result.assigned + " entries to " + result.reviewerEmail + "’s queue. Check the updated total below."
-          : "No unreserved entries remain for this reviewer.";
-        if (result.assigned) {
-          document.getElementById("notice-email").value = result.reviewerEmail;
-          document.getElementById("notice-view").value = "assigned";
-          status.textContent += " " + await sendAssignmentNotices(programId, [result.reviewerEmail], "assigned");
+        if (action === "assign") {
+          const result = await api("admin/contestReviewAssignments", {
+            method: "POST", body: { programId, reviewerEmail, batchSize: Number(document.getElementById("assignment-size").value) },
+          });
+          count = result.assigned;
+          status.textContent = "Assigned " + count + " initial reads. " + (count ? await sendAssignmentNotices(programId, [reviewerEmail], "assigned") : "");
+        } else {
+          let more;
+          do {
+            const result = await api("admin/contestAssignments/unassign", { method: "POST", body: { programId, reviewerEmail, type: "initial" } });
+            count += result.removedCount;
+            more = result.more;
+          } while (more);
+          status.textContent = "Unassigned " + count + " pending initial reads.";
         }
         await loadQueue();
-      } catch (error) {
-        status.textContent = "Could not assign entries: " + error.message;
-      }
+      } catch (error) { status.textContent = "Could not finish: " + error.message; }
+      finally { button.disabled = false; }
     });
     document.getElementById("spot-check-results").addEventListener("click", (event) => {
       const button = event.target.closest("[data-unassign-spot]");
