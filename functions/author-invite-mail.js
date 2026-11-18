@@ -48,7 +48,7 @@ export function buildAuthorRepairMessage({ name, title, book, reviewUrl, hadEarl
   };
 }
 
-export function buildContestAssignmentMessage({ programName, view, reviewUrl, assignmentCount, preliminaryCount, additionalCount }) {
+export function buildContestAssignmentMessage({ programName, view, reviewUrl, assignmentCount, addedCount, remainingCount, preliminaryCount, additionalCount }) {
   const label = {
     assigned: "review assignment",
     spotcheck: "spot check",
@@ -77,7 +77,8 @@ export function buildContestAssignmentMessage({ programName, view, reviewUrl, as
       "Hi,",
       "",
       `Your ${label} for ${programName} is ready.`,
-      ...(Number.isInteger(assignmentCount) ? ["", `Your assigned set contains ${assignmentCount} poem${assignmentCount === 1 ? "" : "s"}, including any you have already completed. The linked queue shows what is still available to read.`] : []),
+      ...(Number.isInteger(addedCount) ? ["", `${addedCount} new read${addedCount === 1 ? "" : "s"} added.`] : []),
+      ...(Number.isInteger(remainingCount) ? ["", `You now have ${remainingCount} read${remainingCount === 1 ? "" : "s"} remaining. Completed reads are excluded. Open your queue below to review them.`] : []),
       "",
       ...instructions.flatMap((text) => [text, ""]),
       "Open your review queue:",
