@@ -472,7 +472,7 @@ export function registerImportJobRoutes({
     let publishError = "";
     if (counts.pending === 0 && counts.processing === 0 && counts.completedCount > 0) {
       try {
-        await invalidateContentCache({ strict: true });
+        await invalidateContentCache({ strict: true, reason: `content_import_job:${batchId}` });
         await invalidateScoreboardSnapshot(`content_import_job:${batchId}`);
         await jobRef.set({
           state: counts.state,

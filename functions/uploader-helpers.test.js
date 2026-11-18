@@ -241,7 +241,7 @@ test("cross-instance cache generations reject invalidated or newer snapshots", (
 });
 
 function contentCacheFixture() {
-  const state = { meta: {}, rows: [{ imageId: "original", imageUrl: "old" }], files: new Map(), sequence: 0 };
+  const state = { meta: {}, rows: [{ imageId: "original", imageUrl: "old" }], files: new Map(), sequence: 0, logs: [] };
   const clone = (value) => structuredClone(value);
   const ref = {
     async get() { return { data: () => clone(state.meta) }; },
@@ -264,9 +264,9 @@ function contentCacheFixture() {
     async delete() { state.files.delete(name); },
   }) }) };
   const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
-  const block = source.slice(source.indexOf("async function invalidateContentCache()"), source.indexOf("async function findContentRecordByImageId"));
-  const instance = () => runInNewContext(`${block}; ({ getAllContentCached, invalidateContentCache })`, {
-    db, storage, Buffer, Date,
+  const block = source.slice(source.indexOf("function contentInvalidationCaller()"), source.indexOf("async function findContentRecordByImageId"));
+  const instance = () => runInNewContext(`${block}; ({ getAllContentCached, invalidateContentCache, contentCache })`, {
+    db, storage, Buffer, Date, Error, JSON, String,
     COLLECTIONS: { systemState: "systemState" },
     CONTENT_SNAPSHOT_DOC_ID: "content-feed", CONTENT_SNAPSHOT_PATH: "system/content-feed/latest.json",
     CONTENT_SNAPSHOT_VERSION: 5, CONTENT_CACHE_TTL_MS: 900000, CONTENT_SNAPSHOT_TTL_MS: 86400000,
@@ -281,7 +281,7 @@ function contentCacheFixture() {
       if (state.beforeRead) await state.beforeRead();
       return captured;
     },
-    console: { info() {}, warn() {} },
+    console: { info(line) { state.logs.push(line); }, warn(line) { state.logs.push(line); } },
   });
   return { state, instance };
 }
@@ -292,13 +292,17 @@ function deferredCacheStep() {
   return { promise, resolve };
 }
 
-test("a repair refreshes another warm instance immediately without waiting for the TTL", async () => {
+test("a repair refreshes another warm instance as soon as its rebuild finishes, without waiting for the TTL", async () => {
   const { state, instance } = contentCacheFixture();
   const reviewer = instance();
   const publicViewer = instance();
   assert.equal((await publicViewer.getAllContentCached())[0].imageUrl, "old");
   state.rows[0].imageUrl = "accepted-replacement";
-  await reviewer.invalidateContentCache();
+  await reviewer.invalidateContentCache("repair_replacement_accepted:r1");
+  // The first request after the invalidation is answered from the old content
+  // and starts the rebuild; the swap happens once that rebuild is complete.
+  assert.equal((await publicViewer.getAllContentCached())[0].imageUrl, "old");
+  await publicViewer.contentCache.inFlight;
   const updated = await publicViewer.getAllContentCached();
   assert.equal(updated[0].imageUrl, "accepted-replacement");
   assert.equal(updated[0].canonicalized, true);
@@ -336,6 +340,54 @@ test("an older in-flight upload cannot overwrite a newer snapshot's bytes", asyn
   release.resolve();
   assert.equal((await oldBuild)[0].imageUrl, "accepted-replacement");
   assert.equal(JSON.parse(state.files.get(publishedPath))[0].imageUrl, "accepted-replacement");
+});
+
+test("a warm instance keeps serving the old content while a rebuild runs", async () => {
+  const { state, instance } = contentCacheFixture();
+  const viewer = instance();
+  await viewer.getAllContentCached();
+  state.rows[0].imageUrl = "new";
+  const started = deferredCacheStep();
+  const release = deferredCacheStep();
+  state.beforeRead = async () => { state.beforeRead = null; started.resolve(); await release.promise; };
+  await instance().invalidateContentCache({ reason: "content_upsert:x" });
+  assert.equal((await viewer.getAllContentCached())[0].imageUrl, "old");
+  await started.promise;
+  // Still mid-rebuild: further requests neither wait nor start a second rebuild.
+  assert.equal((await viewer.getAllContentCached())[0].imageUrl, "old");
+  release.resolve();
+  await viewer.contentCache.inFlight;
+  assert.equal((await viewer.getAllContentCached())[0].imageUrl, "new");
+  const loaded = state.logs.map((line) => { try { return JSON.parse(line); } catch { return {}; } })
+    .find((entry) => entry.event === "content_cache_loaded" && entry.source === "firestore" && entry.trigger === "invalidated");
+  assert.equal(loaded.invalidationReason, "content_upsert:x");
+});
+
+test("a fresh instance serves the last good snapshot while the invalidated feed rebuilds", async () => {
+  const { state, instance } = contentCacheFixture();
+  await instance().getAllContentCached();
+  state.rows[0].imageUrl = "new";
+  await instance().invalidateContentCache("deploy_test");
+  assert.equal(state.meta.builtAt, null);
+  assert.equal(state.meta.invalidationReason, "deploy_test");
+  const release = deferredCacheStep();
+  state.beforeRead = async () => { state.beforeRead = null; await release.promise; };
+  const coldViewer = instance();
+  const served = await coldViewer.getAllContentCached();
+  assert.equal(served[0].imageUrl, "old");
+  assert.equal(served[0].canonicalized, true);
+  release.resolve();
+  await coldViewer.contentCache.inFlight;
+  assert.equal((await coldViewer.getAllContentCached())[0].imageUrl, "new");
+});
+
+test("forceRefresh still waits for current content", async () => {
+  const { state, instance } = contentCacheFixture();
+  const viewer = instance();
+  await viewer.getAllContentCached();
+  state.rows[0].imageUrl = "new";
+  await instance().invalidateContentCache("x");
+  assert.equal((await viewer.getAllContentCached({ forceRefresh: true }))[0].imageUrl, "new");
 });
 
 test("a fresh instance re-canonicalizes an existing durable snapshot", async () => {

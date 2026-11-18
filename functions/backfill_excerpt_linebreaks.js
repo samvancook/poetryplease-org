@@ -50,7 +50,7 @@ function loadOverlay(path) {
 async function invalidateContentFeed(db) {
   await db.collection("systemState").doc("content-feed").set({
     invalidatedAt: FieldValue.serverTimestamp(),
-    builtAt: null,
+    builtAt: null, invalidationReason: "script:backfill_excerpt_linebreaks", invalidatedBy: "script", invalidationCaller: "",
   }, { merge: true });
 }
 

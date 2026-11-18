@@ -77,7 +77,7 @@ async function main() {
     if (count) await batch.commit();
     report.written = targets.length;
     // Same signal the backfill uses: the app rebuilds its cached feed on the next request.
-    await db.collection("systemState").doc("content-feed").set({ invalidatedAt: FieldValue.serverTimestamp(), builtAt: null }, { merge: true });
+    await db.collection("systemState").doc("content-feed").set({ invalidatedAt: FieldValue.serverTimestamp(), builtAt: null, invalidationReason: "script:resolve_filled_excerpt_flags", invalidatedBy: "script", invalidationCaller: "" }, { merge: true });
     report.contentFeedInvalidated = true;
   }
 

@@ -86,7 +86,7 @@ if (apply && planned.length) {
     await batch.commit(); report.written += Math.min(400, planned.length - offset);
   }
   await db.collection("systemState").doc("content-feed").set({
-    generation: FieldValue.increment(1), invalidatedAt: FieldValue.serverTimestamp(), builtAt: null,
+    generation: FieldValue.increment(1), invalidatedAt: FieldValue.serverTimestamp(), builtAt: null, invalidationReason: "script:backfill_excerpt_poem_keys", invalidatedBy: "script", invalidationCaller: "",
   }, { merge: true });
   report.contentFeedInvalidated = true;
 }
