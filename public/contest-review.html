@@ -140,14 +140,14 @@
         <p>One fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
         <form id="semis-form">
           <div class="controls">
-            <label>Assign from<select id="semis-source"><option value="positive">2+ initial Yes — full Semis read</option><option value="negative">3 initial No — spot check</option></select></label>
+            <label>Assign from<select id="semis-source"><option value="positive">2+ Yes — divide reads across reviewers</option><option value="negative">3 initial No — spot check</option></select></label>
             <label>Action<select id="semis-action"><option value="assign">Assign reads</option><option value="unassign">Unassign pending reads</option></select></label>
-            <label>Amount<select id="semis-amount" disabled><option value="all">All poems needing a read</option></select></label>
+            <label>Amount<select id="semis-amount" disabled><option value="all">One read per eligible poem, shared across reviewers</option></select></label>
           </div>
-          <label>Reviewer emails<input id="semis-emails" type="text" required placeholder="name@buttonpoetry.com, name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
-          <p>The 2+ Yes group gets a full read. The three-No group gets a random 10% check; a second check uses different poems. Each sample is 10% of the full three-No group. Assignments split across fresh readers and email their queue links. The filters below adjust the results table.</p>
+          <label>Reviewers to share the work (comma-separated emails)<input id="semis-emails" type="text" required placeholder="name@buttonpoetry.com, name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
+          <p>Each eligible poem gets one new read. The work is divided roughly evenly across the reviewers listed above, skipping anyone who already reviewed that poem. For 2+ Yes, cover every poem needing a read. For three No, choose one or two distinct 10% samples. Preview shows each reviewer’s share before you assign and email them. The filters below control the results table.</p>
           <button type="submit">Preview change</button>
-          <button id="semis-commit" type="button" hidden>Apply change</button>
+          <button id="semis-commit" type="button" hidden>Confirm previewed change</button>
           <p id="semis-plan-status" class="status" aria-live="polite"></p>
         </form>
         <div class="controls">
@@ -648,8 +648,8 @@
       const sample = document.getElementById("semis-source").value === "negative";
       const select = document.getElementById("semis-amount");
       select.innerHTML = sample
-        ? '<option value="10">One random 10% check</option><option value="20">Two random 10% checks (20% total)</option>'
-        : '<option value="all">All poems needing a read</option>';
+        ? '<option value="10">10% sample, shared across reviewers</option><option value="20">Two distinct 10% samples (20% total), shared across reviewers</option>'
+        : '<option value="all">One read per eligible poem, shared across reviewers</option>';
       select.disabled = !sample || document.getElementById("semis-action").value === "unassign";
       resetSemisPlan();
     }
@@ -701,13 +701,13 @@
       const counts = emails.map((email) => email + " — " + plan.filter((item) => item.email === email).length).join("; ");
       status.textContent = (source === "positive" ? "2+ Yes" : "Three-No") + " set: " + sourceRows.length + " poems; " +
         sourceRows.filter((item) => item.pending.length || item.reads.length).length + " already have an additional reader or completed read. " +
-        (action === "assign" ? "Assign " : "Unassign ") + plan.length + " reads. " + counts + ".";
+        (action === "assign" ? "Divide " : "Unassign ") + plan.length + " reads across " + emails.length + " reviewer" + (emails.length === 1 ? "" : "s") + ". Per reviewer: " + counts + ".";
       document.getElementById("semis-commit").hidden = !plan.length;
     });
     document.getElementById("semis-commit").addEventListener("click", async (event) => {
       const preview = semisPlan;
       if (!preview || preview.programId !== document.getElementById("program").value) return resetSemisPlan();
-      if (!window.confirm((preview.action === "assign" ? "Assign and email " : "Unassign ") + preview.plan.length + " pending Semis reads?")) return;
+      if (!window.confirm((preview.action === "assign" ? "Assign " : "Unassign ") + preview.plan.length + " Semis reads using the per-reviewer split shown in the preview?")) return;
       event.target.disabled = true;
       const status = document.getElementById("semis-plan-status");
       let done = 0;
