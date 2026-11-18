@@ -13433,7 +13433,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
     .filter((item) => {
       const yesCount = initialContestDecisions(item.votes, requiredReviewCount)
         .filter((vote) => normalizeKey(vote.decision || "") === "yes").length;
-      return tier === "shortlist" ? item.doc.data()?.contestShortlisted === true : tier === "strong" ? yesCount >= 2 : yesCount === 1;
+      return tier === "shortlist" ? (item.doc.data()?.contestShortlisted === true || yesCount === 3) : tier === "strong" ? yesCount >= 2 : yesCount === 1;
     })
     .sort((a, b) => a.doc.id.localeCompare(b.doc.id));
   const snapshot = matching.map(({ doc, votes, reads }) => [
