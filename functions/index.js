@@ -12798,7 +12798,8 @@ app.get(getBoth("/admin/contestReviewProgress"), async (req, res) => {
     return {
       id: doc.id, reviewerEmail, eligibleCount: Number(batch.eligibleCount) || 0,
       sampleCount: sampleIds.length, reviewedCount, yesCount, maybeCount, noCount,
-      status: reviewedCount < sampleIds.length ? "in_progress" : yesCount || maybeCount ? "needs_attention" : "no_concerns_found",
+      unassignedCount: (batch.unassignedSampleIds || []).length,
+      status: !sampleIds.length ? "unassigned" : reviewedCount < sampleIds.length ? "in_progress" : yesCount || maybeCount ? "needs_attention" : "no_concerns_found",
     };
   });
   res.json({
@@ -13606,6 +13607,81 @@ app.post(getBoth("/admin/contestReviewAssignments"), async (req, res) => {
     }, { merge: true });
   }
   res.json({ ok: true, assigned: selectedIds.length, reviewerEmail, programId, requested: batchSize });
+});
+
+app.post(getBoth("/admin/contestAssignments/unassign"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  const reviewerEmail = normalizeText(req.body?.reviewerEmail || "").toLowerCase();
+  const type = normalizeKey(req.body?.type || "");
+  if (!programId || !/^[^@\s]+@buttonpoetry\.com$/.test(reviewerEmail) ||
+      !["initial", "additional", "spotcheck"].includes(type)) {
+    return res.status(400).json({ error: "invalid_unassignment" });
+  }
+  const assignmentId = createHash("sha256").update(programId + "|" + reviewerEmail).digest("hex").slice(0, 40);
+  const assignmentRef = db.collection(COLLECTIONS.contestReviewAssignments).doc(assignmentId);
+  const removedCount = await db.runTransaction(async (transaction) => {
+    const program = await transaction.get(db.collection(COLLECTIONS.submissionPrograms).doc(programId));
+    if (!program.exists) return 0;
+    const assignment = await transaction.get(assignmentRef);
+    const submissions = await transaction.get(db.collection(COLLECTIONS.contentSubmissions).where("submissionProgramId", "==", programId));
+    const responses = await transaction.get(db.collection(COLLECTIONS.submissionResponses).where("submissionProgramId", "==", programId));
+    const spots = await transaction.get(db.collection(COLLECTIONS.contestSpotChecks).where("programId", "==", programId));
+    const required = Math.max(1, Number(program.data()?.requiredReviewCount) || 3);
+    const assignedIds = new Set(assignment.data()?.submissionIds || []);
+    const completedIds = new Set(responses.docs.filter((doc) => {
+      const data = doc.data();
+      return ["contest_review", "contest_supplemental_review"].includes(data.responseType) &&
+        normalizeText(data.reviewerEmail || "").toLowerCase() === reviewerEmail;
+    }).map((doc) => doc.data().submissionId));
+    const selected = submissions.docs.filter((doc) => {
+      const data = doc.data();
+      if (data.contestSubmission !== true || completedIds.has(doc.id)) return false;
+      const extra = (data.contestExtraReviewerEmails || []).includes(reviewerEmail);
+      const spot = normalizeText(data.contestSpotCheckReviewerEmail || "").toLowerCase() === reviewerEmail;
+      if (type === "spotcheck") return spot;
+      if (type === "additional") return extra && !spot;
+      return assignedIds.has(doc.id) && !extra && !spot;
+    }).slice(0, 100);
+    if (!selected.length) return 0;
+    const ids = selected.map((doc) => doc.id);
+    if (assignment.exists) transaction.update(assignmentRef, {
+      submissionIds: FieldValue.arrayRemove(...ids),
+      updatedBy: ctx.decoded.uid, updatedAt: FieldValue.serverTimestamp(),
+    });
+    for (const doc of selected) {
+      if (type === "initial") continue;
+      const data = doc.data();
+      const votes = responses.docs.map((response) => response.data()).filter((vote) =>
+        vote.submissionId === doc.id && vote.responseType === "contest_review");
+      const target = Math.max(required, (Number(data.contestReviewTarget) || required) - 1, votes.length);
+      const complete = votes.length >= target;
+      transaction.update(doc.ref, {
+        contestExtraReviewerEmails: FieldValue.arrayRemove(reviewerEmail),
+        contestReviewTarget: target,
+        ...(type === "spotcheck" ? { contestSpotCheckBatchId: "", contestSpotCheckReviewerEmail: "" } : {}),
+        judgingStatus: complete ? "reviewed" : "in_review",
+        contestScore: complete ? votes.reduce((score, vote) => score + (vote.decision === "yes" ? 1 : vote.decision === "no" ? -1 : 0), 0) : null,
+        contestReviewCompleteAt: complete ? FieldValue.serverTimestamp() : null,
+        updatedBy: ctx.decoded.uid, updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+    if (type === "spotcheck") {
+      for (const spot of spots.docs) {
+        if (normalizeText(spot.data()?.reviewerEmail || "").toLowerCase() !== reviewerEmail) continue;
+        const removed = (spot.data()?.sampleIds || []).filter((id) => ids.includes(id));
+        if (!removed.length) continue;
+        transaction.update(spot.ref, {
+          sampleIds: FieldValue.arrayRemove(...removed),
+          unassignedSampleIds: FieldValue.arrayUnion(...removed),
+          updatedBy: ctx.decoded.uid, updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
+    }
+    return selected.length;
+  });
+  res.json({ ok: true, removedCount, more: removedCount === 100 });
 });
 
 app.post(getBoth("/admin/contestReviewAssignments/resize"), async (req, res) => {
