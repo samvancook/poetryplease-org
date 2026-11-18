@@ -615,8 +615,8 @@
       const rescues = rows.filter((item) => item.reads.some((read) => read.decision === "yes")).length;
       document.getElementById("additional-guidance").textContent = negative
         ? sampled.length + " of " + rows.length + " poems sampled (" + (rows.length ? Math.round(sampled.length / rows.length * 100) : 0) +
-          "%). " + rescues + " have a fresh Yes. " +
-          (rescues >= 2 ? "Multiple rescues found: expand the sample toward 20% and review the results before archiving the group." :
+          "%, including pending reads). " + sampled.filter((item) => item.reads.length).length + " poems have completed additional reads. " + rescues + " have a fresh Yes. " +
+          (rescues >= 2 ? (sampled.length < rows.length * 0.2 ? "Multiple rescues found: expand the sample toward 20% and review the results before archiving the group." : "Multiple rescues found. At least 20% is already assigned: finish the pending sample and have an editor decide whether the remaining group needs a broader review before archiving.") :
             "Review each rescued poem. A clean sample supports an editorial decision about the remaining group; it does not guarantee every promising poem was found.")
         : "Review the full two-plus-Yes set. Use the next-step filter to find pending assignments, positive results, and poems needing another eye.";
       document.getElementById("additional-assign").hidden = negative;
