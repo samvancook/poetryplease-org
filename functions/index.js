@@ -1421,6 +1421,7 @@ function mapSubmissionDoc(doc) {
     contestGraphicsRequestId: data.contestGraphicsRequestId || "",
     contestGraphicsContentId: data.contestGraphicsContentId || "",
     contestShortlisted: data.contestShortlisted === true,
+    contestFinalistExtraReads: Number.isInteger(Number(data.contestFinalistExtraReads)) && Number(data.contestFinalistExtraReads) > 0 ? Number(data.contestFinalistExtraReads) : 0,
     contestExtraReviewerEmails: Array.isArray(data.contestExtraReviewerEmails) ? data.contestExtraReviewerEmails : [],
     contestSpotCheckBatchId: data.contestSpotCheckBatchId || "",
     contestSpotCheckReviewerEmail: data.contestSpotCheckReviewerEmail || "",
