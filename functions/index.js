@@ -13578,7 +13578,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   }
   const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
     .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
-  if (!programId || !["shortlist", "strong", "rescue"].includes(tier) || ![1, 2, 3].includes(readsPerEntry)) {
+  if (!programId || !["finalists", "shortlist", "strong", "rescue"].includes(tier) || ![1, 2, 3, 4, 5].includes(readsPerEntry)) {
     return res.status(400).json({ error: "invalid_finalist_batch" });
   }
   if (!reviewerEmails.length || reviewerEmails.length > 20 ||
@@ -13626,7 +13626,8 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
     .filter((item) => {
       const yesCount = initialContestDecisions(item.votes, requiredReviewCount)
         .filter((vote) => normalizeKey(vote.decision || "") === "yes").length;
-      if (assignmentMode === "extra") return yesCount === 3 || item.doc.data()?.contestShortlisted === true ||
+      // "finalists" matches the Finals results table (isFinalistSubmission in contest-review.html).
+      if (assignmentMode === "extra" || tier === "finalists") return yesCount === 3 || item.doc.data()?.contestShortlisted === true ||
         item.reads.length > 0 || ["circle", "winner"].includes(item.doc.data()?.contestOutcomeStatus);
       return tier === "shortlist" ? (item.doc.data()?.contestShortlisted === true || yesCount === 3) : tier === "strong" ? yesCount >= 2 : yesCount === 1;
     })
