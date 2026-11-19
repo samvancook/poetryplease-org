@@ -1425,7 +1425,11 @@ async function getOrCreateAnonId() {
     overflow: visible;
     padding-top: 8px;
   }
+  /* Hug the video. The box used to keep the full media height while a
+     width-limited video sat centred inside it, leaving a big gap above. */
   .media-box.video-media-box {
+    height: auto;
+    max-height: none;
     overflow: visible;
   }
   .video-frame-shell{
