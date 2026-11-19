@@ -1,8 +1,8 @@
 {
  "generatedAt": "2026-11-17",
  "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
- "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet. Added 19 Nov 2026 (later): 20 items marked source 'visual', from reading by eye images the OCR couldn't read (stylized quotes, photographed book pages), then matching the quote to the Excerpt Database or Catalog.",
- "count": 877,
+ "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet. Added 19 Nov 2026 (later): 20 items marked source 'visual', from reading by eye images the OCR couldn't read (stylized quotes, photographed book pages), then matching the quote to the Excerpt Database or Catalog. Added 19 Nov 2026 (evening): 20 items marked source 'visual-2', from the images the Catalog pass left unsure, read by eye and matched the same way.",
+ "count": 897,
  "items": [
   {
    "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
@@ -5549,6 +5549,136 @@
    "expectTitle": "“Nominee For Best Picture Of The Year”",
    "title": "Occelus",
    "source": "visual"
+  },
+  {
+   "id": "OUB-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-OUB-5",
+   "expectTitle": "Book Specific Quote Graphic - OUB 5",
+   "title": "a poem on poetics",
+   "source": "visual-2"
+  },
+  {
+   "id": "OUB-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-OUB-6",
+   "expectTitle": "Book Specific Quote Graphic - OUB 6",
+   "title": "WHY SOME PEOPLE BE MAD AT ME SOMETIMES (AFTER LUCILLE CLIFTON)",
+   "source": "visual-2"
+  },
+  {
+   "id": "EMAI-QI-A-LETTER-TO-THE-APOCALYPSE",
+   "expectTitle": "A Letter to the Apocalypse",
+   "title": "A lot like you",
+   "source": "visual-2",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "EMAI-QI-AND-THE-ARTICLE-SAYS"
+  },
+  {
+   "id": "EMAI-QI-MY-PATIENCE-V3",
+   "expectTitle": "My patience",
+   "title": "Nolexi",
+   "source": "visual-2",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "EMAI-QI-AND-THE-ARTICLE-SAYS"
+  },
+  {
+   "id": "EMAI-QI-WHAT-IS-PROGRESS",
+   "expectTitle": "What is progress?",
+   "title": "What’s your toxic trait?",
+   "source": "visual-2"
+  },
+  {
+   "id": "EMAI-QI-I-LEARNED-WORKING-WITH-THE-NEGATIVES-CAN-MAKE-FOR-BETTER-PICTURES-V2",
+   "expectTitle": "“I learned working with the negatives can make for better pictures”",
+   "title": "I once held on to a grudge",
+   "source": "visual-2",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "EMAI-QI-AND-THE-ARTICLE-SAYS"
+  },
+  {
+   "id": "FGFS-QI-COERCION",
+   "expectTitle": "COERCION",
+   "title": "CONVERSATIONS WITH MY FATHER IN A DUNK TANK",
+   "source": "visual-2"
+  },
+  {
+   "id": "HFTG-QI-IT-GETS-BETTER-BY-HALVES",
+   "expectTitle": "it gets better, by halves",
+   "title": "It's different",
+   "source": "visual-2"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V4",
+   "expectTitle": "PHOTO",
+   "title": "Page",
+   "source": "visual-2"
+  },
+  {
+   "id": "IFA-QI-I-HOPE-THE-CAMERA-GODS-BLESS-YOU-WITH-A-STEADY-HAND",
+   "expectTitle": "I hope the camera gods bless you with a steady hand",
+   "title": "“I just take my time with all this; I still believe in that”",
+   "source": "visual-2",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER"
+  },
+  {
+   "id": "IFA-QI-I-HOPE-THE-CAMERA-GODS-BLESS-YOU-WITH-A-STEADY-HAND-V2",
+   "expectTitle": "“I hope the camera gods bless you with a steady hand”",
+   "title": "“I just take my time with all this; I still believe in that”",
+   "source": "visual-2",
+   "book": "Excuse Me As I Kiss The Sky",
+   "bookFieldsFrom": "EMAI-QI-45-YEARS-LATER"
+  },
+  {
+   "id": "IFA-QI-UWANI",
+   "expectTitle": "“Uwani”",
+   "title": "Vamri",
+   "source": "visual-2"
+  },
+  {
+   "id": "NABF-QI-JORDAN-CONVINCED-ME-THAT-PADS-ARE-DISGUSTING-V3",
+   "expectTitle": "Jordan Convinced Me That Pads Are Disgusting",
+   "title": "The Scholar",
+   "source": "visual-2"
+  },
+  {
+   "id": "SS-QI-DEAR-MONSOON-V4",
+   "expectTitle": "Dear Monsoon",
+   "title": "So, Stranger",
+   "source": "visual-2"
+  },
+  {
+   "id": "SD-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-SD-4",
+   "expectTitle": "Book Specific Quote Graphic - SD 4",
+   "title": "Simulations",
+   "source": "visual-2"
+  },
+  {
+   "id": "URBA-QI-FEARLESS-SOUNDS-LIKE-FATHERLESS-ON-THE-RIGHT-TONGUE",
+   "expectTitle": "“‘Fearless’ Sounds Like ‘Fatherless’ on the Right Tongue”",
+   "title": "Alternative Descriptions for Hoodrats",
+   "source": "visual-2"
+  },
+  {
+   "id": "W-H-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-WH-5",
+   "expectTitle": "Book Specific Quote Graphic - WH 5",
+   "title": "The Names of Women",
+   "source": "visual-2"
+  },
+  {
+   "id": "ANNB-QI-PHOTO",
+   "expectTitle": "PHOTO",
+   "title": "Building",
+   "source": "visual-2"
+  },
+  {
+   "id": "pig-1787861901076",
+   "expectTitle": "Dashay",
+   "title": "ode to the girls who die to make hip hop happen (after Steven Willis)",
+   "source": "visual-2"
+  },
+  {
+   "id": "pig-1788198813343",
+   "expectTitle": "Dashay",
+   "title": "ode to the girls who die to make hip hop happen (after Steven Willis)",
+   "source": "visual-2"
   }
  ]
 }
