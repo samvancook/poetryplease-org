@@ -1,8 +1,8 @@
 {
  "generatedAt": "2026-11-17",
  "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
- "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'.",
- "count": 818,
+ "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet.",
+ "count": 857,
  "items": [
   {
    "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
@@ -5232,6 +5232,201 @@
    "id": "IFA-QI-VALUE-V8",
    "expectTitle": "#VALUE!",
    "title": "Coamplify verb"
+  },
+  {
+   "id": "ACHK-QI-THE-HEART-ATTACK-SIDE",
+   "expectTitle": "THE HEART ATTACK SIDE",
+   "title": "The Gospel of Lightning"
+  },
+  {
+   "id": "BUTC-QI-BUTCHER",
+   "expectTitle": "“Butcher”",
+   "title": "Chopped"
+  },
+  {
+   "id": "DBAT-QI-WHY-TO-WE-EVEN-NEED-GAY-NEIGHBOORHOODS-AGAIN-SEAN-PATRICK-MULROY",
+   "expectTitle": "WHY TO WE EVEN NEED GAY NEIGHBOORHOODS AGAIN? - SEAN PATRICK MULROY",
+   "title": "why do we even really need gayborhoods again?"
+  },
+  {
+   "id": "EMAI-QI-I-JUST-TAKE-MY-TIME-WITH-ALL-THIS-I-STILL-BELIEVE-THAT-DRAKE",
+   "expectTitle": "\"I just take my. time with all this; I still believe that\" - Drake",
+   "title": "I learned working with the negatives can make for better pictures"
+  },
+  {
+   "id": "FREEQUENCY - OUB - Quote Images - WHY SOME PEOPLE BE MAD AT ME SOMETIMES (AFTER LUCILLE CLIFTON) 18.png",
+   "expectTitle": "WHY SOME PEOPLE BE MAD AT ME SOMETIMES (AFTER LUCILLE CLIFTON)",
+   "title": "why some people be mad at me us sometimes all the time"
+  },
+  {
+   "id": "FREEQUENCY - OUB - Quote Images - WHY SOME PEOPLE BE MAD AT ME SOMETIMES (AFTER LUCILLE CLIFTON) 8.png",
+   "expectTitle": "WHY SOME PEOPLE BE MAD AT ME SOMETIMES (AFTER LUCILLE CLIFTON)",
+   "title": "why some people be mad at me us sometimes all the time"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V3",
+   "expectTitle": "PHOTO",
+   "title": "My Honest Poem"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V6",
+   "expectTitle": "PHOTO",
+   "title": "Sip"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V8",
+   "expectTitle": "PHOTO",
+   "title": "To You"
+  },
+  {
+   "id": "HELI-QI-WATER",
+   "expectTitle": "“Water”",
+   "title": "Welcome"
+  },
+  {
+   "id": "HFTG-QI-METHOD-ACT",
+   "expectTitle": "method act",
+   "title": "more than sex, I miss the movies"
+  },
+  {
+   "id": "HTME-QI-AGAIN-WE-INTERRUPT-THE-DISHES-V3",
+   "expectTitle": "“AGAIN WE INTERRUPT THE DISHES”",
+   "title": "All the Way Down"
+  },
+  {
+   "id": "ISST-QI-THE-ELECTRIC-SLIDE-IS-NOT-A-DANCE-MAN-V2",
+   "expectTitle": "THE ELECTRIC SLIDE IS NOT A DANCE, MAN!",
+   "title": "Footnotes"
+  },
+  {
+   "id": "OUB-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-OUB-1",
+   "expectTitle": "Book Specific Quote Graphic - OUB 1",
+   "title": "why some people be mad at me us sometimes all the time"
+  },
+  {
+   "id": "OUB-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-OUB-2",
+   "expectTitle": "Book Specific Quote Graphic - OUB 2",
+   "title": "empathy for Pluto"
+  },
+  {
+   "id": "OUB-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-OUB-3",
+   "expectTitle": "Book Specific Quote Graphic - OUB 3",
+   "title": "on the bus home from an afterschool field trip"
+  },
+  {
+   "id": "OUB-QI-WHY-SOME-PEOPLE-BE-MAD-AT-ME-SOMETIMES-AFTER-LUCILLE-CLIFTON-18",
+   "expectTitle": "WHY SOME PEOPLE BE MAD AT ME SOMETIMES (AFTER LUCILLE CLIFTON) 18",
+   "title": "why some people be mad at me us sometimes all the time"
+  },
+  {
+   "id": "OUB-QI-WHY-SOME-PEOPLE-BE-MAD-AT-ME-SOMETIMES-AFTER-LUCILLE-CLIFTON-8",
+   "expectTitle": "WHY SOME PEOPLE BE MAD AT ME SOMETIMES (AFTER LUCILLE CLIFTON) 8",
+   "title": "why some people be mad at me us sometimes all the time"
+  },
+  {
+   "id": "PBC-QI-MEMORY-CAUSES-A-SPECTACLE",
+   "expectTitle": "MEMORY CAUSES A SPECTACLE",
+   "title": "ABOUT THE JEDITORS"
+  },
+  {
+   "id": "RB-QI-ALL-AT-ONCE-V3",
+   "expectTitle": "“ALL AT ONCE”",
+   "title": "All the Pills I Tried Before"
+  },
+  {
+   "id": "SD-QI-PETRICHOR-2",
+   "expectTitle": "Petrichor",
+   "title": "CD. JUAREZ / LA BIBLIA ES / LA VERDAD / LEELA"
+  },
+  {
+   "id": "SD-QI-PETRICHOR-5",
+   "expectTitle": "Petrichor",
+   "title": "E1 Buck Private: Amarillo, Texas, 1963"
+  },
+  {
+   "id": "SD-QI-PETRICHOR-4",
+   "expectTitle": "Petrichor",
+   "title": "Drinking with Antonio in Gràcia"
+  },
+  {
+   "id": "SD-QI-PETRICHOR-6",
+   "expectTitle": "Petrichor",
+   "title": "E1 Buck Private: Amarillo, Texas, 1963"
+  },
+  {
+   "id": "SD-QI-PETRICHOR-7",
+   "expectTitle": "Petrichor",
+   "title": "E1 Buck Private: Amarillo, Texas, 1963"
+  },
+  {
+   "id": "SHAP-QI-MY-MOM-SAYS-THAT-EVERYONE-SHOULD-TAKE-THEIR-SHOES-OFF-STICK-THEIR-TOES-IN-THE-EARTH",
+   "expectTitle": "My Mom Says that Everyone Should Take Their Shoes Off, Stick Their Toes in the Earth",
+   "title": "Life is Soup, I am Fork"
+  },
+  {
+   "id": "SP-QI-RAISING-CHILDREN-GOD-S-WAY",
+   "expectTitle": "Raising Children God’s Way",
+   "title": "More Than Love"
+  },
+  {
+   "id": "SP-QI-MORE-THAN-LOVE",
+   "expectTitle": "More Than Love",
+   "title": "Raising Children God’s Way"
+  },
+  {
+   "id": "SRH-QI-HEIRLOOM-V2",
+   "expectTitle": "HEIRLOOM",
+   "title": "HI! MY NAME IS USMAN"
+  },
+  {
+   "id": "SRH-QI-REFLECTING-POOL",
+   "expectTitle": "REFLECTING POOL",
+   "title": "REGRET IS AN ELABORATE PUZZLE"
+  },
+  {
+   "id": "SS-QI-DEAR-MONSOON-V3",
+   "expectTitle": "Dear Monsoon",
+   "title": "So, Stranger"
+  },
+  {
+   "id": "SS-QI-DEAR-MONSOON-V7",
+   "expectTitle": "Dear Monsoon",
+   "title": "So, Stranger"
+  },
+  {
+   "id": "SS-QI-DEAR-MONSOON-V8",
+   "expectTitle": "Dear Monsoon",
+   "title": "So, Stranger"
+  },
+  {
+   "id": "TART-QI-SCRAWLED-ACROSS-THE-WALL-OF-A-COLLEGE-BAR-BATHROOM-DONT-DATE-RAPPERS",
+   "expectTitle": "SCRAWLED ACROSS THE WALL OF A COLLEGE BAR BATHROOM: DON’T DATE RAPPERS.",
+   "title": "So, There Was This Dog"
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V53",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "1995. After the Streetlights Drink Whatever Darkness Is Left"
+  },
+  {
+   "id": "TCAW-QI-THE-CROWN-AIN-T-WORTH-MUCH-V82",
+   "expectTitle": "The Crown Ain't Worth Much",
+   "title": "All of the Black Boys Finally Stopped Packing Switchblades"
+  },
+  {
+   "id": "WIDT-QI-A-WEEKA-GO",
+   "expectTitle": "a weeka go",
+   "title": "animals named after other animals"
+  },
+  {
+   "id": "WIDT-QI-MY-GRANDMOTHER",
+   "expectTitle": "my grandmother",
+   "title": "in my dreams he always comes back to life"
+  },
+  {
+   "id": "pig-1788201045374",
+   "expectTitle": "self love",
+   "title": "namesake"
   }
  ]
 }
