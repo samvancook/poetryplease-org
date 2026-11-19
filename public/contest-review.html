@@ -2586,7 +2586,7 @@
           const list = document.createElement("div");
           list.innerHTML = "<p><strong>Left in the bucket — every listed reader has already read these:</strong></p><ul>" +
             result.unplaced.map((item) => '<li>' + escapeHtml(item.title) + ' (' + item.leftInBucket + ' read' + (item.leftInBucket === 1 ? '' : 's') +
-              ')' + (item.alreadyReadBy?.length ? ' — already read by ' + escapeHtml(item.alreadyReadBy.join(", ")) : '') + ' <button type="button" data-open-submission="' + escapeHtml(item.submissionId) + '">Open</button></li>').join("") + "</ul>";
+              ')' + (item.alreadyReadBy?.length ? ' — already read (or getting it in this split): ' + escapeHtml(item.alreadyReadBy.join(", ")) : '') + ' <button type="button" data-open-submission="' + escapeHtml(item.submissionId) + '">Open</button></li>').join("") + "</ul>";
           status.appendChild(list);
         }
         state.finalistPreview = { ...body, previewToken: result.previewToken, newReadCount: result.newReadCount, byReviewer: result.byReviewer || {} };
