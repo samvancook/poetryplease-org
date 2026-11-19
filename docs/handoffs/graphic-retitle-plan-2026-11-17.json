@@ -1,8 +1,8 @@
 {
  "generatedAt": "2026-11-17",
  "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
- "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet.",
- "count": 857,
+ "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet. Added 19 Nov 2026 (later): 20 items marked source 'visual', from reading by eye images the OCR couldn't read (stylized quotes, photographed book pages), then matching the quote to the Excerpt Database or Catalog.",
+ "count": 877,
  "items": [
   {
    "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
@@ -5427,6 +5427,128 @@
    "id": "pig-1788201045374",
    "expectTitle": "self love",
    "title": "namesake"
+  },
+  {
+   "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-3",
+   "expectTitle": "Book Specific Quote Graphic - AEO 3",
+   "title": "I Talk to the Moon Instead of the Police",
+   "source": "visual"
+  },
+  {
+   "id": "BUTC-QI-TO-EXISTING-BEING-ENOUGH-V3",
+   "expectTitle": "“To Existing Being Enough”",
+   "title": "Two Fires",
+   "source": "visual"
+  },
+  {
+   "id": "DT-QI-REFLECTIONS-ON-THE-NEW-GLASS",
+   "expectTitle": "“REFLECTIONS ON THE NEW GLASS",
+   "title": "REPETITION",
+   "source": "visual"
+  },
+  {
+   "id": "ETSA-QI-CHURCH-GIRL-ANSWERS-WHAT-IS-SADNESS",
+   "expectTitle": "“CHURCH GIRL ANSWERS WHAT IS SADNESS”",
+   "title": "CHURCH GIRL DEFENDS HER HAIR CUT",
+   "source": "visual"
+  },
+  {
+   "id": "ETSA-QI-FROM-THE-BROKEN-FINGERNAIL-V3",
+   "expectTitle": "FROM THE BROKEN FINGERNAIL",
+   "title": "GRANNY’S WALL",
+   "source": "visual"
+  },
+  {
+   "id": "ETSA-QI-I-THANK-THE-CHURCH-FOR-BLESSING-MY-MOTHERS-WOMB",
+   "expectTitle": "“I THANK THE CHURCH FOR BLESSING MY MOTHER’S WOMB”",
+   "title": "I’LL SLEEP NEXT TO _________ AFTER",
+   "source": "visual"
+  },
+  {
+   "id": "FN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-FN-4",
+   "expectTitle": "Book Specific Quote Graphic - FN 4",
+   "title": "MOURNING ROUTINE 9",
+   "source": "visual"
+  },
+  {
+   "id": "FN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-FN-5",
+   "expectTitle": "Book Specific Quote Graphic - FN 5",
+   "title": "MONOLOGUING",
+   "source": "visual"
+  },
+  {
+   "id": "FN-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-FN-6",
+   "expectTitle": "Book Specific Quote Graphic - FN 6",
+   "title": "ACHILLES",
+   "source": "visual"
+  },
+  {
+   "id": "FORT-QI-RECOGNITION-V4",
+   "expectTitle": "“RECOGNITION”",
+   "title": "RECOVERY",
+   "source": "visual"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V5",
+   "expectTitle": "PHOTO",
+   "title": "Page",
+   "source": "visual"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V7",
+   "expectTitle": "PHOTO",
+   "title": "My Honest Poem",
+   "source": "visual"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V9",
+   "expectTitle": "PHOTO",
+   "title": "Ouch",
+   "source": "visual"
+  },
+  {
+   "id": "HELI-QI-WHEN-PEOPLE-ASK-HOW-IM-DOING",
+   "expectTitle": "“When People Ask How I’m Doing”",
+   "title": "When you walk into the room",
+   "book": "I'll Fly Away",
+   "bookFieldsFrom": "EMAI-QI-AND-THE-ARTICLE-SAYS",
+   "source": "visual"
+  },
+  {
+   "id": "TF-QI-AN-ODE-TO-THE-GASLIGHT-ANTHEM-ENDING-IN-HOSPITAL-BILLS",
+   "expectTitle": "An Ode to the Gaslight Anthem, Ending in Hospital Bills",
+   "title": "And Missed",
+   "source": "visual"
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V21",
+   "expectTitle": "The Future",
+   "title": "Two Days in Williamsport, PA",
+   "source": "visual"
+  },
+  {
+   "id": "TF-QI-THE-FUTURE-V9",
+   "expectTitle": "The Future",
+   "title": "And Missed",
+   "source": "visual"
+  },
+  {
+   "id": "URBA-QI-POP-QUIZ-DO-YOU-UNDERSTAND-WHAT-YOU-ARE-READING-V3",
+   "expectTitle": "“Pop Quiz: Do You Understand What You Are Reading?”",
+   "title": "Started from the Bottom Now I’m Sula",
+   "source": "visual"
+  },
+  {
+   "id": "WWAS-QI-NEW-WAYS-TO-SMILE-EPILOGUE",
+   "expectTitle": "“New Ways to Smile: Epilogue”",
+   "title": "Niggas in Middle-Earth",
+   "source": "visual"
+  },
+  {
+   "id": "WWAS-QI-NOMINEE-FOR-BEST-PICTURE-OF-THE-YEAR-V5",
+   "expectTitle": "“Nominee For Best Picture Of The Year”",
+   "title": "Occelus",
+   "source": "visual"
   }
  ]
 }
