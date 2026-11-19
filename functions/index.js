@@ -9922,6 +9922,65 @@ async function runWeaverVideoDurableCopyTask(data = {}) {
   }
 }
 
+function buildWeaverVideoReadiness(videoId, video, binding, asset, excerpt, now = new Date()) {
+  if (!binding || binding.schemaVersion !== "1" || !asset || !excerpt) return null;
+  const approvedAt = normalizeTimestamp(excerpt.approvedAt)?.toISOString();
+  const verifiedAt = normalizeTimestamp(asset.updatedAt)?.toISOString();
+  const fingerprint = buildExcerptFingerprint(excerpt.excerpt);
+  if (binding.canonicalVideoId !== videoId || binding.sourceRecordId !== video.sourceRecordId ||
+      video.catalogRetired === true || video.syntheticTest === true || video.weaverPublicationRestricted === true ||
+      normalizeText(video.weaverReleaseStatus) || excerpt.catalogRetired === true ||
+      excerpt.syntheticTest === true || excerpt.sourceContentId !== videoId ||
+      excerpt.sourceRecordId !== binding.approvedSourceRecordId ||
+      excerpt.sourceSystem !== "weaver" || !approvedAt || approvedAt !== binding.approvedAt ||
+      excerpt.author !== binding.author || (excerpt.poem || excerpt.title) !== binding.poem ||
+      !fingerprint || fingerprint !== binding.fingerprint || excerpt.excerptFingerprint !== fingerprint ||
+      sha256(fingerprint) !== binding.approvedTextHash ||
+      asset.contentDocId !== videoId || asset.contentCollection !== COLLECTIONS.videos ||
+      asset.assetType !== "video_rendition" || asset.status !== "active" ||
+      asset.validationState !== "verified_bytes" || asset.sourceRecordId !== binding.sourceRecordId ||
+      asset.outputFileId !== binding.outputFileId || asset.outputRevisionId !== binding.outputRevisionId ||
+      asset.sourceVersionFileId !== binding.sourceVersionFileId ||
+      asset.profileId !== binding.profileId || asset.profileVersion !== binding.profileVersion ||
+      asset.verifiedSha256 !== binding.sha256 || asset.sha256 !== binding.sha256 ||
+      !/^[a-f0-9]{64}$/.test(binding.sha256 || "") ||
+      asset.verifiedByteCount !== binding.byteCount || asset.byteCount !== binding.byteCount ||
+      !(binding.byteCount > 0) || !verifiedAt || verifiedAt !== binding.renditionUpdatedAt ||
+      !binding.evidence?.url || binding.evidence.matchedExactly !== true ||
+      binding.evidence.uniqueMatchesInOutput !== 1 ||
+      !(binding.evidence.fromMs >= 0 && binding.evidence.toMs > binding.evidence.fromMs &&
+        binding.evidence.toMs <= asset.durationSeconds * 1000) ||
+      !normalizeTimestamp(binding.certifiedAt)) return null;
+  return {
+    schemaVersion: "1", canonicalVideoId: videoId, sourceRecordId: video.sourceRecordId,
+    checkedAt: now.toISOString(),
+    media: {
+      status: "verified", assetId: binding.renditionId, outputFileId: asset.outputFileId,
+      outputRevisionId: asset.outputRevisionId, sourceVersionFileId: asset.sourceVersionFileId,
+      mode: "drive_link", verifiedAt, sha256: asset.verifiedSha256, byteCount: asset.verifiedByteCount,
+      profileId: asset.profileId, profileVersion: asset.profileVersion, outputUrl: asset.outputUrl,
+    },
+    caption: {
+      status: "approved", canonicalExcerptId: binding.canonicalExcerptId,
+      sourceRecordId: excerpt.sourceRecordId, fingerprint, approvedAt, text: excerpt.excerpt,
+      fromMs: binding.evidence.fromMs, toMs: binding.evidence.toMs,
+    },
+    evidence: binding.evidence, certifiedAt: binding.certifiedAt,
+  };
+}
+
+async function readWeaverVideoReadiness(videoDoc) {
+  const video = videoDoc.data();
+  const binding = video.weaverReadinessBinding;
+  if (!binding || ![binding.renditionId, binding.canonicalExcerptId]
+    .every(id => typeof id === "string" && id.length > 0 && id.length <= 512 && !id.includes("/"))) return null;
+  const [asset, excerpt] = await Promise.all([
+    db.collection(COLLECTIONS.contentAssets).doc(binding.renditionId).get(),
+    db.collection(COLLECTIONS.excerpts).doc(binding.canonicalExcerptId).get(),
+  ]);
+  return buildWeaverVideoReadiness(videoDoc.id, video, binding, asset.data(), excerpt.data());
+}
+
 function weaverVideoReceiptLedgerRow(doc) {
   const data = doc.data() || {};
   const completedAt = normalizeTimestamp(data.completedAt || data.startedAt);
@@ -9981,12 +10040,14 @@ async function readWeaverVideoReceipt(sourceRecordId) {
     review: { reviewCount, selectedExcerptIdCount },
     footage: {schemaVersion:1,connections:normalizeFootageConnections(video?.weaverFootageConnections || [])},
     performanceContext:video?.weaverPerformanceContext || null,
+    readiness: video?.weaverReadinessBinding ? await readWeaverVideoReadiness(videoDoc) : null,
     ledger: { count: ledgers.length, latest: ledgers[0] || null },
   };
 }
 
 app.get(getBoth("/internal/weaverVideoReceipt"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  res.set("Cache-Control", "private, no-store");
   const sourceRecordId = normalizeText(req.query?.sourceRecordId);
   if (!sourceRecordId || sourceRecordId.length > 300) {
     return res.status(400).json({ error: "invalid_source_record_id" });

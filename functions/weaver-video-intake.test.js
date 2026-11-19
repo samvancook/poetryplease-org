@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {normalizeFootageConnections,mergeFootageConnections} from './footage-provenance.js';
@@ -233,4 +234,64 @@ test("exact excerpt receipt verifies the live binding and preserves the historic
   duplicates = false;
   parentExists = false;
   assert.equal(await read("weaver:source", "ledger-id"), null);
+});
+
+test("video readiness revokes when bound output, caption approval or parent changes", () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("function buildWeaverVideoReadiness(");
+  const end = source.indexOf("async function readWeaverVideoReadiness(", start);
+  const fingerprint = value => String(value || "").trim().normalize("NFKC").replace(/\s+/g, " ").toLowerCase();
+  const sha256 = value => createHash("sha256").update(value).digest("hex");
+  const build = runInNewContext(source.slice(start, end) + ";buildWeaverVideoReadiness", {
+    normalizeTimestamp: value => value ? new Date(value) : null,
+    normalizeText: value => String(value || "").trim(),
+    buildExcerptFingerprint: fingerprint, sha256, COLLECTIONS: { videos: "videos" },
+  });
+  const date = "2026-11-17T21:00:00.000Z";
+  const video = { sourceRecordId: "weaver:video:source" };
+  const excerpt = {
+    sourceSystem: "weaver", sourceContentId: "video", sourceRecordId: "weaver:excerpt",
+    author: "Author", title: "Poem", approvedAt: date, excerpt: "Approved words",
+    excerptFingerprint: "approved words",
+  };
+  const checksum = "a".repeat(64);
+  const asset = {
+    assetType: "video_rendition", contentCollection: "videos", contentDocId: "video",
+    sourceRecordId: video.sourceRecordId, status: "active", validationState: "verified_bytes",
+    sourceVersionFileId: "source-file", outputFileId: "output-file", outputRevisionId: "revision",
+    profileId: "platform-720p-h264-aac", profileVersion: "1", sha256: checksum,
+    verifiedSha256: checksum, byteCount: 100, verifiedByteCount: 100, updatedAt: date,
+    durationSeconds: 30,
+  };
+  const binding = {
+    schemaVersion: "1", canonicalVideoId: "video", sourceRecordId: video.sourceRecordId,
+    renditionId: "asset", canonicalExcerptId: "excerpt", approvedSourceRecordId: excerpt.sourceRecordId,
+    approvedAt: date, fingerprint: excerpt.excerptFingerprint, approvedTextHash: sha256(excerpt.excerptFingerprint),
+    author: "Author", poem: "Poem", sourceVersionFileId: asset.sourceVersionFileId,
+    outputFileId: asset.outputFileId, outputRevisionId: asset.outputRevisionId,
+    profileId: asset.profileId, profileVersion: asset.profileVersion, sha256: checksum, byteCount: 100,
+    renditionUpdatedAt: date, certifiedAt: date,
+    evidence: { url: "https://drive.google.com/file/d/evidence/view", matchedExactly: true,
+      uniqueMatchesInOutput: 1, fromMs: 1000, toMs: 2000 },
+  };
+  const checked = new Date("2026-11-19T12:00:00.000Z");
+  const receipt = build("video", video, binding, asset, excerpt, checked);
+  assert.equal(receipt.media.status, "verified");
+  assert.equal(receipt.caption.status, "approved");
+  assert.equal(receipt.caption.text, excerpt.excerpt);
+  assert.equal(receipt.checkedAt, checked.toISOString());
+  assert.equal(build("video", video, null, asset, excerpt), null);
+  assert.equal(build("video", video, binding, undefined, excerpt), null);
+  for (const patch of [
+    { outputFileId: "replacement" }, { outputRevisionId: "new-revision" },
+    { verifiedSha256: "b".repeat(64) }, { validationState: "source_reported" },
+    { status: "retired" }, { updatedAt: "2026-11-18T21:00:00.000Z" },
+    { contentDocId: "another-video" }, { verifiedByteCount: 99 },
+  ]) assert.equal(build("video", video, binding, { ...asset, ...patch }, excerpt), null);
+  for (const patch of [
+    { excerpt: "Changed words" }, { approvedAt: null }, { sourceContentId: "other-video" },
+    { sourceRecordId: "other-source" }, { catalogRetired: true }, { title: "Other poem" },
+  ]) assert.equal(build("video", video, binding, asset, { ...excerpt, ...patch }), null);
+  assert.equal(build("video", { ...video, weaverPublicationRestricted: true }, binding, asset, excerpt), null);
+  assert.equal(build("video", { ...video, sourceRecordId: "different" }, binding, asset, excerpt), null);
 });
