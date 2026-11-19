@@ -195,6 +195,8 @@
         </select>
       </label>
       <p id="outcome-count"></p>
+      <button id="queue-extra-finalist-set" type="button">Queue extra reviewer for this filtered set</button>
+      <p id="extra-finalist-status" class="status" aria-live="polite"></p>
       <p class="muted">Only Finals qualifiers and poems with finalist assignments appear here. The 2+ Passes filter includes pending reviews and other votes. The 3 Passes filter requires at least three completed finalist reads, all Pass, with no pending read.</p>
       <button id="archive-finalist-passes" type="button" hidden>Archive these 3-Pass finalists</button>
       <p id="finalist-archive-status" class="status" aria-live="polite"></p>
@@ -1003,6 +1005,10 @@
       if (!report) return;
       const view = document.getElementById("outcome-view").value;
       const matching = filteredOutcomeRows();
+      const extraButton = document.getElementById("queue-extra-finalist-set");
+      const extraCount = matching.filter((row) => !row.archived).length;
+      extraButton.textContent = "Queue extra reviewer for " + extraCount + " matching finalists";
+      extraButton.disabled = !document.getElementById("program").value || !extraCount || extraFinalistAssignmentBusy;
       const archiveButton = document.getElementById("archive-finalist-passes");
       const archiveable = matching.filter((row) => !["circle", "winner"].includes(row.outcomeStatus));
       archiveButton.hidden = view !== "passes";
@@ -2650,24 +2656,65 @@
         await loadQueue();
       }
     });
+    let extraFinalistAssignmentBusy = false;
+    async function queueExtraFinalistReview(submissionIds, label) {
+      const programId = document.getElementById("program").value;
+      if (extraFinalistAssignmentBusy || !programId || !submissionIds.length) return;
+      const entered = window.prompt("Extra finalist reviewer emails (comma-separated). One new Champion / Possible / Pass read per poem; multiple reviewers share the work.");
+      if (!entered?.trim()) return;
+      const reviewerEmails = [...new Set(entered.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean))];
+      const status = document.getElementById("extra-finalist-status");
+      extraFinalistAssignmentBusy = true;
+      document.getElementById("queue-extra-finalist-set").disabled = true;
+      try {
+        status.textContent = "Checking extra finalist assignments...";
+        const body = { programId, tier: "shortlist", readsPerEntry: 1, assignmentMode: "extra", submissionIds, reviewerEmails };
+        const preview = await api("admin/contestFinalistBatch", { method: "POST", body });
+        if (document.getElementById("program").value !== programId) return;
+        if (!preview.newReadCount) {
+          status.textContent = "No extra reads available: " + preview.reviewerConflicts + " poems have no fresh listed reviewer; " +
+            preview.skippedCount + " are unavailable or ineligible. No assignments or emails created.";
+          return;
+        }
+        const settings = await api("admin/contestMailSettings?programId=" + encodeURIComponent(programId));
+        if (document.getElementById("program").value !== programId) return;
+        const split = Object.entries(preview.byReviewer).map(([email, count]) => email + " — " + count).join("\n");
+        if (!window.confirm(label + "\nAssign " + preview.newReadCount + " extra finalist reads, one per eligible poem, and email the assigned reviewers?\n" +
+          "Skipped unavailable/ineligible: " + preview.skippedCount + ". No fresh listed reviewer: " + preview.reviewerConflicts +
+          ".\n" + split + "\n\n" + contestMailHeaderText(settings.mailIdentity))) {
+          status.textContent = "No assignments or emails created.";
+          return;
+        }
+        status.textContent = "Assigning extra finalist reads...";
+        const result = await api("admin/contestFinalistBatch", { method: "POST", body: { ...body, commit: true, previewToken: preview.previewToken } });
+        const messages = [];
+        for (const [reviewerEmail, addedCount] of Object.entries(result.byReviewer).filter(([, count]) => count > 0)) {
+          status.textContent = "Assigned " + result.assignedCount + " extra finalist reads. Sending assignment emails; keep this page open.";
+          try {
+            await api("admin/contestAssignmentNotices/send", { method: "POST",
+              body: { programId, reviewerEmail, view: "finalist", addedCount, expectedMailIdentity: settings.mailIdentity } });
+            messages.push("Email sent to " + reviewerEmail + ".");
+          } catch (error) { messages.push("Email unconfirmed for " + reviewerEmail + " (" + error.message + ")."); }
+        }
+        status.textContent = "Assigned " + result.assignedCount + " extra finalist reads. " + messages.join(" ");
+        await loadQueue();
+      } catch (error) {
+        status.textContent = "Could not finish: " + error.message + ". Check progress before retrying.";
+      } finally {
+        extraFinalistAssignmentBusy = false;
+        renderOutcomeViews();
+      }
+    }
+    document.getElementById("queue-extra-finalist-set").addEventListener("click", () => {
+      const select = document.getElementById("outcome-view");
+      queueExtraFinalistReview(filteredOutcomeRows().filter((row) => !row.archived).map((row) => row.id),
+        select.options[select.selectedIndex]?.textContent || "Filtered finalists");
+    });
     document.getElementById("outcome-results").addEventListener("click", async (event) => {
       const button = event.target.closest("button");
       if (!button) return;
       if (button.dataset.extraSubmission) {
-        const reviewerEmail = window.prompt("Button Poetry email for this additional reviewer:");
-        if (!reviewerEmail) return;
-        const status = document.getElementById("assignment-status");
-        status.textContent = "Queueing additional review...";
-        try {
-          const result = await api("admin/contentSubmissions/" + encodeURIComponent(button.dataset.extraSubmission) + "/additionalReviewer", {
-            method: "POST", body: { reviewerEmail: reviewerEmail.trim() },
-          });
-          status.textContent = "Queued review " + result.reviewTarget + " for " + result.reviewerEmail + ". " +
-            await sendAssignmentNotices(document.getElementById("program").value, [result.reviewerEmail], "assigned", { [result.reviewerEmail]: 1 });
-          await loadQueue();
-        } catch (error) {
-          status.textContent = "Could not queue additional review: " + error.message;
-        }
+        await queueExtraFinalistReview([button.dataset.extraSubmission], "One finalist");
         return;
       }
       if (button.dataset.archiveSubmission) {
