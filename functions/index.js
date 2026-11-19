@@ -13644,6 +13644,18 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
       reviewerEmails.some((email) => !/^[^@\s]+@buttonpoetry\.com$/.test(email))) {
     return res.status(400).json({ error: "provide_1_to_20_button_poetry_reviewers" });
   }
+  // Bucket mode only: optional {email: N} caps. A capped reader gets at most N reads from this split;
+  // readers without a number share the rest. Whatever nobody takes stays in the bucket.
+  const rawLimits = bucketMode && req.body?.reviewerLimits && typeof req.body.reviewerLimits === "object" ? req.body.reviewerLimits : {};
+  const reviewerLimits = {};
+  for (const [rawEmail, rawCount] of Object.entries(rawLimits)) {
+    const email = normalizeText(rawEmail).toLowerCase();
+    const count = Number(rawCount);
+    if (!reviewerEmails.includes(email) || !Number.isInteger(count) || count < 1 || count > 500) {
+      return res.status(400).json({ error: "invalid_reader_number" });
+    }
+    reviewerLimits[email] = count;
+  }
   const programSnap = await db.collection(COLLECTIONS.submissionPrograms).doc(programId).get();
   if (!programSnap.exists) return res.status(404).json({ error: "submission_program_not_found" });
   const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
@@ -13704,13 +13716,17 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   const previewToken = createHash("sha256").update(JSON.stringify({
     programId, tier, readsPerEntry, reviewerEmails, snapshot,
     ...(bucketMode ? { bucketTarget, extras: matching.map(({ doc }) => [doc.id, contestFinalistExtraReads(doc.data())]) } : {}),
+    ...(bucketMode && Object.keys(reviewerLimits).length ? { reviewerLimits: Object.entries(reviewerLimits).sort() } : {}),
     ...(assignmentMode === "extra" ? { assignmentMode, selectedIds, supplemental: matching.map(({ doc }) => [doc.id, (supplementalById.get(doc.id) || []).slice().sort()]) } : {}),
   })).digest("hex");
   const plan = [];
   let nextReviewer = 0;
   let alreadyCovered = 0;
   let reviewerConflicts = 0;
+  let leftByReaderNumbers = 0;
   const unplaced = [];
+  const takenByReviewer = new Map();
+  const isFull = (email) => reviewerLimits[email] !== undefined && (takenByReviewer.get(email) || 0) >= reviewerLimits[email];
   for (const { doc, votes, reads } of matching) {
     const needed = assignmentMode === "extra" ? 1
       : Math.max(0, (bucketMode ? bucketTarget + contestFinalistExtraReads(doc.data()) : readsPerEntry) - reads.length);
@@ -13721,11 +13737,13 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
       ...(supplementalById.get(doc.id) || []),
     ]);
     let assigned = 0;
+    let blockedByNumbers = false;
     for (let slot = 0; slot < needed; slot += 1) {
       let selected = "";
       for (let offset = 0; offset < reviewerEmails.length; offset += 1) {
         const index = (nextReviewer + offset) % reviewerEmails.length;
-        if (!occupied.has(reviewerEmails[index])) {
+        if (!occupied.has(reviewerEmails[index]) && isFull(reviewerEmails[index])) blockedByNumbers = true;
+        if (!occupied.has(reviewerEmails[index]) && !isFull(reviewerEmails[index])) {
           selected = reviewerEmails[index];
           nextReviewer = (index + 1) % reviewerEmails.length;
           break;
@@ -13733,10 +13751,14 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
       }
       if (!selected) break;
       occupied.add(selected);
+      takenByReviewer.set(selected, (takenByReviewer.get(selected) || 0) + 1);
       plan.push({ submissionId: doc.id, reviewerEmail: selected });
       assigned += 1;
     }
-    if (assigned < needed) {
+    if (assigned < needed && blockedByNumbers) {
+      // Left only because readers with a number are full; not a "everyone already read it" conflict.
+      leftByReaderNumbers += needed - assigned;
+    } else if (assigned < needed) {
       reviewerConflicts += 1;
       unplaced.push({ submissionId: doc.id, title: normalizeText(doc.data()?.title || "Untitled"), leftInBucket: needed - assigned,
         alreadyReadBy: reviewerEmails.filter((email) => occupied.has(email)) });
@@ -13746,7 +13768,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
     [email, plan.filter((item) => item.reviewerEmail === email).length]));
   const result = {
     ok: true, programId, tier, matchingCount: matching.length,
-    ...(bucketMode ? { assignmentMode, bucketTarget, unplaced } : {}),
+    ...(bucketMode ? { assignmentMode, bucketTarget, unplaced, reviewerLimits, leftByReaderNumbers } : {}),
     ...(assignmentMode === "extra" ? { assignmentMode, selectedCount: selectedIds.length, skippedCount: selectedIds.length - matching.length } : {}),
     newReadCount: plan.length, alreadyCovered, reviewerConflicts, byReviewer, previewToken,
   };
