@@ -13508,6 +13508,13 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   const programId = normalizeText(req.body?.programId || "");
   const tier = normalizeKey(req.body?.tier || "");
   const readsPerEntry = Number(req.body?.readsPerEntry || 1);
+  const assignmentMode = normalizeKey(req.body?.assignmentMode || "target");
+  const selectedIds = assignmentMode === "extra" && Array.isArray(req.body?.submissionIds)
+    ? [...new Set(req.body.submissionIds.map((id) => normalizeText(id)).filter(Boolean))].sort() : null;
+  if (!["target", "extra"].includes(assignmentMode) ||
+      (assignmentMode === "extra" && (!selectedIds?.length || selectedIds.length > 2000))) {
+    return res.status(400).json({ error: "invalid_extra_finalist_selection" });
+  }
   const reviewerEmails = [...new Set((Array.isArray(req.body?.reviewerEmails) ? req.body.reviewerEmails : [])
     .map((email) => normalizeText(email).toLowerCase()).filter(Boolean))];
   if (!programId || !["shortlist", "strong", "rescue"].includes(tier) || ![1, 2, 3].includes(readsPerEntry)) {
@@ -13522,10 +13529,11 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   const requiredReviewCount = Math.max(1, Number(programSnap.data()?.requiredReviewCount) || 3);
   if (requiredReviewCount !== 3) return res.status(409).json({ error: "finalist_pass_requires_three_initial_reviews" });
 
-  const [submissionSnap, voteSnap, readSnap] = await Promise.all([
+  const [submissionSnap, voteSnap, readSnap, supplementalSnap] = await Promise.all([
     db.collection(COLLECTIONS.contentSubmissions).where("contestSubmission", "==", true).get(),
     db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_review").get(),
     db.collection(COLLECTIONS.contestFinalistReads).where("programId", "==", programId).get(),
+    assignmentMode === "extra" ? db.collection(COLLECTIONS.submissionResponses).where("responseType", "==", "contest_supplemental_review").get() : Promise.resolve({ docs: [] }),
   ]);
   const votesById = new Map();
   for (const doc of voteSnap.docs) {
@@ -13541,13 +13549,24 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
     list.push(read);
     readsById.set(read.submissionId, list);
   }
+  const supplementalById = new Map();
+  for (const doc of supplementalSnap.docs) {
+    const read = doc.data() || {};
+    const emails = supplementalById.get(read.submissionId) || [];
+    emails.push(normalizeText(read.reviewerEmail || "").toLowerCase());
+    supplementalById.set(read.submissionId, emails);
+  }
+  const selectedSet = new Set(selectedIds || []);
   const matching = submissionSnap.docs
     .filter((doc) => doc.data()?.submissionProgramId === programId && doc.data()?.contestArchived !== true)
+    .filter((doc) => assignmentMode !== "extra" || selectedSet.has(doc.id))
     .map((doc) => ({ doc, votes: votesById.get(doc.id) || [], reads: readsById.get(doc.id) || [] }))
     .filter((item) => item.votes.length >= requiredReviewCount)
     .filter((item) => {
       const yesCount = initialContestDecisions(item.votes, requiredReviewCount)
         .filter((vote) => normalizeKey(vote.decision || "") === "yes").length;
+      if (assignmentMode === "extra") return yesCount === 3 || item.doc.data()?.contestShortlisted === true ||
+        item.reads.length > 0 || ["circle", "winner"].includes(item.doc.data()?.contestOutcomeStatus);
       return tier === "shortlist" ? (item.doc.data()?.contestShortlisted === true || yesCount === 3) : tier === "strong" ? yesCount >= 2 : yesCount === 1;
     })
     .sort((a, b) => a.doc.id.localeCompare(b.doc.id));
@@ -13560,17 +13579,19 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   ]);
   const previewToken = createHash("sha256").update(JSON.stringify({
     programId, tier, readsPerEntry, reviewerEmails, snapshot,
+    ...(assignmentMode === "extra" ? { assignmentMode, selectedIds, supplemental: matching.map(({ doc }) => [doc.id, (supplementalById.get(doc.id) || []).slice().sort()]) } : {}),
   })).digest("hex");
   const plan = [];
   let nextReviewer = 0;
   let alreadyCovered = 0;
   let reviewerConflicts = 0;
   for (const { doc, votes, reads } of matching) {
-    const needed = Math.max(0, readsPerEntry - reads.length);
+    const needed = assignmentMode === "extra" ? 1 : Math.max(0, readsPerEntry - reads.length);
     if (!needed) { alreadyCovered += 1; continue; }
     const occupied = new Set([
       ...votes.map((vote) => normalizeText(vote.reviewerEmail || "").toLowerCase()),
       ...reads.map((read) => normalizeText(read.reviewerEmail || "").toLowerCase()),
+      ...(supplementalById.get(doc.id) || []),
     ]);
     let assigned = 0;
     for (let slot = 0; slot < needed; slot += 1) {
@@ -13594,6 +13615,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
     [email, plan.filter((item) => item.reviewerEmail === email).length]));
   const result = {
     ok: true, programId, tier, matchingCount: matching.length,
+    ...(assignmentMode === "extra" ? { assignmentMode, selectedCount: selectedIds.length, skippedCount: selectedIds.length - matching.length } : {}),
     newReadCount: plan.length, alreadyCovered, reviewerConflicts, byReviewer, previewToken,
   };
   if (req.body?.commit !== true) return res.json(result);
