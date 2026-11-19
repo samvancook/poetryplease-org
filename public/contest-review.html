@@ -182,6 +182,8 @@
       <label>Show submissions
         <select id="outcome-view">
           <option value="finalists">All finalists</option>
+          <option value="no-champion">No Champion votes</option>
+          <option value="passes-one">1+ Pass</option>
           <option value="passes-two">2+ Passes — pending reviews allowed</option>
           <option value="passes">3 Passes — no positive or pending reads</option>
           <option value="champion">1+ Champion vote</option>
@@ -1003,6 +1005,8 @@
         if (!isFinalistSubmission(row)) return false;
         if (view === "archived") return row.archived;
         if (row.archived) return false;
+        if (view === "no-champion") return !(row.finalistReads || []).some((read) => read.decision === "champion");
+        if (view === "passes-one") return (row.finalistReads || []).some((read) => read.decision === "pass");
         if (view === "passes-two") return (row.finalistReads || []).filter((read) => read.decision === "pass").length >= 2;
         if (view === "passes") return hasThreeFinalistPasses(row);
         if (view === "champion-double") return row.finalistReads?.filter((read) => read.decision === "champion").length >= 2;
@@ -1010,6 +1014,9 @@
         if (view === "waiting") return !row.finalistReads?.length || row.finalistReads.some((read) => !read.decision);
         return true;
       });
+      const passCount = (row) => (row.finalistReads || []).filter((read) => read.decision === "pass").length;
+      if (["passes-one", "passes-two", "passes", "no-champion"].includes(view)) matching.sort((a, b) =>
+        passCount(b) - passCount(a) || a.title.localeCompare(b.title));
       if (view === "champion" || view === "champion-double") matching.sort((a, b) =>
         b.finalistReads.filter((read) => read.decision === "champion").length - a.finalistReads.filter((read) => read.decision === "champion").length || a.title.localeCompare(b.title));
       return matching;
