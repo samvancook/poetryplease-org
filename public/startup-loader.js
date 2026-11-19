@@ -4,6 +4,8 @@
 (function () {
   'use strict';
 
+  const DESKTOP_TEXT_DELAY_MS = 1200;
+
   function create({ hasCurrentItem, markTiming, onScreenReady, retryFirstItem }) {
     const state = {
       domReady: document.readyState !== 'loading',
@@ -81,10 +83,25 @@
       card.style.left = Math.round(left) + 'px';
       card.style.width = Math.round(width) + 'px';
       card.style.height = Math.round(height) + 'px';
-      card.style.border = framed ? '0' : '1px solid rgba(30,26,21,0.12)';
-      card.style.background = framed ? 'transparent' : 'rgba(255,253,248,0.72)';
-      const barColor = framed ? 'rgba(255,255,255,0.20)' : 'rgba(30,26,21,0.10)';
-      card.querySelectorAll('.pp-card-outline__bar').forEach((bar) => { bar.style.background = barColor; });
+      card.style.border = '0';
+      card.style.background = 'transparent';
+      card.querySelectorAll('.pp-card-outline__bar').forEach((bar) => {
+        bar.style.display = framed ? '' : 'none';
+        bar.style.background = 'rgba(255,255,255,0.20)';
+      });
+      // Desktop shows its cards as plain text on the page, with no frame, so a
+      // drawn box looked out of place and flashed on ordinary loads. Desktop
+      // instead gets a plain "Loading…" line in the page's own type, and only
+      // when the first card is slow.
+      card.style.justifyContent = framed ? 'center' : 'flex-start';
+      card.style.paddingTop = framed ? '24px' : '40px';
+      const text = card.querySelector('.pp-card-outline__text');
+      if (text) text.style.display = framed ? 'none' : '';
+      if (!framed && !overlayEl.dataset.desktopDelayed) {
+        overlayEl.dataset.desktopDelayed = '1';
+        overlayEl.style.visibility = 'hidden';
+        window.setTimeout(() => { overlayEl.style.visibility = ''; }, DESKTOP_TEXT_DELAY_MS);
+      }
     }
 
     function showInline() {
@@ -100,6 +117,7 @@
             <div class="pp-card-outline__bar" style="width:58%;max-width:340px;height:14px;border-radius:7px;"></div>
             <div class="pp-card-outline__bar" style="width:66%;max-width:380px;height:14px;border-radius:7px;"></div>
             <div class="pp-card-outline__bar" style="width:34%;max-width:200px;height:10px;border-radius:5px;margin-top:10px;"></div>
+            <div class="pp-card-outline__text" style="display:none;font:inherit;font-size:17px;color:rgba(30,26,21,0.55);">Loading…</div>
           </div>
           <span role="status" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;">Loading</span>
         `;
