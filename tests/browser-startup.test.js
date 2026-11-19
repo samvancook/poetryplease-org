@@ -100,9 +100,11 @@ test("startup check rejects missing local dependencies before browser navigation
 
 // Approved startup baselines from loader extractions #340 and #342. startup-loader.js was
 // re-baselined on Nov 15 2026 for the card outline loader Sam approved ("Card outline, no forced wait").
+// Re-baselined Nov 19 2026 after Sam asked to fix the "misshaped white box" flashing on Desktop
+// startup: Desktop shows a delayed plain "Loading…" line instead of the drawn card box.
 // Update a baseline only after Sam explicitly approves that startup change.
 const startupBoundary = [
-  { file: "startup-loader.js", scriptsOnly: false, sha256: "c144de9e9da2b06c332c90f395308028ad3f95ec6ec6fce121e872a47d895248" },
+  { file: "startup-loader.js", scriptsOnly: false, sha256: "f46b2281ae18af0358dbeec65bf43cae86ab5ac98110af843f5897d9dfb650a7" },
   { file: "feed-startup.js", scriptsOnly: false, sha256: "df5cfcbd0c75e31ead6f0e2b5281f5626fbf728bd95f19bb6c6ef53d8134c120" },
   { file: "mobile-entry.js", scriptsOnly: false, sha256: "6b4d828f1dd386429d90f816cffdd75e51e3c02d0c1e5165fd2a3f5880fc94dc" },
   { file: "index.html", scriptsOnly: true, sha256: "feaf35c58da45846c257ac5fe8182aefc4aa83000bdd1b5bb62af4b2ea944b6b" },
