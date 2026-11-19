@@ -167,7 +167,7 @@
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finals</summary>
         <p>Each active finalist needs three Champion / Possible / Pass reads, plus any extra reads queued from Finalist submissions. Reads nobody is assigned to yet sit in the bucket, including any you unassign. Enter reader emails to split the whole bucket evenly between them; each reader is emailed a queue link. Use Decisions to compare finalists, build the winners’ circle, and select the winner.</p>
         <div id="finalist-bucket" class="status" aria-live="polite"></div>
-        <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
+        <label>Reader emails (comma-separated Button Poetry addresses). To give a reader an exact number, put it after their email, like <code>name@buttonpoetry.com 10</code>. Readers without a number split the rest; anything left stays in the bucket.<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com 10, other@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
         <div class="actions"><button id="preview-finalist" type="button">Preview splitting the bucket</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
         <div id="finalist-status" class="status"></div>
         <div id="finalist-progress" class="table-wrap"></div>
@@ -2297,11 +2297,16 @@
     }
 
     function finalistRequest() {
-      return {
-        programId: document.getElementById("program").value,
-        assignmentMode: "bucket",
-        reviewerEmails: document.getElementById("finalist-emails").value.split(",").map((email) => email.trim()).filter(Boolean),
-      };
+      // Each entry is an email, optionally followed by a number: "name@buttonpoetry.com 10".
+      const reviewerEmails = [];
+      const reviewerLimits = {};
+      for (const entry of document.getElementById("finalist-emails").value.split(/[,\n]/).map((part) => part.trim()).filter(Boolean)) {
+        const match = entry.match(/^(\S+?)[\s:=]+(\d+)$/);
+        const email = (match ? match[1] : entry).toLowerCase();
+        reviewerEmails.push(email);
+        if (match) reviewerLimits[email] = Number(match[2]);
+      }
+      return { programId: document.getElementById("program").value, assignmentMode: "bucket", reviewerEmails, reviewerLimits };
     }
 
     function invalidateFourthPreview() {
@@ -2586,6 +2591,7 @@
         status.textContent = result.newReadCount + " open reads from the bucket would be assigned across " + result.matchingCount +
           " active finalists. Poems with nothing owed: " + result.alreadyCovered +
           ". Poems where every listed reader has already read it (left in the bucket): " + result.reviewerConflicts +
+          (result.leftByReaderNumbers ? ". Reads left in the bucket because the readers with a number are full: " + result.leftByReaderNumbers : "") +
           ". Reader split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") +
           ". No assignments made yet. Click the button below to assign these reads and email " +
           Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers.";
