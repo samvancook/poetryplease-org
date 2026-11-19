@@ -29,6 +29,7 @@ on:
         #   restore-dry-run  read-only: checks the first <preview_limit> rows of the restore plan
         #   restore-originals puts broken originals back (docs/handoffs/graphic-restore-plan-2026-11-14.json)
         #   reattach-dry-run  read-only: checks the re-attach plan (docs/handoffs/graphic-reattach-plan-2026-11-15.json)
+        #   catalog-poems-export prints the Catalog poem texts for every book named on a graphic
         #   retitle-dry-run / retitle-graphics rename quote images to the poem their image shows
         #   reattach-originals re-attaches graphics whose hosted upload is not an image, from Drive
         #   excerpt-import-dry-run  read-only: checks <excerpt_batch> against the library's excerpts
@@ -39,7 +40,7 @@ on:
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, excerpt-import-dry-run, excerpt-import, signed-in-probe, signed-in-probe-author]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, catalog-poems-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, excerpt-import-dry-run, excerpt-import, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -342,6 +343,15 @@ jobs:
             refresh-feed) post refreshFeed '{}' | jq . ;;
             list-stalled) get "status?list=stalled-details" | jq -c '.stalledDetails[]' ;;
             catalog-export) get "catalog" | jq -c '.items as $a | range(0; $a | length; 10) | $a[.:. + 10]' ;;
+            catalog-poems-export)
+              # One line per book: every poem the Catalog holds for each book named on a graphic.
+              get "catalog" | jq -r '[.items[].book | select(. != "")] | unique[]' > "$RUNNER_TEMP/books.txt"
+              while IFS= read -r book; do
+                enc="$(jq -rn --arg b "$book" '$b|@uri')"
+                curl --silent --show-error --max-time 30 "https://button-poetry-catalog-350789123099.us-central1.run.app/books/$enc/poems?limit=1000" \
+                  | jq -c --arg b "$book" '{book: $b, poems: [ (if type == "array" then .[] else empty end) | {t: .title, k: .poem_key, p: (.is_likely_poem // null), x: ((.served_text // .cleaned_text // .text // "") | .[0:6000])} ]}' \
+                  || echo "{\"book\": $(jq -n --arg b "$book" '$b'), \"error\": true}"
+              done < "$RUNNER_TEMP/books.txt" ;;
             reattach-dry-run|reattach-originals)
               dry="$([ "$ACTION" = reattach-dry-run ] && echo true || echo false)"
               post reattachOriginals "$(jq -c --argjson dry "$dry" '{dryRun: $dry, items: .items[:6]}' docs/handoffs/graphic-reattach-plan-2026-11-15.json)" | jq . ;;
