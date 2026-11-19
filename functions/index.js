@@ -13710,6 +13710,7 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
   let nextReviewer = 0;
   let alreadyCovered = 0;
   let reviewerConflicts = 0;
+  const unplaced = [];
   for (const { doc, votes, reads } of matching) {
     const needed = assignmentMode === "extra" ? 1
       : Math.max(0, (bucketMode ? bucketTarget + contestFinalistExtraReads(doc.data()) : readsPerEntry) - reads.length);
@@ -13735,13 +13736,17 @@ app.post(getBoth("/admin/contestFinalistBatch"), async (req, res) => {
       plan.push({ submissionId: doc.id, reviewerEmail: selected });
       assigned += 1;
     }
-    if (assigned < needed) reviewerConflicts += 1;
+    if (assigned < needed) {
+      reviewerConflicts += 1;
+      unplaced.push({ submissionId: doc.id, title: normalizeText(doc.data()?.title || "Untitled"), leftInBucket: needed - assigned,
+        alreadyReadBy: reviewerEmails.filter((email) => occupied.has(email)) });
+    }
   }
   const byReviewer = Object.fromEntries(reviewerEmails.map((email) =>
     [email, plan.filter((item) => item.reviewerEmail === email).length]));
   const result = {
     ok: true, programId, tier, matchingCount: matching.length,
-    ...(bucketMode ? { assignmentMode, bucketTarget } : {}),
+    ...(bucketMode ? { assignmentMode, bucketTarget, unplaced } : {}),
     ...(assignmentMode === "extra" ? { assignmentMode, selectedCount: selectedIds.length, skippedCount: selectedIds.length - matching.length } : {}),
     newReadCount: plan.length, alreadyCovered, reviewerConflicts, byReviewer, previewToken,
   };
