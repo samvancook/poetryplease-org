@@ -2582,6 +2582,13 @@
           ". Reader split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") +
           ". No assignments made yet. Click the button below to assign these reads and email " +
           Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers.";
+        if (result.unplaced?.length) {
+          const list = document.createElement("div");
+          list.innerHTML = "<p><strong>Left in the bucket — every listed reader has already read these:</strong></p><ul>" +
+            result.unplaced.map((item) => '<li>' + escapeHtml(item.title) + ' (' + item.leftInBucket + ' read' + (item.leftInBucket === 1 ? '' : 's') +
+              ')' + (item.alreadyReadBy?.length ? ' — already read (or getting it in this split): ' + escapeHtml(item.alreadyReadBy.join(", ")) : '') + ' <button type="button" data-open-submission="' + escapeHtml(item.submissionId) + '">Open</button></li>').join("") + "</ul>";
+          status.appendChild(list);
+        }
         state.finalistPreview = { ...body, previewToken: result.previewToken, newReadCount: result.newReadCount, byReviewer: result.byReviewer || {} };
         document.getElementById("confirm-finalist").hidden = !result.newReadCount;
         document.getElementById("confirm-finalist").disabled = false;
@@ -2720,6 +2727,17 @@
         return;
       }
       if (!button.dataset.openSubmission) return;
+      document.getElementById("view").value = "finalist-results";
+      applyFilters();
+      const index = state.filtered.findIndex((row) => row.id === button.dataset.openSubmission);
+      if (index < 0) return setStatus("Submission not found in this review queue.", true);
+      state.index = index;
+      render();
+      document.getElementById("review-card").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    document.getElementById("finalist-status").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-open-submission]");
+      if (!button) return;
       document.getElementById("view").value = "finalist-results";
       applyFilters();
       const index = state.filtered.findIndex((row) => row.id === button.dataset.openSubmission);
