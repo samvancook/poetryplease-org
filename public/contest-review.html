@@ -165,16 +165,13 @@
       </details>
       <details id="finalist-admin" style="margin:22px 0;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finals</summary>
-        <p>Assign unanimous 3-Yes poems and poems advanced from Semis for Champion / Possible / Pass reads. Choose how many independent reads each poem should end up with (one to five). Reads already done or still pending count toward that number, so the preview only fills the gaps, including reads you unassigned, and splits them across the reader emails you list. Assigning emails each reader a queue link. Use Decisions to compare finalists, build the winners’ circle, and select the winner.</p>
-        <div class="assignment-form">
-          <label>Set<select id="finalist-tier"><option value="finalists">All current finalists — same poems as the Finals results table</option><option value="shortlist">Finals qualifiers — 3-Yes and advanced from Semis</option><option value="strong">All 2+ initial Yes votes</option><option value="rescue">Exactly 1 initial Yes vote</option></select></label>
-          <label>Readers per poem<select id="finalist-reads-per-entry"><option value="1">1 first pass</option><option value="2">2 independent reads</option><option value="3">3 independent reads</option><option value="4">4 independent reads</option><option value="5">5 independent reads</option></select></label>
-        </div>
+        <p>Each active finalist needs three Champion / Possible / Pass reads, plus any extra reads queued from Finalist submissions. Reads nobody is assigned to yet sit in the bucket, including any you unassign. Enter reader emails to split the whole bucket evenly between them; each reader is emailed a queue link. Use Decisions to compare finalists, build the winners’ circle, and select the winner.</p>
+        <div id="finalist-bucket" class="status" aria-live="polite"></div>
         <label>Reader emails (comma-separated Button Poetry addresses)<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
-        <div class="actions"><button id="preview-finalist" type="button">Preview finalist assignments</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
+        <div class="actions"><button id="preview-finalist" type="button">Preview splitting the bucket</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
         <div id="finalist-status" class="status"></div>
         <div id="finalist-progress" class="table-wrap"></div>
-        <p>Removing pending reads does not change completed finalist decisions. To reassign, remove the wrong reader, enter the correct reader emails above, then preview and assign again. Readers who already voted on a poem are skipped.</p>
+        <p>Unassigning a reader’s pending reads puts them back in the bucket; completed decisions are never changed. Split the bucket again to hand them to other readers. Readers who already read a poem are skipped for it.</p>
       
 <details id="final-selection" class="card" hidden>
       <summary class="admin-progress-summary">Final selection</summary>
@@ -945,7 +942,25 @@
           escapeHtml(row.assignedTo.join(", ") || "—") + '</td></tr>').join("") + '</tbody></table>';
     }
 
+    function finalistReadTarget() {
+      const value = Number(state.adminProgress?.finalistReadTarget);
+      return Number.isInteger(value) && value >= 1 ? value : 3;
+    }
+
+    function finalistBucket() {
+      const target = finalistReadTarget();
+      const active = (state.adminProgress?.submissions || []).filter((row) => isFinalistSubmission(row) && !row.archived);
+      const need = (row) => target + (Number(row.finalistExtraReads) || 0);
+      const open = active.reduce((sum, row) => sum + Math.max(0, need(row) - (row.finalistReads || []).length), 0);
+      const assigned = active.reduce((sum, row) => sum + (row.finalistReads || []).filter((read) => !read.decision).length, 0);
+      const done = active.reduce((sum, row) => sum + (row.finalistReads || []).filter((read) => read.decision).length, 0);
+      return { target, finalists: active.length, open, assigned, done, poemsShort: active.filter((row) => (row.finalistReads || []).length < need(row)).length };
+    }
+
     function renderFinalistProgress() {
+      const bucket = finalistBucket();
+      document.getElementById("finalist-bucket").innerHTML = '<p><strong>Bucket: ' + bucket.open + ' open reads</strong> waiting to be assigned (' +
+        bucket.poemsShort + ' of ' + bucket.finalists + ' active finalists need more reads) · ' + bucket.done + ' done · ' + bucket.assigned + ' assigned and pending.</p>';
       const rows = state.adminProgress?.submissions || [];
       const reads = rows.flatMap((row) => row.finalistReads || []);
       const byReader = new Map();
@@ -1007,7 +1022,7 @@
       const matching = filteredOutcomeRows();
       const extraButton = document.getElementById("queue-extra-finalist-set");
       const extraCount = matching.filter((row) => !row.archived).length;
-      extraButton.textContent = "Queue extra reviewer for " + extraCount + " matching finalists";
+      extraButton.textContent = "Queue extra reviewer for " + extraCount + " matching finalists (adds to the bucket)";
       extraButton.disabled = !document.getElementById("program").value || !extraCount || extraFinalistAssignmentBusy;
       const archiveButton = document.getElementById("archive-finalist-passes");
       const archiveable = matching.filter((row) => !["circle", "winner"].includes(row.outcomeStatus));
@@ -1140,7 +1155,7 @@
           : "<p>No selection candidates yet.</p>") + "</details>";
       document.getElementById("final-selection-content").innerHTML =
         '<p><strong>' + reads.filter((read) => !!read.decision).length + ' / ' + reads.length +
-        ' finalist reads complete</strong> · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
+        ' assigned finalist reads complete</strong> · ' + finalistBucket().open + ' open reads in the bucket · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
         ' on draft shortlist · ' + circleCount + ' in confirmed circle · ' +
         (winner ? "Winner: " + escapeHtml(winner.title) : "No winner yet") + '.</p>' +
         (finalWinnerReview
@@ -2277,8 +2292,7 @@
     function finalistRequest() {
       return {
         programId: document.getElementById("program").value,
-        tier: document.getElementById("finalist-tier").value,
-        readsPerEntry: Number(document.getElementById("finalist-reads-per-entry").value),
+        assignmentMode: "bucket",
         reviewerEmails: document.getElementById("finalist-emails").value.split(",").map((email) => email.trim()).filter(Boolean),
       };
     }
@@ -2553,8 +2567,7 @@
       }
     });
     document.getElementById("fourth-reviewer-emails").addEventListener("input", invalidateFourthPreview);
-    ["finalist-tier", "finalist-reads-per-entry", "finalist-emails"].forEach((id) =>
-      document.getElementById(id).addEventListener(id === "finalist-emails" ? "input" : "change", invalidateFinalistPreview));
+    document.getElementById("finalist-emails").addEventListener("input", invalidateFinalistPreview);
     document.getElementById("preview-finalist").addEventListener("click", async () => {
       invalidateFinalistPreview();
       const body = finalistRequest();
@@ -2563,9 +2576,9 @@
       status.textContent = "Checking the finalist set...";
       try {
         const result = await api("admin/contestFinalistBatch", { method: "POST", body });
-        status.textContent = result.matchingCount + " poems match; " + result.newReadCount +
-          " new reads can be assigned. Already covered: " + result.alreadyCovered +
-          ". Poems with too few independent readers: " + result.reviewerConflicts +
+        status.textContent = result.newReadCount + " open reads from the bucket would be assigned across " + result.matchingCount +
+          " active finalists. Poems with nothing owed: " + result.alreadyCovered +
+          ". Poems where every listed reader has already read it (left in the bucket): " + result.reviewerConflicts +
           ". Reader split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") +
           ". No assignments made yet. Click the button below to assign these reads and email " +
           Object.values(result.byReviewer || {}).filter((count) => count > 0).length + " readers.";
@@ -2660,46 +2673,20 @@
     async function queueExtraFinalistReview(submissionIds, label) {
       const programId = document.getElementById("program").value;
       if (extraFinalistAssignmentBusy || !programId || !submissionIds.length) return;
-      const entered = window.prompt("Extra finalist reviewer emails (comma-separated). One new Champion / Possible / Pass read per poem; multiple reviewers share the work.");
-      if (!entered?.trim()) return;
-      const reviewerEmails = [...new Set(entered.split(",").map((email) => email.trim().toLowerCase()).filter(Boolean))];
+      if (!window.confirm(label + "\nAdd one more needed read for " + submissionIds.length + (submissionIds.length === 1 ? " poem" : " poems") +
+        " to the bucket?\nNobody is assigned and no email is sent. Use the Finals assign form to split the bucket among readers.")) return;
       const status = document.getElementById("extra-finalist-status");
       extraFinalistAssignmentBusy = true;
       document.getElementById("queue-extra-finalist-set").disabled = true;
       try {
-        status.textContent = "Checking extra finalist assignments...";
-        const body = { programId, tier: "shortlist", readsPerEntry: 1, assignmentMode: "extra", submissionIds, reviewerEmails };
-        const preview = await api("admin/contestFinalistBatch", { method: "POST", body });
-        if (document.getElementById("program").value !== programId) return;
-        if (!preview.newReadCount) {
-          status.textContent = "No extra reads available: " + preview.reviewerConflicts + " poems have no fresh listed reviewer; " +
-            preview.skippedCount + " are unavailable or ineligible. No assignments or emails created.";
-          return;
-        }
-        const settings = await api("admin/contestMailSettings?programId=" + encodeURIComponent(programId));
-        if (document.getElementById("program").value !== programId) return;
-        const split = Object.entries(preview.byReviewer).map(([email, count]) => email + " — " + count).join("\n");
-        if (!window.confirm(label + "\nAssign " + preview.newReadCount + " extra finalist reads, one per eligible poem, and email the assigned reviewers?\n" +
-          "Skipped unavailable/ineligible: " + preview.skippedCount + ". No fresh listed reviewer: " + preview.reviewerConflicts +
-          ".\n" + split + "\n\n" + contestMailHeaderText(settings.mailIdentity))) {
-          status.textContent = "No assignments or emails created.";
-          return;
-        }
-        status.textContent = "Assigning extra finalist reads...";
-        const result = await api("admin/contestFinalistBatch", { method: "POST", body: { ...body, commit: true, previewToken: preview.previewToken } });
-        const messages = [];
-        for (const [reviewerEmail, addedCount] of Object.entries(result.byReviewer).filter(([, count]) => count > 0)) {
-          status.textContent = "Assigned " + result.assignedCount + " extra finalist reads. Sending assignment emails; keep this page open.";
-          try {
-            await api("admin/contestAssignmentNotices/send", { method: "POST",
-              body: { programId, reviewerEmail, view: "finalist", addedCount, expectedMailIdentity: settings.mailIdentity } });
-            messages.push("Email sent to " + reviewerEmail + ".");
-          } catch (error) { messages.push("Email unconfirmed for " + reviewerEmail + " (" + error.message + ")."); }
-        }
-        status.textContent = "Assigned " + result.assignedCount + " extra finalist reads. " + messages.join(" ");
-        await loadQueue();
+        status.textContent = "Adding reads to the bucket...";
+        const result = await api("admin/contestFinalistExtraReads", { method: "POST", body: { programId, submissionIds } });
+        invalidateFinalistPreview();
+        status.textContent = "Added " + result.addedCount + " needed reads to the bucket" +
+          (result.skippedCount ? " (" + result.skippedCount + " archived or not finalists, skipped)" : "") + ". Nothing assigned or emailed.";
+        await loadProgress();
       } catch (error) {
-        status.textContent = "Could not finish: " + error.message + ". Check progress before retrying.";
+        status.textContent = "Could not add reads: " + error.message + ". Check the bucket before retrying.";
       } finally {
         extraFinalistAssignmentBusy = false;
         renderOutcomeViews();
