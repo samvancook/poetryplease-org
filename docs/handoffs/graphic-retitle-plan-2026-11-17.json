@@ -1,8 +1,8 @@
 {
  "generatedAt": "2026-11-17",
  "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
- "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet. Added 19 Nov 2026 (later): 20 items marked source 'visual', from reading by eye images the OCR couldn't read (stylized quotes, photographed book pages), then matching the quote to the Excerpt Database or Catalog. Added 19 Nov 2026 (evening): 20 items marked source 'visual-2', from the images the Catalog pass left unsure, read by eye and matched the same way.",
- "count": 897,
+ "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet. Added 19 Nov 2026 (later): 20 items marked source 'visual', from reading by eye images the OCR couldn't read (stylized quotes, photographed book pages), then matching the quote to the Excerpt Database or Catalog. Added 19 Nov 2026 (evening): 20 items marked source 'visual-2', from the images the Catalog pass left unsure, read by eye and matched the same way. Added 21 Nov 2026: 4 items marked source 'other-poet' whose image is another poem; two of them also take that poem's poet (author field).",
+ "count": 901,
  "items": [
   {
    "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
@@ -5679,6 +5679,38 @@
    "expectTitle": "Dashay",
    "title": "ode to the girls who die to make hip hop happen (after Steven Willis)",
    "source": "visual-2"
+  },
+  {
+   "id": "APP-QI-WISHES-FOR-THE-RICH-AFTER-LUCILLE-CLIFTON",
+   "expectTitle": "WISHES FOR THE RICH ‘after Lucille Clifton’",
+   "title": "Against Desire",
+   "author": "Stevie Edwards",
+   "book": "Sadness Workshop",
+   "bookFieldsFrom": "SW-QI-QUITTERS",
+   "source": "other-poet"
+  },
+  {
+   "id": "PBC-QI-I-AM-A-SILENT-SONGBIRD",
+   "expectTitle": "I AM A SILENT SONGBIRD",
+   "title": "THIS IS HOW I LOSE YOU",
+   "author": "Aruni Wijesinghe",
+   "source": "other-poet"
+  },
+  {
+   "id": "OND-QI-LIMINALITY-V2",
+   "expectTitle": "Liminality",
+   "title": "Blood in My Sock",
+   "book": "The Future",
+   "bookFieldsFrom": "TFLE-QI-BLOOD-IN-MY-SOCK",
+   "source": "other-poet"
+  },
+  {
+   "id": "OND-QI-LIMINALITY-V3",
+   "expectTitle": "Liminality",
+   "title": "Blood in My Sock",
+   "book": "The Future",
+   "bookFieldsFrom": "TFLE-QI-BLOOD-IN-MY-SOCK",
+   "source": "other-poet"
   }
  ]
 }
