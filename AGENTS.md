@@ -7,6 +7,10 @@
 - The production Firebase project must be `poetry-please` and the HTTPS function must remain public.
 - After every deployment, confirm `/api/healthz` and anonymous `/api/bootstrap` succeed.
 
+## Ownership map
+
+Who runs each part of Poetry Please (modules, scheduled functions, workflows, adjacent systems and manual work), and the order for taking over the rest, is in [docs/OWNERSHIP.md](docs/OWNERSHIP.md). Read it before starting work. When a part changes hands, update its row in the same PR.
+
 ## Capability Verification
 
 - Treat listed skills as available capabilities, even if their underlying tools are not visible in an initial tool inventory.
