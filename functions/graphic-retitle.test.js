@@ -70,9 +70,26 @@ test("refuses a book reference from another author or book", async () => {
   assert.equal(updates.length, 0);
 });
 
+test("moves a record to another poet when the image is theirs", async () => {
+  const { deps, updates } = fake({
+    a: { title: "Wishes", author: "Steven Willis", book: "APP", bookShortener: "APP" },
+    ref: { title: "Quitters", author: "Stevie Edwards", book: "Sadness Workshop", bookShortener: "SW" },
+  });
+  const out = await retitleGraphic({ id: "a", expectTitle: "Wishes", title: "Against Desire", author: "Stevie Edwards", book: "Sadness Workshop", bookFieldsFrom: "ref" }, deps);
+  assert.equal(out.status, "retitled");
+  const { patch } = updates[0];
+  assert.equal(patch.author, "Stevie Edwards");
+  assert.equal(patch.bookShortener, "SW");
+  assert.equal(patch.ocrRetitle.before.author, "Steven Willis");
+  // A book reference from the old poet is refused once the author changes.
+  const again = fake({ a: { title: "W", author: "X" }, ref: { author: "X", book: "B" } });
+  assert.equal((await retitleGraphic({ id: "a", expectTitle: "W", title: "T", author: "Y", book: "B", bookFieldsFrom: "ref" }, again.deps)).reason, "book_reference_other_author");
+});
+
 test("validates items", () => {
   assert.ok(validRetitleItem({ id: "a", expectTitle: "", title: "U" }));
   assert.ok(!validRetitleItem({ id: "a/b", expectTitle: "T", title: "U" }));
   assert.ok(!validRetitleItem({ id: "a", expectTitle: "T", title: " " }));
   assert.ok(!validRetitleItem({ id: "a", expectTitle: "T", title: "U", book: "B" }));
+  assert.ok(!validRetitleItem({ id: "a", expectTitle: "T", title: "U", author: " " }));
 });

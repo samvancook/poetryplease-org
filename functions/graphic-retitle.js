@@ -18,6 +18,7 @@ export function validRetitleItem(item) {
   const title = text(item.title);
   if (!title || title.length > 500) return false;
   if (item.book != null && (!text(item.book) || !text(item.bookFieldsFrom))) return false;
+  if (item.author != null && (!text(item.author) || text(item.author).length > 200)) return false;
   return true;
 }
 
@@ -35,12 +36,15 @@ export async function retitleGraphic(item, deps, { dryRun = false } = {}) {
   const patch = { title };
   const before = { title: data.title ?? null };
   if (data.poem != null) { patch.poem = title; before.poem = data.poem; }
+  // Some images belong to another poet's poem: the record then takes that poet's name.
+  const author = item.author != null ? text(item.author) : text(data.author);
+  if (item.author != null && author !== text(data.author)) { patch.author = author; before.author = data.author ?? null; }
 
   let bookFrom = null;
   if (item.book != null) {
     const ref = await deps.getGraphic(text(item.bookFieldsFrom));
     if (!ref || text(ref.book) !== text(item.book)) return { id, status: "skipped", reason: "book_reference_mismatch" };
-    if (text(ref.author).toLowerCase() !== text(data.author).toLowerCase()) {
+    if (text(ref.author).toLowerCase() !== author.toLowerCase()) {
       return { id, status: "skipped", reason: "book_reference_other_author" };
     }
     bookFrom = text(item.bookFieldsFrom);
@@ -62,7 +66,7 @@ export async function retitleGraphic(item, deps, { dryRun = false } = {}) {
     bookFrom,
     before,
   };
-  const plan = { id, from: currentTitle, to: title, book: item.book != null ? text(item.book) : undefined };
+  const plan = { id, from: currentTitle, to: title, book: item.book != null ? text(item.book) : undefined, author: patch.author };
   if (dryRun) return { ...plan, status: "would_retitle" };
   await deps.updateGraphic(id, patch);
   return { ...plan, status: "retitled" };
