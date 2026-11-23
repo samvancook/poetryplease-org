@@ -46,7 +46,6 @@ const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATI
 const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
 const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
 const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
-const CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID = "button-poetry-s-fall-2026-short-form-contest-da82891d"; // Explicitly approved Fall contest only.
 const CONTEST_MAIL_IDENTITY = { fromEmail: "no-reply@buttonpoetry.com", fromName: "Button Poetry Contests", replyTo: "support@buttonpoetry.com" };
 
 export function validateContestMailIdentity(input) {
@@ -8663,21 +8662,47 @@ export async function prepareContestGraphicReturn(item) {
   };
 }
 
+// Staff "Send to graphics": dispatches every selected winner/circle poem that has not been sent yet.
+app.post(getBoth("/admin/contestGraphicsSend"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const snap = await db.collection(COLLECTIONS.contentSubmissions).where("submissionProgramId", "==", programId).get();
+  const selected = snap.docs.filter((doc) => doc.data()?.contestSubmission === true && doc.data()?.contestArchived !== true &&
+    ["winner", "circle"].includes(doc.data()?.contestOutcomeStatus) &&
+    !["queued", "imported"].includes(doc.data()?.contestGraphicsStatus)).map((doc) => doc.id).sort();
+  if (req.body?.commit !== true) return res.json({ ok: true, programId, toSendCount: selected.length, submissionIds: selected });
+  const results = [];
+  for (const submissionId of selected) {
+    const { code, body } = await dispatchContestGraphics(programId, submissionId);
+    results.push({ submissionId, ok: code === 200, status: body.status || (body.alreadyDispatched ? "queued" : ""), error: body.error || "" });
+  }
+  res.json({ ok: true, programId, sentCount: results.filter((row) => row.ok).length,
+    failedCount: results.filter((row) => !row.ok).length, results });
+});
+
 app.post(getBoth("/internal/contestGraphicsHandoff"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
   const programId = normalizeText(req.body?.programId);
   const submissionId = normalizeText(req.body?.submissionId);
-  // This release covers only Sam's explicitly authorized Fall 2026 selections.
-  if (programId !== CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID || !submissionId || submissionId.includes("/")) {
-    return res.status(400).json({ error: "contest_graphics_program_not_enabled" });
+  if (!programId || !submissionId || submissionId.includes("/")) {
+    return res.status(400).json({ error: "missing_contest_graphics_target" });
   }
+  const { code, body } = await dispatchContestGraphics(programId, submissionId);
+  return res.status(code).json(body);
+});
+
+// Sends one selected (winner/circle, unarchived) submission to Weaver's graphics queue.
+// Idempotent: a queued or imported submission is never sent twice, and a retry reuses the frozen payload.
+async function dispatchContestGraphics(programId, submissionId) {
   const ref = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
   try {
     const [programSnap, entrantSnap] = await Promise.all([
       db.collection(COLLECTIONS.submissionPrograms).doc(programId).get(),
       db.collection(COLLECTIONS.submissionEntrants).doc(submissionId).get(),
     ]);
-    if (!programSnap.exists || !entrantSnap.exists) return res.status(404).json({ error: "contest_source_not_found" });
+    if (!programSnap.exists || !entrantSnap.exists) return { code: 404, body: { error: "contest_source_not_found" } };
     const reserved = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) throw Object.assign(new Error("submission_not_found"), { status: 404 });
@@ -8699,7 +8724,7 @@ app.post(getBoth("/internal/contestGraphicsHandoff"), async (req, res) => {
       }, { merge: true });
       return { request };
     });
-    if (reserved.alreadyDispatched) return res.json({ ok: true, programId, submissionId, ...reserved });
+    if (reserved.alreadyDispatched) return { code: 200, body: { ok: true, programId, submissionId, ...reserved } };
     try {
       const response = await fetch("https://weaver-912447899335.us-central1.run.app/graphics-handoff/requests", {
         method: "POST",
@@ -8722,33 +8747,42 @@ app.post(getBoth("/internal/contestGraphicsHandoff"), async (req, res) => {
         contestGraphicsLeaseUntilMs: 0,
         contestGraphicsError: "",
       }, { merge: true });
-      return res.json({ ok: true, programId, submissionId, graphicsRequestId: record.graphicsRequestId, status: "queued" });
+      return { code: 200, body: { ok: true, programId, submissionId, graphicsRequestId: record.graphicsRequestId, status: "queued" } };
     } catch (error) {
       await ref.set({ contestGraphicsStatus: "dispatch_failed", contestGraphicsLeaseUntilMs: 0,
         contestGraphicsError: error.message }, { merge: true });
       throw error;
     }
   } catch (error) {
-    return res.status(error.status || 502).json({ error: error.message || "contest_graphics_dispatch_failed" });
+    return { code: error.status || 502, body: { error: error.message || "contest_graphics_dispatch_failed" } };
   }
-});
+}
 
 async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor = {}) {
   const sourceRecords = flattenWeaverGraphicsRecords(rawPayload);
   const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record, { defaultImageType }));
   const mappedItems = [];
+  const contestSkipped = [];
   for (const item of buildWeaverGraphicsImportItems(rawPayload, { defaultImageType })) {
-    mappedItems.push(await prepareContestGraphicReturn(await resolveWeaverGraphicIdentity(item)));
+    const resolved = await resolveWeaverGraphicIdentity(item);
+    try {
+      mappedItems.push(await prepareContestGraphicReturn(resolved));
+    } catch (err) {
+      // A contest poem taken out of the circle (or archived) after it was sent: skip just this graphic.
+      if (!["contest_graphics_return_identity_mismatch", "ambiguous_contest_graphics_request"].includes(err.message)) throw err;
+      console.warn("contest_graphic_return_skipped", JSON.stringify({ sourceRequestId: resolved.sourceRequestId, reason: err.message }));
+      contestSkipped.push({ ok: false, id: normalizeText(resolved.docId || resolved.sourceRequestId), error: err.message });
+    }
   }
   const { acceptedItems, duplicateItems } = await buildWeaverGraphicsDuplicatePlan(mappedItems);
 
-  if (!mappedItems.length) {
+  if (!mappedItems.length && !contestSkipped.length) {
     const err = new Error("no_importable_weaver_records");
     err.status = 400;
     throw err;
   }
 
-  const results = [];
+  const results = [...contestSkipped];
   const promotedDuplicateItems = [];
   const capturedDuplicateItems = [];
   duplicateItems.forEach((item) => {
@@ -13253,7 +13287,7 @@ async function buildContestOutcomeEmailPreview(programId) {
   }).sort((a, b) => a.outcome.localeCompare(b.outcome) || a.email.localeCompare(b.email));
   return {
     ok: true, previewOnly: true, emailSent: false,
-    sendEnabled: programId === CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID,
+    sendEnabled: true,
     programId, programName, mailIdentity, templatesCustomized: templateSnap.exists,
     submissionCount: submissions.length, recipientCount: recipients.length,
     missingContactCount, archivedCount, decisionCounts,
@@ -13562,9 +13596,6 @@ app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
   const programId = normalizeText(req.body?.programId || "");
-  if (programId !== CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID) {
-    return res.status(409).json({ error: "contest_outcome_emails_awaiting_approval" });
-  }
   const email = normalizeText(req.body?.email || "").toLowerCase();
   const previewToken = normalizeText(req.body?.previewToken || "");
   if (!programId || !email || !previewToken) {
