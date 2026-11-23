@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
+import { AUTHOR_MAIL_IDENTITY, authorInviteTestCanResend, buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 
 test("controlled invite explains review actions and cannot be mistaken for a claimable invitation", () => {
   const message = buildAuthorInviteMessage({
@@ -74,4 +74,27 @@ test("contest mail passes the selected From name/address and Reply-To to Mandril
   assert.equal(payload.message.from_email, "no-reply@buttonpoetry.com");
   assert.equal(payload.message.from_name, "Button Poetry Contests");
   assert.equal(payload.message.headers["Reply-To"], "support@buttonpoetry.com");
+});
+
+test("author mail comes from Sam and replies reach both Sam and support", async () => {
+  let payload;
+  await sendAuthorInviteWithMandrill({
+    apiKey: "test-key", email: "author@example.com", message: { subject: "Invite", text: "Body" },
+    fetchImpl: async (_url, options) => {
+      payload = JSON.parse(options.body);
+      return { ok: true, json: async () => [{ email: "author@example.com", status: "sent", _id: "invite-1" }] };
+    },
+  });
+  assert.equal(payload.message.from_email, "sam@buttonpoetry.com");
+  assert.equal(payload.message.from_name, AUTHOR_MAIL_IDENTITY.fromName);
+  assert.equal(payload.message.headers["Reply-To"], "sam@buttonpoetry.com, support@buttonpoetry.com");
+});
+
+test("the Sam-only test invite can be re-sent, but not twice within a minute", () => {
+  const now = 1_000_000_000;
+  assert.equal(authorInviteTestCanResend(undefined, 0, now), true);
+  assert.equal(authorInviteTestCanResend("sent", now - 5_000, now), false);
+  assert.equal(authorInviteTestCanResend("sending", now - 5_000, now), false);
+  assert.equal(authorInviteTestCanResend("sent", now - 61_000, now), true);
+  assert.equal(authorInviteTestCanResend("uncertain", now - 61_000, now), true);
 });

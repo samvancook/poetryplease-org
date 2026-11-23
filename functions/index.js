@@ -29,7 +29,7 @@ import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } fr
 import { retitleGraphic, validRetitleItem, RETITLE_MAX_ITEMS } from "./graphic-retitle.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
-import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
+import { authorInviteTestCanResend, buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
 
 // Firebase Admin v12 (modular)
@@ -12068,14 +12068,16 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
 
-  // A stable record prevents retries from creating a second invite identity.
+  // One stable test record, always addressed to Sam, and its link can never claim an account.
+  // It can be re-sent to check copy and Reply-To, but not more than once a minute (double clicks).
   const inviteRef = db.collection(COLLECTIONS.authorInvites).doc("mandrill-test-sam-v2");
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
   const inviteUrl = `https://poetryplease.org/app?authorInvite=${token}`;
   const reserved = await db.runTransaction(async (transaction) => {
     const prior = (await transaction.get(inviteRef)).data() || {};
-    if (["sending", "sent", "uncertain"].includes(prior.deliveryStatus)) return false;
+    const lastAttemptMs = prior.deliveryUpdatedAt?.toMillis?.() || 0;
+    if (!authorInviteTestCanResend(prior.deliveryStatus, lastAttemptMs, Date.now())) return false;
     transaction.set(inviteRef, {
       email: AUTHOR_INVITE_TEST_EMAIL,
       authorName: "",
@@ -12092,7 +12094,7 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
     }, { merge: true });
     return true;
   });
-  if (!reserved) return res.status(409).json({ error: "author_invite_test_already_attempted" });
+  if (!reserved) return res.status(409).json({ error: "author_invite_test_sent_moments_ago" });
 
   const message = buildAuthorInviteMessage({
     name: "Sam",
