@@ -1230,6 +1230,7 @@
         return;
       }
       const imported = rows.filter((row) => row.graphicsStatus === "imported" && row.graphicsContentId);
+      const unsent = rows.filter((row) => !["queued", "imported"].includes(row.graphicsStatus));
       const collection = new URL("/app", location.origin);
       collection.search = new URLSearchParams({
         catalog: "Contest", event: report.sourceEvent || "", locked: "1", type: "QI", reading: "1", browse: "1"
@@ -1240,6 +1241,9 @@
         laneNav.hidden = false;
       }
       container.innerHTML =
+        (unsent.length ? '<div class="compare-toolbar"><button type="button" class="primary" data-send-graphics>Send ' + unsent.length +
+          ' selected poem' + (unsent.length === 1 ? '' : 's') + ' to graphics</button></div>' +
+          '<p><small>Sends each winner and winners-circle poem not yet sent to Weaver for P.I.G. Poems already sent are never sent twice.</small></p>' : '') +
         '<p><strong>' + imported.length + ' of ' + rows.length + ' selected graphics have import receipts.</strong>' +
         (imported.length < rows.length ? ' The collection is incomplete; do not announce it yet.' : ' Check the public collection before announcing it.') + '</p>' +
         '<p><strong>Contest graphics lane:</strong> <a href="' + escapeHtml(collectionUrl) + '" target="_blank" rel="noopener">Open all imported contest graphics in Poetry Please ↗</a></p>' +
@@ -2165,6 +2169,30 @@
     });
 
     document.getElementById("contest-graphics-panel").addEventListener("click", async (event) => {
+      const sendButton = event.target.closest("button[data-send-graphics]");
+      if (sendButton) {
+        const status = document.getElementById("contest-graphics-status");
+        const programId = document.getElementById("program").value;
+        if (!programId || sendButton.disabled) return;
+        sendButton.disabled = true;
+        try {
+          const preview = await api("admin/contestGraphicsSend", { method: "POST", body: { programId } });
+          if (!preview.toSendCount) { status.textContent = "Nothing left to send; every selected poem is already with graphics."; return; }
+          if (!window.confirm("Send " + preview.toSendCount + " winner and winners-circle poems to Weaver for graphics?")) {
+            status.textContent = "Nothing sent."; return;
+          }
+          status.textContent = "Sending " + preview.toSendCount + " poems to graphics…";
+          const result = await api("admin/contestGraphicsSend", { method: "POST", body: { programId, commit: true } });
+          status.textContent = "Sent " + result.sentCount + " to graphics." + (result.failedCount ? " " + result.failedCount + " failed: " +
+            result.results.filter((row) => !row.ok).map((row) => row.submissionId + " (" + row.error + ")").join(", ") + ". Press Send again to retry those." : "");
+          await loadProgress();
+        } catch (error) {
+          status.textContent = "Could not send to graphics: " + error.message;
+        } finally {
+          sendButton.disabled = false;
+        }
+        return;
+      }
       const button = event.target.closest("button[data-copy-result-link]");
       if (!button) return;
       const status = document.getElementById("contest-graphics-status");
