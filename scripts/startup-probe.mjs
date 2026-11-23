@@ -61,7 +61,7 @@ for (const { label: pass, throttle } of passes) {
       try {
         const size = (await request.sizes()).responseBodySize;
         const url = new URL(request.url());
-        sizes.push({ kb: Math.round(size / 1024), at: Date.now() - started, url: (url.host === new URL(base).host ? "" : url.host) + url.pathname.slice(0, 70) });
+        sizes.push({ kb: Math.round(size / 1024), at: Date.now() - started, url: (url.host === new URL(base).host ? "" : url.host) + url.pathname.slice(0, 220) });
       } catch { /* page closed */ }
     });
     const errors = signInError ? [signInError] : [];
@@ -133,6 +133,11 @@ for (const { label: pass, throttle } of passes) {
     }
     // Captured even after a timeout, so a failed visit still shows its screen.
     text = await page.evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 140)).catch(() => "");
+    // Which picture the first card is showing, and its real pixel size.
+    const cardImage = await page.evaluate((selector) => {
+      const img = [...document.querySelectorAll(selector + " img")].find((el) => el.naturalWidth > 0);
+      return img ? { src: (img.currentSrc || img.src).split("?")[0].slice(-160), width: img.naturalWidth, height: img.naturalHeight, shownWidth: Math.round(img.getBoundingClientRect().width) } : null;
+    }, rootSelector).catch(() => null);
     const marks = await page.evaluate(() => (window.PP_LOAD_TIMING?.rows || [])
       .map((row) => `${row.ms}ms ${row.label}`)).catch(() => []);
     if (firstCardMs === null || errors.length) failed = true;
@@ -143,7 +148,7 @@ for (const { label: pass, throttle } of passes) {
     for (const shot of shots) {
       console.log("SHOT " + JSON.stringify({ mode, pass, name, label: shot.label, at: shot.at }) + " " + shot.image);
     }
-    console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, api, marks, errors, text }));
+    console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, cardImage, api, marks, errors, text }));
     await context.close();
   }
 }
