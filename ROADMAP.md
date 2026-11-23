@@ -2,6 +2,32 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Author suite — takeover priority (23 November 2026)
+
+Sam made the whole author suite a priority of the Claude takeover: author accounts, public author pages, the author editor, the command center, invites, claims and submissions. Owner: Claude (see `docs/OWNERSHIP.md`). The detailed wish list under "Get author accounts fully usable" and "Build the Author Account Command Center" below still stands; this section is the starting point and the order.
+
+**What exists today.**
+- Pages: public profile `author.html` (`/authorProfiles/:slug`), the editor `author-edit.html` (`/my/authorProfile`, `/my/authorProfileEditorData`), the admin command center `author-command-center.html` (`/admin/authorCommandCenter`), and `my-submissions.html` (`/my/submissions/claim`).
+- Invites: admin create, regenerate, test and send (`/admin/authorInvites…`); redeem (`/authorInvites/redeem`). Sent through Mandrill (`functions/author-invite-mail.js`). Real sends need Sam's approval.
+- Claims: authors claim existing content (`/contentClaims`, `/contentClaims/candidates`); admins review claims (`/admin/contentClaims/:claimId/review`).
+- Assets: author downloads and photo upload (`/authorAssets`, `/authorAssetDownload/:imageId`, `/authorAssets/uploadPhoto`).
+- Repair notices: after an accepted replacement, admins preview and send the author a notice (`functions/author-repair-notices.js`, live since 18 Oct).
+- Specs and records: `AUTHOR_STORYBOARD_SPEC.md`; invitation drafts and the Eric/Madison walkthrough further down this file; on Drive, the Author Onboarding & Mobile Experience Working Record (29 Sep), the draft Author Guide (13 Sep) and the Staff Login & Author Onboarding Test Checklist (28 Aug).
+
+**Known gaps.**
+- `/my/authorProfileEditorData` does four full reads, and the signed-in Desktop startup has waited on it. The startup owner owns the wait; this workstream owns making the data call smaller.
+- Swipe has author scoping but no author guide or author/staff download and correction controls.
+- The editor mixes profile, featured picks and issue review on one surface.
+- Invitation and help copy is drafted but not sent beyond the Eric/Madison pilot.
+
+**Order.**
+1. Inventory pass: walk each author page signed in as a test author and as admin "Author View". Record what works, what's broken and what's slow. Read-only.
+2. Make the editor data call smaller (paginate or lazy-load), measured before and after.
+3. Split the editor into profile, featured selections and issue review, per the list below.
+4. Finish the claim and invite flow end to end, with the command center as the hub.
+5. Author guide and controls in Swipe.
+6. Outreach: refresh the drafted invitation and help copy, then a controlled send with Sam's approval.
+
 ## Compact startup ratings — 5 November 2026
 
 The anonymous Desktop welcome response previously returned ratings for all 8,224 content IDs even when the client requested includeRatingsSummary:false. A measured 12-card response was 1,621,904 bytes. Scoping its ratings to the selected cards reduced the equivalent JSON to 8,121 bytes. The bootstrap receiver now applies that scope after ranking when the compact response is requested. Full-summary callers retain their response. Focused tests compare identical selected cards and per-card ratings, including voted and author-excluded content.
