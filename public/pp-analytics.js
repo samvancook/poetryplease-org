@@ -16,6 +16,15 @@
     else queue.push([name, params]);
   };
 
+  // Tags this visitor for later comparison in GA (for example their intro test group).
+  const userProps = {};
+  window.ppUserProperty = function (name, value) {
+    userProps[name] = value;
+    if (!analytics) return;
+    try { analytics.setUserProperties({ [name]: value }); }
+    catch (err) { console.warn('Analytics user property skipped', name, err); }
+  };
+
   function send(name, params) {
     try { analytics.logEvent(name, params || {}); }
     catch (err) { console.warn('Analytics event skipped', name, err); }
@@ -50,7 +59,7 @@
     try {
       if (!firebase.apps.length || !firebase.app().options.measurementId) return;
       analytics = firebase.analytics();
-      analytics.setUserProperties({ view: viewType() });
+      analytics.setUserProperties({ view: viewType(), ...userProps });
       watchAuth();
       queue.splice(0).forEach(([name, params]) => send(name, params));
     } catch (err) {
