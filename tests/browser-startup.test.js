@@ -102,6 +102,9 @@ test("startup check rejects missing local dependencies before browser navigation
 // re-baselined on Nov 15 2026 for the card outline loader Sam approved ("Card outline, no forced wait").
 // Re-baselined Nov 19 2026 after Sam asked to fix the "misshaped white box" flashing on Desktop
 // startup: Desktop shows a delayed plain "Loading…" line instead of the drawn card box.
+// Re-baselined posts-swipe.html Nov 23 2026: Sam chose "Build it, I'll review first" for the
+// Swipe intro test (10% dispenser, 10% claw, signed-out plain visits); adds the async
+// swipe-intro.js module and bumps the pp-analytics.js cache key.
 // Update a baseline only after Sam explicitly approves that startup change.
 const startupBoundary = [
   { file: "startup-loader.js", scriptsOnly: false, sha256: "f46b2281ae18af0358dbeec65bf43cae86ab5ac98110af843f5897d9dfb650a7" },
@@ -109,7 +112,7 @@ const startupBoundary = [
   { file: "mobile-entry.js", scriptsOnly: false, sha256: "6b4d828f1dd386429d90f816cffdd75e51e3c02d0c1e5165fd2a3f5880fc94dc" },
   { file: "index.html", scriptsOnly: true, sha256: "feaf35c58da45846c257ac5fe8182aefc4aa83000bdd1b5bb62af4b2ea944b6b" },
   { file: "mobile.html", scriptsOnly: true, sha256: "1afbfd01782183be0fcdc40a90d8ae521ff232aba4a224a50f47c9c78935a3b8" },
-  { file: "posts-swipe.html", scriptsOnly: true, sha256: "a00d38a20854dcdc629ae28fa4cb30d908fa4a1110a5aa21e10768f416bdf70f" },
+  { file: "posts-swipe.html", scriptsOnly: true, sha256: "cf5c06bd7b0dda943405f77e58f2ea2c1ee65efad739a1a67393fb8ed3c1afbb" },
   { file: "posts-swipe-outline.html", scriptsOnly: true, sha256: "c1ebbd8a76bd625f3e732ef8bd2b308a87b2bc3a79dcc7f730c7a01cc52d0009" },
 ];
 
