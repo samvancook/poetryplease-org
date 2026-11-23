@@ -97,13 +97,21 @@ Status words used below:
 Safest first. Startup and loader last. Each step is one thread and one PR or a handoff note.
 
 1. **Paperwork only (this PR).** This map, linked from `AGENTS.md`. No code.
-2. **Retire the old `samvancook/poetry-please` repo.** Sam's decision. Nothing in it is missing here except two small unmerged pieces noted in the PR description.
+2. **Retire the old `samvancook/poetry-please` repo.** Sam approved archiving it on 23 November 2026. Nothing in it is missing here. Its August QI uploader branch was ported into `functions/import-jobs.js` and `uploader-helpers.js`. Its TikTok callback is listed under "Might revisit" below.
 3. **Close out stale PRs #76 and #101–#104.** Check each against current `main`, then close or rebase. Low risk.
 4. **Confirm the unconfirmed items above** with Sam (Drive-only QI scripts, Codex checkouts, any ChatGPT or Codex chats still running jobs), then mark them owned or retired.
 5. **Default-owned backend jobs.** Read `staffreviewdailydigest`, `weaverrepairnotify` and `qilibraryyearworker` end to end, check their logs, and write a short note for each. Read-only first.
 6. **Open handoffs sent to Poetry Please.** The DBAT INT title fix (copy-then-relink, keep old objects until after 17 Dec), the 31-source video readiness cohort, and the intern guide panel.
 7. **Feature modules with no recent owner**: author invites, staff review, serving trials, Explorer upkeep, embeds. Take them as work comes up.
 8. **Startup and loader, last.** Already approved and in progress in its own thread. Every protected change still needs Sam's approval of that specific change.
+
+## Might revisit
+
+Things that live outside this repo on purpose. Sam may want to bring them closer later. They need no work now.
+
+| Item | Where it lives now | Why it might come back |
+| --- | --- | --- |
+| TikTok sign-in callback page | Its own Firebase Hosting site, `button-poetry-tiktok-auth.web.app`, deployed from the social scheduler's repo. First drafted as [poetry-please PR #6](https://github.com/samvancook/poetry-please/pull/6), closed unmerged on 8 Oct 2026. | When a TikTok account holder approves the Button Poetry publisher, TikTok sends them to this page with a one-time code (good for 10 minutes). The page shows the code to copy into the publisher setup. It saves nothing and calls nothing in Poetry Please. It was kept off poetryplease.org so it couldn't affect the live app. Revisit if Sam wants every Button Poetry web page under one deployment, or if the scheduler repo is retired. |
 
 ## Keeping this file current
 
