@@ -1,8 +1,8 @@
 {
  "generatedAt": "2026-11-17",
  "source": "OCR of all 6,961 visible quote images matched to the Primary Excerpt Database (16WDniM-dosOy0rDvCMWaLGVGWOs8-CGeY_K3tuB1ui4)",
- "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet. Added 19 Nov 2026 (later): 20 items marked source 'visual', from reading by eye images the OCR couldn't read (stylized quotes, photographed book pages), then matching the quote to the Excerpt Database or Catalog. Added 19 Nov 2026 (evening): 20 items marked source 'visual-2', from the images the Catalog pass left unsure, read by eye and matched the same way. Added 21 Nov 2026: 4 items marked source 'other-poet' whose image is another poem; two of them also take that poem's poet (author field).",
- "count": 901,
+ "note": "Each record is renamed to the poem its image shows; expectTitle guards against records edited since. Old values are kept in ocrRetitle.before. The last 7 items (added later) rename I'll Fly Away word-definition images titled #VALUE! (a spreadsheet error) to the word on the image, like the existing 'Brevis verb'. Added 19 Nov 2026: 39 items matched against full Catalog poem texts (catalog-poems-export) for quotes that are not in the excerpt sheet. Added 19 Nov 2026 (later): 20 items marked source 'visual', from reading by eye images the OCR couldn't read (stylized quotes, photographed book pages), then matching the quote to the Excerpt Database or Catalog. Added 19 Nov 2026 (evening): 20 items marked source 'visual-2', from the images the Catalog pass left unsure, read by eye and matched the same way. Added 21 Nov 2026: 4 items marked source 'other-poet' whose image is another poem; two of them also take that poem's poet (author field). Added 23 Nov 2026: 24 items marked source 'book-cover', photos of a book cover or title page with no quote; they keep their title and move to their own lane (imageType BC), which the unfiltered feed leaves out.",
+ "count": 925,
  "items": [
   {
    "id": "AEO-QI-BOOK-SPECIFIC-QUOTE-GRAPHIC-AEO-2",
@@ -5711,6 +5711,174 @@
    "book": "The Future",
    "bookFieldsFrom": "TFLE-QI-BLOOD-IN-MY-SOCK",
    "source": "other-poet"
+  },
+  {
+   "id": "APP-QI-ODE-TO-THE-BOYS-WHO-ONCE-PUSHED-MIXTAPES-V3",
+   "expectTitle": "“ODE TO THE BOYS WHO ONCE PUSHED MIXTAPES”",
+   "title": "“ODE TO THE BOYS WHO ONCE PUSHED MIXTAPES”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "APP-QI-ODE-TO-THE-BOYS-WHO-ONCE-PUSHED-MIXTAPES-V4",
+   "expectTitle": "“ODE TO THE BOYS WHO ONCE PUSHED MIXTAPES”",
+   "title": "“ODE TO THE BOYS WHO ONCE PUSHED MIXTAPES”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "BUTC-QI-ON-TURNING-MY-NEPHEW-INTO-A-VEGAN",
+   "expectTitle": "“On Turning My Nephew Into a Vegan”",
+   "title": "“On Turning My Nephew Into a Vegan”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "BUTC-QI-ON-TURNING-MY-NEPHEW-INTO-A-VEGAN-V2",
+   "expectTitle": "“On Turning My Nephew Into a Vegan”",
+   "title": "“On Turning My Nephew Into a Vegan”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "DDJ-QI-ONCE-YOUVE-SEEN-IT-V5",
+   "expectTitle": "“ONCE YOU’VE SEEN IT”",
+   "title": "“ONCE YOU’VE SEEN IT”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "FORT-QI-CHARISMA-V2",
+   "expectTitle": "“CHARISMA”",
+   "title": "“CHARISMA”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "FORT-QI-MATERIALS",
+   "expectTitle": "“MATERIALS”",
+   "title": "“MATERIALS”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "FORT-QI-RECOVERY",
+   "expectTitle": "“RECOVERY”",
+   "title": "“RECOVERY”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "HELI-QI-PETAL",
+   "expectTitle": "“Petal”",
+   "title": "“Petal”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "HELI-QI-PHOTO-V2",
+   "expectTitle": "PHOTO",
+   "title": "PHOTO",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "IFA-QI-VALUE",
+   "expectTitle": "#VALUE!",
+   "title": "#VALUE!",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "IFA-QI-VALUE-V3",
+   "expectTitle": "#VALUE!",
+   "title": "#VALUE!",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "IFA-QI-VALUE-V4",
+   "expectTitle": "#VALUE!",
+   "title": "#VALUE!",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "ISST-QI-THE-JOKE",
+   "expectTitle": "“THE JOKE”",
+   "title": "“THE JOKE”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "TART-QI-IN-MINNEAPOLIS",
+   "expectTitle": "In Minneapolis",
+   "title": "In Minneapolis",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "TART-QI-SO-THERE-WAS-THIS-DOG",
+   "expectTitle": "SO, THERE WAS THIS DOG",
+   "title": "SO, THERE WAS THIS DOG",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "TART-QI-SO-THERE-WAS-THIS-DOG-V3",
+   "expectTitle": "So, There Was This Dog",
+   "title": "So, There Was This Dog",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "TF-QI-ODE-TO-THE-GASLIGHT-ANTHEM-ENDING-IN-THE-END-OF-CHILDHOOD-V2",
+   "expectTitle": "“Ode to The Gaslight Anthem, Ending in the End of Childhood”",
+   "title": "“Ode to The Gaslight Anthem, Ending in the End of Childhood”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "DDJ-QI-ONCE-YOUVE-SEEN-IT-V4",
+   "expectTitle": "“ONCE YOU’VE SEEN IT”",
+   "title": "“ONCE YOU’VE SEEN IT”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "DDJ-QI-ONCE-YOUVE-SEEN-IT-V6",
+   "expectTitle": "“ONCE YOU’VE SEEN IT”",
+   "title": "“ONCE YOU’VE SEEN IT”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "HTME-QI-OPPORTUNITY",
+   "expectTitle": "“OPPORTUNITY”",
+   "title": "“OPPORTUNITY”",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "IFA-QI-VALUE-V2",
+   "expectTitle": "#VALUE!",
+   "title": "#VALUE!",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "SRH-QI-HURRICANES-REVISITED",
+   "expectTitle": "HURRICANES: REVISITED",
+   "title": "HURRICANES: REVISITED",
+   "imageType": "BC",
+   "source": "book-cover"
+  },
+  {
+   "id": "WIDT-QI-CONTROVERSIAL-OPINION-IN-DEFENSE-OF-SPEAKING-ILL-OF-THE-DEAD-V2",
+   "expectTitle": "CONTROVERSIAL OPINION: IN DEFENSE OF SPEAKING ILL OF THE DEAD",
+   "title": "CONTROVERSIAL OPINION: IN DEFENSE OF SPEAKING ILL OF THE DEAD",
+   "imageType": "BC",
+   "source": "book-cover"
   }
  ]
 }

@@ -382,10 +382,72 @@ async function redeemAuthorInviteIfPresent() {
     }, 500);
   } catch (err) {
     console.warn('Author invite redemption failed', err);
+    showAuthorInviteProblem(err);
   } finally {
     authorInviteStatus.inFlight = false;
     authorInviteStatus.checked = true;
   }
+}
+
+// The invite link used to fail silently; tell the author what went wrong and what to do.
+function authorInviteProblemText(err, signedInAs = '') {
+  const raw = String(err?.message || '');
+  let code = '';
+  let invitedAddress = '';
+  try {
+    const body = JSON.parse(raw.slice(raw.indexOf('{')));
+    code = String(body?.error || '');
+    invitedAddress = String(body?.inviteEmail || '');
+  } catch (_) {}
+  if (code === 'email_mismatch') {
+    const target = invitedAddress || 'the address that received it';
+    return {
+      text: `This invitation is for ${invitedAddress || 'a different email address'}${signedInAs ? `, but you're signed in as ${signedInAs}` : ''}. Sign out, then open the invitation link again and sign in with ${target}.`,
+      signOut: true,
+    };
+  }
+  if (code === 'invite_expired') {
+    return { text: "This invitation link has expired. Reply to the invitation email and we'll send you a new one." };
+  }
+  if (code === 'invite_not_found') {
+    return { text: "This invitation link has already been used or replaced. If you already set up your account, you're all set. Otherwise, reply to the invitation email and we'll help." };
+  }
+  if (code === 'test_invite_not_claimable') {
+    return { text: "This is a test invitation. It can't set up an author account." };
+  }
+  return { text: "We couldn't open your invitation just now. Try the link again in a minute, or reply to the invitation email and we'll help." };
+}
+
+function showAuthorInviteProblem(err) {
+  const account = firebase.auth().currentUser;
+  const { text, signOut } = authorInviteProblemText(err, account && !account.isAnonymous ? (account.email || '') : '');
+  document.getElementById('author-invite-problem')?.remove();
+  const box = document.createElement('div');
+  box.id = 'author-invite-problem';
+  box.setAttribute('role', 'alert');
+  box.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10050;width:min(520px,calc(100vw - 32px));padding:16px 18px;border-radius:16px;background:#fffdf8;color:#1e1a15;border:1px solid #dad0c1;box-shadow:0 18px 48px rgba(24,19,12,0.18);font:15px/1.45 system-ui,-apple-system,sans-serif;';
+  const message = document.createElement('p');
+  message.style.margin = '0 0 12px';
+  message.textContent = text;
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;';
+  const button = (label, onClick, primary = false) => {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.textContent = label;
+    el.style.cssText = `min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid #2f5d62;font:inherit;cursor:pointer;${primary ? 'background:#2f5d62;color:#fff;' : 'background:#fff;color:#2f5d62;'}`;
+    el.addEventListener('click', onClick);
+    return el;
+  };
+  if (signOut) {
+    // Keep the invite in the address bar so signing back in with the right account retries it.
+    actions.append(button('Sign out', () => { firebase.auth().signOut().catch(() => {}).finally(() => box.remove()); }, true));
+  } else {
+    clearAuthorInviteToken();
+  }
+  actions.append(button('Close', () => box.remove()));
+  box.append(message, actions);
+  document.body.append(box);
 }
 
 // ===== UI Helpers =====
@@ -743,7 +805,7 @@ function updateUserStatusUI() {
         ? `/app?author=${encodeURIComponent(reviewAuthorName)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}`
         : '';
       const graphicsStartBadges = reviewBase
-        ? ` <a id="author-qi-preset" href="${reviewBase}&type=QI" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Start here: QI graphics</a> <a id="author-int-preset" href="${reviewBase}&type=INT" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Then INT photos</a>`
+        ? ` <a id="author-qi-preset" href="${reviewBase}&type=QI" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Start here: quote images</a> <a id="author-int-preset" href="${reviewBase}&type=INT" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Then interior photos</a>`
         : '';
       const browseBadge = ownContentBadge && lockedLane && valuesMatch(selectedAuthor, ownAuthorName)
         ? ' <a id="browse-all-badge" href="/app?browse=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#5f574b;font-size:12px;font-weight:600;text-decoration:none;">Browse all</a>'
@@ -856,14 +918,15 @@ function renderAuthorReviewGuide() {
   const laneHref = (type) => `${IS_MOBILE_UI ? '/m' : '/app'}?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
   const feedbackHref = 'mailto:support@buttonpoetry.com?subject=Poetry%20Please%20author%20feedback';
   const savedCollapse = safeLocalStorageGet('pp_author_review_guide_collapsed');
-  const collapsed = savedCollapse !== 'false';
+  // Open on an author's first visit so the button meanings are visible; remember their choice after that.
+  const collapsed = savedCollapse === 'true';
   topBar?.classList.toggle('author-guide-collapsed', collapsed);
   guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <h2 style="margin:0;font-size:${IS_MOBILE_UI ? '1rem' : '1.2rem'};">Review your graphics and excerpts</h2>
     <button type="button" id="author-review-guide-toggle" style="min-height:44px;" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
   </div>
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
-    <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
+    <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
     <p style="margin:0 0 8px;"><strong>2. Review excerpts:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.</p>
     <p style="margin:0;">Would you be interested in helping us review poems or in having an author landing page here? <a href="${feedbackHref}">Tell us what you think</a>. We are asking before adding either task to author accounts.</p>
   </div>`;
@@ -2660,6 +2723,7 @@ const CONTENT_TYPE_LABELS = {
   FPI: 'Full Poem Images',
   VV: 'Video',
   YT: 'YouTube',
+  BC: 'Book Covers',
 };
 
 function formatContentTypeLabel(value) {
@@ -4539,12 +4603,12 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Review your graphics and excerpts',
-      copy: 'Start with QI quote images and INT interior photos, then review excerpts for your book.',
+      copy: 'Start with the quote images and interior photos, then review excerpts for your book.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
       title: 'Choose the graphics we use',
-      copy: 'Start with QI quote images and INT interior photos. Like means you want us to use it; Moved Me marks a favorite for prominent positions and more places; Meh means no strong preference; Dislike means do not run it again.',
+      copy: 'Start with the quote images and interior photos. Like means you want us to use it; Moved Me marks a favorite for prominent positions and more places; Meh means no strong preference; Dislike means do not run it again.',
       target: () => document.getElementById('author-qi-preset') || document.getElementById('media-wrap'),
     },
     {

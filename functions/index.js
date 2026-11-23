@@ -22,14 +22,14 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
-import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch, weaverVideoImportWarnings } from "./weaver-video-intake.js";
 import { loadedSnapshotIsCurrent } from "./content-cache-policy.js";
 import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
 import { retitleGraphic, validRetitleItem, RETITLE_MAX_ITEMS } from "./graphic-retitle.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
-import { buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
+import { authorInviteTestCanResend, buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
 
 // Firebase Admin v12 (modular)
@@ -46,7 +46,6 @@ const CATALOG_RECONCILIATION_API_KEY_SECRET = defineSecret("CATALOG_RECONCILIATI
 const MANDRILL_AUTHOR_INVITE_API_KEY_SECRET = defineSecret("MANDRILL_AUTHOR_INVITE_API_KEY");
 const BROADER_EMAIL_SENDS_ENABLED = false; // Enable only after final copy and recipient approval.
 const CONTEST_ASSIGNMENT_EMAILS_ENABLED = true; // One-at-a-time notices for committed contest assignments.
-const CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID = "button-poetry-s-fall-2026-short-form-contest-da82891d"; // Explicitly approved Fall contest only.
 const CONTEST_MAIL_IDENTITY = { fromEmail: "no-reply@buttonpoetry.com", fromName: "Button Poetry Contests", replyTo: "support@buttonpoetry.com" };
 
 export function validateContestMailIdentity(input) {
@@ -194,6 +193,14 @@ const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
 const CONTENT_SNAPSHOT_VERSION = 5;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
+// The flagged-content list is shared through one systemState document, so a
+// 2-minute cache expiry costs one read instead of re-reading every author vote.
+// Changes that can alter the list invalidate the document; this age is only
+// the backstop for anything that does not (an account gaining the author role).
+const FLAGGED_CONTENT_SNAPSHOT_DOC_ID = "flagged-content";
+const FLAGGED_CONTENT_SNAPSHOT_VERSION = 1;
+const FLAGGED_CONTENT_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
+const AUTHOR_VOTER_IDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const RATINGS_SNAPSHOT_DOC_ID = "ratings-summary";
 const RATINGS_SNAPSHOT_PATH = "system/ratings-summary";
 const RATINGS_SNAPSHOT_VERSION = 2;
@@ -224,6 +231,7 @@ let flaggedContentCache = {
   builtAt: 0,
   payload: null,
   inFlight: null,
+  invalidatedAtMs: 0,
 };
 let ratingsCache = {
   builtAt: 0,
@@ -2173,7 +2181,7 @@ function buildWelcomeBatch(items = [], ratingsSummary = {}, limit = 12) {
 }
 
 function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null, welcome = false, includeFullRatingsSummary = true }) {
-  const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+  const newObjs = all.filter((o) => isDefaultFeedContent(o) && !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const welcomeBatch = welcome && ratingsSummary
     ? buildWelcomeBatch(newObjs, ratingsSummary, Math.min(limit, 12))
     : [];
@@ -2220,9 +2228,15 @@ function matchesCatalogFilterValue(actual, expected) {
   return normalizeKey(normalizeCatalogFilterValue(actual)) === normalizeKey(normalizeCatalogFilterValue(expected));
 }
 
+// Book cover photos (type BC) have their own lane: they show only when that
+// type is picked, never in the unfiltered feed.
+function isDefaultFeedContent(item) {
+  return normalizeText(item?.imageType).toUpperCase() !== "BC";
+}
+
 function matchesRequestedType(item, requestedType) {
   const type = normalizeText(requestedType).toUpperCase();
-  if (!type) return true;
+  if (!type) return isDefaultFeedContent(item);
   const actual = normalizeText(item?.imageType).toUpperCase();
   if (type === "VIDEO") return actual === "VV" || actual === "YT";
   if (type === "PROMO") return actual === "QI" || actual === "INT" || actual === "EXC";
@@ -5347,10 +5361,66 @@ async function getFlaggedContentIds() {
     return new Set(flaggedContentCache.payload);
   }
   if (flaggedContentCache.inFlight) return flaggedContentCache.inFlight;
-  flaggedContentCache.inFlight = buildFlaggedContentIds().finally(() => {
-    flaggedContentCache.inFlight = null;
+  const inFlight = resolveFlaggedContentIds({
+    readSnapshot: readFlaggedContentSnapshot,
+    writeSnapshot: writeFlaggedContentSnapshot,
+    rebuild: buildFlaggedContentIds,
+    localInvalidatedAtMs: flaggedContentCache.invalidatedAtMs || 0,
+  }).then((ids) => {
+    if (flaggedContentCache.inFlight === inFlight) {
+      flaggedContentCache.payload = [...ids];
+      flaggedContentCache.builtAt = Date.now();
+    }
+    return new Set(ids);
+  }).finally(() => {
+    if (flaggedContentCache.inFlight === inFlight) flaggedContentCache.inFlight = null;
   });
-  return flaggedContentCache.inFlight;
+  flaggedContentCache.inFlight = inFlight;
+  return inFlight;
+}
+
+// A stored list is used only if it was built after the last invalidation
+// (builtFromMs is when its rebuild started, so a rebuild that overlapped an
+// invalidation does not count) and is younger than the backstop age.
+export function isFlaggedContentSnapshotUsable(stored, nowMs = Date.now(), localInvalidatedAtMs = 0) {
+  if (!stored || Number(stored.version || 0) !== FLAGGED_CONTENT_SNAPSHOT_VERSION) return false;
+  if (!Array.isArray(stored.ids)) return false;
+  const builtFromMs = Number(stored.builtFromMs || 0);
+  if (!builtFromMs || (nowMs - builtFromMs) >= FLAGGED_CONTENT_SNAPSHOT_TTL_MS) return false;
+  return Math.max(Number(stored.invalidatedAtMs || 0), Number(localInvalidatedAtMs || 0)) < builtFromMs;
+}
+
+export async function resolveFlaggedContentIds({ readSnapshot, writeSnapshot, rebuild, now = () => Date.now(), localInvalidatedAtMs = 0 }) {
+  let stored = null;
+  try {
+    stored = await readSnapshot();
+  } catch (err) {
+    console.warn("Flagged content snapshot read failed", err);
+  }
+  if (isFlaggedContentSnapshotUsable(stored, now(), localInvalidatedAtMs)) {
+    console.info("flagged_content_source", { source: "snapshot", idCount: stored.ids.length });
+    return new Set(stored.ids);
+  }
+  const builtFromMs = now();
+  const ids = await rebuild();
+  try {
+    await writeSnapshot({ ids: [...ids], builtFromMs, builtAtMs: now(), version: FLAGGED_CONTENT_SNAPSHOT_VERSION });
+  } catch (err) {
+    console.warn("Flagged content snapshot write failed", err);
+  }
+  console.info("flagged_content_source", { source: "rebuilt", idCount: ids.size });
+  return ids;
+}
+
+async function readFlaggedContentSnapshot() {
+  const snap = await db.collection(COLLECTIONS.systemState).doc(FLAGGED_CONTENT_SNAPSHOT_DOC_ID).get();
+  return snap.exists ? (snap.data() || null) : null;
+}
+
+async function writeFlaggedContentSnapshot({ ids, builtFromMs, builtAtMs, version }) {
+  // merge keeps invalidatedAtMs, so an invalidation that landed mid-rebuild still wins.
+  await db.collection(COLLECTIONS.systemState).doc(FLAGGED_CONTENT_SNAPSHOT_DOC_ID)
+    .set({ ids, builtFromMs, builtAtMs, version }, { merge: true });
 }
 
 async function buildFlaggedContentIds() {
@@ -5398,15 +5468,33 @@ async function buildFlaggedContentIds() {
       if (vote.voteType === "dislike") ids.add(vote.imageId);
     });
   }
-  flaggedContentCache.payload = [...ids];
-  flaggedContentCache.builtAt = Date.now();
-  return new Set(ids);
+  return ids;
 }
 
 function invalidateFlaggedContentCache() {
   flaggedContentCache.builtAt = 0;
   flaggedContentCache.payload = null;
   flaggedContentCache.inFlight = null;
+  // This instance must not reuse the stored list before the write below lands.
+  flaggedContentCache.invalidatedAtMs = Date.now();
+  // Other instances see this on their next 2-minute check.
+  db.collection(COLLECTIONS.systemState).doc(FLAGGED_CONTENT_SNAPSHOT_DOC_ID)
+    .set({ invalidatedAtMs: Date.now() }, { merge: true })
+    .catch((err) => console.warn("Flagged content snapshot invalidation failed", err));
+}
+
+let authorVoterIdsCache = { ids: null, loadedAt: 0 };
+
+// True when the voter holds the author role (cached 10 minutes). An author's
+// latest vote decides whether their dislike hides a piece, so their votes must
+// refresh the shared flagged-content list.
+async function isAuthorVoter(userId) {
+  const key = normalizeKey(userId || "");
+  if (!key) return false;
+  if (!authorVoterIdsCache.ids || (Date.now() - authorVoterIdsCache.loadedAt) >= AUTHOR_VOTER_IDS_CACHE_TTL_MS) {
+    authorVoterIdsCache = { ids: await getAuthorVoteUserIds(), loadedAt: Date.now() };
+  }
+  return authorVoterIdsCache.ids.has(key);
 }
 
 function excludeFlaggedContent(items, flaggedIds) {
@@ -6904,6 +6992,12 @@ app.post(getBoth("/vote"), async (req, res) => {
     // Dislikes still invalidate promptly because author dislikes exclude content.
     if (normalizeKey(voteType) === "dislike") {
       await invalidateRatingsSnapshot();
+    }
+    try {
+      if (await isAuthorVoter(userId)) invalidateFlaggedContentCache();
+    } catch (err) {
+      console.warn("Author vote check failed; refreshing flagged content", err);
+      invalidateFlaggedContentCache();
     }
     // The scoreboard snapshot is not invalidated per vote: each invalidation made the
     // next scoreboard/P.I.G. read rescan every vote. It refreshes on its
@@ -8568,21 +8662,47 @@ export async function prepareContestGraphicReturn(item) {
   };
 }
 
+// Staff "Send to graphics": dispatches every selected winner/circle poem that has not been sent yet.
+app.post(getBoth("/admin/contestGraphicsSend"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
+  if (!ctx) return;
+  const programId = normalizeText(req.body?.programId || "");
+  if (!programId) return res.status(400).json({ error: "missing_program_id" });
+  const snap = await db.collection(COLLECTIONS.contentSubmissions).where("submissionProgramId", "==", programId).get();
+  const selected = snap.docs.filter((doc) => doc.data()?.contestSubmission === true && doc.data()?.contestArchived !== true &&
+    ["winner", "circle"].includes(doc.data()?.contestOutcomeStatus) &&
+    !["queued", "imported"].includes(doc.data()?.contestGraphicsStatus)).map((doc) => doc.id).sort();
+  if (req.body?.commit !== true) return res.json({ ok: true, programId, toSendCount: selected.length, submissionIds: selected });
+  const results = [];
+  for (const submissionId of selected) {
+    const { code, body } = await dispatchContestGraphics(programId, submissionId);
+    results.push({ submissionId, ok: code === 200, status: body.status || (body.alreadyDispatched ? "queued" : ""), error: body.error || "" });
+  }
+  res.json({ ok: true, programId, sentCount: results.filter((row) => row.ok).length,
+    failedCount: results.filter((row) => !row.ok).length, results });
+});
+
 app.post(getBoth("/internal/contestGraphicsHandoff"), async (req, res) => {
   if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
   const programId = normalizeText(req.body?.programId);
   const submissionId = normalizeText(req.body?.submissionId);
-  // This release covers only Sam's explicitly authorized Fall 2026 selections.
-  if (programId !== CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID || !submissionId || submissionId.includes("/")) {
-    return res.status(400).json({ error: "contest_graphics_program_not_enabled" });
+  if (!programId || !submissionId || submissionId.includes("/")) {
+    return res.status(400).json({ error: "missing_contest_graphics_target" });
   }
+  const { code, body } = await dispatchContestGraphics(programId, submissionId);
+  return res.status(code).json(body);
+});
+
+// Sends one selected (winner/circle, unarchived) submission to Weaver's graphics queue.
+// Idempotent: a queued or imported submission is never sent twice, and a retry reuses the frozen payload.
+async function dispatchContestGraphics(programId, submissionId) {
   const ref = db.collection(COLLECTIONS.contentSubmissions).doc(submissionId);
   try {
     const [programSnap, entrantSnap] = await Promise.all([
       db.collection(COLLECTIONS.submissionPrograms).doc(programId).get(),
       db.collection(COLLECTIONS.submissionEntrants).doc(submissionId).get(),
     ]);
-    if (!programSnap.exists || !entrantSnap.exists) return res.status(404).json({ error: "contest_source_not_found" });
+    if (!programSnap.exists || !entrantSnap.exists) return { code: 404, body: { error: "contest_source_not_found" } };
     const reserved = await db.runTransaction(async (tx) => {
       const snap = await tx.get(ref);
       if (!snap.exists) throw Object.assign(new Error("submission_not_found"), { status: 404 });
@@ -8604,7 +8724,7 @@ app.post(getBoth("/internal/contestGraphicsHandoff"), async (req, res) => {
       }, { merge: true });
       return { request };
     });
-    if (reserved.alreadyDispatched) return res.json({ ok: true, programId, submissionId, ...reserved });
+    if (reserved.alreadyDispatched) return { code: 200, body: { ok: true, programId, submissionId, ...reserved } };
     try {
       const response = await fetch("https://weaver-912447899335.us-central1.run.app/graphics-handoff/requests", {
         method: "POST",
@@ -8627,33 +8747,42 @@ app.post(getBoth("/internal/contestGraphicsHandoff"), async (req, res) => {
         contestGraphicsLeaseUntilMs: 0,
         contestGraphicsError: "",
       }, { merge: true });
-      return res.json({ ok: true, programId, submissionId, graphicsRequestId: record.graphicsRequestId, status: "queued" });
+      return { code: 200, body: { ok: true, programId, submissionId, graphicsRequestId: record.graphicsRequestId, status: "queued" } };
     } catch (error) {
       await ref.set({ contestGraphicsStatus: "dispatch_failed", contestGraphicsLeaseUntilMs: 0,
         contestGraphicsError: error.message }, { merge: true });
       throw error;
     }
   } catch (error) {
-    return res.status(error.status || 502).json({ error: error.message || "contest_graphics_dispatch_failed" });
+    return { code: error.status || 502, body: { error: error.message || "contest_graphics_dispatch_failed" } };
   }
-});
+}
 
 async function importWeaverGraphicsPayload(rawPayload, defaultImageType, actor = {}) {
   const sourceRecords = flattenWeaverGraphicsRecords(rawPayload);
   const eligibleRecords = sourceRecords.filter((record) => shouldImportWeaverGraphicRecord(record, { defaultImageType }));
   const mappedItems = [];
+  const contestSkipped = [];
   for (const item of buildWeaverGraphicsImportItems(rawPayload, { defaultImageType })) {
-    mappedItems.push(await prepareContestGraphicReturn(await resolveWeaverGraphicIdentity(item)));
+    const resolved = await resolveWeaverGraphicIdentity(item);
+    try {
+      mappedItems.push(await prepareContestGraphicReturn(resolved));
+    } catch (err) {
+      // A contest poem taken out of the circle (or archived) after it was sent: skip just this graphic.
+      if (!["contest_graphics_return_identity_mismatch", "ambiguous_contest_graphics_request"].includes(err.message)) throw err;
+      console.warn("contest_graphic_return_skipped", JSON.stringify({ sourceRequestId: resolved.sourceRequestId, reason: err.message }));
+      contestSkipped.push({ ok: false, id: normalizeText(resolved.docId || resolved.sourceRequestId), error: err.message });
+    }
   }
   const { acceptedItems, duplicateItems } = await buildWeaverGraphicsDuplicatePlan(mappedItems);
 
-  if (!mappedItems.length) {
+  if (!mappedItems.length && !contestSkipped.length) {
     const err = new Error("no_importable_weaver_records");
     err.status = 400;
     throw err;
   }
 
-  const results = [];
+  const results = [...contestSkipped];
   const promotedDuplicateItems = [];
   const capturedDuplicateItems = [];
   duplicateItems.forEach((item) => {
@@ -9679,6 +9808,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const status = result.created ? "created" : "updated";
     const receivedContext = countReceivedWeaverVideoContext(result.item, intake.item);
     const { receivedReviewCount, receivedSelectedExcerptIdCount, storedReviewCount, storedSelectedExcerptIdCount } = receivedContext;
+    const importWarnings = weaverVideoImportWarnings(result.item || intake.item);
     let durableCopy = { status: normalizeText(result.item?.durableCopyStatus || "pending"), queued: false };
     try {
       durableCopy = await queueWeaverVideoDurableCopy({
@@ -9704,6 +9834,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       updatedCount: result.created ? 0 : 1,
       duplicateCount: 0,
       errorCount: 0,
+      warningCount: importWarnings.length,
+      warnings: importWarnings,
       receivedReviewCount,
       receivedSelectedExcerptIdCount,
       storedReviewCount,
@@ -9722,6 +9854,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         contentId: canonicalVideoId,
         sourceRecordId: intake.item.sourceRecordId,
         outcome: status,
+        warnings: importWarnings,
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
         storedReviewCount,
@@ -9741,6 +9874,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         canonicalVideoId,
         canonicalVideoUrl,
         finalAssetUrl,
+        warnings: importWarnings,
         ...(receivedContext.receivedFootageConnections ? {
           receivedFootageConnections:receivedContext.receivedFootageConnections,
           receivedFootageConnectionCount:receivedContext.receivedFootageConnectionCount,
@@ -12050,6 +12184,15 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
   });
 });
 
+// The catalog book an invite is about: the requested one if it is this author's, else their only book.
+function resolveAuthorInviteBook(authorName, requestedTitle = "") {
+  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
+    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
+  const requested = normalizeText(requestedTitle);
+  return authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requested))?.title
+    || (!requested && authorBooks.length === 1 ? authorBooks[0].title : "");
+}
+
 app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -12057,14 +12200,30 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
 
-  // A stable record prevents retries from creating a second invite identity.
+  // Optionally preview one real author's invite (their name, book and help page), still sent only to Sam.
+  let preview = { name: "Sam", bookTitle: "Roads", intendedFor: "" };
+  const previewInviteId = normalizeText(req.body?.inviteId || "");
+  if (previewInviteId) {
+    const previewSnap = await db.collection(COLLECTIONS.authorInvites).doc(previewInviteId).get();
+    const invite = previewSnap.data() || {};
+    if (!previewSnap.exists || invite.testOnly) return res.status(404).json({ error: "invite_not_found" });
+    const authorName = normalizeText(invite.authorName || "");
+    const bookTitle = resolveAuthorInviteBook(authorName, req.body?.bookTitle || invite.bookTitle || "");
+    if (!authorName) return res.status(400).json({ error: "invite_needs_author_and_email" });
+    if (!bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
+    preview = { name: authorName.split(/\s+/)[0], bookTitle, intendedFor: authorName };
+  }
+
+  // One stable test record, always addressed to Sam, and its link can never claim an account.
+  // It can be re-sent to check copy and Reply-To, but not more than once a minute (double clicks).
   const inviteRef = db.collection(COLLECTIONS.authorInvites).doc("mandrill-test-sam-v2");
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
   const inviteUrl = `https://poetryplease.org/app?authorInvite=${token}`;
   const reserved = await db.runTransaction(async (transaction) => {
     const prior = (await transaction.get(inviteRef)).data() || {};
-    if (["sending", "sent", "uncertain"].includes(prior.deliveryStatus)) return false;
+    const lastAttemptMs = prior.deliveryUpdatedAt?.toMillis?.() || 0;
+    if (!authorInviteTestCanResend(prior.deliveryStatus, lastAttemptMs, Date.now())) return false;
     transaction.set(inviteRef, {
       email: AUTHOR_INVITE_TEST_EMAIL,
       authorName: "",
@@ -12081,16 +12240,17 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
     }, { merge: true });
     return true;
   });
-  if (!reserved) return res.status(409).json({ error: "author_invite_test_already_attempted" });
+  if (!reserved) return res.status(409).json({ error: "author_invite_test_sent_moments_ago" });
 
   const message = buildAuthorInviteMessage({
-    name: "Sam",
+    name: preview.name,
     email: AUTHOR_INVITE_TEST_EMAIL,
-    bookTitle: "Roads",
-    helpUrl: "https://buttonpoetry.com/poetryplease/author-help/?book=Roads",
+    bookTitle: preview.bookTitle,
+    helpUrl: `https://buttonpoetry.com/poetryplease/author-help/?book=${encodeURIComponent(preview.bookTitle)}`,
     inviteUrl,
     expiresAt: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(expiresAt),
     testOnly: true,
+    intendedFor: preview.intendedFor,
   });
   let delivery;
   try {
@@ -12104,7 +12264,7 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
     deliveryMessageId: delivery.messageId,
     deliveryUpdatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
-  res.json({ ok: true, inviteId: inviteRef.id, email: AUTHOR_INVITE_TEST_EMAIL, delivery });
+  res.json({ ok: true, inviteId: inviteRef.id, email: AUTHOR_INVITE_TEST_EMAIL, previewOf: preview.intendedFor, bookTitle: preview.bookTitle, delivery });
 });
 
 app.post(getBoth("/admin/authorInvites/:inviteId/send"), async (req, res) => {
@@ -12125,11 +12285,7 @@ app.post(getBoth("/admin/authorInvites/:inviteId/send"), async (req, res) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !authorName) {
     return res.status(400).json({ error: "invite_needs_author_and_email" });
   }
-  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
-    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
-  const requestedBookTitle = normalizeText(req.body?.bookTitle || invite.bookTitle || "");
-  const bookTitle = authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requestedBookTitle))?.title
-    || (!requestedBookTitle && authorBooks.length === 1 ? authorBooks[0].title : "");
+  const bookTitle = resolveAuthorInviteBook(authorName, req.body?.bookTitle || invite.bookTitle || "");
   if (!bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
@@ -12309,6 +12465,17 @@ function profileReadiness(profile = {}, associatedCount = 0, feedbackCount = 0) 
   };
 }
 
+// Per-type counts so staff can see what each author will find before an invite goes out.
+export function authorContentTypeCounts(items = []) {
+  const counts = { QI: 0, INT: 0, EXC: 0, FP: 0, other: 0 };
+  items.forEach((item) => {
+    const type = String(item.imageType || item.contentType || "").toUpperCase();
+    if (Object.hasOwn(counts, type) && type !== "other") counts[type] += 1;
+    else counts.other += 1;
+  });
+  return counts;
+}
+
 app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -12359,10 +12526,10 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     [author, canonicalizeAuthorName(author)].map(normalizeKey).filter(Boolean).forEach((key) => buttonAuthorByAlias.set(key, author));
   });
   const legacyNameAliases = new Map([
-    ["guante", 'Kyle "Guante" Tran Myhre'],
-    ["kyle guante tran myhre", 'Kyle "Guante" Tran Myhre'],
-    ['kyle "guante" tran myhre', 'Kyle "Guante" Tran Myhre'],
-    ["kyle tran myhre", 'Kyle "Guante" Tran Myhre'],
+    ["guante", "Kyle Tran Myhre"],
+    ["kyle guante tran myhre", "Kyle Tran Myhre"],
+    ['kyle "guante" tran myhre', "Kyle Tran Myhre"],
+    ["kyle tran myhre", "Kyle Tran Myhre"],
     ["gigi bella", "Gigi Bella"],
   ]);
   legacyNameAliases.forEach((author, key) => buttonAuthorByAlias.set(key, author));
@@ -12491,6 +12658,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
       invite,
       status: authorProfileStatus(profile, invite, feedbackRows.length),
       associatedCount: matches.length,
+      typeCounts: authorContentTypeCounts(matches),
       associatedSample: matches.slice(0, 8).map((item) => ({
         id: item.imageId || item.contentId || "",
         title: item.title || item.poem || "",
@@ -12514,6 +12682,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
       previewAuthor: author,
       status: invite ? authorProfileStatus(null, invite) : "preview ready",
       associatedCount: items.length,
+      typeCounts: authorContentTypeCounts(items),
       associatedSample: items.slice(0, 8).map((item) => ({
         id: item.imageId || item.contentId || "",
         title: item.title || item.poem || "",
@@ -13118,7 +13287,7 @@ async function buildContestOutcomeEmailPreview(programId) {
   }).sort((a, b) => a.outcome.localeCompare(b.outcome) || a.email.localeCompare(b.email));
   return {
     ok: true, previewOnly: true, emailSent: false,
-    sendEnabled: programId === CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID,
+    sendEnabled: true,
     programId, programName, mailIdentity, templatesCustomized: templateSnap.exists,
     submissionCount: submissions.length, recipientCount: recipients.length,
     missingContactCount, archivedCount, decisionCounts,
@@ -13427,9 +13596,6 @@ app.post(getBoth("/admin/contestOutcomeEmails/send"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin", "contest_admin"]);
   if (!ctx) return;
   const programId = normalizeText(req.body?.programId || "");
-  if (programId !== CONTEST_OUTCOME_EMAILS_ENABLED_PROGRAM_ID) {
-    return res.status(409).json({ error: "contest_outcome_emails_awaiting_approval" });
-  }
   const email = normalizeText(req.body?.email || "").toLowerCase();
   const previewToken = normalizeText(req.body?.previewToken || "");
   if (!programId || !email || !previewToken) {
@@ -15268,7 +15434,10 @@ export const contestscheduledemailsdispatch = onSchedule({
 }, async () => {
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) throw new Error("mandrill_mail_not_configured");
-  const schedules = await db.collection("contestScheduledEmails").get();
+  // Runs every minute: read only the schedules still waiting to send, not every
+  // schedule ever made (each one cost 1,440 reads a day).
+  const schedules = await db.collection("contestScheduledEmails")
+    .where("status", "in", ["scheduled", "sending"]).get();
   for (const scheduleDoc of schedules.docs) {
     const schedule = scheduleDoc.data() || {};
     if (!["scheduled", "sending"].includes(schedule.status) ||

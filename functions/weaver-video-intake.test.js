@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {normalizeFootageConnections,mergeFootageConnections} from './footage-provenance.js';
-import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, weaverVideoImportWarnings } from "./weaver-video-intake.js";
 
 const validVideo = {
   contentType: "VV",
@@ -294,4 +294,22 @@ test("video readiness revokes when bound output, caption approval or parent chan
   ]) assert.equal(build("video", video, binding, asset, { ...excerpt, ...patch }), null);
   assert.equal(build("video", { ...video, weaverPublicationRestricted: true }, binding, asset, excerpt), null);
   assert.equal(build("video", { ...video, sourceRecordId: "different" }, binding, asset, excerpt), null);
+});
+
+test("a Weaver video with no release catalog is reported, not rejected", () => {
+  assert.deepEqual(weaverVideoImportWarnings({ releaseCatalog: "", eventReleaseCatalog: "" }), ["missing_release_catalog"]);
+  assert.deepEqual(weaverVideoImportWarnings({}), ["missing_release_catalog"]);
+  assert.deepEqual(weaverVideoImportWarnings({ releaseCatalog: "   " }), ["missing_release_catalog"]);
+  // Either field is enough: the event catalog carries the identity when there is no book season.
+  assert.deepEqual(weaverVideoImportWarnings({ releaseCatalog: "BPL Events" }), []);
+  assert.deepEqual(weaverVideoImportWarnings({ eventReleaseCatalog: "BPL Events" }), []);
+
+  // The import route has to surface it in the ledger, the outcome and the response.
+  const server = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = server.indexOf('getBoth("/internal/weaverVideoImport")');
+  assert.notEqual(start, -1);
+  const body = server.slice(start, server.indexOf("app.post(", start + 40));
+  assert.match(body, /const importWarnings = weaverVideoImportWarnings\(/);
+  assert.match(body, /warningCount: importWarnings\.length/);
+  assert.equal(body.match(/warnings: importWarnings/g)?.length, 3);
 });

@@ -2,6 +2,34 @@
 
 Completed work is recorded in `ROADMAP_ARCHIVE.md`.
 
+## Author suite — takeover priority (23 November 2026)
+
+Sam made the whole author suite a priority of the Claude takeover: author accounts, public author pages, the author editor, the command center, invites, claims and submissions. Owner: Claude (see `docs/OWNERSHIP.md`). The detailed wish list under "Get author accounts fully usable" and "Build the Author Account Command Center" below still stands; this section is the starting point and the order.
+
+**What exists today.**
+- Pages: public profile `author.html` (`/authorProfiles/:slug`), the editor `author-edit.html` (`/my/authorProfile`, `/my/authorProfileEditorData`), the admin command center `author-command-center.html` (`/admin/authorCommandCenter`), and `my-submissions.html` (`/my/submissions/claim`).
+- Invites: admin create, regenerate, test and send (`/admin/authorInvites…`); redeem (`/authorInvites/redeem`). Sent through Mandrill (`functions/author-invite-mail.js`). Real sends need Sam's approval.
+- Claims: authors claim existing content (`/contentClaims`, `/contentClaims/candidates`); admins review claims (`/admin/contentClaims/:claimId/review`).
+- Assets: author downloads and photo upload (`/authorAssets`, `/authorAssetDownload/:imageId`, `/authorAssets/uploadPhoto`).
+- Repair notices: after an accepted replacement, admins preview and send the author a notice (`functions/author-repair-notices.js`, live since 18 Oct).
+- Specs and records: `AUTHOR_STORYBOARD_SPEC.md`; invitation drafts and the Eric/Madison walkthrough further down this file; on Drive, the Author Onboarding & Mobile Experience Working Record (29 Sep), the draft Author Guide (13 Sep) and the Staff Login & Author Onboarding Test Checklist (28 Aug).
+
+**Known gaps.**
+- `/my/authorProfileEditorData` does four full reads, and the signed-in Desktop startup has waited on it. The startup owner owns the wait; this workstream owns making the data call smaller.
+- Swipe has author scoping but no author guide or author/staff download and correction controls.
+- The editor mixes profile, featured picks and issue review on one surface.
+- Invitation and help copy is drafted but not sent beyond the Eric/Madison pilot.
+
+**Order (set by Sam, 23 Nov: get the tool to authors first).** Nothing is sent to any author without Sam's OK in the thread; test sends go only to Sam or a test address Sam names. Working doc: [Author tools: pre-send review](https://claude.ai/artifact/Rf2z7FUMCG7BURoWoiMJDZ).
+1. Mail through Mandrill with replies to Sam and support. Done 23 Nov (PR #452): From sam@, Reply-To sam@ and support@, and a repeatable Sam-only test invite.
+2. Make the emails clear and useful. A rewrite of the invitation is in the working doc, waiting on Sam's approval and one name for the top vote button (Love or Moved Me). The repair notice stays as is.
+3. Make the site and flow simple and clear: a visible message when an invite link fails (wrong email, expired, already used), one button vocabulary on desktop, phone, tour and help page, plain names instead of QI/INT/EXC, and a help page that matches the email.
+4. Check what's what for everyone before sending: each author's book, items and account state; Kyle Tran Myhre's account linked to his catalog name; author email addresses for the first group.
+5. Send in waves, each with Sam's approval by name: forthcoming and recent authors first (28 authors, 22 never invited), then legacy authors after a content check.
+6. Then the deeper work: make the editor data call smaller, split the editor into profile, featured selections and issue review, and add the author guide and controls to Swipe.
+
+**Later test project: author comments.** Let authors see what readers say about their poems and where their poems appear, and help them respond. Roadmap only; run it as a test after the first invite wave.
+
 ## Compact startup ratings — 5 November 2026
 
 The anonymous Desktop welcome response previously returned ratings for all 8,224 content IDs even when the client requested includeRatingsSummary:false. A measured 12-card response was 1,621,904 bytes. Scoping its ratings to the selected cards reduced the equivalent JSON to 8,121 bytes. The bootstrap receiver now applies that scope after ranking when the compact response is requested. Full-summary callers retain their response. Focused tests compare identical selected cards and per-card ratings, including voted and author-excluded content.

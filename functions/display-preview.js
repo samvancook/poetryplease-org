@@ -29,13 +29,24 @@ export function isPreviewableSourceUrl(value) {
   }
 }
 
+// Some graphics arrived with a light copy made elsewhere: a large JPEG (about
+// 270 KB for a card the current WebP format stores in about 70 KB). Such a
+// copy is still shown, but the graphic counts as needing a current one. Only
+// that known naming (previews/<name>-q<quality>.jpg) is matched.
+export function hasOlderFormatPreview(data = {}) {
+  if (!data.displayPreviewUrl || data.displayPreviewSourceUrl !== graphicImageUrl(data)) return false;
+  let path = "";
+  try { path = decodeURIComponent(new URL(String(data.displayPreviewUrl)).pathname); } catch { return false; }
+  return /\/previews\/[^/]+-q\d+\.jpe?g$/i.test(path);
+}
+
 // True when this graphic should have a preview built for its current image.
 export function needsDisplayPreview(data = {}) {
   const imageUrl = graphicImageUrl(data);
   if (!isPreviewableSourceUrl(imageUrl)) return false;
   if (!DISPLAY_PREVIEW_TYPES.has(String(data.imageType || "").toUpperCase())) return false;
   if (Array.isArray(data.assetSet) && data.assetSet.length) return false;
-  if (data.displayPreviewUrl && data.displayPreviewSourceUrl === imageUrl) return false;
+  if (data.displayPreviewUrl && data.displayPreviewSourceUrl === imageUrl && !hasOlderFormatPreview(data)) return false;
   // An earlier attempt found nothing to gain for this exact image.
   if (data.displayPreviewCheckedUrl === imageUrl) return false;
   return true;
@@ -141,7 +152,7 @@ export const DISPLAY_PREVIEW_STATUS_FIELDS = [
 // pending: graphics that still need a preview and have not been requested yet.
 // stalled: requested earlier but still without a preview (waiting or failed).
 export function summarizeDisplayPreviews(graphics, { recentLimit = 30 } = {}) {
-  const counts = { total: 0, single: 0, withPreview: 0, needsPreview: 0, requestedWaiting: 0, noGain: 0, failed: 0, notHostedHere: 0 };
+  const counts = { total: 0, single: 0, withPreview: 0, olderFormatPreview: 0, needsPreview: 0, requestedWaiting: 0, noGain: 0, failed: 0, notHostedHere: 0 };
   const pending = []; const stalled = []; const built = []; const failures = [];
   // Every stalled graphic with what is known about it, for diagnosing failures.
   const stalledDetails = [];
@@ -152,7 +163,12 @@ export function summarizeDisplayPreviews(graphics, { recentLimit = 30 } = {}) {
     if (!DISPLAY_PREVIEW_TYPES.has(String(data.imageType || "").toUpperCase())) continue;
     if (Array.isArray(data.assetSet) && data.assetSet.length) continue;
     counts.single += 1;
-    if (data.displayPreviewUrl && data.displayPreviewSourceUrl === imageUrl) {
+    // An older-format copy that has not been checked yet falls through, so the
+    // backfill can ask for a current one. It keeps showing meanwhile.
+    const olderFormat = hasOlderFormatPreview(data);
+    if (olderFormat) counts.olderFormatPreview += 1;
+    if (data.displayPreviewUrl && data.displayPreviewSourceUrl === imageUrl
+      && (!olderFormat || data.displayPreviewCheckedUrl === imageUrl)) {
       counts.withPreview += 1;
       if (data.displayPreviewBytes && data.displayPreviewSourceBytes) {
         previewBytes += data.displayPreviewBytes; sourceBytes += data.displayPreviewSourceBytes;

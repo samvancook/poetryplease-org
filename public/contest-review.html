@@ -182,6 +182,7 @@
       <label>Show submissions
         <select id="outcome-view">
           <option value="finalists">All finalists</option>
+          <option value="circle">Winners circle (and winner)</option>
           <option value="no-champion">No Champion votes</option>
           <option value="passes-one">1+ Pass</option>
           <option value="passes-two">2+ Passes — pending reviews allowed</option>
@@ -1005,6 +1006,7 @@
         if (!isFinalistSubmission(row)) return false;
         if (view === "archived") return row.archived;
         if (row.archived) return false;
+        if (view === "circle") return ["circle", "winner"].includes(row.outcomeStatus);
         if (view === "no-champion") return !(row.finalistReads || []).some((read) => read.decision === "champion");
         if (view === "passes-one") return (row.finalistReads || []).some((read) => read.decision === "pass");
         if (view === "passes-two") return (row.finalistReads || []).filter((read) => read.decision === "pass").length >= 2;
@@ -1017,6 +1019,7 @@
       const passCount = (row) => (row.finalistReads || []).filter((read) => read.decision === "pass").length;
       if (["passes-one", "passes-two", "passes", "no-champion"].includes(view)) matching.sort((a, b) =>
         passCount(b) - passCount(a) || a.title.localeCompare(b.title));
+      if (view === "circle") matching.sort((a, b) => (b.outcomeStatus === "winner") - (a.outcomeStatus === "winner") || a.title.localeCompare(b.title));
       if (view === "champion" || view === "champion-double") matching.sort((a, b) =>
         b.finalistReads.filter((read) => read.decision === "champion").length - a.finalistReads.filter((read) => read.decision === "champion").length || a.title.localeCompare(b.title));
       return matching;
@@ -1037,12 +1040,16 @@
       archiveButton.disabled = !archiveable.length;
       archiveButton.textContent = "Archive " + archiveable.length + " three-Pass finalists";
       const championCounts = matching.map((row) => row.finalistReads?.filter((read) => read.decision === "champion").length || 0);
-      document.getElementById("outcome-count").textContent = view === "champion"
+      const circleTotal = report.submissions.filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
+      const winnerRow = report.submissions.find((row) => row.outcomeStatus === "winner");
+      const circleSummary = ". Winners circle: " + circleTotal + (winnerRow ? " (winner: " + (winnerRow.title || "Untitled") + ")" : " (no winner yet)") + ".";
+      document.getElementById("outcome-count").textContent = (view === "champion"
         ? matching.length + " poems with Champion votes (" + championCounts.reduce((sum, count) => sum + count, 0) + " votes total); " + championCounts.filter((count) => count >= 2).length + " poems have 2+ Champion votes."
-        : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching finalists";
+        : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching finalists") + circleSummary;
       document.getElementById("outcome-results").innerHTML = matching.length
         ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th>Actions</th></tr></thead><tbody>' +
           matching.map((row) => '<tr><td>' + escapeHtml(row.title) +
+            (row.outcomeStatus === "winner" ? ' <span class="pill">Winner</span>' : row.outcomeStatus === "circle" ? ' <span class="pill">Winners circle</span>' : '') +
             ((view === "champion" || view === "champion-double") ? '<br><strong>' + row.finalistReads.filter((read) => read.decision === "champion").length + ' Champion vote' + (row.finalistReads.filter((read) => read.decision === "champion").length === 1 ? '' : 's') + '</strong>' : '') +
             '</td><td>' +
             escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ") || "—") +
@@ -1223,6 +1230,7 @@
         return;
       }
       const imported = rows.filter((row) => row.graphicsStatus === "imported" && row.graphicsContentId);
+      const unsent = rows.filter((row) => !["queued", "imported"].includes(row.graphicsStatus));
       const collection = new URL("/app", location.origin);
       collection.search = new URLSearchParams({
         catalog: "Contest", event: report.sourceEvent || "", locked: "1", type: "QI", reading: "1", browse: "1"
@@ -1233,6 +1241,9 @@
         laneNav.hidden = false;
       }
       container.innerHTML =
+        (unsent.length ? '<div class="compare-toolbar"><button type="button" class="primary" data-send-graphics>Send ' + unsent.length +
+          ' selected poem' + (unsent.length === 1 ? '' : 's') + ' to graphics</button></div>' +
+          '<p><small>Sends each winner and winners-circle poem not yet sent to Weaver for P.I.G. Poems already sent are never sent twice.</small></p>' : '') +
         '<p><strong>' + imported.length + ' of ' + rows.length + ' selected graphics have import receipts.</strong>' +
         (imported.length < rows.length ? ' The collection is incomplete; do not announce it yet.' : ' Check the public collection before announcing it.') + '</p>' +
         '<p><strong>Contest graphics lane:</strong> <a href="' + escapeHtml(collectionUrl) + '" target="_blank" rel="noopener">Open all imported contest graphics in Poetry Please ↗</a></p>' +
@@ -2158,6 +2169,30 @@
     });
 
     document.getElementById("contest-graphics-panel").addEventListener("click", async (event) => {
+      const sendButton = event.target.closest("button[data-send-graphics]");
+      if (sendButton) {
+        const status = document.getElementById("contest-graphics-status");
+        const programId = document.getElementById("program").value;
+        if (!programId || sendButton.disabled) return;
+        sendButton.disabled = true;
+        try {
+          const preview = await api("admin/contestGraphicsSend", { method: "POST", body: { programId } });
+          if (!preview.toSendCount) { status.textContent = "Nothing left to send; every selected poem is already with graphics."; return; }
+          if (!window.confirm("Send " + preview.toSendCount + " winner and winners-circle poems to Weaver for graphics?")) {
+            status.textContent = "Nothing sent."; return;
+          }
+          status.textContent = "Sending " + preview.toSendCount + " poems to graphics…";
+          const result = await api("admin/contestGraphicsSend", { method: "POST", body: { programId, commit: true } });
+          status.textContent = "Sent " + result.sentCount + " to graphics." + (result.failedCount ? " " + result.failedCount + " failed: " +
+            result.results.filter((row) => !row.ok).map((row) => row.submissionId + " (" + row.error + ")").join(", ") + ". Press Send again to retry those." : "");
+          await loadProgress();
+        } catch (error) {
+          status.textContent = "Could not send to graphics: " + error.message;
+        } finally {
+          sendButton.disabled = false;
+        }
+        return;
+      }
       const button = event.target.closest("button[data-copy-result-link]");
       if (!button) return;
       const status = document.getElementById("contest-graphics-status");
