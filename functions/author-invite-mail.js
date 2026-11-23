@@ -1,5 +1,20 @@
 const MANDRILL_SEND_URL = "https://mandrillapp.com/api/1.0/messages/send";
 
+// Author mail comes from Sam; a reply goes to both Sam and the support inbox.
+export const AUTHOR_MAIL_IDENTITY = Object.freeze({
+  fromEmail: "sam@buttonpoetry.com",
+  fromName: "Button Poetry",
+  replyTo: "sam@buttonpoetry.com, support@buttonpoetry.com",
+});
+
+const AUTHOR_INVITE_TEST_COOLDOWN_MS = 60 * 1000;
+
+// The Sam-only test invite can be re-sent, but not twice within a minute (double clicks, retries).
+export function authorInviteTestCanResend(status, lastAttemptMs, nowMs) {
+  if (!["sending", "sent", "uncertain"].includes(status)) return true;
+  return nowMs - (Number(lastAttemptMs) || 0) >= AUTHOR_INVITE_TEST_COOLDOWN_MS;
+}
+
 export function buildAuthorInviteMessage({ name, email, inviteUrl, expiresAt, bookTitle = "", helpUrl = "", testOnly = false }) {
   if (!testOnly && (!bookTitle || !helpUrl)) throw new Error("author_invite_book_and_help_required");
   const greeting = name ? `Hi ${name},` : "Hello,";
@@ -93,7 +108,7 @@ export function buildContestAssignmentMessage({ programName, view, reviewUrl, as
   };
 }
 
-export async function sendAuthorInviteWithMandrill({ apiKey, email, message, tag = "poetry-please-author-invite", fromEmail = "sam@buttonpoetry.com", fromName = "Button Poetry", replyTo = "sam@buttonpoetry.com", trackClicks = false, fetchImpl = fetch }) {
+export async function sendAuthorInviteWithMandrill({ apiKey, email, message, tag = "poetry-please-author-invite", fromEmail = AUTHOR_MAIL_IDENTITY.fromEmail, fromName = AUTHOR_MAIL_IDENTITY.fromName, replyTo = AUTHOR_MAIL_IDENTITY.replyTo, trackClicks = false, fetchImpl = fetch }) {
   if (!apiKey) throw new Error("mandrill_key_missing");
   const response = await fetchImpl(MANDRILL_SEND_URL, {
     method: "POST",

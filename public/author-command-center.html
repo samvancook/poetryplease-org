@@ -176,7 +176,7 @@
           <button type="submit">Create invite</button>
         </form>
         <div class="controls" style="margin-top:10px;">
-          <button id="send-invite-test" class="secondary" type="button">Send one controlled email test to Sam</button>
+          <button id="send-invite-test" class="secondary" type="button">Send a test invite to Sam</button>
         </div>
         <div id="invite-status" class="status">No invite created yet.</div>
         <div id="invite-result" class="empty">New invite links will appear here.</div>
@@ -544,11 +544,13 @@
       statusEl.textContent = "Sending the controlled test to sam@buttonpoetry.com...";
       try {
         const result = await api("admin/authorInvites/sendTest", { method: "POST" });
-        statusEl.textContent = `Mailchimp accepted the test for ${result.email} (${result.delivery.status}). Check that inbox for the message.`;
+        statusEl.textContent = `Mandrill accepted the test for ${result.email} (${result.delivery.status}). Check that inbox. Replying to it should reach both sam@ and support@.`;
+        button.disabled = false;
         await loadInvites();
       } catch (err) {
         statusEl.textContent = err.message || "The test send could not be confirmed.";
         statusEl.className = "status error";
+        button.disabled = false;
       }
     }
 
