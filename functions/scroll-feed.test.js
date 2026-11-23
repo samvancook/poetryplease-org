@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { paginateScrollFeed } from './scroll-feed.js';
 import { paginateMobileFeed } from './swipe-feed.js';
-import { ScrollFeedPager, safeMediaUrl, normalizeScrollItem, originalViewerUrl } from '../public/scroll-feed-core.js';
+import { ScrollFeedPager, safeMediaUrl, normalizeScrollItem, originalViewerUrl, arrivalCampaign, campaignBookUrl } from '../public/scroll-feed-core.js';
 
 const content = (count) => Array.from({ length: count }, (_, i) => ({ imageId: 'item-' + i, imageType: 'EXC', title: 'Poem ' + i, book: 'Roads', excerpt: 'line one\nline two' }));
 const row = (id) => ['Author', 'Title', 'Book', id, '', '', '', 'EXC', 'one\ntwo'];
@@ -345,4 +345,20 @@ test('a single graphic carries its light preview; asset sets, text and unsafe UR
   assert.equal(normalizeScrollItem(row('EXC', { preview: 'https://example.com/small.png' })).previewUrl, '');
   assert.equal(normalizeScrollItem(row('QI', { preview: 'https://example.com/small.png', assetSet: { assets: [] } })).previewUrl, '');
   assert.equal(normalizeScrollItem(row('QI', { preview: 'https://example.com/small.png' })).mediaUrl, 'https://example.com/full.png');
+});
+
+test('book links carry the arrival campaign tags to buttonpoetry.com only', () => {
+  const store = new Map();
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)) };
+  const sms = arrivalCampaign('?item=EMAI-FP-NOW-I-ONLY&utm_source=mailchimp&utm_medium=sms&utm_campaign=2026-11_poem-text-rudy', storage);
+  assert.deepEqual(sms, { utm_source: 'mailchimp', utm_medium: 'sms', utm_campaign: '2026-11_poem-text-rudy' });
+  // A later page in the same visit, without tags in its address, still has them.
+  assert.deepEqual(arrivalCampaign('?item=OTHER', storage), sms);
+  assert.equal(campaignBookUrl('https://buttonpoetry.com/product/excuse-me-as-i-kiss-the-sky/', sms),
+    'https://buttonpoetry.com/product/excuse-me-as-i-kiss-the-sky/?utm_source=mailchimp&utm_medium=sms&utm_campaign=2026-11_poem-text-rudy');
+  // Unchanged: other hosts, links that already carry tags, visits without tags, unsafe links.
+  assert.equal(campaignBookUrl('https://bit.ly/rudykissthesky', sms), 'https://bit.ly/rudykissthesky');
+  assert.equal(campaignBookUrl('https://buttonpoetry.com/product/x/?utm_source=ig', sms), 'https://buttonpoetry.com/product/x/?utm_source=ig');
+  assert.equal(campaignBookUrl('https://buttonpoetry.com/product/x/', {}), 'https://buttonpoetry.com/product/x/');
+  assert.equal(campaignBookUrl('http://buttonpoetry.com/product/x/', sms), '');
 });
