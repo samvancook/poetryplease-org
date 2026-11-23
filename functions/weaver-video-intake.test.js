@@ -313,3 +313,66 @@ test("a Weaver video with no release catalog is reported, not rejected", () => {
   assert.match(body, /warningCount: importWarnings\.length/);
   assert.equal(body.match(/warnings: importWarnings/g)?.length, 3);
 });
+
+test("exact-output approvals certify verified hosted copies and revoke changed media or approvals", () => {
+  const source = readFileSync(new URL("./index.js", import.meta.url), "utf8");
+  const start = source.indexOf("function buildWeaverVideoReadiness(");
+  const end = source.indexOf("async function readWeaverVideoReadiness(", start);
+  const sha256 = text => createHash("sha256").update(text).digest("hex");
+  const build = runInNewContext(source.slice(start, end) + ";buildWeaverVideoReadiness", {
+    normalizeTimestamp: value => value ? new Date(value) : null,
+    normalizeText: value => String(value || "").trim(),
+    buildExcerptFingerprint: value => String(value || "").trim().normalize("NFKC").replace(/\s+/g, " ").toLowerCase(),
+    extractGoogleDriveFileId: value => String(value || "").match(/\/d\/([^/?#]+)/)?.[1] || "",
+    sha256, COLLECTIONS: { videos: "videos" },
+  });
+  const date = "2026-11-23T12:00:00.000Z";
+  const video = {
+    sourceRecordId: "weaver:video:reviewed", driveLink: "https://drive.google.com/file/d/output/view",
+    videoUrl: "https://storage.example/file.mov", storageMode: "durable", durableCopyStatus: "verified",
+    durableStoragePath: "file.mov", durableByteCount: 100, durableChecksum: "a".repeat(22) + "==",
+  };
+  const excerpt = {
+    sourceSystem: "weaver", sourceContentId: "video", sourceRecordId: "weaver:approved",
+    author: "Author", title: "Poem", approvedAt: date, excerpt: "Approved words",
+    excerptFingerprint: "approved words", sourceVideoFileId: "output",
+  };
+  const asset = {
+    assetType: "library_video", contentCollection: "videos", contentDocId: "video",
+    sourceRecordId: video.sourceRecordId, status: "verified", updatedAt: date,
+    sourceUrl: video.driveLink, storagePath: "file.mov", fileSize: 100, checksum: video.durableChecksum,
+    publicUrl: video.videoUrl,
+  };
+  const binding = {
+    schemaVersion: "1", mediaKind: "durable_copy", canonicalVideoId: "video",
+    sourceRecordId: video.sourceRecordId, assetId: "asset", canonicalExcerptId: "excerpt",
+    approvedSourceRecordId: excerpt.sourceRecordId, approvedAt: date, author: "Author", poem: "Poem",
+    fingerprint: excerpt.excerptFingerprint, approvedTextHash: sha256(excerpt.excerptFingerprint),
+    outputFileId: "output", storagePath: "file.mov", byteCount: 100, checksum: video.durableChecksum,
+    renditionUpdatedAt: date, certifiedAt: date,
+    evidence: { url: "https://drive.google.com/file/d/evidence/view", method: "existing_approval_on_exact_output" },
+  };
+  assert.equal(build("video", video, binding, asset, excerpt).media.mode, "durable");
+  assert.equal(build("video", video, binding, asset, excerpt).caption.canonicalExcerptId, "excerpt");
+  for (const patch of [
+    { durableCopyStatus: "failed" }, { durableStoragePath: "replacement.mov" },
+    { durableChecksum: "other" }, { durableByteCount: 99 },
+  ]) assert.equal(build("video", { ...video, ...patch }, binding, asset, excerpt), null);
+  assert.equal(build("video", video, binding, asset, { ...excerpt, sourceVideoFileId: "other" }), null);
+  assert.equal(build("video", video, binding, asset, { ...excerpt, approvedAt: null }), null);
+
+  const legacyBinding = { ...binding, mediaKind: "verified_hosted_copy", storageGeneration: "generation",
+    sha256: "b".repeat(64), evidence: { ...binding.evidence, mediaVerifiedAt: date,
+      mediaVerificationUrl: "https://drive.google.com/file/d/full-byte-receipt/view" } };
+  const legacyAsset = { ...asset, status: "active", createdAt: date };
+  delete legacyAsset.updatedAt;
+  delete legacyAsset.sourceRecordId;
+  const metadata = { generation: "generation", size: "100", md5Hash: binding.checksum };
+  assert.equal(build("video", video, legacyBinding, legacyAsset, excerpt, new Date(date), metadata).media.sha256, legacyBinding.sha256);
+  assert.equal(build("video", video, legacyBinding, legacyAsset, excerpt), null);
+  for (const patch of [{ generation: "new" }, { size: "99" }, { md5Hash: "changed" }]) {
+    assert.equal(build("video", video, legacyBinding, legacyAsset, excerpt, new Date(date), { ...metadata, ...patch }), null);
+  }
+  assert.equal(build("video", { ...video, videoUrl: "replacement" }, legacyBinding, legacyAsset, excerpt, new Date(date), metadata), null);
+  assert.equal(build("video", video, legacyBinding, legacyAsset, { ...excerpt, excerpt: "Changed" }, new Date(date), metadata), null);
+});

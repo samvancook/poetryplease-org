@@ -10057,10 +10057,12 @@ async function runWeaverVideoDurableCopyTask(data = {}) {
   }
 }
 
-function buildWeaverVideoReadiness(videoId, video, binding, asset, excerpt, now = new Date()) {
+function buildWeaverVideoReadiness(videoId, video, binding, asset, excerpt, now = new Date(), storageMetadata = null) {
   if (!binding || binding.schemaVersion !== "1" || !asset || !excerpt) return null;
   const approvedAt = normalizeTimestamp(excerpt.approvedAt)?.toISOString();
-  const verifiedAt = normalizeTimestamp(asset.updatedAt)?.toISOString();
+  const assetUpdatedAt = normalizeTimestamp(asset.updatedAt || asset.createdAt)?.toISOString();
+  const verifiedAt = binding.mediaKind === "verified_hosted_copy"
+    ? normalizeTimestamp(binding.evidence?.mediaVerifiedAt)?.toISOString() : assetUpdatedAt;
   const fingerprint = buildExcerptFingerprint(excerpt.excerpt);
   if (binding.canonicalVideoId !== videoId || binding.sourceRecordId !== video.sourceRecordId ||
       video.catalogRetired === true || video.syntheticTest === true || video.weaverPublicationRestricted === true ||
@@ -10072,33 +10074,77 @@ function buildWeaverVideoReadiness(videoId, video, binding, asset, excerpt, now 
       !fingerprint || fingerprint !== binding.fingerprint || excerpt.excerptFingerprint !== fingerprint ||
       sha256(fingerprint) !== binding.approvedTextHash ||
       asset.contentDocId !== videoId || asset.contentCollection !== COLLECTIONS.videos ||
-      asset.assetType !== "video_rendition" || asset.status !== "active" ||
-      asset.validationState !== "verified_bytes" || asset.sourceRecordId !== binding.sourceRecordId ||
-      asset.outputFileId !== binding.outputFileId || asset.outputRevisionId !== binding.outputRevisionId ||
-      asset.sourceVersionFileId !== binding.sourceVersionFileId ||
-      asset.profileId !== binding.profileId || asset.profileVersion !== binding.profileVersion ||
-      asset.verifiedSha256 !== binding.sha256 || asset.sha256 !== binding.sha256 ||
-      !/^[a-f0-9]{64}$/.test(binding.sha256 || "") ||
-      asset.verifiedByteCount !== binding.byteCount || asset.byteCount !== binding.byteCount ||
-      !(binding.byteCount > 0) || !verifiedAt || verifiedAt !== binding.renditionUpdatedAt ||
-      !binding.evidence?.url || binding.evidence.matchedExactly !== true ||
-      binding.evidence.uniqueMatchesInOutput !== 1 ||
-      !(binding.evidence.fromMs >= 0 && binding.evidence.toMs > binding.evidence.fromMs &&
-        binding.evidence.toMs <= asset.durationSeconds * 1000) ||
-      !normalizeTimestamp(binding.certifiedAt)) return null;
-  return {
-    schemaVersion: "1", canonicalVideoId: videoId, sourceRecordId: video.sourceRecordId,
-    checkedAt: now.toISOString(),
-    media: {
+      (asset.sourceRecordId && asset.sourceRecordId !== binding.sourceRecordId) || !(binding.byteCount > 0) ||
+      !verifiedAt || assetUpdatedAt !== binding.renditionUpdatedAt ||
+      !binding.evidence?.url || !normalizeTimestamp(binding.certifiedAt)) return null;
+
+  let media;
+  if (binding.mediaKind === "durable_copy") {
+    // An approval made against this exact output needs no derivative transcript.
+    if (asset.assetType !== "library_video" || asset.status !== "verified" ||
+        asset.sourceRecordId !== binding.sourceRecordId ||
+        video.storageMode !== "durable" || video.durableCopyStatus !== "verified" ||
+        video.durableStoragePath !== binding.storagePath || asset.storagePath !== binding.storagePath ||
+        asset.fileSize !== binding.byteCount || video.durableByteCount !== binding.byteCount ||
+        asset.checksum !== binding.checksum || video.durableChecksum !== binding.checksum ||
+        !/^[A-Za-z0-9+/]{22}==$/.test(binding.checksum || "") ||
+        extractGoogleDriveFileId(asset.sourceUrl) !== binding.outputFileId ||
+        extractGoogleDriveFileId(video.driveLink) !== binding.outputFileId ||
+        excerpt.sourceVideoFileId !== binding.outputFileId ||
+        binding.evidence.method !== "existing_approval_on_exact_output") return null;
+    media = {
+      status: "verified", assetId: binding.assetId, outputFileId: binding.outputFileId,
+      mode: "durable", verifiedAt, byteCount: asset.fileSize,
+      checksum: asset.checksum, checksumAlgorithm: "md5-base64",
+      storagePath: asset.storagePath, outputUrl: asset.publicUrl,
+    };
+  } else if (binding.mediaKind === "verified_hosted_copy") {
+    // The historical full-byte receipt remains valid only for this exact object generation.
+    if (asset.assetType !== "library_video" || asset.status !== "active" ||
+        asset.storagePath !== binding.storagePath || asset.fileSize !== binding.byteCount ||
+        (video.videoUrl || video.url) !== asset.publicUrl ||
+        extractGoogleDriveFileId(asset.sourceUrl) !== binding.outputFileId ||
+        extractGoogleDriveFileId(video.driveLink) !== binding.outputFileId ||
+        excerpt.sourceVideoFileId !== binding.outputFileId ||
+        binding.evidence.method !== "existing_approval_on_exact_output" ||
+        !binding.evidence.mediaVerificationUrl || !/^[a-f0-9]{64}$/.test(binding.sha256 || "") ||
+        !storageMetadata || storageMetadata.generation !== binding.storageGeneration ||
+        storageMetadata.md5Hash !== binding.checksum || Number(storageMetadata.size) !== binding.byteCount) return null;
+    media = {
+      status: "verified", assetId: binding.assetId, outputFileId: binding.outputFileId,
+      mode: "durable", verifiedAt, byteCount: binding.byteCount, sha256: binding.sha256,
+      checksum: binding.checksum, checksumAlgorithm: "md5-base64",
+      storagePath: asset.storagePath, storageGeneration: storageMetadata.generation, outputUrl: asset.publicUrl,
+    };
+  } else {
+    if (asset.assetType !== "video_rendition" || asset.status !== "active" ||
+        asset.sourceRecordId !== binding.sourceRecordId ||
+        asset.validationState !== "verified_bytes" ||
+        asset.outputFileId !== binding.outputFileId || asset.outputRevisionId !== binding.outputRevisionId ||
+        asset.sourceVersionFileId !== binding.sourceVersionFileId ||
+        asset.profileId !== binding.profileId || asset.profileVersion !== binding.profileVersion ||
+        asset.verifiedSha256 !== binding.sha256 || asset.sha256 !== binding.sha256 ||
+        !/^[a-f0-9]{64}$/.test(binding.sha256 || "") ||
+        asset.verifiedByteCount !== binding.byteCount || asset.byteCount !== binding.byteCount ||
+        binding.evidence.matchedExactly !== true || binding.evidence.uniqueMatchesInOutput !== 1 ||
+        !(binding.evidence.fromMs >= 0 && binding.evidence.toMs > binding.evidence.fromMs &&
+          binding.evidence.toMs <= asset.durationSeconds * 1000)) return null;
+    media = {
       status: "verified", assetId: binding.renditionId, outputFileId: asset.outputFileId,
       outputRevisionId: asset.outputRevisionId, sourceVersionFileId: asset.sourceVersionFileId,
       mode: "drive_link", verifiedAt, sha256: asset.verifiedSha256, byteCount: asset.verifiedByteCount,
       profileId: asset.profileId, profileVersion: asset.profileVersion, outputUrl: asset.outputUrl,
-    },
+    };
+  }
+  return {
+    schemaVersion: "1", canonicalVideoId: videoId, sourceRecordId: video.sourceRecordId,
+    checkedAt: now.toISOString(), media,
     caption: {
       status: "approved", canonicalExcerptId: binding.canonicalExcerptId,
       sourceRecordId: excerpt.sourceRecordId, fingerprint, approvedAt, text: excerpt.excerpt,
-      fromMs: binding.evidence.fromMs, toMs: binding.evidence.toMs,
+      ...(["durable_copy", "verified_hosted_copy"].includes(binding.mediaKind) ? {} : {
+        fromMs: binding.evidence.fromMs, toMs: binding.evidence.toMs,
+      }),
     },
     evidence: binding.evidence, certifiedAt: binding.certifiedAt,
   };
@@ -10107,13 +10153,23 @@ function buildWeaverVideoReadiness(videoId, video, binding, asset, excerpt, now 
 async function readWeaverVideoReadiness(videoDoc) {
   const video = videoDoc.data();
   const binding = video.weaverReadinessBinding;
-  if (!binding || ![binding.renditionId, binding.canonicalExcerptId]
+  if (!binding || ![binding.assetId || binding.renditionId, binding.canonicalExcerptId]
     .every(id => typeof id === "string" && id.length > 0 && id.length <= 512 && !id.includes("/"))) return null;
   const [asset, excerpt] = await Promise.all([
-    db.collection(COLLECTIONS.contentAssets).doc(binding.renditionId).get(),
+    db.collection(COLLECTIONS.contentAssets).doc(binding.assetId || binding.renditionId).get(),
     db.collection(COLLECTIONS.excerpts).doc(binding.canonicalExcerptId).get(),
   ]);
-  return buildWeaverVideoReadiness(videoDoc.id, video, binding, asset.data(), excerpt.data());
+  let metadata = null;
+  if (binding.mediaKind === "verified_hosted_copy") {
+    if (!normalizeText(binding.storagePath) || binding.storagePath !== asset.data()?.storagePath) return null;
+    try {
+      [metadata] = await storage.bucket().file(binding.storagePath).getMetadata();
+    } catch (error) {
+      if (Number(error.code) === 404) return null;
+      throw error;
+    }
+  }
+  return buildWeaverVideoReadiness(videoDoc.id, video, binding, asset.data(), excerpt.data(), new Date(), metadata);
 }
 
 function weaverVideoReceiptLedgerRow(doc) {
