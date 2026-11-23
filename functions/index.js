@@ -22,7 +22,7 @@ import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
 import { createManuscriptVisualReviewApp } from "./manuscript-reconciliation-phase4.js";
 import { contentReleaseCatalogs, preservedEventReleaseCatalog } from "./catalog-identity.js";
-import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch } from "./weaver-video-intake.js";
+import { buildWeaverVideoIntake, weaverVideoDocId, mergeWeaverVideoContext, countReceivedWeaverVideoContext, buildWeaverVideoContextPatch, weaverVideoImportWarnings } from "./weaver-video-intake.js";
 import { loadedSnapshotIsCurrent } from "./content-cache-policy.js";
 import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
@@ -9679,6 +9679,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
     const status = result.created ? "created" : "updated";
     const receivedContext = countReceivedWeaverVideoContext(result.item, intake.item);
     const { receivedReviewCount, receivedSelectedExcerptIdCount, storedReviewCount, storedSelectedExcerptIdCount } = receivedContext;
+    const importWarnings = weaverVideoImportWarnings(result.item || intake.item);
     let durableCopy = { status: normalizeText(result.item?.durableCopyStatus || "pending"), queued: false };
     try {
       durableCopy = await queueWeaverVideoDurableCopy({
@@ -9704,6 +9705,8 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
       updatedCount: result.created ? 0 : 1,
       duplicateCount: 0,
       errorCount: 0,
+      warningCount: importWarnings.length,
+      warnings: importWarnings,
       receivedReviewCount,
       receivedSelectedExcerptIdCount,
       storedReviewCount,
@@ -9722,6 +9725,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         contentId: canonicalVideoId,
         sourceRecordId: intake.item.sourceRecordId,
         outcome: status,
+        warnings: importWarnings,
         receivedReviewCount,
         receivedSelectedExcerptIdCount,
         storedReviewCount,
@@ -9741,6 +9745,7 @@ app.post(getBoth("/internal/weaverVideoImport"), async (req, res) => {
         canonicalVideoId,
         canonicalVideoUrl,
         finalAssetUrl,
+        warnings: importWarnings,
         ...(receivedContext.receivedFootageConnections ? {
           receivedFootageConnections:receivedContext.receivedFootageConnections,
           receivedFootageConnectionCount:receivedContext.receivedFootageConnectionCount,
