@@ -10038,33 +10038,57 @@ function buildWeaverVideoReadiness(videoId, video, binding, asset, excerpt, now 
       !fingerprint || fingerprint !== binding.fingerprint || excerpt.excerptFingerprint !== fingerprint ||
       sha256(fingerprint) !== binding.approvedTextHash ||
       asset.contentDocId !== videoId || asset.contentCollection !== COLLECTIONS.videos ||
-      asset.assetType !== "video_rendition" || asset.status !== "active" ||
-      asset.validationState !== "verified_bytes" || asset.sourceRecordId !== binding.sourceRecordId ||
-      asset.outputFileId !== binding.outputFileId || asset.outputRevisionId !== binding.outputRevisionId ||
-      asset.sourceVersionFileId !== binding.sourceVersionFileId ||
-      asset.profileId !== binding.profileId || asset.profileVersion !== binding.profileVersion ||
-      asset.verifiedSha256 !== binding.sha256 || asset.sha256 !== binding.sha256 ||
-      !/^[a-f0-9]{64}$/.test(binding.sha256 || "") ||
-      asset.verifiedByteCount !== binding.byteCount || asset.byteCount !== binding.byteCount ||
-      !(binding.byteCount > 0) || !verifiedAt || verifiedAt !== binding.renditionUpdatedAt ||
-      !binding.evidence?.url || binding.evidence.matchedExactly !== true ||
-      binding.evidence.uniqueMatchesInOutput !== 1 ||
-      !(binding.evidence.fromMs >= 0 && binding.evidence.toMs > binding.evidence.fromMs &&
-        binding.evidence.toMs <= asset.durationSeconds * 1000) ||
-      !normalizeTimestamp(binding.certifiedAt)) return null;
-  return {
-    schemaVersion: "1", canonicalVideoId: videoId, sourceRecordId: video.sourceRecordId,
-    checkedAt: now.toISOString(),
-    media: {
+      asset.sourceRecordId !== binding.sourceRecordId || !(binding.byteCount > 0) ||
+      !verifiedAt || verifiedAt !== binding.renditionUpdatedAt ||
+      !binding.evidence?.url || !normalizeTimestamp(binding.certifiedAt)) return null;
+
+  let media;
+  if (binding.mediaKind === "durable_copy") {
+    // An approval made against this exact output needs no derivative transcript.
+    if (asset.assetType !== "library_video" || asset.status !== "verified" ||
+        video.storageMode !== "durable" || video.durableCopyStatus !== "verified" ||
+        video.durableStoragePath !== binding.storagePath || asset.storagePath !== binding.storagePath ||
+        asset.fileSize !== binding.byteCount || video.durableByteCount !== binding.byteCount ||
+        asset.checksum !== binding.checksum || video.durableChecksum !== binding.checksum ||
+        !/^[A-Za-z0-9+/]{22}==$/.test(binding.checksum || "") ||
+        extractGoogleDriveFileId(asset.sourceUrl) !== binding.outputFileId ||
+        extractGoogleDriveFileId(video.driveLink) !== binding.outputFileId ||
+        excerpt.sourceVideoFileId !== binding.outputFileId ||
+        binding.evidence.method !== "existing_approval_on_exact_output") return null;
+    media = {
+      status: "verified", assetId: binding.assetId, outputFileId: binding.outputFileId,
+      mode: "durable", verifiedAt, byteCount: asset.fileSize,
+      checksum: asset.checksum, checksumAlgorithm: "md5-base64",
+      storagePath: asset.storagePath, outputUrl: asset.publicUrl,
+    };
+  } else {
+    if (asset.assetType !== "video_rendition" || asset.status !== "active" ||
+        asset.validationState !== "verified_bytes" ||
+        asset.outputFileId !== binding.outputFileId || asset.outputRevisionId !== binding.outputRevisionId ||
+        asset.sourceVersionFileId !== binding.sourceVersionFileId ||
+        asset.profileId !== binding.profileId || asset.profileVersion !== binding.profileVersion ||
+        asset.verifiedSha256 !== binding.sha256 || asset.sha256 !== binding.sha256 ||
+        !/^[a-f0-9]{64}$/.test(binding.sha256 || "") ||
+        asset.verifiedByteCount !== binding.byteCount || asset.byteCount !== binding.byteCount ||
+        binding.evidence.matchedExactly !== true || binding.evidence.uniqueMatchesInOutput !== 1 ||
+        !(binding.evidence.fromMs >= 0 && binding.evidence.toMs > binding.evidence.fromMs &&
+          binding.evidence.toMs <= asset.durationSeconds * 1000)) return null;
+    media = {
       status: "verified", assetId: binding.renditionId, outputFileId: asset.outputFileId,
       outputRevisionId: asset.outputRevisionId, sourceVersionFileId: asset.sourceVersionFileId,
       mode: "drive_link", verifiedAt, sha256: asset.verifiedSha256, byteCount: asset.verifiedByteCount,
       profileId: asset.profileId, profileVersion: asset.profileVersion, outputUrl: asset.outputUrl,
-    },
+    };
+  }
+  return {
+    schemaVersion: "1", canonicalVideoId: videoId, sourceRecordId: video.sourceRecordId,
+    checkedAt: now.toISOString(), media,
     caption: {
       status: "approved", canonicalExcerptId: binding.canonicalExcerptId,
       sourceRecordId: excerpt.sourceRecordId, fingerprint, approvedAt, text: excerpt.excerpt,
-      fromMs: binding.evidence.fromMs, toMs: binding.evidence.toMs,
+      ...(binding.mediaKind === "durable_copy" ? {} : {
+        fromMs: binding.evidence.fromMs, toMs: binding.evidence.toMs,
+      }),
     },
     evidence: binding.evidence, certifiedAt: binding.certifiedAt,
   };
@@ -10073,10 +10097,10 @@ function buildWeaverVideoReadiness(videoId, video, binding, asset, excerpt, now 
 async function readWeaverVideoReadiness(videoDoc) {
   const video = videoDoc.data();
   const binding = video.weaverReadinessBinding;
-  if (!binding || ![binding.renditionId, binding.canonicalExcerptId]
+  if (!binding || ![binding.assetId || binding.renditionId, binding.canonicalExcerptId]
     .every(id => typeof id === "string" && id.length > 0 && id.length <= 512 && !id.includes("/"))) return null;
   const [asset, excerpt] = await Promise.all([
-    db.collection(COLLECTIONS.contentAssets).doc(binding.renditionId).get(),
+    db.collection(COLLECTIONS.contentAssets).doc(binding.assetId || binding.renditionId).get(),
     db.collection(COLLECTIONS.excerpts).doc(binding.canonicalExcerptId).get(),
   ]);
   return buildWeaverVideoReadiness(videoDoc.id, video, binding, asset.data(), excerpt.data());
