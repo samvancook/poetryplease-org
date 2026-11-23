@@ -362,3 +362,9 @@ test('book links carry the arrival campaign tags to buttonpoetry.com only', () =
   assert.equal(campaignBookUrl('https://buttonpoetry.com/product/x/', {}), 'https://buttonpoetry.com/product/x/');
   assert.equal(campaignBookUrl('http://buttonpoetry.com/product/x/', sms), '');
 });
+
+test('campaign capture survives storage that throws', () => {
+  const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
+  assert.deepEqual(arrivalCampaign('?utm_source=mailchimp', blocked), { utm_source: 'mailchimp' });
+  assert.deepEqual(arrivalCampaign('?item=X', blocked), {});
+});

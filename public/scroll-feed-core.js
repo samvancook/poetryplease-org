@@ -32,10 +32,13 @@ export function safeMediaUrl(value) {
 // Campaign tags (utm_*) from the link a visitor arrived on, kept for the visit
 // so later in-app navigation does not lose them. app.js reads the same key.
 const CAMPAIGN_KEY = 'pp_campaign_utm';
-export function arrivalCampaign(search = globalThis.location?.search || '', storage = globalThis.sessionStorage) {
+export function arrivalCampaign(search = globalThis.location?.search || '', storage) {
   const tags = {};
   for (const [key, value] of new URLSearchParams(search)) if (key.startsWith('utm_') && value) tags[key] = value;
   try {
+    // Reading sessionStorage itself can throw (blocked storage, sandboxed embeds),
+    // and this runs when the module loads, so it stays inside the try.
+    if (storage === undefined) storage = globalThis.sessionStorage;
     if (Object.keys(tags).length) storage?.setItem(CAMPAIGN_KEY, JSON.stringify(tags));
     else return JSON.parse(storage?.getItem(CAMPAIGN_KEY) || '{}') || {};
   } catch { /* Storage unavailable: use this page's tags only. */ }
