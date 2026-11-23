@@ -8,6 +8,20 @@ const visible = new Map();
 const zooms = new WeakMap();
 const graphicStarts = new WeakMap();
 
+// Cards start below the fixed header. The header can be taller than its usual
+// 64px (for example with the contest promo), so publish its real height.
+function trackHeaderHeight() {
+  const header = document.querySelector('.posts-swipe .site-header');
+  if (!header) return;
+  const update = () => {
+    const height = Math.ceil(header.getBoundingClientRect().height);
+    if (height) document.body.style.setProperty('--swipe-top', height + 'px');
+  };
+  update();
+  if (typeof ResizeObserver === 'function') new ResizeObserver(update).observe(header);
+}
+if (typeof document !== 'undefined') trackHeaderHeight();
+
 function loadNearbyGraphics(card) {
   for (const nearby of [card, card?.nextElementSibling]) {
     if (nearby && !nearby.hidden) graphicStarts.get(nearby)?.();
