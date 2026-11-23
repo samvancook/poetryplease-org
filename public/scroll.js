@@ -31,6 +31,9 @@ if (contestReading) {
   const promo = document.querySelector('.contest-winners-promo');
   if (promo) { promo.href = '/m'; promo.textContent = '← Back to Poetry Please Swipe'; }
 }
+// A linked poem (for example from a text or email) is shown on its own. The
+// contest promo hangs below the fixed header and would cover its first lines.
+if (linkedItemId) document.querySelector('.contest-winners-promo')?.remove();
 const anonymousId = (() => {
   try {
     const saved = localStorage.getItem('pp_anon');
