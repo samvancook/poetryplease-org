@@ -182,6 +182,7 @@
       <label>Show submissions
         <select id="outcome-view">
           <option value="finalists">All finalists</option>
+          <option value="circle">Winners circle (and winner)</option>
           <option value="no-champion">No Champion votes</option>
           <option value="passes-one">1+ Pass</option>
           <option value="passes-two">2+ Passes — pending reviews allowed</option>
@@ -1005,6 +1006,7 @@
         if (!isFinalistSubmission(row)) return false;
         if (view === "archived") return row.archived;
         if (row.archived) return false;
+        if (view === "circle") return ["circle", "winner"].includes(row.outcomeStatus);
         if (view === "no-champion") return !(row.finalistReads || []).some((read) => read.decision === "champion");
         if (view === "passes-one") return (row.finalistReads || []).some((read) => read.decision === "pass");
         if (view === "passes-two") return (row.finalistReads || []).filter((read) => read.decision === "pass").length >= 2;
@@ -1017,6 +1019,7 @@
       const passCount = (row) => (row.finalistReads || []).filter((read) => read.decision === "pass").length;
       if (["passes-one", "passes-two", "passes", "no-champion"].includes(view)) matching.sort((a, b) =>
         passCount(b) - passCount(a) || a.title.localeCompare(b.title));
+      if (view === "circle") matching.sort((a, b) => (b.outcomeStatus === "winner") - (a.outcomeStatus === "winner") || a.title.localeCompare(b.title));
       if (view === "champion" || view === "champion-double") matching.sort((a, b) =>
         b.finalistReads.filter((read) => read.decision === "champion").length - a.finalistReads.filter((read) => read.decision === "champion").length || a.title.localeCompare(b.title));
       return matching;
@@ -1037,12 +1040,16 @@
       archiveButton.disabled = !archiveable.length;
       archiveButton.textContent = "Archive " + archiveable.length + " three-Pass finalists";
       const championCounts = matching.map((row) => row.finalistReads?.filter((read) => read.decision === "champion").length || 0);
-      document.getElementById("outcome-count").textContent = view === "champion"
+      const circleTotal = report.submissions.filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
+      const winnerRow = report.submissions.find((row) => row.outcomeStatus === "winner");
+      const circleSummary = " Winners circle: " + circleTotal + (winnerRow ? " (winner: " + (winnerRow.title || "Untitled") + ")" : " (no winner yet)") + ".";
+      document.getElementById("outcome-count").textContent = (view === "champion"
         ? matching.length + " poems with Champion votes (" + championCounts.reduce((sum, count) => sum + count, 0) + " votes total); " + championCounts.filter((count) => count >= 2).length + " poems have 2+ Champion votes."
-        : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching finalists";
+        : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching finalists") + circleSummary;
       document.getElementById("outcome-results").innerHTML = matching.length
         ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th>Actions</th></tr></thead><tbody>' +
           matching.map((row) => '<tr><td>' + escapeHtml(row.title) +
+            (row.outcomeStatus === "winner" ? ' <span class="pill">Winner</span>' : row.outcomeStatus === "circle" ? ' <span class="pill">Winners circle</span>' : '') +
             ((view === "champion" || view === "champion-double") ? '<br><strong>' + row.finalistReads.filter((read) => read.decision === "champion").length + ' Champion vote' + (row.finalistReads.filter((read) => read.decision === "champion").length === 1 ? '' : 's') + '</strong>' : '') +
             '</td><td>' +
             escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ") || "—") +
