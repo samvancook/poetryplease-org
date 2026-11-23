@@ -805,7 +805,7 @@ function updateUserStatusUI() {
         ? `/app?author=${encodeURIComponent(reviewAuthorName)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}`
         : '';
       const graphicsStartBadges = reviewBase
-        ? ` <a id="author-qi-preset" href="${reviewBase}&type=QI" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Start here: QI graphics</a> <a id="author-int-preset" href="${reviewBase}&type=INT" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Then INT photos</a>`
+        ? ` <a id="author-qi-preset" href="${reviewBase}&type=QI" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Start here: quote images</a> <a id="author-int-preset" href="${reviewBase}&type=INT" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#dceff1;color:#345f64;font-size:12px;font-weight:700;text-decoration:none;">Then interior photos</a>`
         : '';
       const browseBadge = ownContentBadge && lockedLane && valuesMatch(selectedAuthor, ownAuthorName)
         ? ' <a id="browse-all-badge" href="/app?browse=1" style="display:inline-block;margin-left:8px;padding:2px 8px;border-radius:999px;background:#ece7db;color:#5f574b;font-size:12px;font-weight:600;text-decoration:none;">Browse all</a>'
@@ -918,14 +918,15 @@ function renderAuthorReviewGuide() {
   const laneHref = (type) => `${IS_MOBILE_UI ? '/m' : '/app'}?author=${encodeURIComponent(selectedAuthor)}&locked=1${filterByBook && selectedBook ? `&book=${encodeURIComponent(selectedBook)}` : ''}${authorPreviewMode ? '&authorPreview=1' : ''}&type=${encodeURIComponent(type)}`;
   const feedbackHref = 'mailto:support@buttonpoetry.com?subject=Poetry%20Please%20author%20feedback';
   const savedCollapse = safeLocalStorageGet('pp_author_review_guide_collapsed');
-  const collapsed = savedCollapse !== 'false';
+  // Open on an author's first visit so the button meanings are visible; remember their choice after that.
+  const collapsed = savedCollapse === 'true';
   topBar?.classList.toggle('author-guide-collapsed', collapsed);
   guide.innerHTML = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
     <h2 style="margin:0;font-size:${IS_MOBILE_UI ? '1rem' : '1.2rem'};">Review your graphics and excerpts</h2>
     <button type="button" id="author-review-guide-toggle" style="min-height:44px;" aria-expanded="${!collapsed}" aria-controls="author-review-guide-body">${collapsed ? 'Expand' : 'Collapse'}</button>
   </div>
   <div id="author-review-guide-body" ${collapsed ? 'hidden' : ''} style="margin-top:8px;">
-    <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">QI quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">INT interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
+    <p style="margin:0 0 8px;"><strong>1. Review graphics:</strong> Start with <a href="${escapeHtml(laneHref('QI'))}">quote images</a> and <a href="${escapeHtml(laneHref('INT'))}">interior photos</a>. Choose <strong>Like</strong> for graphics you want us to use, <strong>Moved Me</strong> for favorites you want in prominent positions and more places, <strong>Meh</strong> if you have no strong preference, or <strong>Dislike</strong> for graphics you do not want us to run again.</p>
     <p style="margin:0 0 8px;"><strong>2. Review excerpts:</strong> Vote on <a href="${escapeHtml(laneHref('EXC'))}">Excerpts</a> you would most like us to use when promoting your book. Your choices help us decide what to feature and what graphics to make next.</p>
     <p style="margin:0;">Would you be interested in helping us review poems or in having an author landing page here? <a href="${feedbackHref}">Tell us what you think</a>. We are asking before adding either task to author accounts.</p>
   </div>`;
@@ -4602,12 +4603,12 @@ const AuthorQueueTour = (() => {
   const steps = [
     {
       title: 'Review your graphics and excerpts',
-      copy: 'Start with QI quote images and INT interior photos, then review excerpts for your book.',
+      copy: 'Start with the quote images and interior photos, then review excerpts for your book.',
       target: () => document.getElementById('author-review-guide') || document.getElementById('author-content-badge') || document.getElementById('user-status') || document.getElementById('mobile-login-status') || document.getElementById('media-wrap'),
     },
     {
       title: 'Choose the graphics we use',
-      copy: 'Start with QI quote images and INT interior photos. Like means you want us to use it; Moved Me marks a favorite for prominent positions and more places; Meh means no strong preference; Dislike means do not run it again.',
+      copy: 'Start with the quote images and interior photos. Like means you want us to use it; Moved Me marks a favorite for prominent positions and more places; Meh means no strong preference; Dislike means do not run it again.',
       target: () => document.getElementById('author-qi-preset') || document.getElementById('media-wrap'),
     },
     {

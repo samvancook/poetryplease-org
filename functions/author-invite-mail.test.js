@@ -9,14 +9,28 @@ test("controlled invite explains review actions and cannot be mistaken for a cla
     expiresAt: "October 21, 2026", testOnly: true,
   });
   assert.match(message.subject, /^\[TEST\]/);
-  assert.match(message.text, /QI quote images and INT interior photos/);
-  assert.match(message.text, /early version of a piece/);
-  assert.match(message.text, /EXC excerpts/);
-  assert.match(message.text, /guided tour/);
-  assert.match(message.text, /reply with the item and your notes/);
-  assert.doesNotMatch(message.text, /note in the editor|vote for the poems|Edit profile|My content/i);
-  assert.match(message.text, /cannot claim an author account/);
+  assert.match(message.text, /quote images and interior photos/);
+  assert.match(message.text, /Moved Me: a favorite/);
+  assert.match(message.text, /Like: /);
+  assert.match(message.text, /Meh: /);
+  assert.match(message.text, /Dislike: please don't use it/);
+  assert.match(message.text, /excerpts/);
+  assert.match(message.text, /early draft of a poem/);
+  assert.match(message.text, /sign out first/);
+  assert.doesNotMatch(message.text, /\bQI\b|\bINT\b|\bEXC\b|Edit profile|My content/);
+  assert.match(message.text, /can't set up an author account/);
   assert.match(message.text, /private-test-token/);
+});
+
+test("a test of one author's invite names who it is for and keeps their book", () => {
+  const message = buildAuthorInviteMessage({
+    name: "Matt", email: "sam@buttonpoetry.com", bookTitle: "Roads", intendedFor: "Matt Mason",
+    helpUrl: "https://buttonpoetry.com/poetryplease/author-help/?book=Roads",
+    inviteUrl: "https://poetryplease.org/app?authorInvite=private-test-token", expiresAt: "October 22, 2026", testOnly: true,
+  });
+  assert.equal(message.subject, "[TEST] Help choose how we share Roads");
+  assert.match(message.text, /exactly as Matt Mason would get it/);
+  assert.match(message.text, /^Hi Matt,/);
 });
 
 test("real author invite includes claim link and book-specific help", () => {
@@ -25,10 +39,12 @@ test("real author invite includes claim link and book-specific help", () => {
     helpUrl: "https://buttonpoetry.com/poetryplease/author-help/?book=Roads",
     inviteUrl: "https://poetryplease.org/app?authorInvite=private-token", expiresAt: "October 22, 2026",
   });
-  assert.match(message.text, /Roads/);
+  assert.equal(message.subject, "Help choose how we share Roads");
+  assert.match(message.text, /from Roads/);
   assert.match(message.text, /author-help\/\?book=Roads/);
   assert.match(message.text, /private-token/);
-  assert.doesNotMatch(message.subject, /\[TEST\]/);
+  assert.match(message.text, /matt@example\.com/);
+  assert.doesNotMatch(message.text, /test of the author invitation/);
 });
 
 test("contest assignment notice links to its specific queue", () => {

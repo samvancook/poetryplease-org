@@ -15,31 +15,44 @@ export function authorInviteTestCanResend(status, lastAttemptMs, nowMs) {
   return nowMs - (Number(lastAttemptMs) || 0) >= AUTHOR_INVITE_TEST_COOLDOWN_MS;
 }
 
-export function buildAuthorInviteMessage({ name, email, inviteUrl, expiresAt, bookTitle = "", helpUrl = "", testOnly = false }) {
+// Today's vote button names. If the top button is renamed (Love vs Moved Me is undecided), change it here.
+export const AUTHOR_VOTE_LABELS = Object.freeze({ top: "Moved Me", like: "Like", meh: "Meh", dislike: "Dislike" });
+
+export function buildAuthorInviteMessage({ name, email, inviteUrl, expiresAt, bookTitle = "", helpUrl = "", testOnly = false, intendedFor = "" }) {
   if (!testOnly && (!bookTitle || !helpUrl)) throw new Error("author_invite_book_and_help_required");
-  const greeting = name ? `Hi ${name},` : "Hello,";
-  const subject = `${testOnly ? "[TEST] " : ""}We'd love your feedback on Poetry Please`;
+  const labels = AUTHOR_VOTE_LABELS;
+  const book = bookTitle || "your book";
+  const subject = `${testOnly ? "[TEST] " : ""}Help choose how we share ${book}`;
   const text = [
-    greeting,
+    name ? `Hi ${name},` : "Hello,",
     "",
-    ...(testOnly ? ["This is a controlled test of the author invitation email. This link cannot claim an author account.", ""] : []),
-    `We're beginning to share Poetry Please with our authors, and we'd love for you to try it${bookTitle ? ` with the work connected to ${bookTitle}` : ""}. The graphics, photos, and excerpts there are pieces our team has already created or selected. Your feedback helps us decide what to feature more, use less, or leave out.`,
+    ...(testOnly ? [
+      `This is a test of the author invitation${intendedFor ? `, exactly as ${intendedFor} would get it` : ""}. Its link can't set up an author account.`,
+      "",
+    ] : []),
+    `We've built a tool called Poetry Please. In it you can see the quote graphics, photos and excerpts our team has made from ${book}, and tell us which ones you want us to use. Your votes count more than anyone else's. They shape what we post, promote and make next.`,
     "",
-    "The easiest place to start is the QI quote images and INT interior photos. Tell us which you love, feel neutral about, or would rather we not use. Your choices guide what we feature more often and what we leave out. You don't need to review everything at once.",
+    "It takes a few minutes, and you don't have to get through everything.",
     "",
-    "Next, you can review the EXC excerpts and tell us which passages you'd most like to see used when promoting your book. The short guided tour in the app can help you get started.",
+    "Start with the quote images and interior photos. For each one, choose:",
+    `- ${labels.top}: a favorite. We'll feature it more, in more places.`,
+    `- ${labels.like}: you're happy for us to use it.`,
+    `- ${labels.meh}: no strong feeling either way.`,
+    `- ${labels.dislike}: please don't use it. Our team will see that.`,
     "",
-    "If a graphic uses an early version of a piece or you'd like its formatting adjusted, reply with the item and your notes so we can adjust or recreate it. These notes are optional.",
+    "Then, if you have time, do the same for excerpts from the book.",
     "",
-    "Open your private Poetry Please invitation:",
+    "Open your private invitation:",
     inviteUrl,
     "",
-    ...(helpUrl ? ["Your book-specific help page includes instructions and a preview:", helpUrl, ""] : []),
-    `Sign in with the same email address that received this message (${email}). This link expires ${expiresAt}.`,
+    `Sign in with this email address (${email}). If you're already signed in to Google with a different account, sign out first. The link works until ${expiresAt}. Please don't forward it.`,
     "",
-    "This invitation is for you, so please don't forward it. Questions or feedback? Reply to this email and Sam will personally respond. You can also write to support@buttonpoetry.com.",
+    ...(helpUrl ? ["Your book's help page has a short walkthrough and a preview:", helpUrl, ""] : []),
+    "Something look wrong, like an early draft of a poem or formatting you'd change? Reply with the title and a note, and we'll fix or remake it. Replies come to Sam and to our support team.",
     "",
-    "Button Poetry Team",
+    "Thank you,",
+    "Sam",
+    "Button Poetry",
   ].join("\n");
   return { subject, text };
 }
