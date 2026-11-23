@@ -178,27 +178,30 @@
       <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
       <div id="final-selection-status" class="status" aria-live="polite"></div>
       <div id="final-selection-content"></div>
-<details id="outcome-panel" class="admin-tool-group"><summary id="review-outcomes" style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalist submissions and archive</summary>
-      <label>Show submissions
+<details id="outcome-panel" class="admin-tool-group"><summary id="review-outcomes" style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalists</summary>
+      <label>Show
         <select id="outcome-view">
-          <option value="finalists">All finalists</option>
-          <option value="circle">Winners circle (and winner)</option>
+          <option value="finalists">All active finalists</option>
+          <option value="champion">Has a Champion vote</option>
           <option value="no-champion">No Champion votes</option>
-          <option value="passes-one">1+ Pass</option>
-          <option value="passes-two">2+ Passes — pending reviews allowed</option>
-          <option value="passes">3 Passes — no positive or pending reads</option>
-          <option value="champion">1+ Champion vote</option>
-          <option value="champion-double">2+ Champion votes</option>
-          <option value="possible">Possible</option>
+          <option value="passes-one">Has a Pass</option>
           <option value="waiting">Waiting for finalist reads</option>
+          <option value="circle">Winners circle (and winner)</option>
           <option value="archived">Archived finalists</option>
+        </select>
+      </label>
+      <label>Sort
+        <select id="outcome-sort">
+          <option value="champions">Most Champions first</option>
+          <option value="passes">Most Passes first</option>
+          <option value="title">Title A–Z</option>
         </select>
       </label>
       <p id="outcome-count"></p>
       <button id="queue-extra-finalist-set" type="button">Queue extra reviewer for this filtered set</button>
       <p id="extra-finalist-status" class="status" aria-live="polite"></p>
-      <p class="muted">Only Finals qualifiers and poems with finalist assignments appear here. The 2+ Passes filter includes pending reviews and other votes. The 3 Passes filter requires at least three completed finalist reads, all Pass, with no pending read.</p>
-      <button id="archive-finalist-passes" type="button" hidden>Archive these 3-Pass finalists</button>
+      <p class="muted">Every Finals qualifier and poem with finalist reads, in one list. Counts are completed finalist reads; Pending is assigned but not yet read. Click "Reads" under a title to see who read it and their notes. Compare and circle buttons appear on poems with a Champion vote (or three first-round Yes votes and a Possible), as before.</p>
+      <button id="archive-finalist-passes" type="button" hidden>Archive matching finalists</button>
       <p id="finalist-archive-status" class="status" aria-live="polite"></p>
       <details hidden style="margin:12px 0 18px;">
         <summary style="cursor:pointer;font-weight:700;">Act on filtered set: assign fourth reads</summary>
@@ -208,7 +211,6 @@
         <div id="fourth-status" class="status"></div>
       </details>
       <div id="outcome-results" class="table-wrap"></div>
-      <details id="submission-progress-panel" style="margin-top:18px;"><summary>See who reviewed each finalist</summary><div id="submission-progress" class="table-wrap"></div></details>
       <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
       </details>
       <details id="contest-graphics-panel" style="margin-top:18px;">
@@ -627,7 +629,6 @@
             (row.unassignedCount ? "<br>" + row.unassignedCount + " reads unassigned" : "") +
             (row.reviewedCount < row.sampleCount ? '<br><button type="button" data-unassign-spot="' + escapeHtml(row.reviewerEmail) + '">Unassign pending spot checks</button>' : "") + '</td></tr>').join("") + '</tbody></table>'
         : "<p>No spot checks assigned yet.</p>";
-      if (document.getElementById("submission-progress-panel").open) renderSubmissionProgress();
     }
 
     let semisPlan = null;
@@ -934,17 +935,6 @@
       }
     });
 
-    function renderSubmissionProgress() {
-      const report = state.adminProgress;
-      if (!report) return;
-      document.getElementById("submission-progress").innerHTML =
-        '<table class="progress-table"><thead><tr><th>Submission</th><th>Reviews</th><th>Reviewed by</th><th>Assigned to</th></tr></thead><tbody>' +
-        report.submissions.filter(isFinalistSubmission).map((row) => '<tr><td>' + escapeHtml(row.title) + (row.archived ? ' (archived)' : '') + '<br><small>' + escapeHtml(row.id) + '</small></td><td>' + row.reviewCount + ' / ' +
-          row.requiredReviewCount + '</td><td>' + escapeHtml(row.reviewers.map((review) =>
-            review.reviewerEmail + ' (' + review.decision + ')').join(", ") || "—") + '</td><td>' +
-          escapeHtml(row.assignedTo.join(", ") || "—") + '</td></tr>').join("") + '</tbody></table>';
-    }
-
     function finalistReadTarget() {
       const value = Number(state.adminProgress?.finalistReadTarget);
       return Number.isInteger(value) && value >= 1 ? value : 3;
@@ -993,9 +983,12 @@
         !!row.finalistReads?.length || ["circle", "winner"].includes(row.outcomeStatus);
     }
 
-    function hasThreeFinalistPasses(row) {
-      const reads = row.finalistReads || [];
-      return reads.length >= 3 && reads.every((read) => read.decision === "pass");
+    const countDecision = (row, decision) => (row.finalistReads || []).filter((read) => read.decision === decision).length;
+
+    function isSelectionCandidate(row) {
+      return !row.archived && (countDecision(row, "champion") > 0 ||
+        (Number(row.initialYesCount || 0) === 3 && countDecision(row, "possible") > 0) ||
+        row.shortlisted === true || ["circle", "winner"].includes(row.outcomeStatus));
     }
 
     function filteredOutcomeRows() {
@@ -1007,22 +1000,58 @@
         if (view === "archived") return row.archived;
         if (row.archived) return false;
         if (view === "circle") return ["circle", "winner"].includes(row.outcomeStatus);
-        if (view === "no-champion") return !(row.finalistReads || []).some((read) => read.decision === "champion");
-        if (view === "passes-one") return (row.finalistReads || []).some((read) => read.decision === "pass");
-        if (view === "passes-two") return (row.finalistReads || []).filter((read) => read.decision === "pass").length >= 2;
-        if (view === "passes") return hasThreeFinalistPasses(row);
-        if (view === "champion-double") return row.finalistReads?.filter((read) => read.decision === "champion").length >= 2;
-        if (view === "champion" || view === "possible") return row.finalistReads?.some((read) => read.decision === view);
+        if (view === "champion") return countDecision(row, "champion") > 0;
+        if (view === "no-champion") return countDecision(row, "champion") === 0;
+        if (view === "passes-one") return countDecision(row, "pass") > 0;
         if (view === "waiting") return !row.finalistReads?.length || row.finalistReads.some((read) => !read.decision);
         return true;
       });
-      const passCount = (row) => (row.finalistReads || []).filter((read) => read.decision === "pass").length;
-      if (["passes-one", "passes-two", "passes", "no-champion"].includes(view)) matching.sort((a, b) =>
-        passCount(b) - passCount(a) || a.title.localeCompare(b.title));
-      if (view === "circle") matching.sort((a, b) => (b.outcomeStatus === "winner") - (a.outcomeStatus === "winner") || a.title.localeCompare(b.title));
-      if (view === "champion" || view === "champion-double") matching.sort((a, b) =>
-        b.finalistReads.filter((read) => read.decision === "champion").length - a.finalistReads.filter((read) => read.decision === "champion").length || a.title.localeCompare(b.title));
+      const sort = document.getElementById("outcome-sort")?.value || "champions";
+      const byTitle = (a, b) => (a.title || "").localeCompare(b.title || "");
+      matching.sort((a, b) => (b.outcomeStatus === "winner") - (a.outcomeStatus === "winner") ||
+        (sort === "passes" ? countDecision(b, "pass") - countDecision(a, "pass") || countDecision(a, "champion") - countDecision(b, "champion")
+          : sort === "champions" ? countDecision(b, "champion") - countDecision(a, "champion") || countDecision(b, "possible") - countDecision(a, "possible") ||
+            countDecision(a, "pass") - countDecision(b, "pass") : 0) || byTitle(a, b));
       return matching;
+    }
+
+    function archiveableOutcomeRows(view, matching) {
+      if (view === "archived" || view === "circle") return [];
+      return matching.filter((row) => !row.archived && !["circle", "winner"].includes(row.outcomeStatus) && countDecision(row, "champion") === 0 &&
+        !(row.finalistReads || []).some((read) => !read.decision));
+    }
+
+    function finalistRowActions(row, report) {
+      if (row.archived) return '<button type="button" data-archive-submission="' + escapeHtml(row.id) + '" data-archived="false">Unarchive</button>';
+      const id = escapeHtml(row.id);
+      const winner = (report.submissions || []).find((candidate) => candidate.outcomeStatus === "winner" && !candidate.archived);
+      const outcome = (value, label) => '<button type="button" data-final-outcome="' + value + '" data-submission="' + id + '">' + label + '</button> ';
+      let selection = "";
+      if (isSelectionCandidate(row)) {
+        selection = '<button type="button" data-compare data-submission="' + id + '">' +
+          (finalCompareIds.includes(row.id) ? "Remove from compare" : "Compare") + '</button> ' +
+          (row.outcomeStatus === "winner" ? outcome("circle", "Clear winner")
+            : row.outcomeStatus === "circle" ? (winner ? "" : outcome("winner", "Make winner")) + outcome("undecided", "Remove from circle")
+            : outcome("circle", "Add to circle"));
+      }
+      return '<button type="button" data-open-submission="' + id + '">Open</button> ' + selection +
+        '<button type="button" data-extra-submission="' + id + '" ' + (row.reviewCount < report.requiredReviewCount ? 'disabled title="Initial reviews are not complete"' : '') + '>Queue extra read</button> ' +
+        '<button type="button" data-archive-submission="' + id + '" data-archived="true">Archive</button>' +
+        (isSelectionCandidate(row) ? ' <button type="button" data-shortlist data-submission="' + id + '">' + (row.shortlisted ? "Remove from shortlist" : "Shortlist") + '</button>' : '');
+    }
+
+    function finalistReadsDetail(row) {
+      const reads = row.finalistReads || [];
+      const finalist = reads.map((read) => '<li>' + escapeHtml(read.reviewerEmail) + ': <strong>' + escapeHtml(read.decision || "pending") + '</strong>' +
+        (read.note ? ' — ' + escapeHtml(read.note) : '') + '</li>').join("");
+      const prelim = (row.reviewers || []).map((review) => escapeHtml(review.reviewerEmail) + ' (' + escapeHtml(review.decision) + ')').join(", ");
+      const supplemental = (row.supplementalReads || []).map((read) => '<li>' + escapeHtml(read.reviewerEmail) + ': ' + escapeHtml(read.decision) +
+        (read.note ? ' — ' + escapeHtml(read.note) : '') + '</li>').join("");
+      return '<details><summary>Reads</summary>' +
+        (finalist ? '<p><strong>Finalist</strong></p><ul>' + finalist + '</ul>' : '<p>No finalist reads yet.</p>') +
+        '<p><strong>First rounds</strong> (' + row.reviewCount + ' / ' + row.requiredReviewCount + '): ' + (prelim || '—') + '</p>' +
+        ((row.assignedTo || []).length ? '<p><strong>Assigned first-round readers:</strong> ' + escapeHtml(row.assignedTo.join(", ")) + '</p>' : '') +
+        (supplemental ? '<p><strong>Supplemental</strong></p><ul>' + supplemental + '</ul>' : '') + '</details>';
     }
 
     function renderOutcomeViews() {
@@ -1032,35 +1061,25 @@
       const matching = filteredOutcomeRows();
       const extraButton = document.getElementById("queue-extra-finalist-set");
       const extraCount = matching.filter((row) => !row.archived).length;
-      extraButton.textContent = "Queue extra reviewer for " + extraCount + " matching finalists (adds to the bucket)";
+      extraButton.textContent = "Queue extra read for " + extraCount + " matching finalists (adds to the bucket)";
       extraButton.disabled = !document.getElementById("program").value || !extraCount || extraFinalistAssignmentBusy;
       const archiveButton = document.getElementById("archive-finalist-passes");
-      const archiveable = matching.filter((row) => !["circle", "winner"].includes(row.outcomeStatus));
-      archiveButton.hidden = view !== "passes";
+      const archiveable = archiveableOutcomeRows(view, matching);
+      archiveButton.hidden = !archiveable.length;
       archiveButton.disabled = !archiveable.length;
-      archiveButton.textContent = "Archive " + archiveable.length + " three-Pass finalists";
-      const championCounts = matching.map((row) => row.finalistReads?.filter((read) => read.decision === "champion").length || 0);
+      archiveButton.textContent = "Archive " + archiveable.length + " matching finalists (skips circle, Champion votes and pending reads)";
       const circleTotal = report.submissions.filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
       const winnerRow = report.submissions.find((row) => row.outcomeStatus === "winner");
-      const circleSummary = ". Winners circle: " + circleTotal + (winnerRow ? " (winner: " + (winnerRow.title || "Untitled") + ")" : " (no winner yet)") + ".";
-      document.getElementById("outcome-count").textContent = (view === "champion"
-        ? matching.length + " poems with Champion votes (" + championCounts.reduce((sum, count) => sum + count, 0) + " votes total); " + championCounts.filter((count) => count >= 2).length + " poems have 2+ Champion votes."
-        : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching finalists") + circleSummary;
+      document.getElementById("outcome-count").textContent = matching.length + " matching finalists. Winners circle: " + circleTotal +
+        (winnerRow ? " (winner: " + (winnerRow.title || "Untitled") + ")" : " (no winner yet)") + ".";
+      const tag = (row) => row.outcomeStatus === "winner" ? ' <span class="pill">Winner</span>'
+        : row.outcomeStatus === "circle" ? ' <span class="pill">Winners circle</span>' : row.archived ? ' <span class="pill">Archived</span>' : '';
       document.getElementById("outcome-results").innerHTML = matching.length
-        ? '<table class="progress-table"><thead><tr><th>Submission</th><th>' + (view === "instagram" ? "Instagram handle" : "Reviews") + '</th><th>Actions</th></tr></thead><tbody>' +
-          matching.map((row) => '<tr><td>' + escapeHtml(row.title) +
-            (row.outcomeStatus === "winner" ? ' <span class="pill">Winner</span>' : row.outcomeStatus === "circle" ? ' <span class="pill">Winners circle</span>' : '') +
-            ((view === "champion" || view === "champion-double") ? '<br><strong>' + row.finalistReads.filter((read) => read.decision === "champion").length + ' Champion vote' + (row.finalistReads.filter((read) => read.decision === "champion").length === 1 ? '' : 's') + '</strong>' : '') +
-            '</td><td>' +
-            escapeHtml(view === "instagram" ? (row.instagramHandle || "—") : row.reviewers.map((review) => review.decision).join(", ") || "—") +
-            (row.finalistReads?.length ? '<br><small>Finalist: ' + escapeHtml(row.finalistReads.map((read) => read.decision || "waiting").join(", ")) + '</small>' : '') +
-            (row.supplementalReads?.length ? '<details><summary>Supplemental reads: ' + row.supplementalReads.length + '</summary>' +
-              row.supplementalReads.map((read) => '<p><strong>' + escapeHtml(read.decision) + '</strong> by ' +
-                escapeHtml(read.reviewerEmail) + (read.note ? '<br>' + escapeHtml(read.note) : '') + '</p>').join("") + '</details>' : '') +
-            ' <small>(' + row.reviewCount + ' / ' + row.requiredReviewCount + ')</small></td><td>' +
-            (row.archived ? '' : '<button type="button" data-open-submission="' + escapeHtml(row.id) + '">Open</button> ' +
-              '<button type="button" data-extra-submission="' + escapeHtml(row.id) + '" ' + (row.reviewCount < report.requiredReviewCount ? 'disabled title="Initial reviews are not complete"' : '') + '>Queue extra reviewer</button> ') +
-            '<button type="button" data-archive-submission="' + escapeHtml(row.id) + '" data-archived="' + (row.archived ? 'false' : 'true') + '">' + (row.archived ? 'Unarchive' : 'Archive') + '</button></td></tr>').join("") +
+        ? '<table class="progress-table"><thead><tr><th>Poem</th><th title="Champion votes">Champion</th><th title="Possible votes">Possible</th><th title="Pass votes">Pass</th><th title="Assigned, not yet read">Pending</th><th>Actions</th></tr></thead><tbody>' +
+          matching.map((row) => '<tr><td>' + escapeHtml(row.title) + tag(row) + finalistReadsDetail(row) + '</td>' +
+            '<td>' + countDecision(row, "champion") + '</td><td>' + countDecision(row, "possible") + '</td><td>' + countDecision(row, "pass") + '</td>' +
+            '<td>' + (row.finalistReads || []).filter((read) => !read.decision).length + '</td>' +
+            '<td>' + finalistRowActions(row, report) + '</td></tr>').join("") +
           "</tbody></table>"
         : "<p>No submissions match this view.</p>";
     }
@@ -1153,20 +1172,6 @@
             compared.map(details).join("") + "</div>"
           : '<div class="compare-grid">' + page.map(details).join("") + "</div>";
       const compareOpen = document.getElementById("final-compare-panel")?.open ?? true;
-      const candidatesOpen = document.getElementById("final-candidates-panel")?.open ?? false;
-      const candidateTable = finalWinnerReview ? "" :
-        '<details id="final-candidates-panel" style="margin-top:18px;"' + (candidatesOpen ? " open" : "") + '><summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Selection candidates (' + finalSelectionCandidates.length + ')</summary>' +
-        (finalSelectionCandidates.length
-          ? '<div style="overflow:auto;max-height:430px;"><table class="progress-table"><thead><tr><th>Poem</th><th>Champion</th><th>Possible</th><th>Initial Yes</th><th>Draft shortlist</th><th>Compare</th></tr></thead><tbody>' +
-            finalSelectionCandidates.map((row) => '<tr><td>' + escapeHtml(row.title) +
-              (row.outcomeStatus !== "undecided" ? ' <span class="pill">' + escapeHtml(row.outcomeStatus) + "</span>" : "") +
-              "</td><td>" + row.champion + "</td><td>" + row.possible + "</td><td>" + row.initialYes +
-              '</td><td><button type="button" data-shortlist data-submission="' + escapeHtml(row.id) + '">' +
-              (row.shortlisted ? "Remove from shortlist" : "Shortlist") +
-              '</button></td><td><button type="button" data-compare data-submission="' + escapeHtml(row.id) + '">' +
-              (finalCompareIds.includes(row.id) ? "Remove from compare" : "Compare") +
-              "</button></td></tr>").join("") + "</tbody></table></div>"
-          : "<p>No selection candidates yet.</p>") + "</details>";
       document.getElementById("final-selection-content").innerHTML =
         '<p><strong>' + reads.filter((read) => !!read.decision).length + ' / ' + reads.length +
         ' assigned finalist reads complete</strong> · ' + finalistBucket().open + ' open reads in the bucket · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
@@ -1196,8 +1201,9 @@
             '<span id="compare-position"></span>' +
             '<button type="button" data-compare-step="1" aria-label="Next compared poems">Next →</button></div>'
           : "") +
-        compareBody + "</details>" + candidateTable;
+        compareBody + "</details>" + (finalWinnerReview ? "" : '<p class="muted">Pick poems to compare, shortlist, or add to the circle from the Finalists table below.</p>');
       updateCompareNavigation();
+      if (document.getElementById("outcome-panel").open) renderOutcomeViews();
       const slider = document.getElementById("compare-slider");
       if (slider) {
         slider.addEventListener("scroll", () => {
@@ -1230,6 +1236,7 @@
         return;
       }
       const imported = rows.filter((row) => row.graphicsStatus === "imported" && row.graphicsContentId);
+      const unsent = rows.filter((row) => !["queued", "imported"].includes(row.graphicsStatus));
       const collection = new URL("/app", location.origin);
       collection.search = new URLSearchParams({
         catalog: "Contest", event: report.sourceEvent || "", locked: "1", type: "QI", reading: "1", browse: "1"
@@ -1240,6 +1247,9 @@
         laneNav.hidden = false;
       }
       container.innerHTML =
+        (unsent.length ? '<div class="compare-toolbar"><button type="button" class="primary" data-send-graphics>Send ' + unsent.length +
+          ' selected poem' + (unsent.length === 1 ? '' : 's') + ' to graphics</button></div>' +
+          '<p><small>Sends each winner and winners-circle poem not yet sent to Weaver for P.I.G. Poems already sent are never sent twice.</small></p>' : '') +
         '<p><strong>' + imported.length + ' of ' + rows.length + ' selected graphics have import receipts.</strong>' +
         (imported.length < rows.length ? ' The collection is incomplete; do not announce it yet.' : ' Check the public collection before announcing it.') + '</p>' +
         '<p><strong>Contest graphics lane:</strong> <a href="' + escapeHtml(collectionUrl) + '" target="_blank" rel="noopener">Open all imported contest graphics in Poetry Please ↗</a></p>' +
@@ -2050,10 +2060,10 @@
     document.getElementById("preview-remaining").addEventListener("click", previewRemainingOutcomes);
     document.getElementById("apply-remaining").addEventListener("click", applyRemainingOutcomes);
 
-    document.getElementById("final-selection-content").addEventListener("click", async (event) => {
+    async function handleFinalSelectionClick(event) {
       const button = event.target.closest("button");
       if (!button) return;
-      const status = document.getElementById("final-selection-status");
+      const status = document.getElementById(event.currentTarget.id === "outcome-results" ? "extra-finalist-status" : "final-selection-status");
       if (button.hasAttribute("data-review-circle")) {
         if (!finalWinnerReview) {
           savedCandidateComparison = {
@@ -2162,9 +2172,35 @@
         button.disabled = false;
         status.textContent = "Could not save: " + error.message;
       }
-    });
+    }
+    document.getElementById("final-selection-content").addEventListener("click", handleFinalSelectionClick);
+    document.getElementById("outcome-results").addEventListener("click", handleFinalSelectionClick);
 
     document.getElementById("contest-graphics-panel").addEventListener("click", async (event) => {
+      const sendButton = event.target.closest("button[data-send-graphics]");
+      if (sendButton) {
+        const status = document.getElementById("contest-graphics-status");
+        const programId = document.getElementById("program").value;
+        if (!programId || sendButton.disabled) return;
+        sendButton.disabled = true;
+        try {
+          const preview = await api("admin/contestGraphicsSend", { method: "POST", body: { programId } });
+          if (!preview.toSendCount) { status.textContent = "Nothing left to send; every selected poem is already with graphics."; return; }
+          if (!window.confirm("Send " + preview.toSendCount + " winner and winners-circle poems to Weaver for graphics?")) {
+            status.textContent = "Nothing sent."; return;
+          }
+          status.textContent = "Sending " + preview.toSendCount + " poems to graphics…";
+          const result = await api("admin/contestGraphicsSend", { method: "POST", body: { programId, commit: true } });
+          status.textContent = "Sent " + result.sentCount + " to graphics." + (result.failedCount ? " " + result.failedCount + " failed: " +
+            result.results.filter((row) => !row.ok).map((row) => row.submissionId + " (" + row.error + ")").join(", ") + ". Press Send again to retry those." : "");
+          await loadProgress();
+        } catch (error) {
+          status.textContent = "Could not send to graphics: " + error.message;
+        } finally {
+          sendButton.disabled = false;
+        }
+        return;
+      }
       const button = event.target.closest("button[data-copy-result-link]");
       if (!button) return;
       const status = document.getElementById("contest-graphics-status");
@@ -2667,17 +2703,14 @@
       if (event.target.open) renderOutcomeViews();
       else document.getElementById("outcome-results").replaceChildren();
     });
-    document.getElementById("submission-progress-panel").addEventListener("toggle", (event) => {
-      if (event.target.open) renderSubmissionProgress();
-      else document.getElementById("submission-progress").replaceChildren();
-    });
 
     document.getElementById("outcome-view").addEventListener("change", () => { invalidateFourthPreview(); renderOutcomeViews(); if (document.getElementById("view").value === "finalist-results") applyFilters(); });
+    document.getElementById("outcome-sort").addEventListener("change", () => { renderOutcomeViews(); if (document.getElementById("view").value === "finalist-results") applyFilters(); });
     document.getElementById("archive-finalist-passes").addEventListener("click", async (event) => {
-      if (document.getElementById("outcome-view").value !== "passes") return;
-      const ids = filteredOutcomeRows().filter((row) => hasThreeFinalistPasses(row) &&
-        !["circle", "winner"].includes(row.outcomeStatus)).map((row) => row.id);
-      if (!ids.length || !window.confirm("Archive " + ids.length + " finalists with three or more Pass reads and no positive or pending reads? This removes them from judging, preserves votes, and sends no email. You can unarchive them later.")) return;
+      const select = document.getElementById("outcome-view");
+      const ids = archiveableOutcomeRows(select.value, filteredOutcomeRows()).map((row) => row.id);
+      if (!ids.length || !window.confirm("Archive " + ids.length + " finalists shown under \"" + (select.options[select.selectedIndex]?.textContent || "") +
+        "\"? Circle poems, poems with a Champion vote and poems still waiting on a read are skipped. This removes them from judging, keeps their votes, and sends no email. You can unarchive them later.")) return;
       const status = document.getElementById("finalist-archive-status");
       event.target.disabled = true;
       let archived = 0;

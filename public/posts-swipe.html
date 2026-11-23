@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="/scroll.css?v=20261019c">
   <link rel="stylesheet" href="/posts.css?v=20261020c">
   <link rel="stylesheet" href="/posts-continuous.css?v=20261020a">
-  <link rel="stylesheet" href="/posts-swipe.css?v=20261020c">
+  <link rel="stylesheet" href="/posts-swipe.css?v=20261123-header-top">
   <link rel="stylesheet" href="/posts-swipe-outline.css?v=20261020a">
   <style>
     .contest-winners-promo{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 12px 10px;padding:10px 12px;border:1px solid #b9c9c9;border-radius:12px;background:#e4eff0;color:#234c52;text-decoration:none;font:13px/1.35 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
@@ -21,13 +21,14 @@
   <script>
     firebase.initializeApp({apiKey:'AIzaSyDhDlg_3VjDTfamRvjcsguqMaiFS3DogT8',authDomain:'poetry-please.firebaseapp.com',projectId:'poetry-please',appId:'1:609992589187:web:ea8aed51a08c3716b880b6',measurementId:'G-FBLJHKQ70B'});
   </script>
-  <script src="/pp-analytics.js?v=20261009-ga" defer></script>
+  <script src="/pp-analytics.js?v=20261123-intro" defer></script>
   <script type="module">
     import { classicMobileTarget } from '/mobile-entry.js?v=20261030-chapbook-embed';
     const target = classicMobileTarget(location.pathname, location.search);
     if (target) location.replace(target + location.hash);
     else import('/scroll.js?v=20261107-startup-module');
   </script>
+  <script type="module" src="/swipe-intro.js?v=20261123" async></script>
 </head>
 <body data-feed-variant="posts" data-feed-mode="swipe" data-review-icons="outline" class="posts-continuous posts-swipe posts-swipe-outline">
   <a class="skip-link" href="#feed">Skip to posts</a>

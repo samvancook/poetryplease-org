@@ -1,10 +1,14 @@
 html:has(body.posts-swipe) { background:#000; scroll-padding-top:0; }
 html:has(body.posts-swipe .post-card) { scroll-snap-type:y mandatory; }
 body.posts-swipe { background:#000; padding:0; --paper:#000; --ink:#fff; }
-.posts-swipe .site-header { position:fixed; top:0; left:0; width:100%; height:calc(64px + env(safe-area-inset-top)); padding-top:calc(10px + env(safe-area-inset-top)); background:#000; }
+/* --swipe-top is the fixed header's real height (set by posts-swipe.js), so a promo
+   inside the header pushes cards down instead of covering their first lines. */
+body.posts-swipe { --swipe-top:calc(64px + env(safe-area-inset-top)); }
+body.posts-swipe:has(.site-header .contest-winners-promo) { --swipe-top:calc(140px + env(safe-area-inset-top)); }
+.posts-swipe .site-header { position:fixed; top:0; left:0; width:100%; height:auto; min-height:calc(64px + env(safe-area-inset-top)); padding-top:calc(10px + env(safe-area-inset-top)); background:#000; }
 .posts-swipe .account-menu { position:absolute; top:100%; left:12px; right:12px; margin-top:0; background:#000; }
 .posts-swipe main { max-width:480px; padding:0; }
-.posts-swipe .post-card { height:100vh; height:100dvh; margin:0; padding:calc(64px + env(safe-area-inset-top)) 0 calc(116px + env(safe-area-inset-bottom)); scroll-snap-align:start; scroll-snap-stop:always; }
+.posts-swipe .post-card { height:100vh; height:100dvh; margin:0; padding:var(--swipe-top) 0 calc(116px + env(safe-area-inset-bottom)); scroll-snap-align:start; scroll-snap-stop:always; }
 .posts-swipe .post-open { height:100%; touch-action:pan-y pinch-zoom; }
 .posts-swipe .post-frame { height:100%; aspect-ratio:auto; background:#000; padding-bottom:24px; }
 .posts-swipe .post-art,.posts-swipe .post-poem,.posts-swipe .post-attribution { background:#000; }
@@ -15,7 +19,7 @@ body.posts-swipe { background:#000; padding:0; --paper:#000; --ink:#fff; }
 .posts-swipe .swipe-graphic { touch-action:pan-y; }
 .posts-swipe .swipe-graphic.graphic-zoomed { touch-action:none; cursor:grab; }
 .posts-swipe .swipe-graphic > img { transform-origin:center; user-select:none; -webkit-user-drag:none; }
-.swipe-zoom-tools { position:absolute; top:calc(72px + env(safe-area-inset-top)); right:12px; z-index:2; display:flex; align-items:center; gap:4px; }
+.swipe-zoom-tools { position:absolute; top:calc(var(--swipe-top) + 8px); right:12px; z-index:2; display:flex; align-items:center; gap:4px; }
 .swipe-zoom-tools button { min-width:44px; min-height:44px; padding:4px 10px; background:#000; color:#fff; border:1px solid #555; border-radius:50%; font-size:20px; }
 .swipe-zoom-tools button:last-of-type { border-radius:20px; font-size:12px; }
 .swipe-zoom-status { color:#fff; background:#000; font-size:11px; }
@@ -32,4 +36,4 @@ body.posts-swipe { background:#000; padding:0; --paper:#000; --ink:#fff; }
 .posts-swipe .post-info-sheet .post-info { padding:8px 20px 18px; }
 .posts-swipe .post-info-sheet .post-dialog-body { padding-bottom:env(safe-area-inset-bottom); }
 .posts-swipe .post-info-sheet .post-actions { flex-wrap:wrap; }
-@media(max-height:500px) { .posts-swipe .site-header { height:48px; padding-top:2px; } .posts-swipe .post-card { padding-top:48px; padding-bottom:88px; } .swipe-review { height:88px; padding-top:2px; } .posts-swipe .swipe-review .vote-button { min-height:48px; } .posts-swipe .post-attribution { padding:4px 18px; } }
+@media(max-height:500px) { body.posts-swipe:not(:has(.site-header .contest-winners-promo)) { --swipe-top:48px; } .posts-swipe .site-header { min-height:48px; padding-top:2px; } .posts-swipe .post-card { padding-top:var(--swipe-top); padding-bottom:88px; } .swipe-review { height:88px; padding-top:2px; } .posts-swipe .swipe-review .vote-button { min-height:48px; } .posts-swipe .post-attribution { padding:4px 18px; } }

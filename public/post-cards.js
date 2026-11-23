@@ -1,11 +1,11 @@
 import { graphicCards, mountGraphicCardControls } from './graphic-asset-set.js';
-import { safeMediaUrl, bookLine } from './scroll-feed-core.js';
+import { safeMediaUrl, bookLine, campaignBookUrl } from './scroll-feed-core.js';
 import { createPoemLinks } from './poem-links.js';
 
 // The renderer can be newer than a cached HTML shell. Keep its layout CSS in
 // step with the .post-art markup, including on already-cached continuous pages.
 export async function syncPostStyles(doc) {
-  const versions = new Map([['/posts.css', '20261026a'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261020c']]);
+  const versions = new Map([['/posts.css', '20261026a'], ['/posts-continuous.css', '20261020a'], ['/posts-swipe.css', '20261123-header-top']]);
   const pending = [];
   for (const link of doc.querySelectorAll('link[rel="stylesheet"]')) {
     const url = new URL(link.href, doc.baseURI);
@@ -217,7 +217,7 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
   if (line) meta.append(make('p', 'post-book', line.related ? `${line.prefix}: ${line.book}` : line.book));
   info.append(meta, ...createVotes(item, card));
   const actions = make('div', 'post-actions');
-  const bookUrl = safeMediaUrl(item.bookUrl);
+  const bookUrl = campaignBookUrl(item.bookUrl);
   if (bookUrl) {
     const book = make('a', 'post-book-link', 'View book ↗');
     book.href = bookUrl; book.target = '_blank'; book.rel = 'noopener';
