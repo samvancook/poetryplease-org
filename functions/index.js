@@ -2173,7 +2173,7 @@ function buildWelcomeBatch(items = [], ratingsSummary = {}, limit = 12) {
 }
 
 function buildFeedPayload({ all, votedIds, limit, includeDomainMeta = false, ratingsSummary = null, welcome = false, includeFullRatingsSummary = true }) {
-  const newObjs = all.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+  const newObjs = all.filter((o) => isDefaultFeedContent(o) && !votedIds.has((o.imageId || "").trim().toLowerCase()));
   const welcomeBatch = welcome && ratingsSummary
     ? buildWelcomeBatch(newObjs, ratingsSummary, Math.min(limit, 12))
     : [];
@@ -2220,9 +2220,15 @@ function matchesCatalogFilterValue(actual, expected) {
   return normalizeKey(normalizeCatalogFilterValue(actual)) === normalizeKey(normalizeCatalogFilterValue(expected));
 }
 
+// Book cover photos (type BC) have their own lane: they show only when that
+// type is picked, never in the unfiltered feed.
+function isDefaultFeedContent(item) {
+  return normalizeText(item?.imageType).toUpperCase() !== "BC";
+}
+
 function matchesRequestedType(item, requestedType) {
   const type = normalizeText(requestedType).toUpperCase();
-  if (!type) return true;
+  if (!type) return isDefaultFeedContent(item);
   const actual = normalizeText(item?.imageType).toUpperCase();
   if (type === "VIDEO") return actual === "VV" || actual === "YT";
   if (type === "PROMO") return actual === "QI" || actual === "INT" || actual === "EXC";

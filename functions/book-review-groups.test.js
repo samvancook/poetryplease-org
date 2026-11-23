@@ -51,7 +51,7 @@ function embedHarness(items, ratings = {}) {
     excludeFlaggedContent: (all, flags) => all.filter(item => !flags.has(item.imageId)),
     excludeBrokenContent: all => all.filter(item => !item.broken),
   });
-  const helpers = ['prioritizeVisualContent', 'matchesFilterValue', 'normalizeCatalogFilterValue', 'matchesCatalogFilterValue', 'matchesRequestedType', 'filterContentByFeedFilters'].map(apiDefinition).join('\n');
+  const helpers = ['prioritizeVisualContent', 'matchesFilterValue', 'normalizeCatalogFilterValue', 'matchesCatalogFilterValue', 'isDefaultFeedContent', 'matchesRequestedType', 'filterContentByFeedFilters'].map(apiDefinition).join('\n');
   const start = apiSource.indexOf('app.get(getBoth("/embedBookLead")');
   vm.runInContext(helpers + '\n' + apiSource.slice(start, apiSource.indexOf('// Reading a related poem', start)), context);
   return async query => {
@@ -99,4 +99,14 @@ test('public winner click-through stays scoped in Swipe and does not replace aut
   assert.equal(chapbookLaneFilters(query, {authorOnly:true}), null);
   assert.equal(chapbookLaneFilters('?bookGroup=chapbook-winners').type, 'QI');
   assert.equal(chapbookLaneFilters('?bookGroup=chapbook-winners', {staff:true}).type, 'FP');
+});
+
+test('book cover photos stay in their own lane', async () => {
+  const base = { author: 'A', book: 'Roads', releaseCatalog: 'Backlist', imageUrl: 'https://example.test/i.png' };
+  const call = embedHarness([
+    { ...base, imageId: 'quote', imageType: 'QI' },
+    { ...base, imageId: 'cover', imageType: 'BC' },
+  ]);
+  assert.deepEqual((await call({ book: 'Roads' })).data.pool.map(item => item.id), ['quote']);
+  assert.deepEqual((await call({ book: 'Roads', type: 'BC' })).data.pool.map(item => item.id), ['cover']);
 });
