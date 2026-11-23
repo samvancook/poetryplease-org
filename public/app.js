@@ -382,10 +382,72 @@ async function redeemAuthorInviteIfPresent() {
     }, 500);
   } catch (err) {
     console.warn('Author invite redemption failed', err);
+    showAuthorInviteProblem(err);
   } finally {
     authorInviteStatus.inFlight = false;
     authorInviteStatus.checked = true;
   }
+}
+
+// The invite link used to fail silently; tell the author what went wrong and what to do.
+function authorInviteProblemText(err, signedInAs = '') {
+  const raw = String(err?.message || '');
+  let code = '';
+  let invitedAddress = '';
+  try {
+    const body = JSON.parse(raw.slice(raw.indexOf('{')));
+    code = String(body?.error || '');
+    invitedAddress = String(body?.inviteEmail || '');
+  } catch (_) {}
+  if (code === 'email_mismatch') {
+    const target = invitedAddress || 'the address that received it';
+    return {
+      text: `This invitation is for ${invitedAddress || 'a different email address'}${signedInAs ? `, but you're signed in as ${signedInAs}` : ''}. Sign out, then open the invitation link again and sign in with ${target}.`,
+      signOut: true,
+    };
+  }
+  if (code === 'invite_expired') {
+    return { text: "This invitation link has expired. Reply to the invitation email and we'll send you a new one." };
+  }
+  if (code === 'invite_not_found') {
+    return { text: "This invitation link has already been used or replaced. If you already set up your account, you're all set. Otherwise, reply to the invitation email and we'll help." };
+  }
+  if (code === 'test_invite_not_claimable') {
+    return { text: "This is a test invitation. It can't set up an author account." };
+  }
+  return { text: "We couldn't open your invitation just now. Try the link again in a minute, or reply to the invitation email and we'll help." };
+}
+
+function showAuthorInviteProblem(err) {
+  const account = firebase.auth().currentUser;
+  const { text, signOut } = authorInviteProblemText(err, account && !account.isAnonymous ? (account.email || '') : '');
+  document.getElementById('author-invite-problem')?.remove();
+  const box = document.createElement('div');
+  box.id = 'author-invite-problem';
+  box.setAttribute('role', 'alert');
+  box.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:10050;width:min(520px,calc(100vw - 32px));padding:16px 18px;border-radius:16px;background:#fffdf8;color:#1e1a15;border:1px solid #dad0c1;box-shadow:0 18px 48px rgba(24,19,12,0.18);font:15px/1.45 system-ui,-apple-system,sans-serif;';
+  const message = document.createElement('p');
+  message.style.margin = '0 0 12px';
+  message.textContent = text;
+  const actions = document.createElement('div');
+  actions.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;';
+  const button = (label, onClick, primary = false) => {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.textContent = label;
+    el.style.cssText = `min-height:44px;padding:8px 14px;border-radius:12px;border:1px solid #2f5d62;font:inherit;cursor:pointer;${primary ? 'background:#2f5d62;color:#fff;' : 'background:#fff;color:#2f5d62;'}`;
+    el.addEventListener('click', onClick);
+    return el;
+  };
+  if (signOut) {
+    // Keep the invite in the address bar so signing back in with the right account retries it.
+    actions.append(button('Sign out', () => { firebase.auth().signOut().catch(() => {}).finally(() => box.remove()); }, true));
+  } else {
+    clearAuthorInviteToken();
+  }
+  actions.append(button('Close', () => box.remove()));
+  box.append(message, actions);
+  document.body.append(box);
 }
 
 // ===== UI Helpers =====
