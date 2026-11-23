@@ -20,13 +20,15 @@ Sam made the whole author suite a priority of the Claude takeover: author accoun
 - The editor mixes profile, featured picks and issue review on one surface.
 - Invitation and help copy is drafted but not sent beyond the Eric/Madison pilot.
 
-**Order.**
-1. Inventory pass: walk each author page signed in as a test author and as admin "Author View". Record what works, what's broken and what's slow. Read-only.
-2. Make the editor data call smaller (paginate or lazy-load), measured before and after.
-3. Split the editor into profile, featured selections and issue review, per the list below.
-4. Finish the claim and invite flow end to end, with the command center as the hub.
-5. Author guide and controls in Swipe.
-6. Outreach: refresh the drafted invitation and help copy, then a controlled send with Sam's approval.
+**Order (set by Sam, 23 Nov: get the tool to authors first).** Nothing is sent to any author without Sam's OK in the thread; test sends go only to Sam or a test address Sam names. Working doc: [Author tools: pre-send review](https://claude.ai/artifact/Rf2z7FUMCG7BURoWoiMJDZ).
+1. Mail through Mandrill with replies to Sam and support. Done 23 Nov (PR #452): From sam@, Reply-To sam@ and support@, and a repeatable Sam-only test invite.
+2. Make the emails clear and useful. A rewrite of the invitation is in the working doc, waiting on Sam's approval and one name for the top vote button (Love or Moved Me). The repair notice stays as is.
+3. Make the site and flow simple and clear: a visible message when an invite link fails (wrong email, expired, already used), one button vocabulary on desktop, phone, tour and help page, plain names instead of QI/INT/EXC, and a help page that matches the email.
+4. Check what's what for everyone before sending: each author's book, items and account state; Kyle Tran Myhre's account linked to his catalog name; author email addresses for the first group.
+5. Send in waves, each with Sam's approval by name: forthcoming and recent authors first (28 authors, 22 never invited), then legacy authors after a content check.
+6. Then the deeper work: make the editor data call smaller, split the editor into profile, featured selections and issue review, and add the author guide and controls to Swipe.
+
+**Later test project: author comments.** Let authors see what readers say about their poems and where their poems appear, and help them respond. Roadmap only; run it as a test after the first invite wave.
 
 ## Compact startup ratings — 5 November 2026
 
