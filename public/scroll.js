@@ -1,4 +1,4 @@
-import { ScrollFeedPager, originalViewerUrl, safeMediaUrl, bookLine } from './scroll-feed-core.js';
+import { ScrollFeedPager, originalViewerUrl, safeMediaUrl, bookLine, campaignBookUrl } from './scroll-feed-core.js';
 import { renderPostCard, closePostDetails } from './post-cards.js';
 import { renderSwipeCard, resetSwipeReview, observeSwipeCards } from './posts-swipe.js';
 import { linkedItemPage, chapbookLaneFilters } from './mobile-entry.js?v=20261030-chapbook-embed';
@@ -306,7 +306,7 @@ function renderCard(item) {
   const original = node('a', '', 'Open in single-item view');
   original.href = originalViewerUrl(item, routeFilters());
   details.append(original);
-  if (item.bookUrl) { const book = node('a', '', 'Book details'); book.href = safeMediaUrl(item.bookUrl); book.target = '_blank'; book.rel = 'noopener'; details.append(node('br'), book); }
+  if (item.bookUrl) { const book = node('a', '', 'Book details'); book.href = campaignBookUrl(item.bookUrl); book.target = '_blank'; book.rel = 'noopener'; details.append(node('br'), book); }
   card.append(details);
   $('feed').append(card);
 }

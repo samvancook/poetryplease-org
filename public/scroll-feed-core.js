@@ -29,6 +29,38 @@ export function safeMediaUrl(value) {
   catch { return ''; }
 }
 
+// Campaign tags (utm_*) from the link a visitor arrived on, kept for the visit
+// so later in-app navigation does not lose them. app.js reads the same key.
+const CAMPAIGN_KEY = 'pp_campaign_utm';
+export function arrivalCampaign(search = globalThis.location?.search || '', storage) {
+  const tags = {};
+  for (const [key, value] of new URLSearchParams(search)) if (key.startsWith('utm_') && value) tags[key] = value;
+  try {
+    // Reading sessionStorage itself can throw (blocked storage, sandboxed embeds),
+    // and this runs when the module loads, so it stays inside the try.
+    if (storage === undefined) storage = globalThis.sessionStorage;
+    if (Object.keys(tags).length) storage?.setItem(CAMPAIGN_KEY, JSON.stringify(tags));
+    else return JSON.parse(storage?.getItem(CAMPAIGN_KEY) || '{}') || {};
+  } catch { /* Storage unavailable: use this page's tags only. */ }
+  return tags;
+}
+
+// A buttonpoetry.com book link that carries the visit's campaign tags, so a
+// sale that starts from a text or email is credited to it in the store's
+// analytics. Other hosts and links that already have utm_ tags are unchanged.
+// Capture on first load, before the feed rewrites the address bar.
+if (globalThis.location) arrivalCampaign();
+
+export function campaignBookUrl(value, campaign = arrivalCampaign()) {
+  const safe = safeMediaUrl(value);
+  if (!safe || !Object.keys(campaign || {}).length) return safe;
+  const url = new URL(safe);
+  if (!/(^|\.)buttonpoetry\.com$/i.test(url.hostname)) return safe;
+  if ([...url.searchParams.keys()].some((key) => key.startsWith('utm_'))) return safe;
+  for (const [key, val] of Object.entries(campaign)) url.searchParams.set(key, val);
+  return url.href;
+}
+
 export function originalViewerUrl(item, filters = {}) {
   const params = new URLSearchParams({ item: item.id });
   for (const key of ['author', 'book', 'type', 'catalog', 'authorPreview', 'locked']) {

@@ -1334,6 +1334,39 @@ function scheduleWelcomeChoice() {
 }
 const WELCOME_CHOICE_MAX_WAIT_MS = 8000;
 
+// ===== Campaign tags on book links =====
+// Same rule and storage key as campaignBookUrl in scroll-feed-core.js: keep the
+// arrival link's utm_ tags for the visit and add them to buttonpoetry.com book
+// links, so a sale that starts from a text or email is credited to it.
+const PP_CAMPAIGN_KEY = 'pp_campaign_utm';
+function ppArrivalCampaign() {
+  const tags = {};
+  try {
+    for (const [key, value] of new URLSearchParams(location.search)) if (key.startsWith('utm_') && value) tags[key] = value;
+    if (Object.keys(tags).length) sessionStorage.setItem(PP_CAMPAIGN_KEY, JSON.stringify(tags));
+    else return JSON.parse(sessionStorage.getItem(PP_CAMPAIGN_KEY) || '{}') || {};
+  } catch (_) { /* Storage unavailable: use this page's tags only. */ }
+  return tags;
+}
+ppArrivalCampaign();
+function ppCampaignBookUrl(value) {
+  try {
+    const url = new URL(String(value));
+    if (url.protocol !== 'https:') return '';
+    const campaign = ppArrivalCampaign();
+    if (!Object.keys(campaign).length || !/(^|\.)buttonpoetry\.com$/i.test(url.hostname)) return url.href;
+    if ([...url.searchParams.keys()].some((key) => key.startsWith('utm_'))) return url.href;
+    for (const [key, val] of Object.entries(campaign)) url.searchParams.set(key, val);
+    return url.href;
+  } catch (_) {
+    return '';
+  }
+}
+function ppOpenBook(item) {
+  const href = item && item.bookUrl ? ppCampaignBookUrl(item.bookUrl) : '';
+  if (href) window.open(href, '_blank', 'noopener,noreferrer');
+}
+
 // ===== Anonymous ID helper (local only, no API) =====
 async function getOrCreateAnonId() {
   let anon = localStorage.getItem('pp_anon');
@@ -2506,7 +2539,7 @@ updateFilterControlsVisibility();
     vote: (kind) => onVoteAny(kind),
     skip: () => onSkip(),
     goBack: () => onGoBack(),
-    openBook: () => { if (currentItem?.bookUrl) window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer'); },
+    openBook: () => ppOpenBook(currentItem),
     getState: () => ({
       user: firebase.auth().currentUser || null,
       item: currentItem,
@@ -4221,10 +4254,7 @@ function renderCurrent(item) {
 
   const toBook = $('#btn-to-book');
   if (toBook)
-    toBook.onclick = () => {
-      if (currentItem?.bookUrl)
-        window.open(currentItem.bookUrl, '_blank', 'noopener,noreferrer');
-    };
+    toBook.onclick = () => ppOpenBook(currentItem);
   const toWorkshops = $('#btn-to-workshops');
   if (toWorkshops) {
     toWorkshops.style.display = (IS_EMBED_UI && isWorkshopItem(currentItem)) ? '' : 'none';
