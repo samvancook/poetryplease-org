@@ -34,13 +34,16 @@ on:
         #   reattach-originals re-attaches graphics whose hosted upload is not an image, from Drive
         #   excerpt-import-dry-run  read-only: checks <excerpt_batch> against the library's excerpts
         #   excerpt-import   imports the picks in <excerpt_batch> that the library does not have yet
+        #   read-log-summary read-only: counts the last 24 hours of the app's Firestore
+        #                    read log lines (full_votes_scan, author_votes_scoped_read, ...)
+        #                    and its busiest request paths, from Cloud Logging
         #   signed-in-probe  not a backfill: runs only the signed_in_probe job, which measures
         #                    startup on the live site signed in as the test reader
         #   signed-in-probe-author  the same, with the test reader marked as an author
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, catalog-poems-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, excerpt-import-dry-run, excerpt-import, signed-in-probe, signed-in-probe-author]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, catalog-poems-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, excerpt-import-dry-run, excerpt-import, read-log-summary, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -431,6 +434,26 @@ jobs:
             diagnose-stalled)
               get "status?list=stalled-details" | jq -c '.stalledDetails[]' > "$RUNNER_TEMP/stalled.jsonl"
               (cd functions && node diagnose-display-previews.mjs "$RUNNER_TEMP/stalled.jsonl") ;;
+            read-log-summary)
+              # Read-only. Totals the read-related log lines the app writes, so a
+              # cost bump can be traced to the code path that read the documents.
+              hours="$LIMIT"; [ "$hours" -gt 168 ] && hours=168
+              since="$(date -u -d "-${hours} hours" +%Y-%m-%dT%H:%M:%SZ)"
+              events='full_votes_scan|author_votes_scoped_read|ratings_summary_source|ratings_snapshot|scoreboard|content_snapshot|staff_review'
+              gcloud logging read --project poetry-please --limit 50000 --format=json \
+                "timestamp>=\"$since\" AND (textPayload=~\"($events)\" OR jsonPayload.message=~\"($events)\")" \
+                > "$RUNNER_TEMP/read-logs.json"
+              echo "Read-related log lines since $since, by event and reason (lines, documents read):"
+              jq -r '.[] | (.textPayload // .jsonPayload.message // "") as $t
+                | ($t | capture("^(?<e>[a-z_]+)") .e) as $e
+                | (($t | capture("reason: .(?<r>[^'"'"'\",}]+)") .r) // "") as $r
+                | (($t | capture("documentCount: (?<n>[0-9]+)") .n | tonumber) // 0) as $n
+                | [$e, $r, $n] | @tsv' "$RUNNER_TEMP/read-logs.json" \
+                | awk -F'\t' '{k=$1" "$2; c[k]++; d[k]+=$3} END {for (k in c) printf "%8d lines %12d docs  %s\n", c[k], d[k], k}' | sort -k3 -nr
+              echo "Busiest request paths since $since (requests):"
+              gcloud logging read --project poetry-please --limit 50000 --format='value(httpRequest.requestUrl)' \
+                "timestamp>=\"$since\" AND httpRequest.requestUrl:\"/\"" \
+                | sed -E 's#^https?://[^/]+##; s#\?.*$##' | sort | uniq -c | sort -nr | head -40 ;;
             *) echo "unknown action"; exit 2 ;;
           esac
 
