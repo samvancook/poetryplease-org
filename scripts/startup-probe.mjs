@@ -136,7 +136,9 @@ for (const { label: pass, throttle } of passes) {
     // Which picture the first card is showing, and its real pixel size.
     const cardImage = await page.evaluate((selector) => {
       const img = [...document.querySelectorAll(selector + " img")].find((el) => el.naturalWidth > 0);
-      return img ? { src: (img.currentSrc || img.src).split("?")[0].slice(-160), width: img.naturalWidth, height: img.naturalHeight, shownWidth: Math.round(img.getBoundingClientRect().width) } : null;
+      const item = window.currentItem || {};
+      const facts = { id: item.id || "", type: item.imageType || "", assets: item.assetSet?.length || 0, hasLightCopy: !!item.displayPreviewUrl };
+      return img ? { ...facts, src: (img.currentSrc || img.src).split("?")[0].slice(-160), width: img.naturalWidth, height: img.naturalHeight, shownWidth: Math.round(img.getBoundingClientRect().width) } : null;
     }, rootSelector).catch(() => null);
     const marks = await page.evaluate(() => (window.PP_LOAD_TIMING?.rows || [])
       .map((row) => `${row.ms}ms ${row.label}`)).catch(() => []);
