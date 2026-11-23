@@ -2660,6 +2660,7 @@ const CONTENT_TYPE_LABELS = {
   FPI: 'Full Poem Images',
   VV: 'Video',
   YT: 'YouTube',
+  BC: 'Book Covers',
 };
 
 function formatContentTypeLabel(value) {

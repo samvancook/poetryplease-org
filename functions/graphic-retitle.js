@@ -6,6 +6,8 @@
 
 export const RETITLE_MAX_ITEMS = 50;
 export const RETITLE_BOOK_FIELDS = ["book", "bookShortener", "bookLink", "releaseCatalog", "releaseYear"];
+// A record may also move to another lane: BC is a book cover photo with no quote.
+export const RETITLE_IMAGE_TYPES = new Set(["BC"]);
 const POEM_KEY_FIELDS = ["poemKey", "poemKeySource", "poemKeyConfidence"];
 
 const text = (value) => String(value ?? "").trim();
@@ -19,6 +21,7 @@ export function validRetitleItem(item) {
   if (!title || title.length > 500) return false;
   if (item.book != null && (!text(item.book) || !text(item.bookFieldsFrom))) return false;
   if (item.author != null && (!text(item.author) || text(item.author).length > 200)) return false;
+  if (item.imageType != null && !RETITLE_IMAGE_TYPES.has(text(item.imageType))) return false;
   return true;
 }
 
@@ -39,6 +42,10 @@ export async function retitleGraphic(item, deps, { dryRun = false } = {}) {
   // Some images belong to another poet's poem: the record then takes that poet's name.
   const author = item.author != null ? text(item.author) : text(data.author);
   if (item.author != null && author !== text(data.author)) { patch.author = author; before.author = data.author ?? null; }
+  if (item.imageType != null && text(item.imageType) !== text(data.imageType)) {
+    patch.imageType = text(item.imageType);
+    before.imageType = data.imageType ?? null;
+  }
 
   let bookFrom = null;
   if (item.book != null) {
@@ -66,7 +73,7 @@ export async function retitleGraphic(item, deps, { dryRun = false } = {}) {
     bookFrom,
     before,
   };
-  const plan = { id, from: currentTitle, to: title, book: item.book != null ? text(item.book) : undefined, author: patch.author };
+  const plan = { id, from: currentTitle, to: title, book: item.book != null ? text(item.book) : undefined, author: patch.author, imageType: patch.imageType };
   if (dryRun) return { ...plan, status: "would_retitle" };
   await deps.updateGraphic(id, patch);
   return { ...plan, status: "retitled" };

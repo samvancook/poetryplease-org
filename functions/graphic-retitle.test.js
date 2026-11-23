@@ -93,3 +93,13 @@ test("validates items", () => {
   assert.ok(!validRetitleItem({ id: "a", expectTitle: "T", title: "U", book: "B" }));
   assert.ok(!validRetitleItem({ id: "a", expectTitle: "T", title: "U", author: " " }));
 });
+
+test("moves a book cover photo to its own lane and keeps the old type", async () => {
+  const { deps, updates } = fake({ c: { title: "PHOTO", author: "Rudy Francisco", imageType: "QI", poemKey: "k" } });
+  const out = await retitleGraphic({ id: "c", expectTitle: "PHOTO", title: "PHOTO", imageType: "BC" }, deps);
+  assert.equal(out.status, "retitled");
+  assert.equal(out.imageType, "BC");
+  assert.equal(updates[0].patch.imageType, "BC");
+  assert.equal(updates[0].patch.ocrRetitle.before.imageType, "QI");
+  assert.ok(!validRetitleItem({ id: "c", expectTitle: "T", title: "T", imageType: "FP" }));
+});
