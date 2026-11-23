@@ -12150,12 +12150,35 @@ app.post(getBoth("/authorInvites/create"), async (req, res) => {
   });
 });
 
+// The catalog book an invite is about: the requested one if it is this author's, else their only book.
+function resolveAuthorInviteBook(authorName, requestedTitle = "") {
+  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
+    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
+  const requested = normalizeText(requestedTitle);
+  return authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requested))?.title
+    || (!requested && authorBooks.length === 1 ? authorBooks[0].title : "");
+}
+
 app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
 
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) return res.status(503).json({ error: "author_invite_mail_not_configured" });
+
+  // Optionally preview one real author's invite (their name, book and help page), still sent only to Sam.
+  let preview = { name: "Sam", bookTitle: "Roads", intendedFor: "" };
+  const previewInviteId = normalizeText(req.body?.inviteId || "");
+  if (previewInviteId) {
+    const previewSnap = await db.collection(COLLECTIONS.authorInvites).doc(previewInviteId).get();
+    const invite = previewSnap.data() || {};
+    if (!previewSnap.exists || invite.testOnly) return res.status(404).json({ error: "invite_not_found" });
+    const authorName = normalizeText(invite.authorName || "");
+    const bookTitle = resolveAuthorInviteBook(authorName, req.body?.bookTitle || invite.bookTitle || "");
+    if (!authorName) return res.status(400).json({ error: "invite_needs_author_and_email" });
+    if (!bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
+    preview = { name: authorName.split(/\s+/)[0], bookTitle, intendedFor: authorName };
+  }
 
   // One stable test record, always addressed to Sam, and its link can never claim an account.
   // It can be re-sent to check copy and Reply-To, but not more than once a minute (double clicks).
@@ -12186,13 +12209,14 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
   if (!reserved) return res.status(409).json({ error: "author_invite_test_sent_moments_ago" });
 
   const message = buildAuthorInviteMessage({
-    name: "Sam",
+    name: preview.name,
     email: AUTHOR_INVITE_TEST_EMAIL,
-    bookTitle: "Roads",
-    helpUrl: "https://buttonpoetry.com/poetryplease/author-help/?book=Roads",
+    bookTitle: preview.bookTitle,
+    helpUrl: `https://buttonpoetry.com/poetryplease/author-help/?book=${encodeURIComponent(preview.bookTitle)}`,
     inviteUrl,
     expiresAt: new Intl.DateTimeFormat("en-US", { dateStyle: "long", timeZone: "America/Chicago" }).format(expiresAt),
     testOnly: true,
+    intendedFor: preview.intendedFor,
   });
   let delivery;
   try {
@@ -12206,7 +12230,7 @@ app.post(getBoth("/admin/authorInvites/sendTest"), async (req, res) => {
     deliveryMessageId: delivery.messageId,
     deliveryUpdatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
-  res.json({ ok: true, inviteId: inviteRef.id, email: AUTHOR_INVITE_TEST_EMAIL, delivery });
+  res.json({ ok: true, inviteId: inviteRef.id, email: AUTHOR_INVITE_TEST_EMAIL, previewOf: preview.intendedFor, bookTitle: preview.bookTitle, delivery });
 });
 
 app.post(getBoth("/admin/authorInvites/:inviteId/send"), async (req, res) => {
@@ -12227,11 +12251,7 @@ app.post(getBoth("/admin/authorInvites/:inviteId/send"), async (req, res) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || !authorName) {
     return res.status(400).json({ error: "invite_needs_author_and_email" });
   }
-  const authorBooks = BOOK_CATALOG_LOOKUP_ROWS.filter((record) =>
-    normalizeKey(record.entityType || "book") === "book" && normalizeKey(record.author) === normalizeKey(authorName));
-  const requestedBookTitle = normalizeText(req.body?.bookTitle || invite.bookTitle || "");
-  const bookTitle = authorBooks.find((record) => normalizeKey(record.title) === normalizeKey(requestedBookTitle))?.title
-    || (!requestedBookTitle && authorBooks.length === 1 ? authorBooks[0].title : "");
+  const bookTitle = resolveAuthorInviteBook(authorName, req.body?.bookTitle || invite.bookTitle || "");
   if (!bookTitle) return res.status(400).json({ error: "choose_catalog_book" });
   const token = randomBytes(24).toString("hex");
   const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
@@ -12411,6 +12431,17 @@ function profileReadiness(profile = {}, associatedCount = 0, feedbackCount = 0) 
   };
 }
 
+// Per-type counts so staff can see what each author will find before an invite goes out.
+export function authorContentTypeCounts(items = []) {
+  const counts = { QI: 0, INT: 0, EXC: 0, FP: 0, other: 0 };
+  items.forEach((item) => {
+    const type = String(item.imageType || item.contentType || "").toUpperCase();
+    if (Object.hasOwn(counts, type) && type !== "other") counts[type] += 1;
+    else counts.other += 1;
+  });
+  return counts;
+}
+
 app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
   const ctx = await requireRole(req, res, ["admin"]);
   if (!ctx) return;
@@ -12461,10 +12492,10 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
     [author, canonicalizeAuthorName(author)].map(normalizeKey).filter(Boolean).forEach((key) => buttonAuthorByAlias.set(key, author));
   });
   const legacyNameAliases = new Map([
-    ["guante", 'Kyle "Guante" Tran Myhre'],
-    ["kyle guante tran myhre", 'Kyle "Guante" Tran Myhre'],
-    ['kyle "guante" tran myhre', 'Kyle "Guante" Tran Myhre'],
-    ["kyle tran myhre", 'Kyle "Guante" Tran Myhre'],
+    ["guante", "Kyle Tran Myhre"],
+    ["kyle guante tran myhre", "Kyle Tran Myhre"],
+    ['kyle "guante" tran myhre', "Kyle Tran Myhre"],
+    ["kyle tran myhre", "Kyle Tran Myhre"],
     ["gigi bella", "Gigi Bella"],
   ]);
   legacyNameAliases.forEach((author, key) => buttonAuthorByAlias.set(key, author));
@@ -12593,6 +12624,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
       invite,
       status: authorProfileStatus(profile, invite, feedbackRows.length),
       associatedCount: matches.length,
+      typeCounts: authorContentTypeCounts(matches),
       associatedSample: matches.slice(0, 8).map((item) => ({
         id: item.imageId || item.contentId || "",
         title: item.title || item.poem || "",
@@ -12616,6 +12648,7 @@ app.get(getBoth("/admin/authorCommandCenter"), async (req, res) => {
       previewAuthor: author,
       status: invite ? authorProfileStatus(null, invite) : "preview ready",
       associatedCount: items.length,
+      typeCounts: authorContentTypeCounts(items),
       associatedSample: items.slice(0, 8).map((item) => ({
         id: item.imageId || item.contentId || "",
         title: item.title || item.poem || "",

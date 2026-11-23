@@ -357,13 +357,14 @@
                 <td><strong>${escapeHtml(name)}</strong><div class="meta">${escapeHtml(profile.email || invite.email || "")}</div></td>
                 <td>${escapeHtml(row.status || "not invited")}</td>
                 <td>${escapeHtml(invite.email ? inviteStatusLabel(invite) : "No invite")}</td>
-                <td>${row.associatedCount || 0}${feedbackCount ? `<div class="meta">${feedbackCount} pending note${feedbackCount === 1 ? "" : "s"}</div>` : ""}</td>
+                <td>${row.associatedCount || 0}${typeCountsLine(row.typeCounts)}${feedbackCount ? `<div class="meta">${feedbackCount} pending note${feedbackCount === 1 ? "" : "s"}</div>` : ""}</td>
                 <td>${readinessChips(row.readiness || {})}</td>
                 <td>
                   <button type="button" class="secondary detail-button" data-row="${rowIndex}">Details</button>
                   ${reviewAuthor ? `<a class="button secondary" href="/author/edit?reviewAuthor=${encodeURIComponent(reviewAuthor)}" target="_blank" rel="noopener">Review</a>` : ""}
                   ${profile.slug ? `<a class="button secondary" href="/author/${encodeURIComponent(profile.slug)}" target="_blank" rel="noopener">Public</a>` : ""}
                   ${canGenerateInvite ? `<button type="button" class="secondary generate-button" data-invite-id="${escapeHtml(invite.id)}">Copy invite link</button><button type="button" class="email-button" hidden data-invite-id="${escapeHtml(invite.id)}" data-email="${escapeHtml(invite.email || profile.email || "")}" data-author="${escapeHtml(invite.authorName || reviewAuthor)}">Send via Mandrill</button>` : ""}
+                  ${invite.id && invite.status !== "claimed" ? `<button type="button" class="secondary preview-invite-button" data-invite-id="${escapeHtml(invite.id)}" data-author="${escapeHtml(invite.authorName || reviewAuthor)}">Test this invite to Sam</button>` : ""}
                 </td>
               </tr>
             `;
@@ -377,9 +378,22 @@
       container.querySelectorAll(".generate-button").forEach((button) => {
         button.addEventListener("click", () => regenerateInvite(button.dataset.inviteId));
       });
+      container.querySelectorAll(".preview-invite-button").forEach((button) => {
+        button.addEventListener("click", () => sendTestInvite(button.dataset.inviteId, button.dataset.author, button));
+      });
       container.querySelectorAll(".email-button").forEach((button) => {
         button.addEventListener("click", () => emailInvite(button.dataset.inviteId, button.dataset.email, button.dataset.author, button));
       });
+    }
+
+    // What an author will find: quote images, interior photos, excerpts, full poems.
+    function typeCountsLine(counts, asChips = false) {
+      if (!counts) return "";
+      const parts = [["QI", "quote images"], ["INT", "photos"], ["EXC", "excerpts"], ["FP", "full poems"]]
+        .map(([key, label]) => `${counts[key] || 0} ${label}`);
+      return asChips
+        ? parts.map((part) => `<span class="chip">${escapeHtml(part)}</span>`).join("")
+        : `<div class="meta">${escapeHtml(parts.join(" · "))}</div>`;
     }
 
     function renderCompactItems(items = [], emptyText) {
@@ -410,7 +424,7 @@
       document.getElementById("drawer-body").innerHTML = `
         <div class="chips">
           <span class="chip">${escapeHtml(row.status || "not invited")}</span>
-          <span class="chip">${row.associatedCount || 0} associated work</span>
+          <span class="chip">${row.associatedCount || 0} associated work</span>${typeCountsLine(row.typeCounts, true)}
           <span class="chip${feedbackRows.length ? " warn" : ""}">${feedbackRows.length} note${feedbackRows.length === 1 ? "" : "s"}</span>
         </div>
         <div class="drawer-section">
@@ -536,20 +550,22 @@
       }
     }
 
-    async function sendTestInvite() {
-      const button = document.getElementById("send-invite-test");
-      const statusEl = document.getElementById("invite-status");
+    async function sendTestInvite(inviteId = "", authorName = "", button = document.getElementById("send-invite-test")) {
+      const statusEl = inviteId ? document.getElementById("command-status-line") : document.getElementById("invite-status");
       button.disabled = true;
       statusEl.className = "status";
-      statusEl.textContent = "Sending the controlled test to sam@buttonpoetry.com...";
+      statusEl.textContent = inviteId
+        ? `Sending ${authorName || "this author"}'s invite to sam@buttonpoetry.com as a test...`
+        : "Sending the test invite to sam@buttonpoetry.com...";
       try {
-        const result = await api("admin/authorInvites/sendTest", { method: "POST" });
-        statusEl.textContent = `Mandrill accepted the test for ${result.email} (${result.delivery.status}). Check that inbox. Replying to it should reach both sam@ and support@.`;
-        button.disabled = false;
+        const result = await api("admin/authorInvites/sendTest", { method: "POST", body: inviteId ? { inviteId } : {} });
+        const what = result.previewOf ? `${result.previewOf}'s invite (${result.bookTitle})` : "the test invite";
+        statusEl.textContent = `Mandrill accepted ${what} for ${result.email} (${result.delivery.status}). Nothing went to the author. Replying to it should reach both sam@ and support@.`;
         await loadInvites();
       } catch (err) {
         statusEl.textContent = err.message || "The test send could not be confirmed.";
         statusEl.className = "status error";
+      } finally {
         button.disabled = false;
       }
     }
@@ -623,7 +639,7 @@
     document.getElementById("refresh-invites").addEventListener("click", loadInvites);
     document.getElementById("invite-form").addEventListener("submit", createInvite);
     document.getElementById("invite-author").addEventListener("change", updateInviteBooks);
-    document.getElementById("send-invite-test").addEventListener("click", sendTestInvite);
+    document.getElementById("send-invite-test").addEventListener("click", () => sendTestInvite());
     document.getElementById("command-search").addEventListener("input", (event) => {
       state.query = normalize(event.target.value);
       renderCommandCenter();
