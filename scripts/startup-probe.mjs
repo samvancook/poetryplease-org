@@ -61,12 +61,19 @@ for (const { label: pass, throttle } of passes) {
       try {
         const size = (await request.sizes()).responseBodySize;
         const url = new URL(request.url());
-        sizes.push({ kb: Math.round(size / 1024), at: Date.now() - started, url: (url.host === new URL(base).host ? "" : url.host) + url.pathname.slice(0, 70) });
+        sizes.push({ kb: Math.round(size / 1024), at: Date.now() - started, url: (url.host === new URL(base).host ? "" : url.host) + url.pathname.slice(0, 220) });
       } catch { /* page closed */ }
     });
     const errors = signInError ? [signInError] : [];
     const api = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    // Pictures that failed to load, which makes a card fall back to its original.
+    const failedImages = [];
+    page.on("response", (response) => {
+      if (response.status() >= 400 && response.request().resourceType() === "image") {
+        failedImages.push(response.status() + " " + new URL(response.url()).pathname.slice(-110));
+      }
+    });
     page.on("response", async (response) => {
       const url = new URL(response.url());
       const request = response.request();
@@ -133,6 +140,13 @@ for (const { label: pass, throttle } of passes) {
     }
     // Captured even after a timeout, so a failed visit still shows its screen.
     text = await page.evaluate(() => document.body.innerText.replace(/\s+/g, " ").slice(0, 140)).catch(() => "");
+    // Which picture the first card is showing, and its real pixel size.
+    const cardImage = await page.evaluate((selector) => {
+      const img = [...document.querySelectorAll(selector + " img")].find((el) => el.naturalWidth > 0);
+      const item = window.currentItem || {};
+      const facts = { id: item.id || "", type: item.imageType || "", assets: item.assetSet?.length || 0, hasLightCopy: !!item.displayPreviewUrl, lightCopy: String(item.displayPreviewUrl || "").split("?")[0].slice(-90), original: String(item.mediaUrl || "").split("?")[0].slice(-90) };
+      return img ? { ...facts, src: (img.currentSrc || img.src).split("?")[0].slice(-160), width: img.naturalWidth, height: img.naturalHeight, shownWidth: Math.round(img.getBoundingClientRect().width) } : null;
+    }, rootSelector).catch(() => null);
     const marks = await page.evaluate(() => (window.PP_LOAD_TIMING?.rows || [])
       .map((row) => `${row.ms}ms ${row.label}`)).catch(() => []);
     if (firstCardMs === null || errors.length) failed = true;
@@ -143,7 +157,7 @@ for (const { label: pass, throttle } of passes) {
     for (const shot of shots) {
       console.log("SHOT " + JSON.stringify({ mode, pass, name, label: shot.label, at: shot.at }) + " " + shot.image);
     }
-    console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, api, marks, errors, text }));
+    console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, cardImage, failedImages, api, marks, errors, text }));
     await context.close();
   }
 }

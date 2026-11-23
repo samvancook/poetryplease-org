@@ -27,6 +27,10 @@ test("only single QI, INT and FPI graphics hosted in our storage need a preview"
   // A preview bound to an older image no longer counts.
   assert.equal(needsDisplayPreview({ ...base, displayPreviewUrl: "https://x/p.webp", displayPreviewSourceUrl: "https://old" }), true);
   assert.equal(needsDisplayPreview({ ...base, displayPreviewCheckedUrl: SOURCE }), false);
+  // A heavy JPEG copy made elsewhere is rebuilt once in the current format.
+  const olderFormat = { ...base, displayPreviewUrl: "https://x/o/a%2Fpreviews%2F1-1440-q90.jpg?alt=media", displayPreviewSourceUrl: SOURCE };
+  assert.equal(needsDisplayPreview(olderFormat), true);
+  assert.equal(needsDisplayPreview({ ...olderFormat, displayPreviewCheckedUrl: SOURCE }), false);
   assert.equal(isPreviewableSourceUrl("https://evil.example/storage.googleapis.com/a.png"), false);
 });
 
@@ -146,11 +150,14 @@ test("the backfill summary separates done, pending, stalled and ineligible graph
     g("drive", { imageUrl: "https://drive.google.com/file/d/x" }),
     g("set", { assetSet: [{}] }),
     g("video", { imageType: "VV" }),
+    // A heavy JPEG copy made elsewhere: asked to be rebuilt once, kept if that gains nothing.
+    g("older-format", { displayPreviewUrl: "https://p/o%2Fpreviews%2F1-1440-q90.jpg?alt=media", displayPreviewSourceUrl: SOURCE + "older-format" }),
+    g("older-kept", { displayPreviewUrl: "https://p/previews/2-1440-q90.jpg", displayPreviewSourceUrl: SOURCE + "older-kept", displayPreviewCheckedUrl: SOURCE + "older-kept" }),
   ]);
-  assert.deepEqual(summary.counts, { total: 12, single: 10, withPreview: 2, needsPreview: 6, requestedWaiting: 1, noGain: 1, failed: 1, notHostedHere: 1 });
-  assert.deepEqual(summary.pending, ["a-pending", "b-pending", "old-error", "stale-preview"]);
+  assert.deepEqual(summary.counts, { total: 14, single: 12, withPreview: 3, olderFormatPreview: 2, needsPreview: 7, requestedWaiting: 1, noGain: 1, failed: 1, notHostedHere: 1 });
+  assert.deepEqual(summary.pending, ["a-pending", "b-pending", "old-error", "older-format", "stale-preview"]);
   assert.deepEqual(summary.stalled, ["failed", "waiting"]);
-  assert.deepEqual(summary.recent.map((row) => row.id), ["done-new", "done-old"]);
+  assert.deepEqual(summary.recent.map((row) => row.id), ["done-new", "done-old", "older-kept"]);
   assert.equal(summary.measuredPreviewBytes, 300);
   assert.equal(summary.measuredSourceBytes, 4000);
   assert.deepEqual(summary.failures, [{ id: "failed", error: "boom" }]);
