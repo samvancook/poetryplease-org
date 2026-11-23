@@ -1042,7 +1042,7 @@
       const championCounts = matching.map((row) => row.finalistReads?.filter((read) => read.decision === "champion").length || 0);
       const circleTotal = report.submissions.filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
       const winnerRow = report.submissions.find((row) => row.outcomeStatus === "winner");
-      const circleSummary = " Winners circle: " + circleTotal + (winnerRow ? " (winner: " + (winnerRow.title || "Untitled") + ")" : " (no winner yet)") + ".";
+      const circleSummary = ". Winners circle: " + circleTotal + (winnerRow ? " (winner: " + (winnerRow.title || "Untitled") + ")" : " (no winner yet)") + ".";
       document.getElementById("outcome-count").textContent = (view === "champion"
         ? matching.length + " poems with Champion votes (" + championCounts.reduce((sum, count) => sum + count, 0) + " votes total); " + championCounts.filter((count) => count >= 2).length + " poems have 2+ Champion votes."
         : view === "champion-double" ? matching.length + " poems with 2+ Champion votes" : matching.length + " matching finalists") + circleSummary;
