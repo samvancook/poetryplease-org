@@ -194,6 +194,14 @@ const CONTENT_SNAPSHOT_DOC_ID = "content-feed";
 const CONTENT_SNAPSHOT_PATH = "system/content-feed/latest.json";
 const CONTENT_SNAPSHOT_VERSION = 5;
 const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
+// The flagged-content list is shared through one systemState document, so a
+// 2-minute cache expiry costs one read instead of re-reading every author vote.
+// Changes that can alter the list invalidate the document; this age is only
+// the backstop for anything that does not (an account gaining the author role).
+const FLAGGED_CONTENT_SNAPSHOT_DOC_ID = "flagged-content";
+const FLAGGED_CONTENT_SNAPSHOT_VERSION = 1;
+const FLAGGED_CONTENT_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
+const AUTHOR_VOTER_IDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const RATINGS_SNAPSHOT_DOC_ID = "ratings-summary";
 const RATINGS_SNAPSHOT_PATH = "system/ratings-summary";
 const RATINGS_SNAPSHOT_VERSION = 2;
@@ -224,6 +232,7 @@ let flaggedContentCache = {
   builtAt: 0,
   payload: null,
   inFlight: null,
+  invalidatedAtMs: 0,
 };
 let ratingsCache = {
   builtAt: 0,
@@ -5353,10 +5362,66 @@ async function getFlaggedContentIds() {
     return new Set(flaggedContentCache.payload);
   }
   if (flaggedContentCache.inFlight) return flaggedContentCache.inFlight;
-  flaggedContentCache.inFlight = buildFlaggedContentIds().finally(() => {
-    flaggedContentCache.inFlight = null;
+  const inFlight = resolveFlaggedContentIds({
+    readSnapshot: readFlaggedContentSnapshot,
+    writeSnapshot: writeFlaggedContentSnapshot,
+    rebuild: buildFlaggedContentIds,
+    localInvalidatedAtMs: flaggedContentCache.invalidatedAtMs || 0,
+  }).then((ids) => {
+    if (flaggedContentCache.inFlight === inFlight) {
+      flaggedContentCache.payload = [...ids];
+      flaggedContentCache.builtAt = Date.now();
+    }
+    return new Set(ids);
+  }).finally(() => {
+    if (flaggedContentCache.inFlight === inFlight) flaggedContentCache.inFlight = null;
   });
-  return flaggedContentCache.inFlight;
+  flaggedContentCache.inFlight = inFlight;
+  return inFlight;
+}
+
+// A stored list is used only if it was built after the last invalidation
+// (builtFromMs is when its rebuild started, so a rebuild that overlapped an
+// invalidation does not count) and is younger than the backstop age.
+export function isFlaggedContentSnapshotUsable(stored, nowMs = Date.now(), localInvalidatedAtMs = 0) {
+  if (!stored || Number(stored.version || 0) !== FLAGGED_CONTENT_SNAPSHOT_VERSION) return false;
+  if (!Array.isArray(stored.ids)) return false;
+  const builtFromMs = Number(stored.builtFromMs || 0);
+  if (!builtFromMs || (nowMs - builtFromMs) >= FLAGGED_CONTENT_SNAPSHOT_TTL_MS) return false;
+  return Math.max(Number(stored.invalidatedAtMs || 0), Number(localInvalidatedAtMs || 0)) < builtFromMs;
+}
+
+export async function resolveFlaggedContentIds({ readSnapshot, writeSnapshot, rebuild, now = () => Date.now(), localInvalidatedAtMs = 0 }) {
+  let stored = null;
+  try {
+    stored = await readSnapshot();
+  } catch (err) {
+    console.warn("Flagged content snapshot read failed", err);
+  }
+  if (isFlaggedContentSnapshotUsable(stored, now(), localInvalidatedAtMs)) {
+    console.info("flagged_content_source", { source: "snapshot", idCount: stored.ids.length });
+    return new Set(stored.ids);
+  }
+  const builtFromMs = now();
+  const ids = await rebuild();
+  try {
+    await writeSnapshot({ ids: [...ids], builtFromMs, builtAtMs: now(), version: FLAGGED_CONTENT_SNAPSHOT_VERSION });
+  } catch (err) {
+    console.warn("Flagged content snapshot write failed", err);
+  }
+  console.info("flagged_content_source", { source: "rebuilt", idCount: ids.size });
+  return ids;
+}
+
+async function readFlaggedContentSnapshot() {
+  const snap = await db.collection(COLLECTIONS.systemState).doc(FLAGGED_CONTENT_SNAPSHOT_DOC_ID).get();
+  return snap.exists ? (snap.data() || null) : null;
+}
+
+async function writeFlaggedContentSnapshot({ ids, builtFromMs, builtAtMs, version }) {
+  // merge keeps invalidatedAtMs, so an invalidation that landed mid-rebuild still wins.
+  await db.collection(COLLECTIONS.systemState).doc(FLAGGED_CONTENT_SNAPSHOT_DOC_ID)
+    .set({ ids, builtFromMs, builtAtMs, version }, { merge: true });
 }
 
 async function buildFlaggedContentIds() {
@@ -5404,15 +5469,33 @@ async function buildFlaggedContentIds() {
       if (vote.voteType === "dislike") ids.add(vote.imageId);
     });
   }
-  flaggedContentCache.payload = [...ids];
-  flaggedContentCache.builtAt = Date.now();
-  return new Set(ids);
+  return ids;
 }
 
 function invalidateFlaggedContentCache() {
   flaggedContentCache.builtAt = 0;
   flaggedContentCache.payload = null;
   flaggedContentCache.inFlight = null;
+  // This instance must not reuse the stored list before the write below lands.
+  flaggedContentCache.invalidatedAtMs = Date.now();
+  // Other instances see this on their next 2-minute check.
+  db.collection(COLLECTIONS.systemState).doc(FLAGGED_CONTENT_SNAPSHOT_DOC_ID)
+    .set({ invalidatedAtMs: Date.now() }, { merge: true })
+    .catch((err) => console.warn("Flagged content snapshot invalidation failed", err));
+}
+
+let authorVoterIdsCache = { ids: null, loadedAt: 0 };
+
+// True when the voter holds the author role (cached 10 minutes). An author's
+// latest vote decides whether their dislike hides a piece, so their votes must
+// refresh the shared flagged-content list.
+async function isAuthorVoter(userId) {
+  const key = normalizeKey(userId || "");
+  if (!key) return false;
+  if (!authorVoterIdsCache.ids || (Date.now() - authorVoterIdsCache.loadedAt) >= AUTHOR_VOTER_IDS_CACHE_TTL_MS) {
+    authorVoterIdsCache = { ids: await getAuthorVoteUserIds(), loadedAt: Date.now() };
+  }
+  return authorVoterIdsCache.ids.has(key);
 }
 
 function excludeFlaggedContent(items, flaggedIds) {
@@ -6910,6 +6993,12 @@ app.post(getBoth("/vote"), async (req, res) => {
     // Dislikes still invalidate promptly because author dislikes exclude content.
     if (normalizeKey(voteType) === "dislike") {
       await invalidateRatingsSnapshot();
+    }
+    try {
+      if (await isAuthorVoter(userId)) invalidateFlaggedContentCache();
+    } catch (err) {
+      console.warn("Author vote check failed; refreshing flagged content", err);
+      invalidateFlaggedContentCache();
     }
     // The scoreboard snapshot is not invalidated per vote: each invalidation made the
     // next scoreboard/P.I.G. read rescan every vote. It refreshes on its
@@ -15281,7 +15370,10 @@ export const contestscheduledemailsdispatch = onSchedule({
 }, async () => {
   const apiKey = MANDRILL_AUTHOR_INVITE_API_KEY_SECRET.value();
   if (!apiKey) throw new Error("mandrill_mail_not_configured");
-  const schedules = await db.collection("contestScheduledEmails").get();
+  // Runs every minute: read only the schedules still waiting to send, not every
+  // schedule ever made (each one cost 1,440 reads a day).
+  const schedules = await db.collection("contestScheduledEmails")
+    .where("status", "in", ["scheduled", "sending"]).get();
   for (const scheduleDoc of schedules.docs) {
     const schedule = scheduleDoc.data() || {};
     if (!["scheduled", "sending"].includes(schedule.status) ||
