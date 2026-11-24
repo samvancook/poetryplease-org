@@ -5911,6 +5911,7 @@ app.post(getBoth("/bootstrap"), async (req, res) => {
 });
 
 app.post(getBoth("/fetchFiltered"), async (req, res) => {
+  const requestStartedAt = Date.now();
   const decoded = await verifyIdTokenFromHeader(req);
   const anonId = normalizeText(req.body?.anonId);
   const userId = decoded?.email || anonId;
@@ -5937,15 +5938,20 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     && !!filters.event && !filters.book && !filters.author;
   const embedBook = req.body?.embedBook === true && !!filters.book;
   const mobileFeed = req.body?.scroll === true && req.body?.feedPolicy === "mobile";
+  // Measurement only: each step still starts at the same moment and runs in parallel.
+  const startedAt = Date.now();
+  const timings = { auth: startedAt - requestStartedAt };
+  const timed = (name, promise) => promise.finally(() => { timings[name] = Date.now() - startedAt; });
   const tasks = [
-    getAllContentCached(),
-    getFlaggedContentIds(),
-    getUniqueVotedImageIdsByUser(userId),
-    canSeeFullPoemsInReview(decoded),
+    timed("content", getAllContentCached()),
+    timed("flagged", getFlaggedContentIds()),
+    timed("voted", getUniqueVotedImageIdsByUser(userId)),
+    timed("access", canSeeFullPoemsInReview(decoded)),
   ];
-  if (embedBook || mobileFeed) tasks.push(getRatingsSummaryCached());
+  if (embedBook || mobileFeed) tasks.push(timed("ratings", getRatingsSummaryCached()));
 
   const [allContent, flaggedIds, votedIds, canSeeFullPoems, ratingsSummary = null] = await Promise.all(tasks);
+  const buildStartedAt = Date.now();
 
   const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
   const filteredAll = filterContentByFeedFilters(all, filters);
@@ -5991,7 +5997,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   }) : req.body?.scroll === true ? paginateScrollFeed(filteredNew, {
     seed: normalizeText(req.body?.scrollSeed), after: normalizeText(req.body?.cursor), limit: req.body?.limit || 12,
   }) : null;
-  res.json({
+  const fetchFilteredPayload = {
     allGraphics: scrollPage ? [] : filteredAll.map(mapToCounterArr),
     newGraphics: (scrollPage?.items || eventReadingPool || rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
     ...(scrollPage ? { hasMore: scrollPage.hasMore, nextCursor: scrollPage.nextCursor, feedMode: scrollPage.feedMode || "scroll" } : {}),
@@ -6006,7 +6012,12 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     releaseCatalogs: uniqueReleaseCatalogs(all),
     imageTypes: [...new Set(all.map((o) => o.imageType).filter(Boolean))].sort(),
     ...(embedBook ? { ratingsSummary, feedMode: "embed-book", poolSize: rankedEmbedPool.length } : {}),
-  });
+  };
+  timings.build = Date.now() - buildStartedAt;
+  timings.total = Date.now() - requestStartedAt;
+  if (mobileFeed) console.info("fetch_filtered_timing", { ...timings, signedIn: !!decoded?.email, votedCount: votedIds.size });
+  res.set("Server-Timing", Object.entries(timings).map(([name, ms]) => `${name};dur=${ms}`).join(", "));
+  res.json(fetchFilteredPayload);
 });
 
 app.get(getBoth("/embedBookLead"), async (req, res) => {
