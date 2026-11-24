@@ -350,6 +350,27 @@
     };
   }
 
+  // Top YouTube videos panel. Videos arrive ranked by views from the server.
+  function youtubeFacets(videos) {
+    const list = Array.isArray(videos) ? videos : [];
+    return { books: unique(list.map((video) => video.book)), authors: unique(list.map((video) => video.author)) };
+  }
+
+  function filterYoutubeVideos(videos, filters) {
+    const book = normalized(filters && filters.book);
+    const author = normalized(filters && filters.author);
+    const query = normalized(filters && filters.query);
+    return (Array.isArray(videos) ? videos : []).filter((video) =>
+      (!book || normalized(video.book) === book)
+      && (!author || normalized(video.author) === author)
+      && (!query || normalized([video.title, video.author, video.book, video.bookShortener, video.youtubeId].join(" ")).includes(query)));
+  }
+
+  function formatCount(value) {
+    const number = Number(value) || 0;
+    return number.toLocaleString("en-US");
+  }
+
   return {
     ASSET_TYPES,
     normalized,
@@ -376,6 +397,9 @@
     coveragePresence,
     coverageCounts,
     viewModel,
+    youtubeFacets,
+    filterYoutubeVideos,
+    formatCount,
   };
 });
 
@@ -494,6 +518,8 @@ if (typeof document !== "undefined") {
       if (filters.sort) params.set("sort", filters.sort);
       if (filters.flagsOnly) params.set("flags", "1");
       if (relatedPilot) params.set("related", "pilot");
+      const current = new URLSearchParams(location.search);
+      for (const key of YT_PARAMS) if (current.get(key)) params.set(key, current.get(key));
       history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
     }
 
@@ -822,6 +848,79 @@ if (typeof document !== "undefined") {
       render();
     }
 
+    // ---- Top YouTube videos panel (loads on its own, ahead of the slower works list)
+    const YT_PAGE_SIZE = 25;
+    const YT_PARAMS = ["ytBook", "ytAuthor", "ytQ"];
+    const yt = { videos: [], visibleCount: YT_PAGE_SIZE };
+
+    function ytFilters() {
+      return { book: $("yt-book").value, author: $("yt-author").value, query: $("yt-search").value };
+    }
+
+    function syncYoutubeUrl() {
+      const params = new URLSearchParams(location.search);
+      const filters = ytFilters();
+      const values = { ytBook: filters.book, ytAuthor: filters.author, ytQ: filters.query };
+      for (const key of YT_PARAMS) {
+        if (values[key]) params.set(key, values[key]);
+        else params.delete(key);
+      }
+      history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
+    }
+
+    function renderYoutube() {
+      const filters = ytFilters();
+      const matches = E.filterYoutubeVideos(yt.videos, filters);
+      const visible = matches.slice(0, yt.visibleCount);
+      const scoped = filters.book || filters.author || filters.query;
+      $("yt-list").innerHTML = visible.length ? visible.map((video, index) => {
+        const thumb = video.thumbnailUrl
+          ? '<img src="' + escapeHtml(video.thumbnailUrl) + '" alt="" loading="lazy" width="160" height="90" />'
+          : '<span class="yt-thumb-empty"></span>';
+        const notes = [video.flagged ? "Flagged" : "", video.reviewOnly ? "Review only" : ""].filter(Boolean);
+        return '<li class="yt-row"><span class="yt-rank">' + (index + 1) + '</span>'
+          + '<a class="yt-thumb" href="' + escapeHtml(video.url) + '" target="_blank" rel="noopener noreferrer">' + thumb + '</a>'
+          + '<div class="yt-info"><a class="yt-title" href="' + escapeHtml(video.url) + '" target="_blank" rel="noopener noreferrer">'
+          + escapeHtml(video.title || "Untitled video") + '</a>'
+          + '<div class="meta">' + escapeHtml(video.author || "Unknown author") + ' · ' + escapeHtml(video.book || "No book") + '</div>'
+          + (notes.length ? '<div class="yt-notes">' + notes.map((note) => '<span>' + escapeHtml(note) + '</span>').join("") + '</div>' : "")
+          + '</div><div class="yt-stats"><strong>' + escapeHtml(E.formatCount(video.views)) + '</strong><span>views</span>'
+          + '<span class="meta">' + escapeHtml(E.formatCount(video.likes)) + ' likes</span>'
+          + (video.uploadTime ? '<span class="meta">' + escapeHtml(String(video.uploadTime).split(" ")[0]) + '</span>' : "")
+          + '</div></li>';
+      }).join("") : '<li class="empty">No YouTube videos match these filters.</li>';
+      const remaining = matches.length - visible.length;
+      $("yt-more").hidden = remaining <= 0;
+      $("yt-more").textContent = remaining > 0 ? "Show " + Math.min(YT_PAGE_SIZE, remaining) + " more videos" : "";
+      $("yt-count").textContent = (scoped ? matches.length + " of " + yt.videos.length : yt.videos.length) + " videos, ranked by YouTube views";
+      syncYoutubeUrl();
+    }
+
+    async function loadYoutube() {
+      $("youtube-panel").hidden = false;
+      $("yt-count").textContent = "Loading YouTube videos…";
+      try {
+        const payload = await apiGet("explorer/youtubeVideos");
+        yt.videos = Array.isArray(payload && payload.videos) ? payload.videos : [];
+        const facets = E.youtubeFacets(yt.videos);
+        fillSelect("yt-book", facets.books, "books");
+        fillSelect("yt-author", facets.authors, "authors");
+        const params = new URLSearchParams(location.search);
+        $("yt-book").value = params.get("ytBook") || "";
+        $("yt-author").value = params.get("ytAuthor") || "";
+        $("yt-search").value = params.get("ytQ") || "";
+        yt.visibleCount = YT_PAGE_SIZE;
+        renderYoutube();
+      } catch (error) {
+        $("yt-count").textContent = "YouTube videos could not be loaded (" + (error.message || "unknown error") + "). Reload to retry.";
+      }
+    }
+
+    function youtubeFilterChanged() {
+      yt.visibleCount = YT_PAGE_SIZE;
+      renderYoutube();
+    }
+
     function setAccountState(user, profile) {
       const email = plainText((profile && profile.email) || (user && user.email));
       $("account-note").textContent = email ? "Signed in as " + email : "";
@@ -860,6 +959,12 @@ if (typeof document !== "undefined") {
     ["search"].forEach((id) => $(id).addEventListener("input", filterChanged));
     ["author", "book", "catalog", "asset-type", "confidence", "product-link", "view", "sort", "flags-only"].forEach((id) => { if ($(id)) $(id).addEventListener("change", filterChanged); });
     $("reset").addEventListener("click", resetFilters);
+    $("yt-search").addEventListener("input", youtubeFilterChanged);
+    ["yt-book", "yt-author"].forEach((id) => $(id).addEventListener("change", youtubeFilterChanged));
+    $("yt-more").addEventListener("click", () => {
+      yt.visibleCount += YT_PAGE_SIZE;
+      renderYoutube();
+    });
     $("results").addEventListener("click", (event) => {
       const button = event.target.closest("[data-copy-link]");
       if (button) copyLink(button.getAttribute("data-copy-link"), button);
@@ -896,6 +1001,7 @@ if (typeof document !== "undefined") {
       $("logout").hidden = !user;
       $("retry-auth").hidden = true;
       $("workspace").hidden = true;
+      $("youtube-panel").hidden = true;
       $("results").innerHTML = "";
       setAccountState(user, null);
       if (!user) {
@@ -916,8 +1022,10 @@ if (typeof document !== "undefined") {
           return;
         }
         clearTimeout(timer);
-        setStatus("Team access confirmed for " + (profile.email || user.email || "this account") + ". Loading content…");
+        setStatus("Team access confirmed for " + (profile.email || user.email || "this account") + ". Loading works by book… this can take a minute.");
+        const youtubeLoad = loadYoutube();
         await load();
+        await youtubeLoad;
       } catch (error) {
         if (attempt !== accessAttempt) return;
         clearTimeout(timer);

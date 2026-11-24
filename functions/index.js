@@ -29,6 +29,7 @@ import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } fr
 import { retitleGraphic, validRetitleItem, RETITLE_MAX_ITEMS } from "./graphic-retitle.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
+import { buildExplorerYoutubeVideos } from "./explorer-youtube.js";
 import { authorInviteTestCanResend, buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
 
@@ -6270,6 +6271,24 @@ app.get(getBoth("/scoreboard"), async (req, res) => {
       ttlMs: SCOREBOARD_SNAPSHOT_TTL_MS,
     },
   });
+});
+
+// Explorer's "Top YouTube videos" panel. Team-only and read-only; it uses the
+// shared content cache, so it adds no Firestore reads beyond the cache check.
+app.get(getBoth("/explorer/youtubeVideos"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  try {
+    const [allContent, flaggedIds] = await Promise.all([getAllContentCached(), getFlaggedContentIds()]);
+    const videos = buildExplorerYoutubeVideos(allContent, {
+      flaggedIds: new Set([...flaggedIds].map((id) => normalizeKey(id))),
+      resolveBook: (item) => resolveScoreboardBookTitle(item) || item.book,
+    });
+    res.json({ videos, totalCount: videos.length });
+  } catch (err) {
+    console.error("explorer_youtube_videos_failed", err);
+    res.status(500).json({ error: "explorer_youtube_videos_failed" });
+  }
 });
 
 app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
