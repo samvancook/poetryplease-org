@@ -30,6 +30,16 @@ Sam made the whole author suite a priority of the Claude takeover: author accoun
 
 **Later test project: author comments.** Let authors see what readers say about their poems and where their poems appear, and help them respond. Roadmap only; run it as a test after the first invite wave.
 
+## Poetry dispenser toy mode — idea (23 November 2026)
+
+Sam's idea after seeing the Swipe intros (PR #449, live 23 Nov): a version of the toy where each turn of the crank or drop of the claw hands out a real poem short enough to fit on the slip that unfolds from the capsule.
+
+- **What fits.** The slip today holds about 3 lines of about 28 characters (roughly 20–25 words). It can grow to 5–6 lines before it crowds the machine. Draw from excerpts (EXC) and short quote-image text under that limit, with line breaks kept as the author wrote them.
+- **The loop.** Turn → capsule → slip with the poem, its numbered "POEM No." ticket and the author → react (moved me, like, meh, dislike) → turn again. Tapping the slip opens the full card, poem or book.
+- **Where it lives.** Its own page (for example `/dispenser`), linked from the about page and the Swipe intro. It is not a replacement for the feed.
+- **First step.** Count how many excerpts fit at 3 and at 5 lines, so we know the size of the pool before building.
+- Prototype art: [Poetry Dispenser Intros](https://claude.ai/artifact/SbHSc2bM3NYW9RYfSuN4qn). Intro test code: `public/swipe-intro*.js`.
+
 ## Compact startup ratings — 5 November 2026
 
 The anonymous Desktop welcome response previously returned ratings for all 8,224 content IDs even when the client requested includeRatingsSummary:false. A measured 12-card response was 1,621,904 bytes. Scoping its ratings to the selected cards reduced the equivalent JSON to 8,121 bytes. The bootstrap receiver now applies that scope after ranking when the compact response is requested. Full-summary callers retain their response. Focused tests compare identical selected cards and per-card ratings, including voted and author-excluded content.
