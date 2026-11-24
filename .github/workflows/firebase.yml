@@ -32,6 +32,10 @@ on:
         #   catalog-poems-export prints the Catalog poem texts for every book named on a graphic
         #   retitle-dry-run / retitle-graphics rename quote images to the poem their image shows
         #   reattach-originals re-attaches graphics whose hosted upload is not an image, from Drive
+        #   dbat-title-fix-dry-run read-only: lists the DON'T BE AFRAID TO BE BAD INT graphics whose
+        #                    title and image name say "Promt" (and three other typos) and the fixes planned
+        #   dbat-title-fix   copies each image to its corrected name (the old object stays for the
+        #                    social calendars), then fixes the graphic's title and image link
         #   excerpt-import-dry-run  read-only: checks <excerpt_batch> against the library's excerpts
         #   excerpt-import   imports the picks in <excerpt_batch> that the library does not have yet
         #   read-log-summary read-only: counts the last 24 hours of the app's Firestore
@@ -43,7 +47,7 @@ on:
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, catalog-poems-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, excerpt-import-dry-run, excerpt-import, read-log-summary, signed-in-probe, signed-in-probe-author]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, catalog-poems-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, dbat-title-fix-dry-run, dbat-title-fix, excerpt-import-dry-run, excerpt-import, read-log-summary, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -79,7 +83,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js votes-ledger.test.js explorer-youtube.test.js social-top-posts.test.js swipe-feed.test.js
+        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js graphic-title-fix.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js votes-ledger.test.js explorer-youtube.test.js social-top-posts.test.js swipe-feed.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
@@ -417,6 +421,43 @@ jobs:
                   | tee -a "$RUNNER_TEMP/restore-results.jsonl"
               done < "$RUNNER_TEMP/restore-items.jsonl"
               summarize_restore ;;
+            dbat-title-fix-dry-run|dbat-title-fix)
+              # Handoff 2026-11-20 (Social Publishing): twelve DON'T BE AFRAID TO
+              # BE BAD INT graphics carry typos in their title and image name.
+              # Copies each image to the corrected name and never deletes the old
+              # one: the calendars link to it for posts through 17 Dec 2026.
+              prefix="https://storage.googleapis.com/poetrypleasebucket/"
+              get "catalog" | jq -c --arg prefix "$prefix" '
+                def fix: gsub("Promt"; "Prompt") | gsub("Curce"; "Curse") | gsub("Assult"; "Assault") | gsub("Statment"; "Statement");
+                .items[]
+                | select(.imageUrl | startswith($prefix + "DBAT%20-%20INT%20"))
+                | select(.imageUrl | contains("Promt"))
+                | {id, expectTitle: .title, title: (.title | fix), expectImageUrl: .imageUrl, imageUrl: (.imageUrl | fix)}
+              ' > "$RUNNER_TEMP/title-fix.jsonl"
+              count="$(wc -l < "$RUNNER_TEMP/title-fix.jsonl")"
+              echo "Graphics found: $count"
+              cat "$RUNNER_TEMP/title-fix.jsonl"
+              unchanged="$(jq -s 'map(select(.expectTitle == .title)) | length' "$RUNNER_TEMP/title-fix.jsonl")"
+              if [ "$count" -ne 12 ] || [ "$unchanged" -ne 0 ]; then
+                echo "Expected 12 graphics, each with a misspelled title (found $count, $unchanged with a clean title). Nothing was changed."; exit 3
+              fi
+              bucket_api="https://storage.googleapis.com/storage/v1/b/poetrypleasebucket"
+              token="$(gcloud auth print-access-token)"
+              while IFS= read -r item; do
+                old="$(jq -r --arg prefix "$prefix" '.expectImageUrl | ltrimstr($prefix)' <<<"$item")"
+                new="$(jq -r --arg prefix "$prefix" '.imageUrl | ltrimstr($prefix)' <<<"$item")"
+                old_status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "$bucket_api/o/$old")"
+                new_status="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" "$bucket_api/o/$new")"
+                echo "old $old_status new $new_status  $new"
+                if [ "$ACTION" = dbat-title-fix ] && [ "$new_status" = 404 ] && [ "$old_status" = 200 ]; then
+                  curl --fail-with-body -sS -o /dev/null -X POST -H "Authorization: Bearer $token" -H "Content-Length: 0" \
+                    "$bucket_api/o/$old/copyTo/b/poetrypleasebucket/o/$new"
+                  echo "  copied"
+                fi
+              done < "$RUNNER_TEMP/title-fix.jsonl"
+              dry="$([ "$ACTION" = dbat-title-fix-dry-run ] && echo true || echo false)"
+              post fixTitles "$(jq -s -c --argjson dry "$dry" '{dryRun: $dry, items: .}' "$RUNNER_TEMP/title-fix.jsonl")" | jq -c '.results[]'
+              if [ "$ACTION" = dbat-title-fix ]; then post refreshFeed '{}' | jq -c .; fi ;;
             excerpt-import-dry-run|excerpt-import)
               case "$EXCERPT_BATCH" in imports/*.json) ;; *) echo "excerpt_batch must be a .json file under imports/"; exit 2;; esac
               case "$EXCERPT_BATCH" in *..*) echo "excerpt_batch must not contain .."; exit 2;; esac
