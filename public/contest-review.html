@@ -165,7 +165,7 @@
       </details>
       <details id="finalist-admin" style="margin:22px 0;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finals</summary>
-        <p>Each active finalist needs three Champion / Possible / Pass reads, plus any extra reads queued from Finalist submissions. Reads nobody is assigned to yet sit in the bucket, including any you unassign. Enter reader emails to split the whole bucket evenly between them; each reader is emailed a queue link. Use Decisions to compare finalists, build the winners’ circle, and select the winner.</p>
+        <p>Each active finalist needs three Champion / Possible / Pass reads, plus any extra reads queued from the Finalists table. Reads nobody is assigned to yet sit in the bucket, including any you unassign. Enter reader emails to split the whole bucket evenly between them; each reader is emailed a queue link. Use the Finalists table and Final selection to compare finalists, build the winners’ circle, and select the winner.</p>
         <div id="finalist-bucket" class="status" aria-live="polite"></div>
         <label>Reader emails (comma-separated Button Poetry addresses). To give a reader an exact number, put it after their email, like <code>name@buttonpoetry.com 10</code>. Readers without a number split the rest; anything left stays in the bucket.<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com 10, other@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
         <div class="actions"><button id="preview-finalist" type="button">Preview splitting the bucket</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
@@ -200,7 +200,7 @@
       <p id="outcome-count"></p>
       <button id="queue-extra-finalist-set" type="button">Queue extra reviewer for this filtered set</button>
       <p id="extra-finalist-status" class="status" aria-live="polite"></p>
-      <p class="muted">Every Finals qualifier and poem with finalist reads, in one list. Counts are completed finalist reads; Pending is assigned but not yet read. Click "Reads" under a title to see who read it and their notes. Compare and circle buttons appear on poems with a Champion vote (or three first-round Yes votes and a Possible), as before.</p>
+      <p class="muted">Every Finals qualifier and poem with finalist reads, in one list. Counts are completed finalist reads; Pending is assigned but not yet read. Click "Reads" under a title to see who read it and their notes. Compare, circle and Shortlist buttons appear on selection candidates: poems with a Champion vote, three first-round Yes votes and a Possible, or a shortlist mark.</p>
       <button id="archive-finalist-passes" type="button" hidden>Archive matching finalists</button>
       <p id="finalist-archive-status" class="status" aria-live="polite"></p>
       <details hidden style="margin:12px 0 18px;">
@@ -1017,7 +1017,7 @@
 
     function archiveableOutcomeRows(view, matching) {
       if (view === "archived" || view === "circle") return [];
-      return matching.filter((row) => !row.archived && !["circle", "winner"].includes(row.outcomeStatus) && countDecision(row, "champion") === 0 &&
+      return matching.filter((row) => !row.archived && !isSelectionCandidate(row) && (row.finalistReads || []).length > 0 &&
         !(row.finalistReads || []).some((read) => !read.decision));
     }
 
@@ -1067,7 +1067,7 @@
       const archiveable = archiveableOutcomeRows(view, matching);
       archiveButton.hidden = !archiveable.length;
       archiveButton.disabled = !archiveable.length;
-      archiveButton.textContent = "Archive " + archiveable.length + " matching finalists (skips circle, Champion votes and pending reads)";
+      archiveButton.textContent = "Archive " + archiveable.length + " matching finalists (skips selection candidates, unread poems and pending reads)";
       const circleTotal = report.submissions.filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
       const winnerRow = report.submissions.find((row) => row.outcomeStatus === "winner");
       document.getElementById("outcome-count").textContent = matching.length + " matching finalists. Winners circle: " + circleTotal +
@@ -2710,7 +2710,7 @@
       const select = document.getElementById("outcome-view");
       const ids = archiveableOutcomeRows(select.value, filteredOutcomeRows()).map((row) => row.id);
       if (!ids.length || !window.confirm("Archive " + ids.length + " finalists shown under \"" + (select.options[select.selectedIndex]?.textContent || "") +
-        "\"? Circle poems, poems with a Champion vote and poems still waiting on a read are skipped. This removes them from judging, keeps their votes, and sends no email. You can unarchive them later.")) return;
+        "\"? Circle poems, selection candidates (Champion vote, shortlisted, or three first-round Yes plus a Possible), poems with no finalist reads, and poems still waiting on a read are skipped. This removes them from judging, keeps their votes, and sends no email. You can unarchive them later.")) return;
       const status = document.getElementById("finalist-archive-status");
       event.target.disabled = true;
       let archived = 0;
