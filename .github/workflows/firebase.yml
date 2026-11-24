@@ -79,7 +79,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js explorer-youtube.test.js
+        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js votes-ledger.test.js explorer-youtube.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
@@ -439,7 +439,7 @@ jobs:
               # cost bump can be traced to the code path that read the documents.
               hours="$LIMIT"; [ "$hours" -gt 168 ] && hours=168
               since="$(date -u -d "-${hours} hours" +%Y-%m-%dT%H:%M:%SZ)"
-              events='full_votes_scan|author_votes_scoped_read|ratings_summary_source|ratings_snapshot|scoreboard|content_snapshot|staff_review'
+              events='full_votes_scan|author_votes_scoped_read|votes_ledger_sync|flagged_content_source|ratings_summary_source|ratings_snapshot|scoreboard|content_snapshot|staff_review'
               gcloud logging read --project poetry-please --limit 50000 --format=json \
                 "timestamp>=\"$since\" AND (textPayload=~\"($events)\" OR jsonPayload.message=~\"($events)\")" \
                 > "$RUNNER_TEMP/read-logs.json"
