@@ -127,3 +127,12 @@ blockquote { margin:10px 0; padding:10px 14px; border-left:3px solid var(--accen
   .yt-thumb img,.yt-thumb-empty { width:112px; height:63px; }
   .yt-stats { grid-column:3; text-align:left; flex-direction:row; flex-wrap:wrap; gap:8px; align-items:baseline; min-width:0; }
 }
+
+.yt-modes { display:flex; gap:8px; margin:0 0 12px; flex-wrap:wrap; }
+.yt-modes button[aria-pressed="true"] { color:white; background:var(--accent); border-color:var(--accent); }
+.yt-platform { display:inline-block; font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; padding:2px 7px; border-radius:999px; background:#ece7dd; color:#5b554c; margin-right:4px; vertical-align:2px; }
+.yt-platform.youtube { background:#f6dcd8; color:#8a2b1f; }
+.yt-platform.instagram { background:#f3dcea; color:#7c2a5c; }
+.yt-platform.facebook { background:#dbe4f3; color:#28437a; }
+.yt-platform.tiktok { background:#dcecec; color:#1f5a5a; }
+.yt-thumb-empty { display:grid !important; place-items:center; font-size:12px; font-weight:700; color:var(--muted); }

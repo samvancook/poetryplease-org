@@ -30,6 +30,7 @@ import { retitleGraphic, validRetitleItem, RETITLE_MAX_ITEMS } from "./graphic-r
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildExplorerYoutubeVideos } from "./explorer-youtube.js";
+import { buildSocialTopPostsSql, rowsFromBigQuery, buildSocialTopPostsSnapshot, SOCIAL_TOP_POSTS_PATH } from "./social-top-posts.js";
 import { authorInviteTestCanResend, buildAuthorInviteMessage, buildContestAssignmentMessage, sendAuthorInviteWithMandrill } from "./author-invite-mail.js";
 import { buildAuthorRepairNoticePlan, repairNoticeDeliveryKey, repairNoticeCanReserve } from "./author-repair-notices.js";
 
@@ -6474,6 +6475,102 @@ app.get(getBoth("/explorer/youtubeVideos"), async (req, res) => {
     console.error("explorer_youtube_videos_failed", err);
     res.status(500).json({ error: "explorer_youtube_videos_failed" });
   }
+});
+
+// ---- Explorer: top and viral social posts from the Social Warehouse.
+// Read-only: one BigQuery query a day, run in the warehouse project as this
+// app's runtime account, stored as a snapshot file that Explorer reads.
+const SOCIAL_WAREHOUSE_JOB_PROJECT = "button-social-warehouse";
+const socialTopPostsCache = { payload: null, loadedAt: 0 };
+
+async function runWarehouseQuery(sql) {
+  const client = await runtimeCloudAuth.getClient();
+  const base = `https://bigquery.googleapis.com/bigquery/v2/projects/${SOCIAL_WAREHOUSE_JOB_PROJECT}`;
+  const first = await client.request({
+    url: `${base}/queries`, method: "POST",
+    data: { query: sql, useLegacySql: false, location: "US", timeoutMs: 120000, maxResults: 20000 },
+  });
+  let page = first.data || {};
+  const jobId = page.jobReference?.jobId;
+  let waited = 0;
+  while (!page.jobComplete && jobId && waited < 300000) {
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    waited += 3000;
+    page = (await client.request({ url: `${base}/queries/${jobId}?location=US&maxResults=20000&timeoutMs=10000` })).data || {};
+  }
+  if (!page.jobComplete) throw new Error("warehouse_query_timeout");
+  const schema = page.schema;
+  const rows = [...(page.rows || [])];
+  let pageToken = page.pageToken;
+  while (pageToken) {
+    const next = (await client.request({
+      url: `${base}/queries/${jobId}?location=US&maxResults=20000&pageToken=${encodeURIComponent(pageToken)}`,
+    })).data || {};
+    rows.push(...(next.rows || []));
+    pageToken = next.pageToken;
+  }
+  return rowsFromBigQuery(schema, rows);
+}
+
+function warehouseErrorMessage(err) {
+  const apiMessage = err?.response?.data?.error?.message;
+  return normalizeText(apiMessage || err?.message || "warehouse_query_failed").slice(0, 500);
+}
+
+async function refreshSocialTopPosts(trigger = "manual") {
+  const file = storage.bucket().file(SOCIAL_TOP_POSTS_PATH);
+  const startedAt = Date.now();
+  try {
+    const [rows, allContent] = await Promise.all([runWarehouseQuery(buildSocialTopPostsSql()), getAllContentCached()]);
+    const youtubeBooks = new Map();
+    for (const item of allContent) {
+      if (normalizeKey(item.imageType) !== "yt" || item.syntheticTest === true) continue;
+      const youtubeId = normalizeText(item.youtubeId);
+      if (!youtubeId) continue;
+      youtubeBooks.set(youtubeId, { book: resolveScoreboardBookTitle(item) || item.book || "", title: item.title || "", author: item.author || "" });
+    }
+    const snapshot = buildSocialTopPostsSnapshot(rows, { youtubeBooks });
+    await file.save(JSON.stringify({ ...snapshot, trigger }), { contentType: "application/json", resumable: false });
+    socialTopPostsCache.payload = null;
+    console.log(JSON.stringify({ event: "social_top_posts_refreshed", trigger, rows: rows.length, kept: snapshot.posts.length, ms: Date.now() - startedAt }));
+    return { status: "ok", rows: rows.length, kept: snapshot.posts.length };
+  } catch (err) {
+    const message = warehouseErrorMessage(err);
+    console.error(JSON.stringify({ event: "social_top_posts_refresh_failed", trigger, message }));
+    // Keep the last good posts; record why the newest refresh failed.
+    let previous = {};
+    try {
+      const [buffer] = await file.download();
+      previous = JSON.parse(buffer.toString("utf8"));
+    } catch (_) { /* no earlier snapshot */ }
+    await file.save(JSON.stringify({ ...previous, status: previous.posts ? "stale" : "waiting_for_access",
+      lastError: message, lastErrorAt: new Date().toISOString(), trigger }), { contentType: "application/json", resumable: false });
+    socialTopPostsCache.payload = null;
+    return { status: "error", message };
+  }
+}
+
+app.get(getBoth("/explorer/socialTopPosts"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["team", "admin"]);
+  if (!ctx) return;
+  try {
+    if (!socialTopPostsCache.payload || Date.now() - socialTopPostsCache.loadedAt > 10 * 60 * 1000) {
+      const [buffer] = await storage.bucket().file(SOCIAL_TOP_POSTS_PATH).download();
+      socialTopPostsCache.payload = JSON.parse(buffer.toString("utf8"));
+      socialTopPostsCache.loadedAt = Date.now();
+    }
+    res.json(socialTopPostsCache.payload);
+  } catch (err) {
+    if (err?.code === 404) return res.json({ status: "not_built", posts: [] });
+    console.error("social_top_posts_read_failed", err);
+    res.status(500).json({ error: "social_top_posts_read_failed" });
+  }
+});
+
+app.post(getBoth("/admin/explorer/refreshSocialTopPosts"), async (req, res) => {
+  const ctx = await requireRole(req, res, ["admin"]);
+  if (!ctx) return;
+  res.json(await refreshSocialTopPosts("admin_" + (ctx.decoded?.email || "unknown")));
 });
 
 app.get(getBoth("/scoreboard/fullPoems"), async (req, res) => {
@@ -15788,6 +15885,16 @@ export const ratingssummaryrefresh = onSchedule({
   timeoutSeconds: 540,
 }, async () => {
   await rebuildRatingsSnapshot("scheduled_ratings_refresh", { refreshStaffDemotions: true });
+});
+
+export const socialtoppostsrefresh = onSchedule({
+  schedule: "30 6 * * *",
+  timeZone: "America/Chicago",
+  region: "us-central1",
+  memory: "1GiB",
+  timeoutSeconds: 540,
+}, async () => {
+  await refreshSocialTopPosts("scheduled");
 });
 
 // Keep this LAST
