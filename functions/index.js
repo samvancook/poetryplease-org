@@ -5955,8 +5955,11 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   const buildStartedAt = Date.now();
 
   const all = reviewVisibleContent(excludeBrokenContent(excludeFlaggedContent(allContent, flaggedIds)), canSeeFullPoems);
+  timings.visible = Date.now() - buildStartedAt;
+  const filterStartedAt = Date.now();
   const filteredAll = filterContentByFeedFilters(all, filters);
   const filteredNew = filteredAll.filter((o) => !votedIds.has((o.imageId || "").trim().toLowerCase()));
+  timings.filter = Date.now() - filterStartedAt;
   const promoLaneCounts = filters.author ? Object.fromEntries(
     ["PROMO", "QI", "INT", "EXC"].map((type) => {
       const lane = filterContentByFeedFilters(all, { ...filters, type });
@@ -5990,6 +5993,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   const defaultDiscovery = (!filters.type || normalizeKey(filters.type) === "promo")
     && !filters.bookGroup && !filters.contestYear && !filters.book && !filters.author
     && !filters.catalog && !filters.event;
+  const pageStartedAt = Date.now();
   const scrollPage = mobileFeed ? paginateMobileFeed(filteredNew, {
     ratingsSummary, servedIds, authorReview: !!filters.author, demoteStaffNegatives: defaultDiscovery,
     newcomer: !decoded?.email || votedIds.size < 8,
@@ -5998,6 +6002,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   }) : req.body?.scroll === true ? paginateScrollFeed(filteredNew, {
     seed: normalizeText(req.body?.scrollSeed), after: normalizeText(req.body?.cursor), limit: req.body?.limit || 12,
   }) : null;
+  timings.page = Date.now() - pageStartedAt;
   const fetchFilteredPayload = {
     allGraphics: scrollPage ? [] : filteredAll.map(mapToCounterArr),
     newGraphics: (scrollPage?.items || eventReadingPool || rankedEmbedPool || sampleItems(filteredNew, limit)).map(mapToArr),
@@ -6016,6 +6021,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   };
   timings.build = Date.now() - buildStartedAt;
   timings.total = Date.now() - requestStartedAt;
+  timings.items = filteredNew.length;
   if (mobileFeed) console.info("fetch_filtered_timing", { ...timings, signedIn: !!decoded?.email, votedCount: votedIds.size });
   res.set("Server-Timing", Object.entries(timings).map(([name, ms]) => `${name};dur=${ms}`).join(", "));
   res.json(fetchFilteredPayload);
