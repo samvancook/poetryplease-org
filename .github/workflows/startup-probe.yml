@@ -45,6 +45,11 @@ jobs:
           # Uses the Chrome already on the runner, so nothing else is downloaded.
           npm install --no-audit --no-fund playwright-core@1.49.1 >/dev/null
 
+      - name: Anonymous deep-link checks on a phone and desktop
+        run: |
+          cp scripts/link-probe.mjs /tmp/probe/
+          cd /tmp/probe && node link-probe.mjs
+
       - name: Anonymous browser start on Desktop, classic mobile and Swipe
         run: |
           cp scripts/startup-probe.mjs /tmp/probe/
