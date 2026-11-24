@@ -176,20 +176,27 @@ function orderByCommunityPreference(list, options = {}) {
     const withSignals = (entry) => ({ ...entry.item, __feedSignals: entry.signals });
     if (options.welcomeOrder) {
       // Welcome showcase: proven QI, then other rated work, then by score.
-      const entries = items.map((item) => {
-        const rating = ratingMetaOf(item);
+      // Those first two levels split the library into three tiers, so a page is
+      // filled tier by tier and scores are worked out only in the tiers it reaches.
+      const tiers = [[], [], []];
+      for (const item of items) {
+        const key = keyOf(item.imageId);
+        const rating = ratingsSummary[key] || ratingsSummary[item.imageId] || {};
         const total = Number(rating.total || 0);
-        const signals = getFeedSignals(item);
-        return { item, signals, key: keyOf(item.imageId), total, movedMe: Number(rating.movedMe || 0),
-          proven: Number(String(item.imageType).toUpperCase() === 'QI' && total >= 3), rated: Number(total >= 3) };
-      });
-      if (options.counted) options.counted(entries.length);
-      return firstOf(entries, first, (a, b) => b.proven - a.proven
-        || b.rated - a.rated
-        || b.signals.feedScore - a.signals.feedScore
-        || b.movedMe - a.movedMe
-        || b.total - a.total
-        || compareIds(a.key, b.key)).map(withSignals);
+        const proven = String(item.imageType).toUpperCase() === 'QI' && total >= 3;
+        tiers[proven ? 0 : total >= 3 ? 1 : 2].push({ item, key, total, movedMe: Number(rating.movedMe || 0) });
+      }
+      if (options.counted) options.counted(items.length);
+      const page = [];
+      for (const tier of tiers) {
+        if (page.length >= first) break;
+        for (const entry of tier) entry.signals = getFeedSignals(entry.item);
+        page.push(...firstOf(tier, first - page.length, (a, b) => b.signals.feedScore - a.signals.feedScore
+          || b.movedMe - a.movedMe
+          || b.total - a.total
+          || compareIds(a.key, b.key)));
+      }
+      return page.map(withSignals);
     }
     const includeMuted = options.includeMuted !== false;
     const buckets = { confirmation: [], boosted: [], standard: [], muted: [] };
