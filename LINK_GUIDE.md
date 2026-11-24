@@ -59,6 +59,8 @@ Routing below was read in code (`public/detect.html`, the mobile guard near the 
 
 With `locked=1` the reader stays in the lane until it runs out. The app then offers **Show me more poems!** and returns them to the normal feed.
 
+Book embeds (`/embed?book=BOOK`): tapping a piece opens `/app?item=ID&book=BOOK&catalog=CATALOG&locked=1`, and **Explore collection** opens `/app?book=BOOK&catalog=CATALOG&locked=1` (both read in `public/embed.html`). On a phone both land in classic mobile. Checked live on 24 November 2026: `?item=EMAI-FP-NOW-I-ONLY&book=Excuse Me As I Kiss The Sky&locked=1` on a phone showed the poem first, then 270 cards all from that book (staff skips, which record no votes); the end screen reads "You've reached the end of this book-only set" with **Show me more poems!**, which opened the normal feed. Any change to phone routing for `book`/`locked` links changes where every embed tap lands, so recheck each row of the table above before shipping one.
+
 Links the app makes itself: Share on a post card copies `https://poetryplease.org/app?item=ID`. Explorer, Scoreboard, admin pages and author repair emails link `/app?item=ID`. Author pages and admin flag lists link `/?item=ID`. Swipe's "Open in single-item view" links `/m-classic?item=ID` plus the active lane.
 
 ## Important Notes
