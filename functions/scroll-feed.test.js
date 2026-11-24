@@ -227,6 +227,34 @@ test('only Swipe requests mobile ranking and sends all already-shown IDs on the 
 });
 
 
+test('a linked poem opens first and the normal Swipe feed follows it', async () => {
+  const client = readFileSync(new URL('../public/scroll.js', import.meta.url), 'utf8');
+  const block = client.slice(client.indexOf('const pager = new ScrollFeedPager('), client.indexOf('function restartFeed()'));
+  const requests = [];
+  const context = vm.createContext({ ScrollFeedPager, swipeVariant: true, contestReading: false, anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false,
+    renderCard() {}, loader: { update() {} }, discardReading() {}, closePostDetails() {}, resetSwipeReview() {}, postVariant: false, $: () => ({ replaceChildren() {} }),
+    URLSearchParams,
+    linkedItemPage: async (id, fetchItem) => { const result = await fetchItem(id); return { newGraphics: [result.item], hasMore: false, nextCursor: null }; },
+    api: async (path, body) => {
+      requests.push({ path, body });
+      if (path.startsWith('contentById')) return { item: row('Linked') };
+      return { newGraphics: requests.length === 2 ? [row('A'), row('Linked')] : [row('C')], hasMore: requests.length === 2, nextCursor: requests.length === 2 ? 'mobile:a' : null };
+    },
+  });
+  vm.runInContext(block + '\nglobalThis.testPager = pager;', context);
+  await context.testPager.reset({ type: 'PROMO', linkedItemId: 'Linked', scrollSeed: 'seed' });
+  assert.equal(context.testPager.hasMore, true);
+  await context.testPager.loadMore();
+  await context.testPager.loadMore();
+  assert.deepEqual(requests.map(request => request.path), ['contentById?id=Linked', 'fetchFiltered', 'fetchFiltered']);
+  assert.equal(requests[1].body.cursor, null);
+  assert.equal(requests[1].body.linkedItemId, undefined);
+  assert.equal(requests[1].body.feedPolicy, 'mobile');
+  assert.deepEqual(Array.from(requests[1].body.servedIds), ['linked']);
+  assert.equal(requests[2].body.cursor, 'mobile:a');
+  assert.deepEqual([...context.testPager.seen], ['linked', 'a', 'c']);
+});
+
 test('event reading returns every eligible graphic from only the selected contest, including prior votes', async () => {
   const event = "Button Poetry's Fall 2026 Short Form Contest";
   const eight = content(8).map((item) => ({ ...item, imageType: 'QI', book: '', releaseCatalog: 'Contest', sourceEvent: event }));

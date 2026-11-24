@@ -117,12 +117,12 @@ const loader = createFeedLoader({
   onRetry: () => { automaticPages = true; pager.loadMore(); },
   endMessage: (state) => contestReading && state.seen.size ? 'You’ve reached the end of the winners collection.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.',
 });
-// A linked poem (from a text or email) comes first, then the normal Swipe
-// feed follows it so readers can keep swiping. The marker cursor tells the
-// next request to start the feed from its beginning.
-const AFTER_LINKED_ITEM = 'after-linked-item';
 const pager = new ScrollFeedPager({
+  // A linked poem (from a text or email) comes first, then the normal Swipe
+  // feed follows it so readers can keep swiping. The marker cursor tells the
+  // next request to start the feed from its beginning.
   fetchPage: async (context, signal) => {
+    const AFTER_LINKED_ITEM = 'after-linked-item';
     const { linkedItemId: linkedId, ...feedContext } = context;
     if (linkedId && !feedContext.cursor) {
       const page = await linkedItemPage(linkedId, id => api('contentById?' + new URLSearchParams({id}), null, signal));
