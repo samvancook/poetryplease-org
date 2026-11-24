@@ -140,7 +140,10 @@ const pager = new ScrollFeedPager({
 function restartFeed() {
   automaticPages = true;
   updateRoute();
-  return pager.reset({ ...filters, ...(linkedItemId ? {linkedItemId} : {}), scrollSeed: crypto.randomUUID() });
+  const started = pager.reset({ ...filters, ...(linkedItemId ? {linkedItemId} : {}), scrollSeed: crypto.randomUUID() });
+  // A lone linked poem can leave the footer in view the whole time, so the
+  // footer watcher never fires again. Fetch the next page once it shows.
+  return linkedItemId ? started.then(() => { if (automaticPages && !pager.error) return pager.loadMore(); }) : started;
 }
 
 let readingCard, readingFooter, readingClose, readingOrigin;
