@@ -138,7 +138,7 @@
       </details>
       <details id="additional-review-panel" class="admin-tool-group">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Semis</summary>
-        <p>Three preliminary Yes votes qualify directly for Finals; no Semis read is required. The 2-Yes Spot Check covers exactly two preliminary Yes votes. For the spot check groups, one fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing adds a poem to the shared shortlist in Decisions.</p>
+        <p>Three preliminary Yes votes qualify directly for Finals; no Semis read is required. The 2-Yes Spot Check covers exactly two preliminary Yes votes. For the spot check groups, one fresh Yes advances a poem to finalist consideration. A Maybe gets another independent reader. If that reader votes Maybe, an editor decides; No closes the check. Advancing moves a poem into Finals.</p>
         <form id="semis-form">
           <div class="controls">
             <label>Assign from<select id="semis-source"><option value="positive">2-Yes Spot Check — shared full-group read</option><option value="negative">3-No Spot Check — 10% per reviewer</option></select></label>
@@ -159,13 +159,15 @@
         </div>
         <div id="additional-summary" class="status"></div>
         <p id="additional-guidance"></p>
-        <div class="actions"><button type="button" id="additional-assign" hidden>Assign fourth reads to the two-plus-Yes set</button><button type="button" id="additional-sample" hidden>Set up random three-No sample</button><button type="button" id="additional-advance">Advance all ready poems in this set</button></div>
+        <div class="actions"><button type="button" id="additional-sample" hidden>Set up random three-No sample</button><button type="button" id="additional-advance">Advance all ready poems in this set</button></div>
         <p id="additional-action-status" class="status" aria-live="polite"></p>
         <div id="additional-results" class="table-wrap"></div>
       </details>
       <details id="finalist-admin" style="margin:22px 0;">
         <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finals</summary>
-        <p>Each active finalist needs three Champion / Possible / Pass reads, plus any extra reads queued from the Finalists table. Reads nobody is assigned to yet sit in the bucket, including any you unassign. Enter reader emails to split the whole bucket evenly between them; each reader is emailed a queue link. Use the Finalists table and Final selection to compare finalists, build the winners’ circle, and select the winner.</p>
+        <p id="finals-status-line" class="status" aria-live="polite"></p>
+        <h3>1. Assign finalist reads</h3>
+        <p>Each active finalist needs three Champion / Possible / Pass reads, plus any extra reads queued from the Finalists table. Reads nobody is assigned to yet sit in the bucket, including any you unassign. Enter reader emails to split the whole bucket evenly between them; each reader is emailed a queue link. Then work down steps 2 to 6 under Results and decisions.</p>
         <div id="finalist-bucket" class="status" aria-live="polite"></div>
         <label>Reader emails (comma-separated Button Poetry addresses). To give a reader an exact number, put it after their email, like <code>name@buttonpoetry.com 10</code>. Readers without a number split the rest; anything left stays in the bucket.<input id="finalist-emails" type="text" placeholder="name@buttonpoetry.com 10, other@buttonpoetry.com" style="width:100%;margin:8px 0;"></label>
         <div class="actions"><button id="preview-finalist" type="button">Preview splitting the bucket</button><button id="confirm-finalist" type="button" class="primary" hidden>Assign finalist reads</button></div>
@@ -174,11 +176,8 @@
         <p>Unassigning a reader’s pending reads puts them back in the bucket; completed decisions are never changed. Split the bucket again to hand them to other readers. Readers who already read a poem are skipped for it.</p>
       
 <details id="final-selection" class="card" hidden>
-      <summary class="admin-progress-summary">Final selection</summary>
-      <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
-      <div id="final-selection-status" class="status" aria-live="polite"></div>
-      <div id="final-selection-content"></div>
-<details id="outcome-panel" class="admin-tool-group"><summary id="review-outcomes" style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalists</summary>
+      <summary class="admin-progress-summary">Results and decisions</summary>
+      <details id="outcome-panel" class="admin-tool-group"><summary id="review-outcomes" style="cursor:pointer;font-size:1.2em;font-weight:700;">2. Finalists</summary>
       <label>Show
         <select id="outcome-view">
           <option value="finalists">All active finalists</option>
@@ -200,34 +199,33 @@
       <p id="outcome-count"></p>
       <button id="queue-extra-finalist-set" type="button">Queue extra reviewer for this filtered set</button>
       <p id="extra-finalist-status" class="status" aria-live="polite"></p>
-      <p class="muted">Every Finals qualifier and poem with finalist reads, in one list. Counts are completed finalist reads; Pending is assigned but not yet read. Click "Reads" under a title to see who read it and their notes. Compare, circle and Shortlist buttons appear on selection candidates: poems with a Champion vote, three first-round Yes votes and a Possible, or a shortlist mark.</p>
+      <p class="muted">Every Finals qualifier and poem with finalist reads, in one list. Counts are completed finalist reads; Pending is assigned but not yet read. Click "Reads" under a title to see who read it and their notes. Compare and circle buttons appear on selection candidates: poems with a Champion vote, three first-round Yes votes and a Possible, or advanced from Semis.</p>
       <button id="archive-finalist-passes" type="button" hidden>Archive matching finalists</button>
       <p id="finalist-archive-status" class="status" aria-live="polite"></p>
-      <details hidden style="margin:12px 0 18px;">
-        <summary style="cursor:pointer;font-weight:700;">Act on filtered set: assign fourth reads</summary>
-        <p id="fourth-help">This acts on the submissions matching the filter above. One email gets every eligible fourth read; multiple emails split them roughly evenly. Preview shows the exact count and split without assigning anything. A queued fourth read becomes votable after the first three reviews are complete. Archived entries and entries already queued for a fourth read are skipped; a reviewer cannot be assigned an entry they have already reviewed. Assigning sends each reviewer an email with a link to their queue.</p>
-        <label>Reviewer emails (comma-separated, Button Poetry addresses)<input id="fourth-reviewer-emails" type="text" placeholder="name@buttonpoetry.com" aria-describedby="fourth-help" title="One email receives all eligible fourth reads; multiple emails divide them roughly evenly." style="width:100%;margin:8px 0;"></label>
-        <div class="actions"><button id="preview-fourth" type="button" title="See the exact eligible count and reviewer split without assigning anything.">Preview fourth-read assignments</button><button id="confirm-fourth" type="button" class="primary" title="Queue the previewed fourth reads and email the listed reviewers." hidden>Assign fourth reads</button></div>
-        <div id="fourth-status" class="status"></div>
-      </details>
       <div id="outcome-results" class="table-wrap"></div>
       <button id="download-progress" type="button" style="margin-top:16px;">Download progress CSV</button>
       </details>
-      <details id="contest-graphics-panel" style="margin-top:18px;">
-        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Winning graphics and links</summary>
-        <p>Review each imported graphic and the full contest collection before sending either link. An import receipt does not confirm public visibility.</p>
-        <div id="contest-graphics-content"></div>
-        <div id="contest-graphics-status" class="status" aria-live="polite"></div>
+      <details id="final-choose-panel" open style="margin-top:18px;">
+      <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">3. Compare and choose the winner</summary>
+      <p>Compare Champion candidates and unanimous first-round Yes poems with a finalist Possible vote. Build the circle, then use Review winners circle to choose one winner. Pass-only poems remain out of the candidate list. These decisions send no contestant email.</p>
+      <div id="final-selection-status" class="status" aria-live="polite"></div>
+      <div id="final-selection-content"></div>
       </details>
-      <details id="finalize-remaining" style="margin-top:24px;">
-        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Finalize remaining outcomes</summary>
+      <details id="finalize-remaining" style="margin-top:18px;">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">4. Mark the rest not selected</summary>
         <p>After choosing the winner and winners circle, preview the undecided entries before marking them not selected. Winner and circle decisions stay unchanged. This sends no email.</p>
         <button id="preview-remaining" type="button">Preview remaining entries</button>
         <div id="remaining-status" class="status" aria-live="polite">No preview loaded.</div>
         <button id="apply-remaining" type="button" class="primary" disabled>Mark remaining entries not selected</button>
       </details>
+      <details id="contest-graphics-panel" style="margin-top:18px;">
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">5. Winning graphics and links</summary>
+        <p>Review each imported graphic and the full contest collection before sending either link. An import receipt does not confirm public visibility.</p>
+        <div id="contest-graphics-content"></div>
+        <div id="contest-graphics-status" class="status" aria-live="polite"></div>
+      </details>
       <details id="contest-email-panel" style="margin-top:18px;">
-        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">Entrant emails</summary>
+        <summary style="cursor:pointer;font-size:1.2em;font-weight:700;">6. Entrant emails</summary>
         <p>Edit and save this contest’s winner, winners-circle, rejection, and past-submitter announcement drafts here. Saving or previewing sends nothing. Sending requires a fresh recipient preview and explicit confirmation; availability is shown below.</p>
         <details id="contest-mail-settings-panel" style="margin-top:18px;">
               <summary style="font-weight:700;cursor:pointer;">Email sender and replies</summary>
@@ -433,7 +431,7 @@
       measurementId: "G-FBLJHKQ70B"
     };
     firebase.initializeApp(FIREBASE_CONFIG);
-    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null, entrantRows: null, entrantProgramId: "", fourthPreview: null, finalistPreview: null, noteDrafts: new Map(), noteOwnerUid: "" };
+    const state = { programs: [], submissions: [], filtered: [], index: 0, adminProgress: null, entrantRows: null, entrantProgramId: "", finalistPreview: null, noteDrafts: new Map(), noteOwnerUid: "" };
 
     async function token() {
       return firebase.auth().currentUser ? firebase.auth().currentUser.getIdToken(false) : "";
@@ -811,7 +809,6 @@
           (rescues >= 2 ? (sampled.length < rows.length * 0.2 ? "Multiple rescues found: expand the sample toward 20% and review the results before archiving the group." : "Multiple rescues found. At least 20% is already assigned: finish the pending sample and have an editor decide whether the remaining group needs a broader review before archiving.") :
             "Review each rescued poem. A clean sample supports an editorial decision about the remaining group; it does not guarantee every promising poem was found.")
         : "Use the results filters to inspect each spot check group, reviewer, and next step.";
-      document.getElementById("additional-assign").hidden = true;
       document.getElementById("additional-sample").hidden = true;
       document.getElementById("additional-advance").disabled = !matching.some((item) => item.next === "advance");
       if (document.getElementById("semis-results-view").value === "reviewers") {
@@ -863,15 +860,6 @@
     });
     ["additional-set", "additional-status", "semis-reviewer", "semis-results-view"].forEach((id) => document.getElementById(id).addEventListener("change", renderAdditionalReviews));
     document.getElementById("additional-refresh").addEventListener("click", loadProgress);
-    document.getElementById("additional-assign").addEventListener("click", () => {
-      document.getElementById("outcome-panel").open = true;
-      document.getElementById("outcome-view").value = "finalists";
-      invalidateFourthPreview();
-      renderOutcomeViews();
-      document.getElementById("preview-fourth").closest("details").open = true;
-      document.getElementById("fourth-reviewer-emails").focus();
-      document.getElementById("preview-fourth").scrollIntoView({ block: "center" });
-    });
     document.getElementById("additional-sample").addEventListener("click", () => {
       document.getElementById("spot-check-email").focus();
       document.getElementById("spot-check-form").scrollIntoView({ block: "center" });
@@ -889,7 +877,7 @@
           status.textContent = "Advanced " + saved + " of " + ids.length + " poems.";
         }
         await loadProgress();
-        status.textContent = "Advanced " + saved + " poems. Open Decisions to compare the shortlist and assign finalist reads as needed.";
+        status.textContent = "Advanced " + saved + " poems. They are now in Finals; assign their finalist reads there.";
       } catch (error) {
         status.textContent = "Advanced " + saved + " poems. Could not finish: " + error.message + ". Refresh results before retrying.";
       }
@@ -950,10 +938,22 @@
       return { target, finalists: active.length, open, assigned, done, poemsShort: active.filter((row) => (row.finalistReads || []).length < need(row)).length };
     }
 
+    function renderFinalsStatusLine() {
+      const report = state.adminProgress;
+      if (!report) return;
+      const bucket = finalistBucket();
+      const circle = (report.submissions || []).filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
+      const winner = (report.submissions || []).find((row) => row.outcomeStatus === "winner");
+      document.getElementById("finals-status-line").innerHTML = '<strong>' + bucket.finalists + ' active finalists · ' + bucket.done + ' / ' +
+        (bucket.done + bucket.assigned + bucket.open) + ' reads done · ' + bucket.open + ' in the bucket · ' + circle + ' in the winners circle · ' +
+        (winner ? 'Winner: ' + escapeHtml(winner.title || "Untitled") : 'No winner yet') + '</strong>';
+    }
+
     function renderFinalistProgress() {
       const bucket = finalistBucket();
-      document.getElementById("finalist-bucket").innerHTML = '<p><strong>Bucket: ' + bucket.open + ' open reads</strong> waiting to be assigned (' +
-        bucket.poemsShort + ' of ' + bucket.finalists + ' active finalists need more reads) · ' + bucket.done + ' done · ' + bucket.assigned + ' assigned and pending.</p>';
+      renderFinalsStatusLine();
+      document.getElementById("finalist-bucket").innerHTML = '<p>Bucket: ' + bucket.open + ' open reads waiting to be assigned (' +
+        bucket.poemsShort + ' of ' + bucket.finalists + ' active finalists need more reads) · ' + bucket.assigned + ' assigned and pending.</p>';
       const rows = state.adminProgress?.submissions || [];
       const reads = rows.flatMap((row) => row.finalistReads || []);
       const byReader = new Map();
@@ -967,7 +967,7 @@
         byReader.set(read.reviewerEmail, summary);
       });
       document.getElementById("finalist-progress").innerHTML = reads.length
-        ? '<p>' + reads.filter((read) => read.decision).length + ' of ' + reads.length + ' finalist reads complete.</p>' +
+        ? '<p>Reads by reader (includes reads on poems archived since).</p>' +
           '<table class="progress-table"><thead><tr><th>Reader</th><th>Done</th><th>Champion</th><th>Possible</th><th>Pass</th><th>Actions</th></tr></thead><tbody>' +
           [...byReader.values()].sort((a, b) => a.email.localeCompare(b.email)).map((row) =>
             '<tr><td>' + escapeHtml(row.email) + '</td><td>' + row.completed + ' / ' + row.assigned +
@@ -1036,8 +1036,7 @@
       }
       return '<button type="button" data-open-submission="' + id + '">Open</button> ' + selection +
         '<button type="button" data-extra-submission="' + id + '" ' + (row.reviewCount < report.requiredReviewCount ? 'disabled title="Initial reviews are not complete"' : '') + '>Queue extra read</button> ' +
-        '<button type="button" data-archive-submission="' + id + '" data-archived="true">Archive</button>' +
-        (isSelectionCandidate(row) ? ' <button type="button" data-shortlist data-submission="' + id + '">' + (row.shortlisted ? "Remove from shortlist" : "Shortlist") + '</button>' : '');
+        '<button type="button" data-archive-submission="' + id + '" data-archived="true">Archive</button>';
     }
 
     function finalistReadsDetail(row) {
@@ -1068,10 +1067,7 @@
       archiveButton.hidden = !archiveable.length;
       archiveButton.disabled = !archiveable.length;
       archiveButton.textContent = "Archive " + archiveable.length + " matching finalists (skips selection candidates, unread poems and pending reads)";
-      const circleTotal = report.submissions.filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
-      const winnerRow = report.submissions.find((row) => row.outcomeStatus === "winner");
-      document.getElementById("outcome-count").textContent = matching.length + " matching finalists. Winners circle: " + circleTotal +
-        (winnerRow ? " (winner: " + (winnerRow.title || "Untitled") + ")" : " (no winner yet)") + ".";
+      document.getElementById("outcome-count").textContent = matching.length + " matching finalists.";
       const tag = (row) => row.outcomeStatus === "winner" ? ' <span class="pill">Winner</span>'
         : row.outcomeStatus === "circle" ? ' <span class="pill">Winners circle</span>' : row.archived ? ' <span class="pill">Archived</span>' : '';
       document.getElementById("outcome-results").innerHTML = matching.length
@@ -1139,8 +1135,6 @@
       if (finalCompareView === "side-by-side") finalCompareIndex = Math.floor(finalCompareIndex / 4) * 4;
       const compared = finalCompareIds.map((id) => finalSelectionCandidates.find((row) => row.id === id)).filter(Boolean);
       const submissionById = new Map(state.submissions.map((row) => [row.id, row]));
-      const reads = (report.submissions || []).flatMap((row) => row.finalistReads || []);
-      const circleCount = (report.submissions || []).filter((row) => ["circle", "winner"].includes(row.outcomeStatus)).length;
       const winner = finalSelectionCandidates.find((row) => row.outcomeStatus === "winner");
       const details = (row) => {
         const submission = submissionById.get(row.id) || {};
@@ -1166,17 +1160,14 @@
       };
       const page = compared.slice(finalCompareIndex, finalCompareIndex + 4);
       const compareBody = !compared.length
-        ? (finalWinnerReview ? "<p>No circle poems in this comparison. Use Show all circle poems to restore them.</p>" : "<p>Choose Compare beside candidates below, or use Compare all.</p>")
+        ? (finalWinnerReview ? "<p>No circle poems in this comparison. Use Show all circle poems to restore them.</p>" : "<p>Choose Compare beside candidates in the Finalists table above, or use Compare all.</p>")
         : finalCompareView === "slider"
           ? '<div id="compare-slider" class="compare-slider" aria-label="Slide through compared poems">' +
             compared.map(details).join("") + "</div>"
           : '<div class="compare-grid">' + page.map(details).join("") + "</div>";
       const compareOpen = document.getElementById("final-compare-panel")?.open ?? true;
+      renderFinalsStatusLine();
       document.getElementById("final-selection-content").innerHTML =
-        '<p><strong>' + reads.filter((read) => !!read.decision).length + ' / ' + reads.length +
-        ' assigned finalist reads complete</strong> · ' + finalistBucket().open + ' open reads in the bucket · ' + finalSelectionCandidates.filter((row) => row.shortlisted).length +
-        ' on draft shortlist · ' + circleCount + ' in confirmed circle · ' +
-        (winner ? "Winner: " + escapeHtml(winner.title) : "No winner yet") + '.</p>' +
         (finalWinnerReview
           ? '<div id="winner-review" class="winner-review-intro"><h3>Choose the winner</h3><p>Review every winners-circle poem and its finalist notes, then use Make winner on one card. ' +
             (winner ? 'To choose a different poem, clear the current winner first. ' : '') +
@@ -1201,7 +1192,7 @@
             '<span id="compare-position"></span>' +
             '<button type="button" data-compare-step="1" aria-label="Next compared poems">Next →</button></div>'
           : "") +
-        compareBody + "</details>" + (finalWinnerReview ? "" : '<p class="muted">Pick poems to compare, shortlist, or add to the circle from the Finalists table below.</p>');
+        compareBody + "</details>" + (finalWinnerReview ? "" : '<p class="muted">Pick poems to compare or add to the circle from the Finalists table above (step 2).</p>');
       updateCompareNavigation();
       if (document.getElementById("outcome-panel").open) renderOutcomeViews();
       const slider = document.getElementById("compare-slider");
@@ -1981,7 +1972,7 @@
         if (parent.tagName === "DETAILS") parent.open = true;
       }
       if (["contest-overview", "contest-entrants-panel", "admin-progress", "prelims-panel", "additional-review-panel", "finalist-admin", "final-selection"].includes(targetId)) panel.open = true;
-      if (["contest-graphics-panel", "contest-email-panel"].includes(targetId)) {
+      if (["contest-graphics-panel", "contest-email-panel", "finalize-remaining", "final-choose-panel"].includes(targetId)) {
         document.getElementById("final-selection").open = true;
         panel.open = true;
       }
@@ -2152,22 +2143,15 @@
         }[outcome];
         if (!message || !window.confirm(message + " No contestant email will be sent.")) return;
       }
+      if (!outcome) return;
       button.disabled = true;
-      status.textContent = outcome ? "Saving internal decision…" : "Saving shared draft shortlist…";
+      status.textContent = "Saving internal decision…";
       try {
-        if (outcome) {
-          await api("admin/contentSubmissions/" + encodeURIComponent(submissionId) + "/outcome", {
-            method: "POST", body: { outcome },
-          });
-        } else if (button.hasAttribute("data-shortlist")) {
-          await api("admin/contentSubmissions/" + encodeURIComponent(submissionId) + "/shortlist", {
-            method: "POST", body: { shortlisted: !row.shortlisted },
-          });
-        }
+        await api("admin/contentSubmissions/" + encodeURIComponent(submissionId) + "/outcome", {
+          method: "POST", body: { outcome },
+        });
         await loadProgress();
-        status.textContent = outcome
-          ? "Internal decision saved. No contestant email was sent."
-          : "Shared draft shortlist saved. No circle decision or email was sent.";
+        status.textContent = "Internal decision saved. No contestant email was sent.";
       } catch (error) {
         button.disabled = false;
         status.textContent = "Could not save: " + error.message;
@@ -2352,23 +2336,8 @@
       return { programId: document.getElementById("program").value, assignmentMode: "bucket", reviewerEmails, reviewerLimits };
     }
 
-    function invalidateFourthPreview() {
-      state.fourthPreview = null;
-      document.getElementById("confirm-fourth").hidden = true;
-      document.getElementById("fourth-status").textContent = "";
-    }
 
-    function fourthRequest() {
-      const select = document.getElementById("outcome-view");
-      return {
-        programId: document.getElementById("program").value,
-        submissionIds: filteredOutcomeRows().map((row) => row.id),
-        reviewerEmails: document.getElementById("fourth-reviewer-emails").value.split(",").map((email) => email.trim()).filter(Boolean),
-        filterLabel: select.options[select.selectedIndex]?.textContent || "",
-      };
-    }
-
-    document.getElementById("program").addEventListener("change", () => { const url = new URL(location.href); const selected = document.getElementById("program").value; if (selected) url.searchParams.set("program", selected); else url.searchParams.delete("program"); history.replaceState(null, "", url); invalidateFourthPreview(); invalidateFinalistPreview(); loadQueue(); });
+    document.getElementById("program").addEventListener("change", () => { const url = new URL(location.href); const selected = document.getElementById("program").value; if (selected) url.searchParams.set("program", selected); else url.searchParams.delete("program"); history.replaceState(null, "", url); invalidateFinalistPreview(); loadQueue(); });
     async function sendAssignmentNotices(programId, reviewerEmails, view, addedCounts = {}) {
       const results = [];
       for (const reviewerEmail of [...new Set(reviewerEmails)]) {
@@ -2552,53 +2521,6 @@
         status.textContent = "Send unconfirmed: " + error.message + ". Check notice status before trying again.";
       }
     });
-    document.getElementById("preview-fourth").addEventListener("click", async () => {
-      invalidateFourthPreview();
-      const body = fourthRequest();
-      const status = document.getElementById("fourth-status");
-      if (!body.programId) return void (status.textContent = "Choose a contest first.");
-      if (!body.submissionIds.length) return void (status.textContent = "No submissions match this filter.");
-      status.textContent = "Checking the filtered set...";
-      try {
-        const result = await api("admin/contestFourthReviewBatch", { method: "POST", body });
-        const skipped = result.skipped || {};
-        status.textContent = result.eligibleCount + " eligible for a fourth read out of " + result.selectedCount + " filtered. Skipped: " +
-          (skipped.archived || 0) + " archived, " + (skipped.alreadyHasFourth || 0) + " already queued/reviewed, " +
-          (skipped.reviewerConflict || 0) + " reviewer conflicts, " + (skipped.wrongProgram || 0) + " outside this contest. " +
-          "Reviewer split: " + Object.entries(result.byReviewer || {}).map(([email, count]) => email + " " + count).join(", ") + ".";
-        state.fourthPreview = { ...body, previewToken: result.previewToken, eligibleCount: result.eligibleCount };
-        document.getElementById("confirm-fourth").hidden = !result.eligibleCount;
-        document.getElementById("confirm-fourth").textContent = "Assign " + result.eligibleCount + " fourth reads";
-      } catch (error) {
-        status.textContent = "Could not preview: " + error.message;
-      }
-    });
-    document.getElementById("confirm-fourth").addEventListener("click", async () => {
-      const preview = state.fourthPreview;
-      if (!preview) return;
-      if (!window.confirm("Assign " + preview.eligibleCount + " fourth reads from this saved preview and email the assigned reviewers?")) return;
-      const status = document.getElementById("fourth-status");
-      status.textContent = "Assigning fourth reads...";
-      try {
-        const result = await api("admin/contestFourthReviewBatch", {
-          method: "POST", body: { ...preview, commit: true },
-        });
-        status.textContent = "Assigned " + result.assignedCount + " fourth reads.";
-        const fourthRecipients = Object.entries(result.byReviewer || {}).filter(([, count]) => count > 0).map(([email]) => email);
-        if (fourthRecipients.length) {
-          document.getElementById("notice-email").value = fourthRecipients[0];
-          document.getElementById("notice-view").value = "assigned";
-          status.textContent += " " + await sendAssignmentNotices(preview.programId, fourthRecipients, "assigned", result.byReviewer);
-        }
-        state.fourthPreview = null;
-        document.getElementById("confirm-fourth").hidden = true;
-        await loadQueue();
-      } catch (error) {
-        status.textContent = "Could not finish assignment: " + error.message + ". Refresh the preview before trying again.";
-        state.fourthPreview = null;
-        document.getElementById("confirm-fourth").hidden = true;
-      }
-    });
     document.getElementById("finalist-progress").addEventListener("click", async (event) => {
       const button = event.target.closest("[data-remove-finalist]");
       if (!button) return;
@@ -2621,7 +2543,6 @@
         button.disabled = false;
       }
     });
-    document.getElementById("fourth-reviewer-emails").addEventListener("input", invalidateFourthPreview);
     document.getElementById("finalist-emails").addEventListener("input", invalidateFinalistPreview);
     document.getElementById("preview-finalist").addEventListener("click", async () => {
       invalidateFinalistPreview();
@@ -2704,13 +2625,13 @@
       else document.getElementById("outcome-results").replaceChildren();
     });
 
-    document.getElementById("outcome-view").addEventListener("change", () => { invalidateFourthPreview(); renderOutcomeViews(); if (document.getElementById("view").value === "finalist-results") applyFilters(); });
+    document.getElementById("outcome-view").addEventListener("change", () => { renderOutcomeViews(); if (document.getElementById("view").value === "finalist-results") applyFilters(); });
     document.getElementById("outcome-sort").addEventListener("change", () => { renderOutcomeViews(); if (document.getElementById("view").value === "finalist-results") applyFilters(); });
     document.getElementById("archive-finalist-passes").addEventListener("click", async (event) => {
       const select = document.getElementById("outcome-view");
       const ids = archiveableOutcomeRows(select.value, filteredOutcomeRows()).map((row) => row.id);
       if (!ids.length || !window.confirm("Archive " + ids.length + " finalists shown under \"" + (select.options[select.selectedIndex]?.textContent || "") +
-        "\"? Circle poems, selection candidates (Champion vote, shortlisted, or three first-round Yes plus a Possible), poems with no finalist reads, and poems still waiting on a read are skipped. This removes them from judging, keeps their votes, and sends no email. You can unarchive them later.")) return;
+        "\"? Circle poems, selection candidates (Champion vote, advanced from Semis, or three first-round Yes plus a Possible), poems with no finalist reads, and poems still waiting on a read are skipped. This removes them from judging, keeps their votes, and sends no email. You can unarchive them later.")) return;
       const status = document.getElementById("finalist-archive-status");
       event.target.disabled = true;
       let archived = 0;
