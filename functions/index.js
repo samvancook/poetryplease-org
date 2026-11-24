@@ -1758,6 +1758,181 @@ async function getAllVotes(reason = "unspecified") {
   return list;
 }
 
+// ---------------------------------------------------------------------------
+// Votes ledger for the scoreboard. Each scoreboard rebuild used to page through
+// every vote (~28k documents). The active votes are now kept in Cloud Storage
+// and brought up to date with only the votes written or superseded since the
+// last sync. Paths that change votes any other way (deletes, imageId remaps,
+// votes copied with their old timestamps) call resetVotesLedger, and a full
+// rescan runs at least once a day as a backstop.
+// ---------------------------------------------------------------------------
+const VOTES_LEDGER_PATH = "system/votes-ledger.json";
+const VOTES_LEDGER_VERSION = 1;
+const VOTES_LEDGER_STATE_DOC_ID = "votes-ledger";
+const VOTES_LEDGER_FULL_RESCAN_MS = 24 * 60 * 60 * 1000;
+// Re-reads a little before the last sync so a vote committed during it is not missed.
+const VOTES_LEDGER_SYNC_OVERLAP_MS = 10 * 60 * 1000;
+let votesLedgerCache = null;
+
+export function isVotesLedgerUsable(ledger, nowMs = Date.now(), resetAtMs = 0) {
+  if (!ledger || Number(ledger.version || 0) !== VOTES_LEDGER_VERSION) return false;
+  if (!(ledger.votes instanceof Map)) return false;
+  const fullScanAtMs = Number(ledger.fullScanAtMs || 0);
+  if (!fullScanAtMs || !Number(ledger.syncedAtMs || 0)) return false;
+  if ((nowMs - fullScanAtMs) >= VOTES_LEDGER_FULL_RESCAN_MS) return false;
+  return Number(resetAtMs || 0) < fullScanAtMs;
+}
+
+// Applies votes read since the last sync. `written` are votes whose timestamp
+// is after the sync point (a superseded one is dropped); `superseded` are ids
+// superseded after it. Returns the same Map.
+export function applyVotesLedgerChanges(votes, { written = [], superseded = [] } = {}) {
+  written.forEach((vote) => {
+    if (!vote?.id) return;
+    if (vote.supersededAt) votes.delete(vote.id);
+    else votes.set(vote.id, {
+      id: vote.id,
+      imageId: vote.imageId || "",
+      voteType: String(vote.voteType || "").toLowerCase(),
+      userId: vote.userId || "",
+      timestamp: timestampToMs(vote.timestamp) || null,
+    });
+  });
+  superseded.forEach((id) => votes.delete(id));
+  return votes;
+}
+
+function votesLedgerToJson(ledger) {
+  return JSON.stringify({
+    version: ledger.version,
+    fullScanAtMs: ledger.fullScanAtMs,
+    syncedAtMs: ledger.syncedAtMs,
+    votes: Array.from(ledger.votes.values()).map((v) => [v.id, v.imageId, v.voteType, v.userId, v.timestamp || 0]),
+  });
+}
+
+function votesLedgerFromJson(text) {
+  const raw = JSON.parse(text);
+  const votes = new Map();
+  (raw.votes || []).forEach(([id, imageId, voteType, userId, timestamp]) => {
+    votes.set(id, { id, imageId, voteType, userId, timestamp: timestamp || null });
+  });
+  return { version: raw.version, fullScanAtMs: raw.fullScanAtMs, syncedAtMs: raw.syncedAtMs, votes };
+}
+
+async function readVotesLedgerResetAtMs() {
+  const snap = await db.collection(COLLECTIONS.systemState).doc(VOTES_LEDGER_STATE_DOC_ID).get();
+  return Number((snap.data() || {}).resetAtMs || 0);
+}
+
+async function readStoredVotesLedger() {
+  const file = storage.bucket().file(VOTES_LEDGER_PATH);
+  const [exists] = await file.exists();
+  if (!exists) return null;
+  const [buffer] = await file.download();
+  return votesLedgerFromJson(buffer.toString("utf8"));
+}
+
+async function readVotesChangedSince(sinceMs) {
+  const since = new Date(sinceMs);
+  const readAll = async (field) => {
+    const out = [];
+    const base = db.collection(COLLECTIONS.votes).where(field, ">", since).orderBy(field).limit(1000);
+    let page = await base.get();
+    while (!page.empty) {
+      page.forEach((doc) => out.push({ id: doc.id, ...(doc.data() || {}) }));
+      if (page.size < 1000) break;
+      page = await base.startAfter(page.docs[page.docs.length - 1]).get();
+    }
+    return out;
+  };
+  const [written, supersededDocs] = await Promise.all([readAll("timestamp"), readAll("supersededAt")]);
+  return { written, superseded: supersededDocs.map((doc) => doc.id) };
+}
+
+// Same rows as getAllVotes (active votes only), from the ledger when it can be trusted.
+async function getAllVotesForScoreboard(reason = "scoreboard_rebuild") {
+  const startedAt = Date.now();
+  let resetAtMs = 0;
+  try {
+    resetAtMs = await readVotesLedgerResetAtMs();
+  } catch (err) {
+    console.warn("Votes ledger state read failed; rescanning", err);
+    resetAtMs = Number.MAX_SAFE_INTEGER;
+  }
+  let ledger = votesLedgerCache;
+  if (!isVotesLedgerUsable(ledger, startedAt, resetAtMs)) {
+    try {
+      ledger = await readStoredVotesLedger();
+    } catch (err) {
+      console.warn("Votes ledger read failed", err);
+      ledger = null;
+    }
+  }
+  let mode = "incremental";
+  let documentCount = 0;
+  let changes = null;
+  if (isVotesLedgerUsable(ledger, startedAt, resetAtMs)) {
+    try {
+      changes = await readVotesChangedSince(ledger.syncedAtMs - VOTES_LEDGER_SYNC_OVERLAP_MS);
+    } catch (err) {
+      console.warn("Votes ledger sync failed; rescanning", err);
+    }
+  }
+  if (changes) {
+    documentCount = changes.written.length + changes.superseded.length;
+    applyVotesLedgerChanges(ledger.votes, changes);
+    ledger.syncedAtMs = startedAt;
+  } else {
+    mode = "full";
+    const all = await getAllVotes(reason);
+    documentCount = all.length;
+    ledger = {
+      version: VOTES_LEDGER_VERSION,
+      fullScanAtMs: startedAt,
+      syncedAtMs: startedAt,
+      votes: new Map(all.map((vote) => [vote.id, { ...vote, timestamp: timestampToMs(vote.timestamp) || null }])),
+    };
+  }
+  votesLedgerCache = ledger;
+  try {
+    await storage.bucket().file(VOTES_LEDGER_PATH).save(votesLedgerToJson(ledger), {
+      contentType: "application/json; charset=utf-8",
+      resumable: false,
+      metadata: { cacheControl: "no-store, max-age=0" },
+    });
+  } catch (err) {
+    console.warn("Votes ledger write failed", err);
+  }
+  console.info("votes_ledger_sync", { reason: `${reason}:${mode}`, documentCount, voteCount: ledger.votes.size, durationMs: Date.now() - startedAt });
+  return votesLedgerRows(ledger.votes);
+}
+
+// Rows in getAllVotes' order (document id) and timestamp form, so the
+// scoreboard's latest-vote tie-breaking is unchanged.
+export function votesLedgerRows(votes) {
+  return Array.from(votes.values())
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map((v) => ({
+      id: v.id,
+      imageId: v.imageId,
+      voteType: v.voteType,
+      userId: v.userId,
+      timestamp: v.timestamp ? { _seconds: Math.floor(v.timestamp / 1000), _nanoseconds: (v.timestamp % 1000) * 1e6 } : null,
+    }));
+}
+
+// Forces the next scoreboard rebuild on every instance to rescan all votes.
+async function resetVotesLedger(reason = "") {
+  votesLedgerCache = null;
+  try {
+    await db.collection(COLLECTIONS.systemState).doc(VOTES_LEDGER_STATE_DOC_ID)
+      .set({ resetAtMs: Date.now(), resetReason: normalizeText(reason) }, { merge: true });
+  } catch (err) {
+    console.warn("Votes ledger reset failed", err);
+  }
+}
+
 // Spellings of the author role a user document may carry. Roles are written
 // lowercase today; the other spellings keep older documents matching the way
 // the previous full-collection scan (which lowercased every role) did.
@@ -2995,6 +3170,7 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
     });
   }
   if (results.some((row) => row.ok)) {
+    await resetVotesLedger("pig_id_hygiene");
     await invalidateContentCache("pig_id_hygiene");
     await invalidateScoreboardSnapshot("pig_id_hygiene");
   }
@@ -3003,7 +3179,7 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
 
 async function buildScoreboardPayload(contentReads = {}) {
   const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds, authorVoteIdentities] = await Promise.all([
-    getAllVotes("scoreboard_rebuild"),
+    getAllVotesForScoreboard("scoreboard_rebuild"),
     contentReads.graphics ?? getAllFrom(COLLECTIONS.graphics),
     contentReads.excerpts ?? getAllFrom(COLLECTIONS.excerpts),
     contentReads.fullPoems ?? getAllFrom(COLLECTIONS.fullPoems),
@@ -3011,6 +3187,15 @@ async function buildScoreboardPayload(contentReads = {}) {
     contentReads.flaggedIds ?? getFlaggedContentIds(),
     getAuthorVoteIdentities(),
   ]);
+  console.info("scoreboard_content_read", {
+    reason: "scoreboard_rebuild",
+    documentCount: [
+      contentReads.graphics ? 0 : metaObjs.length,
+      contentReads.excerpts ? 0 : excerptObjs.length,
+      contentReads.fullPoems ? 0 : fullPoemObjs.length,
+      videoObjs.length,
+    ].reduce((a, b) => a + b, 0),
+  });
 
   const latestByUserImage = new Map();
   voteDocs.forEach((vote) => {
@@ -7067,6 +7252,7 @@ app.post(getBoth("/me/scrubRecentMeh"), async (req, res) => {
   }
 
   if (deleted) {
+    await resetVotesLedger("scrub_recent_meh");
     await invalidateScoreboardSnapshot("scrub_recent_meh");
   }
 
@@ -7134,6 +7320,8 @@ app.post(getBoth("/mergeAnonVotes"), async (req, res) => {
   });
 
   await Promise.all(writes);
+  // Copied votes keep their old timestamps, which an incremental sync would miss.
+  if (writes.length) await resetVotesLedger("anon_vote_merge");
   res.json({ ok: true, mergedVotes, deletedVotes });
 });
 
@@ -11469,6 +11657,7 @@ app.post(getBoth("/internal/resolveExcerptDuplicates"), async (req, res) => {
     results.push({ ok: true, keepId, deletedIds: deleteIds });
   }
 
+  if (migratedVoteCount || removedRedundantVoteCount) await resetVotesLedger("catalog_excerpt_duplicate_cleanup");
   if (deletedExcerptCount || migratedVoteCount || removedRedundantVoteCount) {
     await invalidateContentCache("catalog_excerpt_duplicate_cleanup");
     ratingsCache.builtAt = 0;
