@@ -6,7 +6,7 @@
   <title>Author–Book–Content Explorer | Poetry, Please</title>
   <link rel="icon" type="image/png" href="/pp-loader-logo.png" />
   <link rel="apple-touch-icon" href="/pp-loader-logo.png" />
-  <link rel="stylesheet" href="/explorer/explorer.css" />
+  <link rel="stylesheet" href="/explorer/explorer.css?v=20261124" />
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
 </head>
@@ -25,6 +25,24 @@
 
     <h1>Author–Book–Content Explorer</h1>
     <p class="lede">A read-only staff view of books, works, excerpts, videos, quote images, interior images, full-poem images, source links, and review state already connected inside Poetry Please.</p>
+
+    <section id="youtube-panel" class="youtube-panel" aria-labelledby="yt-heading" hidden>
+      <div class="yt-head">
+        <div>
+          <div class="eyebrow">Start here</div>
+          <h2 id="yt-heading">Top YouTube videos</h2>
+          <div id="yt-count" class="meta"></div>
+        </div>
+        <p class="meta yt-source">View counts come from the last YouTube export and are not updated automatically. Pick a book to see its top videos.</p>
+      </div>
+      <div class="filters yt-filters" aria-label="YouTube video filters">
+        <input id="yt-search" type="search" placeholder="Search video, author, or book" aria-label="Search YouTube videos" />
+        <select id="yt-book" aria-label="YouTube book"><option value="">All books</option></select>
+        <select id="yt-author" aria-label="YouTube author"><option value="">All authors</option></select>
+      </div>
+      <ol id="yt-list" class="yt-list"></ol>
+      <div class="load-more-wrap"><button id="yt-more" type="button" hidden>Show more videos</button></div>
+    </section>
 
     <div id="status" class="status">Team access required. Choose the Google account you use for Poetry Please Admin.</div>
 
@@ -74,6 +92,6 @@
       <div class="load-more-wrap"><button id="load-more" class="primary" type="button" hidden>Show more works</button></div>
     </div>
   </main>
-  <script src="/explorer/explorer.js"></script>
+  <script src="/explorer/explorer.js?v=20261124"></script>
 </body>
 </html>

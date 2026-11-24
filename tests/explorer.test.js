@@ -65,11 +65,12 @@ test("view model derives selectors without mutating API rows", () => {
   assert.equal(payload.rows.length, 3);
 });
 
-function browserHarness({ search = "", rows = [] } = {}) {
+function browserHarness({ search = "", rows = [], videos = [] } = {}) {
   const ids = [
     "login", "switch-account", "retry-auth", "logout", "search", "author", "book", "catalog",
     "asset-type", "confidence", "product-link", "flags-only", "reset", "load-more", "workspace",
     "results", "account-note", "status", "summary", "coverage",
+    "youtube-panel", "yt-search", "yt-book", "yt-author", "yt-list", "yt-more", "yt-count",
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, {
     id,
@@ -114,7 +115,9 @@ function browserHarness({ search = "", rows = [] } = {}) {
       status: 200,
       json: async () => url.endsWith("/me")
         ? { email: "staff@buttonpoetry.com", roles: ["team"] }
-        : { rows, bookSummaries: [] },
+        : url.endsWith("/explorer/youtubeVideos")
+          ? { videos, totalCount: videos.length }
+          : { rows, bookSummaries: [] },
     }),
   };
   sandbox.window = sandbox;
@@ -163,4 +166,38 @@ test("thematic suggestions reject a conflicting poem key and ambiguous title mat
   assert.equal(themes(taggedPilotPoem, false).length, 0);
   assert.equal(themes({ ...taggedPilotPoem, poemKey: "BPP-00001" }, true).length, 0);
   assert.equal(themes({ ...taggedPilotPoem, poemKey: "BPP-00222" }, false).length, 1);
+});
+
+test("YouTube helpers filter by book, author and search without reordering", () => {
+  const videos = [
+    { title: "Almosts", author: "Bianca Phipps", book: "CROWN NOBLE", views: 1077541 },
+    { title: "The Future", author: "Neil Hilborn", book: "THE FUTURE", views: 900 },
+    { title: "Liminality", author: "Neil Hilborn", book: "THE FUTURE", views: 50 },
+  ];
+  assert.deepEqual(explorer.youtubeFacets(videos).books, ["CROWN NOBLE", "THE FUTURE"]);
+  assert.deepEqual(explorer.filterYoutubeVideos(videos, { book: "the future" }).map((v) => v.title), ["The Future", "Liminality"]);
+  assert.deepEqual(explorer.filterYoutubeVideos(videos, { author: "bianca phipps" }).map((v) => v.title), ["Almosts"]);
+  assert.deepEqual(explorer.filterYoutubeVideos(videos, { query: "limin" }).map((v) => v.title), ["Liminality"]);
+  assert.equal(explorer.formatCount(1077541), "1,077,541");
+});
+
+test("signed-in Explorer shows the top YouTube videos panel, scoped by the ytBook link", async () => {
+  const user = { email: "staff@buttonpoetry.com", getIdToken: async () => "test-token" };
+  const videos = [
+    { title: "Almosts", author: "Bianca Phipps", book: "CROWN NOBLE", views: 1077541, likes: 38447, url: "https://www.youtube.com/watch?v=3wvnQcm3SZE" },
+    { title: "The Future", author: "Neil Hilborn", book: "THE FUTURE", views: 900, likes: 3, url: "https://www.youtube.com/watch?v=x" },
+  ];
+  const all = browserHarness({ videos });
+  all.auth.currentUser = user;
+  await all.getAuthCallback()(user);
+  assert.equal(all.elements["youtube-panel"].hidden, false);
+  assert.match(all.elements["yt-list"].innerHTML, /Almosts[\s\S]*1,077,541[\s\S]*The Future/);
+  assert.match(all.elements["yt-count"].textContent, /^2 videos/);
+  assert.equal(all.elements.workspace.hidden, false);
+
+  const scoped = browserHarness({ videos, search: "?ytBook=THE%20FUTURE" });
+  scoped.auth.currentUser = user;
+  await scoped.getAuthCallback()(user);
+  assert.doesNotMatch(scoped.elements["yt-list"].innerHTML, /Almosts/);
+  assert.match(scoped.elements["yt-count"].textContent, /^1 of 2 videos/);
 });
