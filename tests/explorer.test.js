@@ -65,12 +65,12 @@ test("view model derives selectors without mutating API rows", () => {
   assert.equal(payload.rows.length, 3);
 });
 
-function browserHarness({ search = "", rows = [], videos = [] } = {}) {
+function browserHarness({ search = "", rows = [], videos = [], social = { status: "not_built", posts: [] } } = {}) {
   const ids = [
     "login", "switch-account", "retry-auth", "logout", "search", "author", "book", "catalog",
     "asset-type", "confidence", "product-link", "flags-only", "reset", "load-more", "workspace",
     "results", "account-note", "status", "summary", "coverage",
-    "youtube-panel", "yt-search", "yt-book", "yt-author", "yt-list", "yt-more", "yt-count",
+    "youtube-panel", "yt-search", "yt-book", "yt-platform", "yt-all", "yt-modes", "yt-source", "yt-list", "yt-more", "yt-count",
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, {
     id,
@@ -115,7 +115,9 @@ function browserHarness({ search = "", rows = [], videos = [] } = {}) {
       status: 200,
       json: async () => url.endsWith("/me")
         ? { email: "staff@buttonpoetry.com", roles: ["team"] }
-        : url.endsWith("/explorer/youtubeVideos")
+        : url.endsWith("/explorer/socialTopPosts")
+          ? social
+          : url.endsWith("/explorer/youtubeVideos")
           ? { videos, totalCount: videos.length }
           : { rows, bookSummaries: [] },
     }),
@@ -181,7 +183,22 @@ test("YouTube helpers filter by book, author and search without reordering", () 
   assert.equal(explorer.formatCount(1077541), "1,077,541");
 });
 
-test("signed-in Explorer shows the top YouTube videos panel, scoped by the ytBook link", async () => {
+test("social helpers rank top, viral and trending posts and filter by book", () => {
+  const posts = [
+    { platform: "youtube", title: "OCD", book: "THE FUTURE", views: 16649543, lift: 1.2, viewsGained7d: 9000, isVideo: true },
+    { platform: "instagram", title: "Me, But Happy", book: "The Future", views: 50000, lift: 3.1, viewsGained7d: 40000, isVideo: true },
+    { platform: "facebook", title: "Static quote", book: "Helium", engagement: 900, lift: 2.0, isVideo: false },
+  ];
+  assert.deepEqual(explorer.filterSocialPosts(posts, { book: "the future" }).map((p) => p.title), ["OCD", "Me, But Happy"]);
+  assert.deepEqual(explorer.filterSocialPosts(posts, { mode: "viral" }).map((p) => p.title), ["Me, But Happy", "Static quote", "OCD"]);
+  assert.deepEqual(explorer.filterSocialPosts(posts, { mode: "trending" }).map((p) => p.title), ["Me, But Happy", "OCD"]);
+  assert.deepEqual(explorer.filterSocialPosts(posts, { videosOnly: true, platform: "facebook" }), []);
+  assert.deepEqual(explorer.socialBooks(posts).map((b) => [b.label, b.count]), [["Helium", 1], ["The Future", 2]]);
+  assert.equal(explorer.liftLabel(2.3), "10× typical");
+  assert.equal(explorer.liftLabel(0.4), "1.5× typical");
+});
+
+test("signed-in Explorer falls back to the YouTube list, scoped by the ytBook link", async () => {
   const user = { email: "staff@buttonpoetry.com", getIdToken: async () => "test-token" };
   const videos = [
     { title: "Almosts", author: "Bianca Phipps", book: "CROWN NOBLE", views: 1077541, likes: 38447, url: "https://www.youtube.com/watch?v=3wvnQcm3SZE" },
@@ -193,11 +210,28 @@ test("signed-in Explorer shows the top YouTube videos panel, scoped by the ytBoo
   assert.equal(all.elements["youtube-panel"].hidden, false);
   assert.match(all.elements["yt-list"].innerHTML, /Almosts[\s\S]*1,077,541[\s\S]*The Future/);
   assert.match(all.elements["yt-count"].textContent, /^2 videos/);
+  assert.match(all.elements["yt-source"].textContent, /April YouTube export/);
   assert.equal(all.elements.workspace.hidden, false);
 
-  const scoped = browserHarness({ videos, search: "?ytBook=THE%20FUTURE" });
+  const scoped = browserHarness({ videos, search: "?ytBook=the%20future" });
   scoped.auth.currentUser = user;
   await scoped.getAuthCallback()(user);
   assert.doesNotMatch(scoped.elements["yt-list"].innerHTML, /Almosts/);
-  assert.match(scoped.elements["yt-count"].textContent, /^1 of 2 videos/);
+  assert.match(scoped.elements["yt-count"].textContent, /^1 videos/);
+});
+
+test("signed-in Explorer prefers the Social Warehouse copy and opens on a book's viral posts", async () => {
+  const user = { email: "staff@buttonpoetry.com", getIdToken: async () => "test-token" };
+  const social = { status: "ok", generatedAt: "2026-11-24T12:00:00Z", posts: [
+    { platform: "instagram", postId: "1", title: "Me, But Happy", book: "The Future", views: 50000, lift: 2.3, isVideo: true, url: "https://instagram.com/p/1" },
+    { platform: "youtube", postId: "abc", title: "OCD", book: "The Future", views: 16649543, lift: 0.5, isVideo: true, url: "https://youtube.com/watch?v=abc" },
+    { platform: "tiktok", postId: "9", title: "Elsewhere", book: "Helium", views: 10, lift: 4, isVideo: true, url: "https://tiktok.com/9" },
+  ] };
+  const h = browserHarness({ social, search: "?ytBook=The%20Future&ytMode=viral" });
+  h.auth.currentUser = user;
+  await h.getAuthCallback()(user);
+  const html = h.elements["yt-list"].innerHTML;
+  assert.match(html, /Me, But Happy[\s\S]*10× typical[\s\S]*OCD/);
+  assert.doesNotMatch(html, /Elsewhere/);
+  assert.match(h.elements["yt-source"].textContent, /Social Warehouse/);
 });

@@ -366,6 +366,61 @@
       && (!query || normalized([video.title, video.author, video.book, video.bookShortener, video.youtubeId].join(" ")).includes(query)));
   }
 
+  // Social top posts (Social Warehouse snapshot), with the April YouTube list
+  // as a fallback until the warehouse copy exists.
+  const PLATFORM_LABELS = { youtube: "YouTube", instagram: "Instagram", facebook: "Facebook", tiktok: "TikTok", tumblr: "Tumblr" };
+
+  function socialPostsFromYoutube(videos) {
+    return (Array.isArray(videos) ? videos : []).map((video) => ({
+      platform: "youtube", postId: video.youtubeId || "", title: video.title || "", caption: "",
+      author: video.author || "", book: video.book || "", url: video.url || "", thumbnailUrl: video.thumbnailUrl || "",
+      publishedAt: video.uploadTime || "", views: Number(video.views) || 0, likes: Number(video.likes) || 0,
+      lift: null, viewsGained7d: null, isVideo: true, flagged: !!video.flagged, reviewOnly: !!video.reviewOnly,
+    }));
+  }
+
+  function socialBooks(posts) {
+    const byKey = new Map();
+    for (const post of Array.isArray(posts) ? posts : []) {
+      const key = normalized(post.book);
+      if (!key) continue;
+      const entry = byKey.get(key) || { label: text(post.book), count: 0 };
+      entry.count += 1;
+      // Prefer a mixed-case spelling over an all-caps one for the label.
+      if (entry.label === entry.label.toUpperCase() && text(post.book) !== text(post.book).toUpperCase()) entry.label = text(post.book);
+      byKey.set(key, entry);
+    }
+    return [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  function socialSortValue(post, mode) {
+    if (mode === "viral") return post.lift == null ? null : Number(post.lift);
+    if (mode === "trending") return post.viewsGained7d == null ? null : Number(post.viewsGained7d);
+    const views = Number(post.views);
+    return Number.isFinite(views) && views > 0 ? views : (post.engagement == null ? null : Number(post.engagement));
+  }
+
+  function filterSocialPosts(posts, filters) {
+    const f = filters || {};
+    const book = normalized(f.book);
+    const platform = normalized(f.platform);
+    const query = normalized(f.query);
+    const mode = ["viral", "trending"].includes(f.mode) ? f.mode : "top";
+    return (Array.isArray(posts) ? posts : []).filter((post) =>
+      (!book || normalized(post.book) === book)
+      && (!platform || normalized(post.platform) === platform)
+      && (!f.videosOnly || post.isVideo)
+      && (!query || normalized([post.title, post.poemTitle, post.caption, post.author, post.account, post.book].join(" ")).includes(query))
+      && socialSortValue(post, mode) != null)
+      .sort((a, b) => socialSortValue(b, mode) - socialSortValue(a, mode));
+  }
+
+  function liftLabel(lift) {
+    if (lift == null) return "";
+    const times = Math.exp(Number(lift));
+    return times >= 1.95 ? Math.round(times) + "× typical" : times >= 1.05 ? times.toFixed(1) + "× typical" : "below typical";
+  }
+
   function formatCount(value) {
     const number = Number(value) || 0;
     return number.toLocaleString("en-US");
@@ -400,6 +455,11 @@
     youtubeFacets,
     filterYoutubeVideos,
     formatCount,
+    PLATFORM_LABELS,
+    socialPostsFromYoutube,
+    socialBooks,
+    filterSocialPosts,
+    liftLabel,
   };
 });
 
@@ -848,19 +908,23 @@ if (typeof document !== "undefined") {
       render();
     }
 
-    // ---- Top YouTube videos panel (loads on its own, ahead of the slower works list)
+    // ---- Top and viral posts panel (loads on its own, ahead of the slower works list)
     const YT_PAGE_SIZE = 25;
-    const YT_PARAMS = ["ytBook", "ytAuthor", "ytQ"];
-    const yt = { videos: [], visibleCount: YT_PAGE_SIZE };
+    const YT_PARAMS = ["ytBook", "ytPlatform", "ytQ", "ytMode", "ytAll"];
+    const yt = { posts: [], visibleCount: YT_PAGE_SIZE, source: "", note: "" };
 
     function ytFilters() {
-      return { book: $("yt-book").value, author: $("yt-author").value, query: $("yt-search").value };
+      return {
+        book: $("yt-book").value, platform: $("yt-platform").value, query: $("yt-search").value,
+        mode: yt.mode || "top", videosOnly: !$("yt-all").checked,
+      };
     }
 
     function syncYoutubeUrl() {
       const params = new URLSearchParams(location.search);
       const filters = ytFilters();
-      const values = { ytBook: filters.book, ytAuthor: filters.author, ytQ: filters.query };
+      const values = { ytBook: filters.book, ytPlatform: filters.platform, ytQ: filters.query,
+        ytMode: filters.mode === "top" ? "" : filters.mode, ytAll: filters.videosOnly ? "" : "1" };
       for (const key of YT_PARAMS) {
         if (values[key]) params.set(key, values[key]);
         else params.delete(key);
@@ -868,52 +932,98 @@ if (typeof document !== "undefined") {
       history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params.toString() : ""));
     }
 
+    function postMetric(post, mode) {
+      if (mode === "viral") return { big: E.liftLabel(post.lift), small: post.views ? E.formatCount(post.views) + " views" : E.formatCount(post.engagement) + " engagements" };
+      if (mode === "trending") return { big: "+" + E.formatCount(post.viewsGained7d), small: "views in 7 days" };
+      return post.views
+        ? { big: E.formatCount(post.views), small: "views" }
+        : { big: E.formatCount(post.engagement), small: "engagements" };
+    }
+
     function renderYoutube() {
       const filters = ytFilters();
-      const matches = E.filterYoutubeVideos(yt.videos, filters);
+      document.querySelectorAll ? document.querySelectorAll("[data-yt-mode]").forEach((button) => {
+        button.setAttribute("aria-pressed", button.getAttribute("data-yt-mode") === filters.mode ? "true" : "false");
+      }) : null;
+      const matches = E.filterSocialPosts(yt.posts, filters);
       const visible = matches.slice(0, yt.visibleCount);
-      const scoped = filters.book || filters.author || filters.query;
-      $("yt-list").innerHTML = visible.length ? visible.map((video, index) => {
-        const thumb = video.thumbnailUrl
-          ? '<img src="' + escapeHtml(video.thumbnailUrl) + '" alt="" loading="lazy" width="160" height="90" />'
-          : '<span class="yt-thumb-empty"></span>';
-        const notes = [video.flagged ? "Flagged" : "", video.reviewOnly ? "Review only" : ""].filter(Boolean);
+      $("yt-list").innerHTML = visible.length ? visible.map((post, index) => {
+        const thumbUrl = post.thumbnailUrl || (post.platform === "youtube" && post.postId ? "https://i.ytimg.com/vi/" + post.postId + "/mqdefault.jpg" : "");
+        const thumb = thumbUrl
+          ? '<img src="' + escapeHtml(thumbUrl) + '" alt="" loading="lazy" width="160" height="90" />'
+          : '<span class="yt-thumb-empty">' + escapeHtml(E.PLATFORM_LABELS[post.platform] || post.platform) + '</span>';
+        const title = post.title || post.poemTitle || post.caption || "Untitled post";
+        const notes = [post.flagged ? "Flagged" : "", post.reviewOnly ? "Review only" : ""].filter(Boolean);
+        const metric = postMetric(post, filters.mode);
+        const date = post.publishedAt ? String(post.publishedAt).slice(0, 10).replace(/^(\d\d)\/(\d\d)\/(\d{4}).*/, "$3-$1-$2") : "";
         return '<li class="yt-row"><span class="yt-rank">' + (index + 1) + '</span>'
-          + '<a class="yt-thumb" href="' + escapeHtml(video.url) + '" target="_blank" rel="noopener noreferrer">' + thumb + '</a>'
-          + '<div class="yt-info"><a class="yt-title" href="' + escapeHtml(video.url) + '" target="_blank" rel="noopener noreferrer">'
-          + escapeHtml(video.title || "Untitled video") + '</a>'
-          + '<div class="meta">' + escapeHtml(video.author || "Unknown author") + ' · ' + escapeHtml(video.book || "No book") + '</div>'
+          + '<a class="yt-thumb" href="' + escapeHtml(post.url) + '" target="_blank" rel="noopener noreferrer">' + thumb + '</a>'
+          + '<div class="yt-info"><span class="yt-platform ' + escapeHtml(post.platform) + '">' + escapeHtml(E.PLATFORM_LABELS[post.platform] || post.platform) + '</span> '
+          + '<a class="yt-title" href="' + escapeHtml(post.url) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(title.length > 110 ? title.slice(0, 107) + "…" : title) + '</a>'
+          + '<div class="meta">' + escapeHtml([post.author || post.account, post.book || "No book linked", date].filter(Boolean).join(" · ")) + '</div>'
           + (notes.length ? '<div class="yt-notes">' + notes.map((note) => '<span>' + escapeHtml(note) + '</span>').join("") + '</div>' : "")
-          + '</div><div class="yt-stats"><strong>' + escapeHtml(E.formatCount(video.views)) + '</strong><span>views</span>'
-          + '<span class="meta">' + escapeHtml(E.formatCount(video.likes)) + ' likes</span>'
-          + (video.uploadTime ? '<span class="meta">' + escapeHtml(String(video.uploadTime).split(" ")[0]) + '</span>' : "")
+          + '</div><div class="yt-stats"><strong>' + escapeHtml(metric.big) + '</strong><span>' + escapeHtml(metric.small) + '</span>'
+          + (post.likes != null && filters.mode === "top" ? '<span class="meta">' + escapeHtml(E.formatCount(post.likes)) + ' likes</span>' : "")
           + '</div></li>';
-      }).join("") : '<li class="empty">No YouTube videos match these filters.</li>';
+      }).join("") : '<li class="empty">' + (filters.mode === "trending" && yt.source !== "warehouse"
+        ? "Trending needs the daily Social Warehouse copy, which isn't available yet."
+        : filters.mode === "viral" && yt.source !== "warehouse"
+          ? "Viral scores need the daily Social Warehouse copy, which isn't available yet."
+          : "No posts match these filters.") + '</li>';
       const remaining = matches.length - visible.length;
       $("yt-more").hidden = remaining <= 0;
-      $("yt-more").textContent = remaining > 0 ? "Show " + Math.min(YT_PAGE_SIZE, remaining) + " more videos" : "";
-      $("yt-count").textContent = (scoped ? matches.length + " of " + yt.videos.length : yt.videos.length) + " videos, ranked by YouTube views";
+      $("yt-more").textContent = remaining > 0 ? "Show " + Math.min(YT_PAGE_SIZE, remaining) + " more" : "";
+      const label = filters.mode === "viral" ? "ranked by how far they beat similar posts"
+        : filters.mode === "trending" ? "ranked by views gained in the last 7 days" : "ranked by views";
+      $("yt-count").textContent = matches.length + (filters.videosOnly ? " videos, " : " posts, ") + label;
+      $("yt-source").textContent = yt.note;
       syncYoutubeUrl();
     }
 
     async function loadYoutube() {
       $("youtube-panel").hidden = false;
-      $("yt-count").textContent = "Loading YouTube videos…";
+      $("yt-count").textContent = "Loading top posts…";
+      let social = null;
       try {
-        const payload = await apiGet("explorer/youtubeVideos");
-        yt.videos = Array.isArray(payload && payload.videos) ? payload.videos : [];
-        const facets = E.youtubeFacets(yt.videos);
-        fillSelect("yt-book", facets.books, "books");
-        fillSelect("yt-author", facets.authors, "authors");
-        const params = new URLSearchParams(location.search);
-        $("yt-book").value = params.get("ytBook") || "";
-        $("yt-author").value = params.get("ytAuthor") || "";
-        $("yt-search").value = params.get("ytQ") || "";
-        yt.visibleCount = YT_PAGE_SIZE;
-        renderYoutube();
+        social = await apiGet("explorer/socialTopPosts");
       } catch (error) {
-        $("yt-count").textContent = "YouTube videos could not be loaded (" + (error.message || "unknown error") + "). Reload to retry.";
+        social = null;
       }
+      if (social && Array.isArray(social.posts) && social.posts.length) {
+        yt.posts = social.posts;
+        yt.source = "warehouse";
+        const asOf = social.generatedAt ? new Date(social.generatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+        yt.note = "From the Social Warehouse, copied " + (asOf || "daily") + ". "
+          + (social.status === "stale" ? "The latest daily copy failed, so these numbers may be older. " : "")
+          + "Viral compares each post with the 30 nearest posts on the same platform.";
+      } else {
+        try {
+          const payload = await apiGet("explorer/youtubeVideos");
+          yt.posts = E.socialPostsFromYoutube(payload && payload.videos);
+        } catch (error) {
+          $("yt-count").textContent = "Top posts could not be loaded (" + (error.message || "unknown error") + "). Reload to retry.";
+          return;
+        }
+        yt.source = "youtube_export";
+        yt.note = "YouTube only, using view counts from the April YouTube export. "
+          + "All platforms, Viral and Trending appear once the daily Social Warehouse copy is connected.";
+      }
+      const books = E.socialBooks(yt.posts);
+      $("yt-book").innerHTML = '<option value="">All books</option>' + books.map((book) =>
+        '<option value="' + escapeHtml(book.label) + '">' + escapeHtml(book.label) + " (" + book.count + ")</option>").join("");
+      const platforms = [...new Set(yt.posts.map((post) => post.platform))].sort();
+      $("yt-platform").innerHTML = '<option value="">All platforms</option>' + platforms.map((platform) =>
+        '<option value="' + escapeHtml(platform) + '">' + escapeHtml(E.PLATFORM_LABELS[platform] || platform) + "</option>").join("");
+      const params = new URLSearchParams(location.search);
+      const wantedBook = E.normalized(params.get("ytBook"));
+      const book = books.find((entry) => E.normalized(entry.label) === wantedBook);
+      $("yt-book").value = book ? book.label : "";
+      $("yt-platform").value = platforms.includes(params.get("ytPlatform")) ? params.get("ytPlatform") : "";
+      $("yt-search").value = params.get("ytQ") || "";
+      $("yt-all").checked = params.get("ytAll") === "1";
+      yt.mode = ["viral", "trending"].includes(params.get("ytMode")) ? params.get("ytMode") : "top";
+      yt.visibleCount = YT_PAGE_SIZE;
+      renderYoutube();
     }
 
     function youtubeFilterChanged() {
@@ -960,7 +1070,13 @@ if (typeof document !== "undefined") {
     ["author", "book", "catalog", "asset-type", "confidence", "product-link", "view", "sort", "flags-only"].forEach((id) => { if ($(id)) $(id).addEventListener("change", filterChanged); });
     $("reset").addEventListener("click", resetFilters);
     $("yt-search").addEventListener("input", youtubeFilterChanged);
-    ["yt-book", "yt-author"].forEach((id) => $(id).addEventListener("change", youtubeFilterChanged));
+    ["yt-book", "yt-platform", "yt-all"].forEach((id) => $(id).addEventListener("change", youtubeFilterChanged));
+    $("yt-modes").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-yt-mode]");
+      if (!button) return;
+      yt.mode = button.getAttribute("data-yt-mode");
+      youtubeFilterChanged();
+    });
     $("yt-more").addEventListener("click", () => {
       yt.visibleCount += YT_PAGE_SIZE;
       renderYoutube();
