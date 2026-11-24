@@ -34,6 +34,33 @@ These parameters can be combined.
 - Existing in-app controls still work after landing from a link.
 - The URL updates as filters change in the app.
 
+## Where Each Link Opens (by device)
+
+The Drive copy of this guide is "Creating deep links for poetry please // Link Guide":
+https://docs.google.com/document/d/1hiY1oB500Ly8FW9RY-m5GF_LVXcEfz0VOPGrMdXyE1I/edit
+
+Routing below was read in code (`public/detect.html`, the mobile guard near the top of `public/app.js`, `classicMobileTarget` in `public/mobile-entry.js`) and opened live on 24 November 2026 in a staff browser session. Anonymous visits were not rechecked.
+
+- `/` sends phones to `/m` and desktops to `/app`, keeping the query.
+- `/app` on a phone moves to `/m?…&view=mobile`.
+- `/m` is primary Swipe. Only these links stay in Swipe: `item` on its own; the chapbook-winners group (`bookGroup=chapbook-winners`, optional `contestYear`, `book`, `type`); contest winner reading (`catalog=Contest&event=…&type=QI&locked=1&reading=1`); staff author preview (`author=…&authorPreview=1`). UTM and ad-click tags don't affect this.
+- Any other lane parameter on `/m` (`book`, `author`, `type`, `catalog`, or `item` combined with one of them) sends the phone to classic mobile, `/m-classic`, which applies the lane as described above.
+
+| Link | Phone | Desktop |
+| --- | --- | --- |
+| `/?item=ID`, or the Share link `/app?item=ID` | Swipe: the item, then the normal Swipe feed (PR #479; before it, Swipe stopped after the item) | `/app`: the item, then the normal feed |
+| `/?item=ID&book=BOOK&locked=1` | Classic mobile: the item, then that book | `/app`: the item, then that book |
+| `/app?book=BOOK` | Classic mobile, book lane | `/app`, book lane |
+| `/app?author=NAME&locked=1` | Classic mobile, author lane | `/app`, author lane |
+| `/?type=EXC` | Classic mobile, type lane | `/app`, type lane |
+| `/app?catalog=Contest&book=Short%20Form%202026&locked=1` | Classic mobile, locked contest lane | `/app`, locked contest lane |
+| `/?bookGroup=chapbook-winners&type=QI` | Swipe, chapbook-winners lane | `/app`, chapbook-winners lane |
+| `/m?catalog=Contest&event=…&type=QI&locked=1&reading=1` | Swipe, contest winners reading | not rechecked |
+
+With `locked=1` the reader stays in the lane until it runs out. The app then offers **Show me more poems!** and returns them to the normal feed.
+
+Links the app makes itself: Share on a post card copies `https://poetryplease.org/app?item=ID`. Explorer, Scoreboard, admin pages and author repair emails link `/app?item=ID`. Author pages and admin flag lists link `/?item=ID`. Swipe's "Open in single-item view" links `/m-classic?item=ID` plus the active lane.
+
 ## Important Notes
 
 - Parameter values should be URL-encoded.
