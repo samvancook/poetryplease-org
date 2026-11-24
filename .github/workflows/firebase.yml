@@ -79,7 +79,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js votes-ledger.test.js explorer-youtube.test.js social-top-posts.test.js
+        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js votes-ledger.test.js explorer-youtube.test.js social-top-posts.test.js swipe-feed.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js

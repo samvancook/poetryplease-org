@@ -183,3 +183,44 @@ test('staff-demoted items trail discovery across pages and keep normal scoped or
   assert.deepEqual(second.items.map(item => item.imageId), ['two', 'held']);
   assert.equal(second.hasMore, false);
 });
+
+test('a page holds the same cards, in the same order, as the start of the full ordering', () => {
+  let state = 4242;
+  const random = () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return (state >>> 0) / 4294967296; };
+  const pick = list => list[Math.floor(random() * list.length)];
+  for (let round = 0; round < 400; round += 1) {
+    const items = []; const ratingsSummary = {};
+    const count = pick([0, 1, 4, 9, 40, 150]);
+    for (let index = 0; index < count; index += 1) {
+      const imageId = pick(['SFC', 'tf', 'pig', 'a-b', 'a_b']) + '-' + pick(['QI', 'INT', 'YT']) + '-' + round + '-' + index;
+      items.push({ imageId, imageType: pick(['QI', 'INT', 'EXC', 'YT']), socialViews: Math.floor(random() * 5000), socialLikes: Math.floor(random() * 90) });
+      if (random() < .7) {
+        const votes = () => Math.floor(random() * pick([1, 2, 4, 9]));
+        const rating = { likes: votes(), dislikes: votes(), meh: votes(), movedMe: votes() };
+        rating.total = rating.likes + rating.dislikes + rating.meh + rating.movedMe;
+        ratingsSummary[imageId.toLowerCase()] = rating;
+      }
+    }
+    const limit = pick([1, 3, 12, 24]);
+    const seed = 'seed-' + round;
+    const includeMuted = random() < .5; const preferVisual = random() < .5;
+    // Signed-in readers: the interleaved community ordering.
+    const full = mobilePreference(items, ratingsSummary, { seed, includeMuted, preferVisual });
+    const page = paginateMobileFeed(items, { ratingsSummary, seed, limit, includeMuted, preferVisual });
+    assert.deepEqual(page.items.map(item => item.imageId), full.slice(0, limit).map(item => item.imageId));
+    assert.deepEqual(page.items.map(item => item.__feedSignals), full.slice(0, limit).map(item => item.__feedSignals));
+    assert.equal(page.hasMore, full.length > limit);
+    // New visitors: proven QI, then rated work, then score, with no jitter.
+    const rating = item => ratingsSummary[item.imageId.toLowerCase()] || {};
+    const proven = item => Number(item.imageType === 'QI' && Number(rating(item).total || 0) >= 3);
+    const showcase = mobilePreference(items, ratingsSummary, { seed, random: () => .5 }).sort((a, b) => proven(b) - proven(a)
+      || Number(Number(rating(b).total || 0) >= 3) - Number(Number(rating(a).total || 0) >= 3)
+      || b.__feedSignals.feedScore - a.__feedSignals.feedScore
+      || Number(rating(b).movedMe || 0) - Number(rating(a).movedMe || 0)
+      || Number(rating(b).total || 0) - Number(rating(a).total || 0)
+      || a.imageId.toLowerCase().localeCompare(b.imageId.toLowerCase()));
+    const welcome = paginateMobileFeed(items, { ratingsSummary, seed, limit, newcomer: true });
+    assert.deepEqual(welcome.items.map(item => item.imageId), showcase.slice(0, limit).map(item => item.imageId));
+    assert.equal(welcome.hasMore, showcase.length > limit);
+  }
+});
