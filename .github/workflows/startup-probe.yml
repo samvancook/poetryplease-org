@@ -51,6 +51,7 @@ jobs:
           cd /tmp/probe && node link-probe.mjs
 
       - name: Anonymous browser start on Desktop, classic mobile and Swipe
+        if: always()
         run: |
           cp scripts/startup-probe.mjs /tmp/probe/
           cd /tmp/probe && node startup-probe.mjs

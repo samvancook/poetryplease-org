@@ -87,6 +87,7 @@ for (const link of links) {
         await page.waitForTimeout(4000);
         const after = await readState(page);
         console.log(`  after scrolling: ${after.swipeCards} cards, status: ${after.status || "-"}`);
+        if (link.item && !link.book && after.swipeCards <= 1) { problems++; console.log("  PROBLEM: Swipe stopped after the linked item"); }
       }
 
       // The end of a locked lane, brought up directly, and its release button.
@@ -111,3 +112,4 @@ for (const link of links) {
 }
 await browser.close();
 console.log(`\n${problems ? problems + " problem(s)" : "No problems found"}.`);
+if (problems) process.exitCode = 1;

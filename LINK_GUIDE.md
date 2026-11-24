@@ -39,7 +39,7 @@ These parameters can be combined.
 The Drive copy of this guide is "Creating deep links for poetry please // Link Guide":
 https://docs.google.com/document/d/1hiY1oB500Ly8FW9RY-m5GF_LVXcEfz0VOPGrMdXyE1I/edit
 
-Routing below was read in code (`public/detect.html`, the mobile guard near the top of `public/app.js`, `classicMobileTarget` in `public/mobile-entry.js`) and opened live on 24 November 2026 in a staff browser session. Anonymous visits were not rechecked.
+Routing below was read in code (`public/detect.html`, the mobile guard near the top of `public/app.js`, `classicMobileTarget` in `public/mobile-entry.js`) opened live on 24 November 2026 in a staff browser session, and rechecked the same day as a new signed-out visitor on a phone and on desktop (see **Checking links before a change** below).
 
 - `/` sends phones to `/m` and desktops to `/app`, keeping the query.
 - `/app` on a phone moves to `/m?…&view=mobile`.
@@ -60,6 +60,33 @@ Routing below was read in code (`public/detect.html`, the mobile guard near the 
 With `locked=1` the reader stays in the lane until it runs out. The app then offers **Show me more poems!** and returns them to the normal feed.
 
 Book embeds (`/embed?book=BOOK`): tapping a piece opens `/app?item=ID&book=BOOK&catalog=CATALOG&locked=1`, and **Explore collection** opens `/app?book=BOOK&catalog=CATALOG&locked=1` (both read in `public/embed.html`). On a phone both land in classic mobile. Checked live on 24 November 2026: `?item=EMAI-FP-NOW-I-ONLY&book=Excuse Me As I Kiss The Sky&locked=1` on a phone showed the poem first, then 270 cards all from that book (staff skips, which record no votes); the end screen reads "You've reached the end of this book-only set" with **Show me more poems!**, which opened the normal feed. Any change to phone routing for `book`/`locked` links changes where every embed tap lands, so recheck each row of the table above before shipping one.
+
+## Checking links before a change
+
+Run this before shipping anything that touches entry routing (`detect.html`, `mobile-entry.js`, the mobile guard in `app.js`), the Swipe or classic feeds, lanes, `locked`, or the embeds.
+
+1. In GitHub, open Actions, then **Startup probe**, then **Run workflow**, and pick the branch with the change. The **Anonymous deep-link checks** step runs `scripts/link-probe.mjs` against the live site. It opens each link below as a new signed-out visitor on an iPhone 13 profile and on a 1280px desktop window. It never votes or skips.
+2. For each link it prints where the link landed, the first card, whether a login screen or welcome prompt showed, the buy-the-book link, and what the lane serves next. It ends with `No problems found.` or a count of problems, and the step fails when there are any.
+3. Compare the output with the table here. A row that lands somewhere new is a change to every place that uses that link, including the book embeds on buttonpoetry.com. Get Sam's OK for it by name before merging.
+4. Check by hand whatever the probe can't do: a real phone, and reading a locked lane through to its natural end.
+
+What the probe counts as a problem: the linked item isn't the first card; a login screen shows; a link with UTM tags loses them on the buy-the-book link; a book or author lane serves cards from outside the lane; a locked lane's **Show me more poems!** doesn't open the normal feed; a Swipe link to a single item stops after that item.
+
+Baseline, signed-out, 24 November 2026 (Startup probe run 45441534580), same on phone and desktop unless noted:
+
+| Link | Phone lands on | Desktop lands on | Result |
+| --- | --- | --- | --- |
+| `/?item=EMAI-FP-NOW-I-ONLY&book=Excuse Me As I Kiss The Sky&locked=1&utm_…` (Rudy SMS) | Classic mobile | `/app` | Poem first, next 120 cards all from the book, buy link keeps the UTM tags, end screen and **Show me more poems!** open the normal feed |
+| `/m?item=EMAI-FP-NOW-I-ONLY` | Swipe | Swipe | Poem, then stops: "You're viewing a linked item." PR #479 changes this |
+| `/app?item=EMAI-FP-NOW-I-ONLY` (Share) | Swipe | `/app` | Phone: same stop as the row above. Desktop: poem, then the normal feed |
+| `/app?book=Excuse Me As I Kiss The Sky` | Classic mobile | `/app` | Book lane, 120 cards from the book |
+| `/app?item=…&book=…&catalog=Fall 2023&locked=1` (embed tap) | Classic mobile | `/app` | Poem first, then the book |
+| `/app?author=Rudy Francisco&locked=1` | Classic mobile | `/app` | Rudy across his three books |
+| `/app?catalog=Contest&book=Short Form 2026&locked=1` | Classic mobile | `/app` | Short Form 2026 entries only |
+| `/?bookGroup=chapbook-winners&type=QI` | Swipe | `/app` | Winners lane, more cards load on scroll |
+| `/posts-swipe?catalog=Contest&event=…&type=QI&locked=1&reading=1` | Swipe | Swipe | Nine winners, then "You've reached the end of the winners collection." |
+
+No login screen or welcome prompt showed on any of them.
 
 Links the app makes itself: Share on a post card copies `https://poetryplease.org/app?item=ID`. Explorer, Scoreboard, admin pages and author repair emails link `/app?item=ID`. Author pages and admin flag lists link `/?item=ID`. Swipe's "Open in single-item view" links `/m-classic?item=ID` plus the active lane.
 
