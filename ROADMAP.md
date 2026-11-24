@@ -464,6 +464,15 @@ Why this is parked:
 - The bigger open question is content classification: poem vs prose-poem vs prose.
 - It makes sense to pause until we want to re-open that product decision.
 
+### Swipe on desktop looked full-width (reported 23 November 2026)
+Status: Parked by Sam on 23 Nov to revisit with clearer work. No code was changed.
+
+- What Sam saw: Swipe opened in a desktop browser filled the whole screen instead of the usual phone-width column, and the title sat far from the poem, so only one thing was in view at a time.
+- Not reproduced: on the live site at 1024 and 1440 wide, signed in and signed out, `/m`, the contest-winners view and the Rudy link (`/m?item=EMAI-FP-NOW-I-ONLY`) all showed the normal 480px column. Today's Swipe merges (#449, #460, #461, #463, #464) don't change the column width; the column held even with `posts-swipe.css` switched off.
+- Possible match: on a short full poem such as Rudy's, the poem sits at the top of the card and the title sits down by the vote buttons with a large gap. That layout predates 23 Nov.
+- Next time it appears: get the exact page address and a screenshot from Sam before changing anything.
+- Side finding: `/m?intro=dispenser` (or `claw`/`none`) is sent to classic mobile because `classicMobileTarget` doesn't know the `intro` parameter; `/posts-swipe?intro=…` works.
+
 ## Next Good Threads
 - Protect Poetry Please production deployment ownership:
   - [ ] make the full smoke test an enforced post-deploy requirement rather than a manual follow-up
