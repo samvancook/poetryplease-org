@@ -27,6 +27,7 @@ import { loadedSnapshotIsCurrent } from "./content-cache-policy.js";
 import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
 import { retitleGraphic, validRetitleItem, RETITLE_MAX_ITEMS } from "./graphic-retitle.js";
+import { fixGraphicTitle, validTitleFixItem, TITLE_FIX_MAX_ITEMS } from "./graphic-title-fix.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
 import { buildExplorerYoutubeVideos } from "./explorer-youtube.js";
@@ -10951,6 +10952,34 @@ app.post(getBoth("/internal/displayPreviews/retitle"), async (req, res) => {
     }
   }
   console.log(JSON.stringify({ event: "retitle_graphics", dryRun, results }));
+  res.json({ dryRun, results });
+});
+
+// Fixes misspelled titles on graphics and points each at a copy of its image
+// saved under the corrected name (see graphic-title-fix.js). The copy is made
+// by the firebase.yml job first; old objects stay for the social calendars.
+const titleFixDeps = {
+  getGraphic: restoreOriginalDeps.getGraphic,
+  updateGraphic: restoreOriginalDeps.updateGraphic,
+  objectExists: async (name) => (await storage.bucket("poetrypleasebucket").file(name).exists())[0] === true,
+  now: () => Date.now(),
+};
+app.post(getBoth("/internal/displayPreviews/fixTitles"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length || items.length > TITLE_FIX_MAX_ITEMS || !items.every(validTitleFixItem)) {
+    return res.status(400).json({ error: "invalid_items", maxItems: TITLE_FIX_MAX_ITEMS });
+  }
+  const dryRun = req.body?.dryRun === true;
+  const results = [];
+  for (const item of items) {
+    try {
+      results.push(await fixGraphicTitle(item, titleFixDeps, { dryRun }));
+    } catch (err) {
+      results.push({ id: item.id, status: "failed", error: String(err?.message || err).slice(0, 200) });
+    }
+  }
+  console.log(JSON.stringify({ event: "fix_graphic_titles", dryRun, results }));
   res.json({ dryRun, results });
 });
 
