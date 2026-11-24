@@ -37,6 +37,7 @@ Sam's idea after seeing the Swipe intros (PR #449, live 23 Nov): a version of th
 - **What fits.** The slip today holds about 3 lines of about 28 characters (roughly 20–25 words). It can grow to 5–6 lines before it crowds the machine. Draw from excerpts (EXC) and short quote-image text under that limit, with line breaks kept as the author wrote them.
 - **The loop.** Turn → capsule → slip with the poem, its numbered "POEM No." ticket and the author → react (moved me, like, meh, dislike) → turn again. Tapping the slip opens the full card, poem or book.
 - **Where it lives.** Its own page (for example `/dispenser`), linked from the about page and the Swipe intro. It is not a replacement for the feed.
+- **Demo flow (Sam, 23 Nov).** Capsule 1 dispenses the instructions, capsules 2–4 are short poems you react to, and then the machine hands you the real tool (Swipe). Clickable demo: [Poetry Dispenser Demo](https://claude.ai/artifact/BJySQaVL1vq48GmRCcBKJJ).
 - **First step.** Count how many excerpts fit at 3 and at 5 lines, so we know the size of the pool before building.
 - Prototype art: [Poetry Dispenser Intros](https://claude.ai/artifact/SbHSc2bM3NYW9RYfSuN4qn). Intro test code: `public/swipe-intro*.js`.
 
