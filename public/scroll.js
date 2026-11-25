@@ -31,7 +31,7 @@ if (contestReading) {
   const promo = document.querySelector('.contest-winners-promo');
   if (promo) { promo.href = '/m'; promo.textContent = '← Back to Poetry Please Swipe'; }
 }
-// A linked poem (for example from a text or email) is shown on its own. The
+// A linked poem (for example from a text or email) opens first. The
 // contest promo hangs below the fixed header and would cover its first lines.
 if (linkedItemId) document.querySelector('.contest-winners-promo')?.remove();
 const anonymousId = (() => {
@@ -115,14 +115,24 @@ const loader = createFeedLoader({
   status: $('feed-status'),
   loadMore: $('load-more'),
   onRetry: () => { automaticPages = true; pager.loadMore(); },
-  endMessage: (state) => contestReading && state.seen.size ? 'You’ve reached the end of the winners collection.' : linkedItemId && state.seen.size ? 'You’re viewing a linked item.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.',
+  endMessage: (state) => contestReading && state.seen.size ? 'You’ve reached the end of the winners collection.' : state.seen.size ? 'You’ve reached the end of this queue.' : 'No unreviewed items are available right now.',
 });
 const pager = new ScrollFeedPager({
-  fetchPage: (context, signal) => context.linkedItemId
-    ? linkedItemPage(context.linkedItemId, id => api('contentById?' + new URLSearchParams({id}), null, signal))
-    : api('fetchFiltered', { ...context, anonId: anonymousId, scroll: !contestReading, limit: swipeVariant && !contestReading ? 3 : 12,
+  // A linked poem (from a text or email) comes first, then the normal Swipe
+  // feed follows it so readers can keep swiping. The marker cursor tells the
+  // next request to start the feed from its beginning.
+  fetchPage: async (context, signal) => {
+    const AFTER_LINKED_ITEM = 'after-linked-item';
+    const { linkedItemId: linkedId, ...feedContext } = context;
+    if (linkedId && !feedContext.cursor) {
+      const page = await linkedItemPage(linkedId, id => api('contentById?' + new URLSearchParams({id}), null, signal));
+      return { ...page, hasMore: true, nextCursor: AFTER_LINKED_ITEM };
+    }
+    if (feedContext.cursor === AFTER_LINKED_ITEM) feedContext.cursor = null;
+    return api('fetchFiltered', { ...feedContext, anonId: anonymousId, scroll: !contestReading, limit: swipeVariant && !contestReading ? 3 : 12,
     ...(swipeVariant && !contestReading ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
-  }, signal),
+    }, signal);
+  },
   append: (items) => items.forEach(renderCard),
   changed: loader.update,
   clear: () => { discardReading(); if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
@@ -130,7 +140,10 @@ const pager = new ScrollFeedPager({
 function restartFeed() {
   automaticPages = true;
   updateRoute();
-  return pager.reset({ ...filters, ...(linkedItemId ? {linkedItemId} : {}), scrollSeed: crypto.randomUUID() });
+  const started = pager.reset({ ...filters, ...(linkedItemId ? {linkedItemId} : {}), scrollSeed: crypto.randomUUID() });
+  // A lone linked poem can leave the footer in view the whole time, so the
+  // footer watcher never fires again. Fetch the next page once it shows.
+  return linkedItemId ? started.then(() => { if (automaticPages && !pager.error) return pager.loadMore(); }) : started;
 }
 
 let readingCard, readingFooter, readingClose, readingOrigin;

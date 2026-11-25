@@ -245,8 +245,12 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
           assert.ok(/data-startup-refilled="true"/.test(output), "Desktop did not render the refilled card");
         }
         if (scenario === "linked") {
-          assert.ok(requests.slice(requestStart).includes("/api/contentById"), "Linked item did not load directly");
-          assert.ok(!requests.slice(requestStart).includes("/api/fetchFiltered"), "Linked item fell back to the mixed feed");
+          const seen = requests.slice(requestStart);
+          const linkedAt = seen.indexOf("/api/contentById");
+          const feedAt = seen.indexOf("/api/fetchFiltered");
+          assert.ok(linkedAt >= 0, "Linked item did not load directly");
+          // The normal Swipe feed may follow the linked poem, but never before it.
+          assert.ok(feedAt === -1 || feedAt > linkedAt, "Linked item asked for the mixed feed before its own poem");
         }
         if (scenario === "retry") assert.ok(/data-startup-retried="true"/.test(output), "Failed feed did not expose a usable retry");
         assert.ok(/data-startup-result="ready"/.test(output), route + " never rendered a readable card");
