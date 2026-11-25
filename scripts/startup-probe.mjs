@@ -62,10 +62,16 @@ for (const { label: pass, throttle } of passes) {
         const size = (await request.sizes()).responseBodySize;
         const url = new URL(request.url());
         sizes.push({ kb: Math.round(size / 1024), at: Date.now() - started, url: (url.host === new URL(base).host ? "" : url.host) + url.pathname.slice(0, 220) });
+        // When each page, script and stylesheet was asked for and when it had fully arrived.
+        const timing = request.timing();
+        if (["document", "script", "stylesheet"].includes(request.resourceType())) {
+          loads.push(`${Math.round(timing.startTime - started)}-${Math.round(timing.startTime - started + timing.responseEnd)}ms ${Math.round(size / 1024)}KB ${(url.host === new URL(base).host ? "" : url.host) + url.pathname.slice(0, 80)}`);
+        }
       } catch { /* page closed */ }
     });
     const errors = signInError ? [signInError] : [];
     const api = [];
+    const loads = [];
     page.on("pageerror", (error) => errors.push(error.message));
     // Pictures that failed to load, which makes a card fall back to its original.
     const failedImages = [];
@@ -157,7 +163,7 @@ for (const { label: pass, throttle } of passes) {
     for (const shot of shots) {
       console.log("SHOT " + JSON.stringify({ mode, pass, name, label: shot.label, at: shot.at }) + " " + shot.image);
     }
-    console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, cardImage, failedImages, api, marks, errors, text }));
+    console.log(JSON.stringify({ mode, pass, name, settled, firstCardMs, kbBeforeCard: totalKB(beforeCard), kbTotal: totalKB(sizes), largest, loads, cardImage, failedImages, api, marks, errors, text }));
     await context.close();
   }
 }
