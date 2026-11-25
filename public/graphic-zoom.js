@@ -12,7 +12,24 @@ export function boundGraphicZoom(state, { width, height, imageWidth, imageHeight
   return { scale, x: Math.max(-maxX, Math.min(maxX, state.x)), y: Math.max(-maxY, Math.min(maxY, state.y)) };
 }
 
-export function attachGraphicZoom(card) {
+// Where a photo starts. focus is the part of the photo that holds the poem text,
+// as fractions [left, top, right, bottom] of the photo. The start view fills the
+// frame with that part (never more than 3x); without one, the whole photo shows.
+export function focusStart(focus, { width, height, imageWidth, imageHeight }) {
+  const whole = { scale: 1, x: 0, y: 0 };
+  if (!Array.isArray(focus) || focus.length !== 4 || !focus.every(Number.isFinite)) return whole;
+  const [left, top, right, bottom] = focus;
+  if (!(left >= 0 && top >= 0 && right <= 1 && bottom <= 1 && right > left && bottom > top)) return whole;
+  const fit = Math.min(width / imageWidth, height / imageHeight);
+  const shownWidth = imageWidth * fit, shownHeight = imageHeight * fit;
+  const scale = Math.min(3, width / ((right - left) * shownWidth), height / ((bottom - top) * shownHeight));
+  // A small gain isn't worth hiding part of the photo.
+  if (!(scale >= 1.15)) return whole;
+  return boundGraphicZoom({ scale, x: -((left + right) / 2 - .5) * shownWidth * scale,
+    y: -((top + bottom) / 2 - .5) * shownHeight * scale }, { width, height, imageWidth, imageHeight });
+}
+
+export function attachGraphicZoom(card, focus) {
   const image = card.querySelector('.post-art > img');
   if (!image) return null;
   const art = image.parentElement;
@@ -38,6 +55,11 @@ export function attachGraphicZoom(card) {
   tools.append(status);
   card.append(tools);
   let state = { scale: 1, x: 0, y: 0 };
+  // The start view: the whole photo, or its text part when the photo has a focus.
+  // At the start view a one-finger swipe still moves to the next card.
+  let home = { scale: 1, x: 0, y: 0 };
+  const atStart = () => Math.abs(state.scale - home.scale) < .001 && Math.abs(state.x - home.x) < .5 && Math.abs(state.y - home.y) < .5;
+  const userZoomed = () => state.scale > 1.001 && !atStart();
   let gesture;
   let suppressClickUntil = 0;
   let sharperRequested = false;
@@ -47,22 +69,29 @@ export function attachGraphicZoom(card) {
     state = boundGraphicZoom(next, dimensions());
     image.style.transform = `translate3d(${state.x}px,${state.y}px,0) scale(${state.scale})`;
     const zoomed = state.scale > 1.001;
-    art.classList.toggle('graphic-zoomed', zoomed);
+    const moved = zoomed && !atStart();
+    art.classList.toggle('graphic-zoomed', moved);
+    art.classList.toggle('graphic-focused', zoomed && !moved);
     // The feed may be showing a light preview; the card swaps in the original
     // the first time someone zooms, so a zoomed graphic stays sharp.
-    if (zoomed && !sharperRequested) { sharperRequested = true; card.dispatchEvent(new Event('graphiczoomstart')); }
+    if (moved && !sharperRequested) { sharperRequested = true; card.dispatchEvent(new Event('graphiczoomstart')); }
     minus.hidden = fit.hidden = !zoomed;
+    tools.classList.toggle('at-focus', zoomed && !moved);
     plus.disabled = state.scale >= 4;
     status.textContent = zoomed ? Math.round(state.scale * 100) + '%' : '';
     const ready = image.complete && image.naturalWidth > 0;
     tools.hidden = !ready;
-    hint.textContent = ready ? (zoomed ? 'Drag to move · Fit to swipe' : 'Pinch or + to zoom · Tap for details') : 'Tap for details';
+    hint.textContent = ready ? (moved ? 'Drag to move · Fit to swipe' : zoomed ? 'Fit shows the whole photo · Tap for details'
+      : 'Pinch or + to zoom · Tap for details') : 'Tap for details';
   }
-  const reset = () => { gesture = null; set({ scale: 1, x: 0, y: 0 }); };
+  const ready = () => image.complete && image.naturalWidth > 0;
+  const startView = () => (home = ready() && focus ? focusStart(focus, dimensions()) : { scale: 1, x: 0, y: 0 });
+  const reset = () => { gesture = null; set({ ...startView() }); };
   card.addEventListener('graphiccardchange', reset);
   plus.addEventListener('click', () => set(zoomAround(state, state.scale + .5, { x: 0, y: 0 })));
   minus.addEventListener('click', () => set(zoomAround(state, state.scale - .5, { x: 0, y: 0 })));
-  fit.addEventListener('click', reset);
+  // Fit shows the whole photo; the next card change goes back to the start view.
+  fit.addEventListener('click', () => { gesture = null; home = { scale: 1, x: 0, y: 0 }; set({ scale: 1, x: 0, y: 0 }); });
   const touchPoint = touch => {
     const rect = art.getBoundingClientRect();
     return { x: touch.clientX - rect.left - rect.width / 2, y: touch.clientY - rect.top - rect.height / 2 };
@@ -76,7 +105,7 @@ export function attachGraphicZoom(card) {
       event.preventDefault();
       gesture = { ...pair(event.touches), state: { ...state }, pinch: true };
       suppressClickUntil = performance.now() + 500;
-    } else if (event.touches.length === 1 && state.scale > 1) {
+    } else if (event.touches.length === 1 && userZoomed()) {
       event.preventDefault();
       gesture = { center: touchPoint(event.touches[0]), state: { ...state }, pinch: false };
       suppressClickUntil = performance.now() + 500;
@@ -105,7 +134,7 @@ export function attachGraphicZoom(card) {
   });
   art.addEventListener('touchcancel', () => { gesture = null; suppressClickUntil = performance.now() + 500; });
   art.addEventListener('pointerdown', event => {
-    if (event.pointerType === 'touch' || event.button !== 0 || state.scale <= 1) return;
+    if (event.pointerType === 'touch' || event.button !== 0 || !userZoomed()) return;
     event.preventDefault();
     art.setPointerCapture(event.pointerId);
     gesture = { pointerId: event.pointerId, center: touchPoint(event), state: { ...state } };
@@ -120,9 +149,11 @@ export function attachGraphicZoom(card) {
     if (gesture?.pointerId === event.pointerId) { gesture = null; suppressClickUntil = performance.now() + 500; }
   });
   art.addEventListener('click', event => {
-    if (state.scale > 1 || performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); }
+    if (userZoomed() || performance.now() < suppressClickUntil) { event.preventDefault(); event.stopPropagation(); }
   }, true);
-  image.addEventListener('load', () => set(state));
+  // The start view needs the photo's size, so it is worked out once it loads
+  // (a sharper copy swapped in while zoomed keeps the reader's place).
+  image.addEventListener('load', () => (atStart() || state.scale <= 1.001) && !gesture ? reset() : set(state));
   image.addEventListener('error', () => { tools.hidden = true; hint.textContent = 'Tap for details'; });
   reset();
   return { reset };

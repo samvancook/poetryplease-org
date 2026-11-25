@@ -38,3 +38,25 @@ body.posts-swipe:has(.site-header .contest-winners-promo) { --swipe-top:calc(140
 .posts-swipe .post-info-sheet .post-dialog-body { padding-bottom:env(safe-area-inset-bottom); }
 .posts-swipe .post-info-sheet .post-actions { flex-wrap:wrap; }
 @media(max-height:500px) { body.posts-swipe:not(:has(.site-header .contest-winners-promo)) { --swipe-top:48px; } .posts-swipe .site-header { min-height:48px; padding-top:2px; } .posts-swipe .post-card { padding-top:var(--swipe-top); padding-bottom:88px; } .swipe-review { height:88px; padding-top:2px; } .posts-swipe .swipe-review .vote-button { min-height:48px; } .posts-swipe .post-attribution { padding:4px 18px; } }
+/* Photo start view: the poem text fills the frame. The zoom buttons stay out of
+   the way of the text there, and only + and Fit show. */
+.posts-swipe .swipe-graphic.graphic-focused + .swipe-zoom-tools, .swipe-zoom-tools.at-focus button { background:#000a; }
+.swipe-zoom-tools.at-focus button:first-child, .swipe-zoom-tools.at-focus .swipe-zoom-status { display:none; }
+/* Phones: a little more room for the poem. One-line contest promo, a shorter
+   header, tighter title/author, and slightly shorter reaction buttons. */
+@media (max-width:600px) and (min-height:501px) {
+  body.posts-swipe { --swipe-dock:calc(100px + env(safe-area-inset-bottom)); }
+  .posts-swipe .site-header { min-height:calc(52px + env(safe-area-inset-top)); padding-top:calc(4px + env(safe-area-inset-top)); padding-bottom:4px; }
+  .posts-swipe .contest-winners-promo { margin:2px 0 4px; padding:7px 12px; }
+  .posts-swipe .contest-winners-promo > span:first-child { font-size:0; }
+  .posts-swipe .contest-winners-promo strong { font-size:14px; }
+  .posts-swipe .contest-winners-promo .arrow { font-size:18px; }
+  .posts-swipe .post-card { padding-bottom:var(--swipe-dock); }
+  .posts-swipe .post-frame { padding-bottom:18px; }
+  .posts-swipe .post-attribution { padding:6px 18px 2px; }
+  .posts-swipe .post-credit-author { margin-top:1px; }
+  .posts-swipe .post-open-hint { bottom:2px; }
+  .swipe-review { height:var(--swipe-dock); padding-top:6px; }
+  .posts-swipe .swipe-review .vote-button { min-height:54px; }
+  .posts-swipe .swipe-review .card-status { min-height:16px; padding-top:3px; }
+}

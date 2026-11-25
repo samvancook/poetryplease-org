@@ -101,7 +101,7 @@ export function renderSwipeCard(item, options) {
       return [];
     },
   });
-  const zoom = attachGraphicZoom(card);
+  const zoom = attachGraphicZoom(card, item.focus);
   if (zoom) zooms.set(card, zoom);
   // Observe after the shared feed appends this card. The majority-visible post
   // owns the fixed controls; scrolling never submits a response.

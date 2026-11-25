@@ -31,6 +31,7 @@ on:
         #   reattach-dry-run  read-only: checks the re-attach plan (docs/handoffs/graphic-reattach-plan-2026-11-15.json)
         #   catalog-poems-export prints the Catalog poem texts for every book named on a graphic
         #   retitle-dry-run / retitle-graphics rename quote images to the poem their image shows
+        #   photo-focus-dry-run / photo-focus save where the poem text sits in each photo (Swipe starts zoomed there)
         #   reattach-originals re-attaches graphics whose hosted upload is not an image, from Drive
         #   dbat-title-fix-dry-run read-only: lists the DON'T BE AFRAID TO BE BAD INT graphics whose
         #                    title and image name say "Promt" (and three other typos) and the fixes planned
@@ -47,7 +48,7 @@ on:
         description: Display preview backfill (none = normal deploy)
         type: choice
         default: none
-        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, catalog-poems-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, dbat-title-fix-dry-run, dbat-title-fix, excerpt-import-dry-run, excerpt-import, read-log-summary, signed-in-probe, signed-in-probe-author]
+        options: [none, status, request, retry-stalled, refresh-feed, list-stalled, catalog-export, catalog-poems-export, diagnose-stalled, restore-dry-run, restore-originals, reattach-dry-run, reattach-originals, retitle-dry-run, retitle-graphics, photo-focus-dry-run, photo-focus, dbat-title-fix-dry-run, dbat-title-fix, excerpt-import-dry-run, excerpt-import, read-log-summary, signed-in-probe, signed-in-probe-author]
       preview_limit:
         description: How many graphics to request (1-5000); used by request and retry-stalled
         required: false
@@ -83,7 +84,7 @@ jobs:
 
       - name: Run function tests
         working-directory: functions
-        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js graphic-title-fix.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js votes-ledger.test.js explorer-youtube.test.js social-top-posts.test.js swipe-feed.test.js
+        run: node --test video-performance-context.test.js video-renditions.test.js uploader-helpers.test.js manuscript-reconciliation-phase2.test.js weaver-video-intake.test.js author-vote-reads.test.js voted-ids-cache.test.js own-author-name.test.js scroll-feed.test.js display-preview.test.js diagnose-display-previews.test.js restore-graphic-original.test.js graphic-retitle.test.js graphic-photo-focus.test.js graphic-zoom.test.js book-relation.test.js graphic-title-fix.test.js excerpt-batch-import.test.js content-cache-policy.test.js admin-content-library.test.js flagged-content-snapshot.test.js votes-ledger.test.js explorer-youtube.test.js social-top-posts.test.js swipe-feed.test.js
 
       - name: Run Explorer tests
         run: node --test tests/explorer.test.js
@@ -373,6 +374,17 @@ jobs:
               done < "$RUNNER_TEMP/retitle-batches.jsonl"
               jq -s 'group_by(.status + ":" + (.reason // "")) | map({(.[0].status + (if .[0].reason then ":" + .[0].reason else "" end)): length}) | add' "$RUNNER_TEMP/retitle-results.jsonl"
               if [ "$ACTION" = retitle-graphics ]; then post refreshFeed '{}' | jq -c .; fi ;;
+            photo-focus-dry-run|photo-focus)
+              # 100 photos per call; each is checked against the image URL that was read first.
+              dry="$([ "$ACTION" = photo-focus-dry-run ] && echo true || echo false)"
+              jq -c --argjson dry "$dry" '.source as $source | .items as $all | range(0; $all | length; 100) | {dryRun: $dry, source: $source, items: $all[.:. + 100]}' \
+                docs/handoffs/photo-focus-plan.json > "$RUNNER_TEMP/focus-batches.jsonl"
+              : > "$RUNNER_TEMP/focus-results.jsonl"
+              while IFS= read -r batch; do
+                post photoFocus "$batch" | jq -c '.results[]' >> "$RUNNER_TEMP/focus-results.jsonl"
+              done < "$RUNNER_TEMP/focus-batches.jsonl"
+              jq -s 'group_by(.status + ":" + (.reason // "")) | map({(.[0].status + (if .[0].reason then ":" + .[0].reason else "" end)): length}) | add' "$RUNNER_TEMP/focus-results.jsonl"
+              if [ "$ACTION" = photo-focus ]; then post refreshFeed '{}' | jq -c .; fi ;;
             restore-dry-run)
               # Six graphics per call keeps each call inside Hosting's 60 s limit.
               jq -c --argjson limit "$LIMIT" \
