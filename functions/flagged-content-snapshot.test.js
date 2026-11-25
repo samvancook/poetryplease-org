@@ -9,8 +9,9 @@ test("a fresh, uninvalidated stored list is usable", () => {
   assert.equal(isFlaggedContentSnapshotUsable(fresh(), 110 * MIN), true);
 });
 
-test("a stored list is not used once it is 30 minutes old, has the wrong version, or no ids", () => {
-  assert.equal(isFlaggedContentSnapshotUsable(fresh(), 130 * MIN), false);
+test("a stored list is not used once it is 6 hours old, has the wrong version, or no ids", () => {
+  assert.equal(isFlaggedContentSnapshotUsable(fresh(), 460 * MIN), false);
+  assert.equal(isFlaggedContentSnapshotUsable(fresh(), 400 * MIN), true);
   assert.equal(isFlaggedContentSnapshotUsable(fresh({ version: 0 }), 110 * MIN), false);
   assert.equal(isFlaggedContentSnapshotUsable(fresh({ ids: undefined }), 110 * MIN), false);
   assert.equal(isFlaggedContentSnapshotUsable(null, 110 * MIN), false);
