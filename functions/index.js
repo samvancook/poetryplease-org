@@ -202,7 +202,7 @@ const FLAGGED_CONTENT_CACHE_TTL_MS = 2 * 60 * 1000;
 // the backstop for anything that does not (an account gaining the author role).
 const FLAGGED_CONTENT_SNAPSHOT_DOC_ID = "flagged-content";
 const FLAGGED_CONTENT_SNAPSHOT_VERSION = 1;
-const FLAGGED_CONTENT_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
+const FLAGGED_CONTENT_SNAPSHOT_TTL_MS = 6 * 60 * 60 * 1000;
 const AUTHOR_VOTER_IDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const RATINGS_SNAPSHOT_DOC_ID = "ratings-summary";
 const RATINGS_SNAPSHOT_PATH = "system/ratings-summary";
@@ -3180,25 +3180,96 @@ async function applyPigIdHygieneRows(rows = [], actor = {}) {
   return results;
 }
 
+// ---------------------------------------------------------------------------
+// The scoreboard's copy of the content library. Every rebuild used to read all
+// four content collections (~30k documents). The same raw records are now kept
+// in memory and in Cloud Storage, tagged with the content generation that every
+// content change already bumps (invalidateContentCache), and read again only
+// when that generation moves or the copy is 6 hours old.
+// ---------------------------------------------------------------------------
+const SCOREBOARD_CONTENT_PATH = "system/scoreboard-content.json";
+const SCOREBOARD_CONTENT_VERSION = 1;
+const SCOREBOARD_CONTENT_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+let scoreboardContentCache = null;
+
+export function isScoreboardContentUsable(copy, generation, nowMs = Date.now()) {
+  if (!copy || Number(copy.version || 0) !== SCOREBOARD_CONTENT_VERSION) return false;
+  if (Number(copy.generation) !== Number(generation)) return false;
+  const readAtMs = Number(copy.readAtMs || 0);
+  if (!readAtMs || (nowMs - readAtMs) >= SCOREBOARD_CONTENT_MAX_AGE_MS) return false;
+  return ["graphics", "excerpts", "fullPoems", "videos"].every((key) => Array.isArray(copy[key]));
+}
+
+export async function resolveScoreboardContent({ readGeneration, readMemory, readStored, readCollections, store, now = () => Date.now() }) {
+  // The generation is read first: a change made while the collections are
+  // being read bumps it again, so that copy is never trusted afterwards.
+  const generation = Number(await readGeneration() || 0);
+  const memory = readMemory();
+  if (isScoreboardContentUsable(memory, generation, now())) return { copy: memory, source: "memory" };
+  let stored = null;
+  try {
+    stored = await readStored();
+  } catch (err) {
+    console.warn("Scoreboard content copy read failed", err);
+  }
+  if (isScoreboardContentUsable(stored, generation, now())) return { copy: stored, source: "stored" };
+  const readAtMs = now();
+  // Round-tripped through JSON so a fresh read and a stored copy are the same shape.
+  const collections = JSON.parse(JSON.stringify(await readCollections()));
+  const copy = { version: SCOREBOARD_CONTENT_VERSION, generation, readAtMs, ...collections };
+  try {
+    await store(copy);
+  } catch (err) {
+    console.warn("Scoreboard content copy write failed", err);
+  }
+  return { copy, source: "firestore" };
+}
+
+async function getScoreboardContent() {
+  const { copy, source } = await resolveScoreboardContent({
+    readGeneration: async () => (await readContentCacheMetadata()).generation,
+    readMemory: () => scoreboardContentCache,
+    readStored: async () => {
+      const file = storage.bucket().file(SCOREBOARD_CONTENT_PATH);
+      const [exists] = await file.exists();
+      if (!exists) return null;
+      const [buffer] = await file.download();
+      return JSON.parse(buffer.toString("utf8"));
+    },
+    readCollections: async () => {
+      const [graphics, excerpts, fullPoems, videos] = await Promise.all([
+        getAllFrom(COLLECTIONS.graphics),
+        getAllFrom(COLLECTIONS.excerpts),
+        getAllFrom(COLLECTIONS.fullPoems),
+        getAllFrom(COLLECTIONS.videos),
+      ]);
+      return { graphics, excerpts, fullPoems, videos };
+    },
+    store: (copy) => storage.bucket().file(SCOREBOARD_CONTENT_PATH).save(JSON.stringify(copy), {
+      contentType: "application/json; charset=utf-8",
+      resumable: false,
+      metadata: { cacheControl: "no-store, max-age=0" },
+    }),
+  });
+  scoreboardContentCache = copy;
+  const documentCount = source === "firestore"
+    ? copy.graphics.length + copy.excerpts.length + copy.fullPoems.length + copy.videos.length
+    : 0;
+  console.info("scoreboard_content_read", { reason: `scoreboard_rebuild:${source}`, documentCount });
+  return copy;
+}
+
 async function buildScoreboardPayload(contentReads = {}) {
+  const library = getScoreboardContent();
   const [voteDocs, metaObjs, excerptObjs, fullPoemObjs, videoObjs, flaggedIds, authorVoteIdentities] = await Promise.all([
     getAllVotesForScoreboard("scoreboard_rebuild"),
-    contentReads.graphics ?? getAllFrom(COLLECTIONS.graphics),
-    contentReads.excerpts ?? getAllFrom(COLLECTIONS.excerpts),
-    contentReads.fullPoems ?? getAllFrom(COLLECTIONS.fullPoems),
-    getAllFrom(COLLECTIONS.videos),
+    contentReads.graphics ?? library.then((c) => c.graphics),
+    contentReads.excerpts ?? library.then((c) => c.excerpts),
+    contentReads.fullPoems ?? library.then((c) => c.fullPoems),
+    library.then((c) => c.videos),
     contentReads.flaggedIds ?? getFlaggedContentIds(),
     getAuthorVoteIdentities(),
   ]);
-  console.info("scoreboard_content_read", {
-    reason: "scoreboard_rebuild",
-    documentCount: [
-      contentReads.graphics ? 0 : metaObjs.length,
-      contentReads.excerpts ? 0 : excerptObjs.length,
-      contentReads.fullPoems ? 0 : fullPoemObjs.length,
-      videoObjs.length,
-    ].reduce((a, b) => a + b, 0),
-  });
 
   const latestByUserImage = new Map();
   voteDocs.forEach((vote) => {
