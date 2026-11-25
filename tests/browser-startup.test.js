@@ -132,6 +132,35 @@ function checkStartupBoundary(overrides = {}) {
   }
 }
 
+// Swipe announces its scripts up front (modulepreload) so they download together. A script
+// that is imported but not announced goes back to loading one step at a time, and one that
+// is announced under a different address is downloaded twice.
+test("Swipe shells announce exactly the scripts their startup imports", () => {
+  const fs = require("node:fs");
+  const origin = "https://poetryplease.org";
+  const read = url => fs.readFileSync(path.join(__dirname, "../public", decodeURIComponent(url.pathname)), "utf8");
+  for (const shell of ["posts-swipe.html", "posts-swipe-outline.html"]) {
+    const shellUrl = new URL("/" + shell, origin);
+    const html = read(shellUrl).replace(/<!--[\s\S]*?-->/g, "");
+    const announced = [...html.matchAll(/<link rel="modulepreload" href="([^"]+)">/g)].map(match => new URL(match[1], shellUrl).href);
+    const reached = new Set();
+    const follow = (source, base) => {
+      for (const match of source.matchAll(/(?:^\s*import\s[^'"\n]*?|\bimport\s*\(\s*)(['"])(\.{0,2}\/[^'"]+)\1/gm)) {
+        const url = new URL(match[2], base);
+        if (url.origin !== origin || reached.has(url.href)) continue;
+        reached.add(url.href);
+        follow(read(url), url);
+      }
+    };
+    // The entry is the inline module that picks Swipe or the single-item view.
+    const entry = [...html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)].map(match => match[1]).join("\n");
+    assert.ok(entry.includes("/scroll.js"), shell + " has no inline Swipe entry");
+    follow(entry, shellUrl);
+    assert.deepEqual([...announced].sort(), [...reached].sort(), shell + " announces different scripts than Swipe imports");
+    assert.equal(new Set(announced).size, announced.length, shell + " announces a script twice");
+  }
+});
+
 test("protected startup modules and entry scripts match their approved baselines", () => {
   checkStartupBoundary();
 });
