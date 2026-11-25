@@ -1,0 +1,6 @@
+name=Poetry Dispenser
+author=Button Poetry
+description=Turn the crank, get a public-domain poem, tell the machine how it landed.
+bundleID=com.buttonpoetry.poetrydispenser
+version=0.1
+buildNumber=1
