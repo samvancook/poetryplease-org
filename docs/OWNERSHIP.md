@@ -36,7 +36,7 @@ Status words used below:
 
 | Function | Kind | Owner | Status and notes |
 | --- | --- | --- | --- |
-| `api` | HTTPS Express app, `minInstances: 1`, must stay public | Claude | Owned. Holds nearly every route below. |
+| `api` | HTTPS Express app, `minInstances: 1`, 2GiB memory, must stay public | Claude | Owned. Holds nearly every route below. |
 | `contestscheduledemailsdispatch` | Schedule, every minute | Claude (contest thread) | Owned since 19 Nov (from Codex). Sends contest mail through Mandrill. Never use the Mailchimp website. |
 | `staffreviewdailydigest` | Schedule, 8:00 AM Central | Claude | Default owned. Daily staff review digest email through Mandrill. No handoff on record. |
 | `ratingssummaryrefresh` | Schedule, 3:00 AM Central | Claude (billing/feed) | Owned. Rebuilds the ratings snapshot and staff demotions. |
