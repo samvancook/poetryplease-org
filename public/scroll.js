@@ -146,6 +146,55 @@ const pager = new ScrollFeedPager({
   changed: loader.update,
   clear: () => { discardReading(); if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
 });
+// The feed for a reader without an account is the same whether or not the
+// sign-in check has answered: the server keys it on pp_anon. So when this
+// browser holds no saved account sign-in, the feed starts at once instead of
+// waiting for that check. Any doubt (a saved account, a sign-in on its way
+// back from Google, storage that cannot be read) waits for the check as before.
+async function noSavedAccount() {
+  try {
+    const firebaseKeys = (store) => Object.keys(store).some((key) => key.startsWith('firebase:'));
+    if (firebaseKeys(localStorage) || firebaseKeys(sessionStorage)) return false;
+    return await new Promise((resolve) => {
+      const open = indexedDB.open('firebaseLocalStorageDb');
+      // The sign-in store does not exist yet: leave creating it to the SDK.
+      open.onupgradeneeded = () => { open.transaction.abort(); resolve(true); };
+      open.onerror = (event) => { event.preventDefault(); resolve(false); };
+      open.onblocked = () => resolve(false);
+      open.onsuccess = () => {
+        const db = open.result;
+        const done = (answer) => { db.close(); resolve(answer); };
+        try {
+          if (!db.objectStoreNames.contains('firebaseLocalStorage')) return done(true);
+          const read = db.transaction('firebaseLocalStorage').objectStore('firebaseLocalStorage').getAll();
+          read.onerror = () => done(false);
+          read.onsuccess = () => done(read.result
+            .filter((record) => String(record?.fbase_key).startsWith('firebase:authUser:'))
+            .every((record) => record.value?.isAnonymous === true && !record.value.email));
+        } catch { done(false); }
+      };
+    });
+  } catch { return false; }
+}
+// 'waiting': the sign-in check has not answered. 'early': the feed started before it did.
+let signInCheck = 'waiting';
+const readerIdentity = () => loader.identity ?? (signInCheck === 'early' ? anonymousId : null);
+function chooseFilters() {
+  // Author ownership and explicit staff preview are access scopes, not browsing filters.
+  filters = contestReading
+    ? { type: 'QI', catalog: 'Contest', event: contestEvent, eventReading: true, author: '' }
+    : { type: 'PROMO', author: ownAuthor };
+  const chapbookLane = chapbookLaneFilters(location.search, { staff: isStaff(), authorOnly: isAuthorOnly() });
+  if (!contestReading && chapbookLane) {
+    filters = chapbookLane;
+    document.querySelector('.site-header .variant').textContent = 'Chapbook winners';
+  }
+  if (!contestReading && isStaff() && initial.get('authorPreview') === '1') {
+    const previewAuthor = String(initial.get('author') || '').trim();
+    if (!previewAuthor) throw new Error('An author is required for author preview. Please use the single-item view.');
+    filters.author = previewAuthor;
+  }
+}
 function restartFeed() {
   automaticPages = true;
   updateRoute();
@@ -349,14 +398,14 @@ function createVoteControls(item, card) {
     button.append(icon, node('span', '', label));
     button.firstChild.setAttribute('aria-hidden', 'true');
     button.addEventListener('click', async () => {
-      const identity = loader.identity;
+      const identity = readerIdentity();
       for (const control of controls.children) control.disabled = true;
       status.textContent = 'Saving your response…';
       try {
         if (!auth.currentUser) await auth.signInAnonymously();
         // An account change requires a fresh feed; never attribute this card's
         // in-flight vote to a newly signed-in person.
-        if (identity !== loader.identity) throw new Error('Your account changed. Please review the refreshed feed.');
+        if (identity !== readerIdentity()) throw new Error('Your account changed. Please review the refreshed feed.');
         await api('vote', { imageId: item.id, voteType: value, userId: auth.currentUser?.email || anonymousId });
         window.ppTrack?.('vote', {
           vote_value: value.replace(' ', '_'),
@@ -365,7 +414,7 @@ function createVoteControls(item, card) {
           author: String(item.author || ''),
           book: String(item.book || ''),
         });
-        if (identity !== loader.identity || !card.isConnected) return;
+        if (identity !== readerIdentity() || !card.isConnected) return;
         if (swipeVariant) {
           sessionVotes++;
           if (!auth.currentUser?.email && sessionVotes >= 8) {
@@ -376,7 +425,7 @@ function createVoteControls(item, card) {
         button.setAttribute('aria-pressed', 'true');
         status.textContent = 'Saved: ' + label + '.';
       } catch (error) {
-        if (identity !== loader.identity || !card.isConnected) return;
+        if (identity !== readerIdentity() || !card.isConnected) return;
         status.textContent = error.message || 'Response not saved. Please retry.';
         for (const control of controls.children) control.disabled = false;
       }
@@ -405,8 +454,12 @@ $('sign-out').addEventListener('click', () => auth.signOut().catch(() => { $('ac
 loader.watchAuth(auth, {
   identityFor: (user) => user?.email || anonymousId,
   reset(user) {
-    sessionVotes = 0;
-    pager.reset(null);
+    // A feed that started early stays when the check finds no account.
+    signInCheck = signInCheck === 'early' && !user?.email ? 'kept' : 'answered';
+    if (signInCheck !== 'kept') {
+      sessionVotes = 0;
+      pager.reset(null);
+    }
     $('account-status').textContent = user?.email || 'Browsing without an account';
     $('sign-in').hidden = !!user?.email;
     $('sign-out').hidden = !user?.email;
@@ -414,6 +467,11 @@ loader.watchAuth(auth, {
     ownAuthor = '';
   },
   async prepare(user, isCurrent) {
+    if (signInCheck === 'kept') {
+      signInCheck = 'answered';
+      loader.update(pager);
+      return;
+    }
     account = user?.email ? await api('me') : null;
     if (!isCurrent()) return;
     if (isAuthorOnly()) {
@@ -426,20 +484,13 @@ loader.watchAuth(auth, {
       }
       if (!ownAuthor) throw new Error('Your author profile could not be resolved. Please use the single-item view for now.');
     }
-    // Author ownership and explicit staff preview are access scopes, not browsing filters.
-    filters = contestReading
-      ? { type: 'QI', catalog: 'Contest', event: contestEvent, eventReading: true, author: '' }
-      : { type: 'PROMO', author: ownAuthor };
-    const chapbookLane = chapbookLaneFilters(location.search, { staff: isStaff(), authorOnly: isAuthorOnly() });
-    if (!contestReading && chapbookLane) {
-      filters = chapbookLane;
-      document.querySelector('.site-header .variant').textContent = 'Chapbook winners';
-    }
-    if (!contestReading && isStaff() && initial.get('authorPreview') === '1') {
-      const previewAuthor = String(initial.get('author') || '').trim();
-      if (!previewAuthor) throw new Error('An author is required for author preview. Please use the single-item view.');
-      filters.author = previewAuthor;
-    }
+    chooseFilters();
     await restartFeed();
   },
 });
+noSavedAccount().then((none) => {
+  if (!none || signInCheck !== 'waiting') return;
+  signInCheck = 'early';
+  chooseFilters();
+  return restartFeed();
+}).catch(() => {});
