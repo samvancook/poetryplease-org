@@ -15946,7 +15946,9 @@ export const socialtoppostsrefresh = onSchedule({
 // Keep this LAST
 export const api = onRequest({
   region: "us-central1",
-  memory: "1GiB",
+  // 2GiB since 2026-11-20 OOMs ("Memory limit of 1024 MiB exceeded") while
+  // /api/scoreboard/fullPoems, coverageCounts and pig/ranked-texts ran together.
+  memory: "2GiB",
   minInstances: 1,
   timeoutSeconds: 540,
   secrets: [POETRY_PLEASE_API_KEY_SECRET, PIG_POETRY_PLEASE_API_KEY_SECRET, CATALOG_RECONCILIATION_API_KEY_SECRET, MANDRILL_AUTHOR_INVITE_API_KEY_SECRET],
