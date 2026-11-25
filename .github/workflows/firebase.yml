@@ -215,7 +215,10 @@ jobs:
         if: steps.changes.outputs.functions == 'true'
         run: |
           echo "Deploying FUNCTIONS…"
-          firebase --project poetry-please deploy --only functions --debug
+          # --force: the CLI refuses, without a prompt it can answer here, any
+          # deploy that raises the minimum bill (e.g. more memory on a
+          # minInstances function). Such changes are approved in their PR.
+          firebase --project poetry-please deploy --only functions --force --debug
 
       - name: Authenticated internal API smoke tests
         if: steps.changes.outputs.functions == 'true'
