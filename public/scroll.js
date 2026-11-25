@@ -133,7 +133,16 @@ const pager = new ScrollFeedPager({
     ...(swipeVariant && !contestReading ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
     }, signal);
   },
-  append: (items) => items.forEach(renderCard),
+  // On Swipe the footer fills the screen. A reader who reaches it before the next
+  // page arrives would stay on it while the new poems load above, out of sight,
+  // so move them to the first new poem.
+  append: (items) => {
+    const before = $('feed').children.length;
+    const onFooter = swipeVariant && automaticPages && !$('feed-footer').hidden
+      && $('feed-footer').getBoundingClientRect().top < innerHeight / 2;
+    items.forEach(renderCard);
+    if (onFooter) $('feed').children[before]?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  },
   changed: loader.update,
   clear: () => { discardReading(); if (swipeVariant) resetSwipeReview(); if (postVariant) closePostDetails(); $('feed').replaceChildren(); },
 });
@@ -380,7 +389,9 @@ function createVoteControls(item, card) {
 if ('IntersectionObserver' in window) {
   new IntersectionObserver((entries) => {
     if (entries.some((entry) => entry.isIntersecting) && automaticPages && !pager.error) pager.loadMore();
-  }, { rootMargin: swipeVariant ? '100px 0px' : '650px 0px' }).observe($('feed-footer'));
+    // Swipe asks for the next page while the reader is still a poem or so away,
+  // so it is usually there before they reach the footer.
+}, { rootMargin: swipeVariant ? '100px 0px 150% 0px' : '650px 0px' }).observe($('feed-footer'));
 }
 $('account-toggle').addEventListener('click', () => {
   $('account-menu').hidden = !$('account-menu').hidden;

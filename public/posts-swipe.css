@@ -29,6 +29,7 @@ body.posts-swipe:has(.site-header .contest-winners-promo) { --swipe-top:calc(140
 .posts-swipe .swipe-review .vote-button { min-height:60px; background:#000; border:1px solid #555; color:#fff; border-radius:14px; }
 .posts-swipe .swipe-review .vote-button[aria-pressed="true"] { border:2px solid #fff; background:#202020; }
 .posts-swipe .swipe-review .card-status { color:#ddd; font-size:11px; padding:5px 0 0; min-height:24px; text-align:center; }
+.posts-swipe .feed-footer button { color:#111; }
 .posts-swipe .feed-footer { min-height:100vh; min-height:100dvh; scroll-snap-align:start; padding:100px 20px 140px; display:flex; flex-direction:column; justify-content:center; align-items:center; background:#000; }
 .posts-swipe .post-info-sheet { inset:auto 0 0; margin:0 auto; width:100%; max-width:480px; height:auto; max-height:65dvh; border:1px solid #454545; border-bottom:0; border-radius:18px 18px 0 0; background:#080808; }
 .posts-swipe .post-info-sheet::backdrop { background:#0003; }
