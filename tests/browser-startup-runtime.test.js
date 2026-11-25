@@ -17,9 +17,15 @@ const chrome = [
   "/usr/bin/chromium-browser",
 ].find(candidate => candidate && fs.existsSync(candidate));
 
-const firebaseFixture = signedIn => `
+// slowCheck: the sign-in check answers late, as the real SDK does on a phone. It
+// holds off until the first card is readable, or gives up after 80 polls. Each
+// poll makes a blocking request so real time passes: the test browser's virtual
+// clock would otherwise run every timer before the page's storage read returns.
+const firebaseFixture = (signedIn, slowCheck = false) => `
 (() => {
 if (window.firebase) return;
+// A real signed-in browser holds a saved sign-in record before the SDK loads.
+${signedIn ? `localStorage.setItem("firebase:authUser:fixture:[DEFAULT]", "{}");` : ""}
 const apps = [];
 const fixtureUser = ${signedIn ? `{
   uid: "fixture-reader", email: "fixture-reader@example.test", displayName: "Fixture Reader",
@@ -35,7 +41,23 @@ const fixtureLoadedAt = Date.now();
 const authState = {
   currentUser: null,
   onAuthStateChanged(callback) {
-    setTimeout(() => { authState.currentUser = fixtureUser; callback(fixtureUser); }, 0);
+    const ready = ${slowCheck ? `new Promise(resolve => {
+      let polls = 0;
+      const poll = setInterval(() => {
+        const tick = new XMLHttpRequest();
+        tick.open("GET", "/sign-in-check-tick", false);
+        tick.send();
+        if (++polls < 80 && !document.querySelector("#feed")?.textContent.includes("Startup fixture first line")) return;
+        clearInterval(poll);
+        resolve();
+      }, 50);
+    })` : "Promise.resolve()"};
+    ready.then(() => setTimeout(() => {
+      // Swipe: was the first card already readable when the sign-in check answered?
+      document.documentElement.dataset.startupCardBeforeSignInCheck =
+        String(!!document.querySelector("#feed")?.textContent.includes("Startup fixture first line"));
+      authState.currentUser = fixtureUser; callback(fixtureUser);
+    }, 0));
     return () => {};
   },
   getRedirectResult: () => Promise.resolve(null)
@@ -143,12 +165,16 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
     const url = new URL(request.url, "http://127.0.0.1");
     if (url.pathname === "/firebase-fixture.js") {
       response.setHeader("Content-Type", "text/javascript");
-      response.end(firebaseFixture(scenario === "signed-in"));
+      response.end(firebaseFixture(scenario.endsWith("signed-in"), scenario === "slow-sign-in-check"));
+      return;
+    }
+    if (url.pathname === "/sign-in-check-tick") {
+      setTimeout(() => response.end("ok"), 20);
       return;
     }
     if (url.pathname.startsWith("/api/")) {
       requests.push(url.pathname);
-      if (scenario === "signed-in" && url.pathname === "/api/me") {
+      if (scenario.endsWith("signed-in") && url.pathname === "/api/me") {
         // Background startup work must wait for the first card even after the account
         // lookup, and only one first feed may be requested while that lookup is pending.
         response.writeHead(200, { "Content-Type": "application/json" })
@@ -198,6 +224,8 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
       ["/mobile.html", "slow-card"],
       ["/app?desktop=1", "slow-card"],
       ["/m", "ready"],
+      ["/m", "slow-sign-in-check"],
+      ["/m", "swipe-signed-in"],
       ["/m?item=startup-fixture", "linked"],
       ["/m", "retry"],
       ["/m", "crash"],
@@ -236,6 +264,21 @@ test("Desktop, classic mobile and Swipe render the first readable card from thei
             route + " requested its first feed more than once while the account lookup was pending");
           assert.ok(seen.includes("/api/imageTypes"), route + " never loaded its filter lists after the first card");
         }
+        const swipeFeeds = requests.slice(requestStart).filter(p => p === "/api/fetchFiltered").length;
+        if (scenario === "slow-sign-in-check") {
+          // A first-time visitor has no saved sign-in, so the feed must not wait for the check.
+          assert.ok(/data-startup-card-before-sign-in-check="true"/.test(output), "Swipe waited for the sign-in check before showing a first-time visitor a card");
+          assert.equal(swipeFeeds, 1, "Swipe asked for a first-time visitor's feed again after the sign-in check");
+          assert.ok(!output.includes("Loading your queue"), "Swipe's status stayed on loading after the sign-in check");
+          assert.ok(output.includes("Browsing without an account"), "Swipe's account menu did not update after the sign-in check");
+        }
+        if (scenario === "swipe-signed-in") {
+          const seen = requests.slice(requestStart);
+          assert.ok(seen.includes("/api/me"), "Swipe did not look up the signed-in account");
+          assert.ok(seen.indexOf("/api/fetchFiltered") > seen.indexOf("/api/me"), "Swipe asked for a signed-in reader's feed before their account was known");
+          assert.equal(swipeFeeds, 1, "Swipe asked for a signed-in reader's feed more than once");
+        }
+        if (route === "/m" && scenario === "ready") assert.equal(swipeFeeds, 1, "Swipe asked for its first feed more than once");
         if (scenario === "slow-card") {
           assert.ok(!/data-startup-welcome-before-card="true"/.test(output), route + " showed the welcome prompt over a card that was still loading");
           assert.ok(/data-startup-welcome-after-card="true"/.test(output), route + " never showed the welcome prompt after the slow first card");
