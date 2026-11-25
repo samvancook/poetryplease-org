@@ -10,7 +10,15 @@ export function normalizeScrollItem(row) {
   return { author: String(author || ''), title: String(title || ''), book: String(book || ''),
     id: String(id), mediaUrl: safeMediaUrl(mediaUrl), previewUrl, bookUrl: safeMediaUrl(bookUrl),
     catalog: String(catalog || ''), type: kind, text: String(text || ''), assetSet,
-    bookRelation: String(row[20] || '') };
+    bookRelation: String(row[20] || ''), focus: !assetSet && ['INT', 'FPI'].includes(kind) ? photoFocus(row[21]) : null };
+}
+
+// The part of a photo that holds the poem text, as fractions [left, top, right, bottom].
+export function photoFocus(value) {
+  if (!Array.isArray(value) || value.length !== 4) return null;
+  const box = value.map(Number);
+  const [left, top, right, bottom] = box;
+  return box.every(Number.isFinite) && left >= 0 && top >= 0 && right <= 1 && bottom <= 1 && right > left && bottom > top ? box : null;
 }
 
 // How to name the book next to an item. Most items come from the book they list.

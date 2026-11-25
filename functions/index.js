@@ -27,6 +27,7 @@ import { loadedSnapshotIsCurrent } from "./content-cache-policy.js";
 import { shouldRefreshFeedAfterPreview, ensureDisplayPreview, graphicImageUrl, needsDisplayPreview, summarizeDisplayPreviews, DISPLAY_PREVIEW_STATUS_FIELDS } from "./display-preview.js";
 import { restoreGraphicOriginal, reattachGraphicOriginal, RESTORE_MAX_ITEMS } from "./restore-graphic-original.js";
 import { retitleGraphic, validRetitleItem, RETITLE_MAX_ITEMS } from "./graphic-retitle.js";
+import { setPhotoFocus, validPhotoFocusItem, PHOTO_FOCUS_MAX_ITEMS } from "./graphic-photo-focus.js";
 import { fixGraphicTitle, validTitleFixItem, TITLE_FIX_MAX_ITEMS } from "./graphic-title-fix.js";
 import { canClaimWeaverVideoCopy, weaverVideoCopyAttemptId } from "./weaver-video-copy.js";
 import { lookupExcerptPoemKey, normalizePoemLabel } from "./excerpt-poem-keys.js";
@@ -502,6 +503,11 @@ export function parseDoc(snap) {
     imageUrl,
     ...(d.displayPreviewUrl && d.displayPreviewSourceUrl === imageUrl
       ? { displayPreviewUrl: d.displayPreviewUrl }
+      : {}),
+    // Photos only: the part of the photo that holds the poem text, as fractions
+    // [left, top, right, bottom]. Swipe starts the photo zoomed to it.
+    ...(Array.isArray(d.photoFocus) && d.photoFocus.length === 4 && d.photoFocus.every(Number.isFinite)
+      ? { photoFocus: d.photoFocus }
       : {}),
     assetSet: d.assetSet || null,
     videoUrl: d.videoUrl || "",
@@ -2033,6 +2039,7 @@ function mapToArr(o) {
     bookReviewAttributes(o),
     o.displayPreviewUrl || "",
     o.bookRelation || "",
+    o.photoFocus || null,
   ];
 }
 
@@ -10958,6 +10965,28 @@ app.post(getBoth("/internal/displayPreviews/retitle"), async (req, res) => {
     }
   }
   console.log(JSON.stringify({ event: "retitle_graphics", dryRun, results }));
+  res.json({ dryRun, results });
+});
+
+// Saves where the poem text sits in each photo so Swipe starts zoomed to it
+// (see graphic-photo-focus.js). The plan lives in docs/handoffs.
+app.post(getBoth("/internal/displayPreviews/photoFocus"), async (req, res) => {
+  if (!hasValidPoetryPleaseApiKey(req)) return res.status(401).json({ error: "invalid_api_key" });
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!items.length || items.length > PHOTO_FOCUS_MAX_ITEMS || !items.every(validPhotoFocusItem)) {
+    return res.status(400).json({ error: "invalid_items", maxItems: PHOTO_FOCUS_MAX_ITEMS });
+  }
+  const dryRun = req.body?.dryRun === true;
+  const source = String(req.body?.source || "").slice(0, 80);
+  const results = [];
+  for (const item of items) {
+    try {
+      results.push(await setPhotoFocus(item, retitleDeps, { dryRun, source }));
+    } catch (err) {
+      results.push({ id: item.id, status: "failed", error: String(err?.message || err).slice(0, 200) });
+    }
+  }
+  console.log(JSON.stringify({ event: "photo_focus", dryRun, counts: results.reduce((c, r) => ({ ...c, [r.status]: (c[r.status] || 0) + 1 }), {}) }));
   res.json({ dryRun, results });
 });
 
