@@ -1,0 +1,107 @@
+"use strict";
+
+// Checks for the Poetry Dispenser public-domain pool
+// (imports/dispenser-pool/pool.json) and its Playdate export.
+
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const lib = require("../scripts/dispenser-pool/pool-lib.js");
+const { build, SNAPSHOT, OUT } = require("../scripts/dispenser-pool/build-pool.js");
+const playdate = require("../scripts/dispenser-pool/build-playdate.js");
+
+const pool = JSON.parse(fs.readFileSync(OUT, "utf8"));
+
+test("dispenser pool: pool.json matches a fresh build of the snapshot", () => {
+  const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT, "utf8"));
+  const fresh = JSON.parse(JSON.stringify(build(snapshot)));
+  assert.deepEqual(pool, fresh, "run: node scripts/dispenser-pool/build-pool.js");
+});
+
+test("dispenser pool: every poem has text, a unique id and a rights record", () => {
+  assert.ok(pool.poems.length >= 300, `expected a few hundred poems, got ${pool.poems.length}`);
+  const ids = new Set();
+  for (const p of pool.poems) {
+    assert.ok(!ids.has(p.id), `duplicate id ${p.id}`);
+    ids.add(p.id);
+    assert.ok(p.title && p.author, `${p.id} missing title/author`);
+    assert.ok(p.lines.some((l) => l.trim()), `${p.id} has no text`);
+    assert.ok(!p.lines.some((l) => /\[back\]|^\s*Note \d+\./.test(l)), `${p.id} still has a footnote`);
+    assert.ok(p.rights && p.rights.source && p.rights.basis, `${p.id} missing rights source/basis`);
+    assert.match(p.rights.status, /^public-domain-us/, `${p.id} is ${p.rights.status}`);
+    assert.ok(p.rights.authorDied < lib.PD_CUTOFF_YEAR, `${p.id} author died ${p.rights.authorDied}`);
+  }
+});
+
+test("dispenser pool: size tags match the text", () => {
+  for (const p of pool.poems) {
+    const fits = lib.sizeFits(p.lines);
+    assert.deepEqual(p.fits, fits, p.id);
+    assert.equal(p.size, lib.smallestSize(fits), p.id);
+    if (p.size === "slip3") assert.ok(p.lineCount <= 3, p.id);
+    if (p.size === "slip5") assert.ok(p.lineCount <= 5, p.id);
+    // Anything that fits a smaller size also fits the bigger ones.
+    if (p.fits.slip3) assert.ok(p.fits.slip5, p.id);
+    if (p.fits.playdate) assert.ok(p.fits.phone, p.id);
+  }
+  const counts = pool.counts.bySize;
+  assert.ok((counts.slip3 || 0) + (counts.slip5 || 0) >= 30, "need some slips");
+  assert.ok(counts.playdate >= 100, "need enough Playdate-sized poems");
+});
+
+test("dispenser pool: sorted best-first by prior score", () => {
+  for (let i = 1; i < pool.poems.length; i++) {
+    assert.ok(pool.poems[i - 1].prior >= pool.poems[i].prior, `order broken at ${i}`);
+  }
+  // Notable classics should sit near the top.
+  const top = pool.poems.slice(0, 50);
+  assert.ok(top.filter((p) => p.notable).length >= 15, "notable poems not near the top");
+});
+
+test("pool-lib: wrapping counts rows the way a small screen would", () => {
+  assert.equal(lib.wrappedRows("", 10), 1);
+  assert.equal(lib.wrappedRows("one two", 10), 1);
+  assert.equal(lib.wrappedRows("one two three", 10), 2);
+  assert.equal(lib.wrappedRows("abcdefghijklmnop", 10), 2);
+  assert.equal(lib.rowsAt(["a", "", "b"], 10), 3);
+});
+
+test("pool-lib: mood leans nature/cozy/thoughtful and flags dark", () => {
+  const nature = lib.moodScores(["The trees and the river and the moon", "and the birds in spring"]);
+  assert.ok(lib.moodTags(nature).includes("nature"));
+  const dark = lib.moodScores(["Death and the grave and blood", "the dead lie slain"]);
+  assert.ok(lib.moodTags(dark).includes("dark"));
+  assert.ok(lib.moodFit(nature) > lib.moodFit(dark));
+});
+
+test("pool-lib: reactions blend with the prior and eventually decide", () => {
+  assert.equal(lib.blendedScore(0.5, {}), 0.5);
+  assert.ok(lib.blendedScore(0.5, { moved: 3 }) > 0.5);
+  assert.ok(lib.blendedScore(0.5, { dislike: 3 }) < 0.5);
+  assert.ok(lib.blendedScore(0.2, { moved: 200 }) > 0.95);
+  assert.ok(lib.blendedScore(0.9, { dislike: 200 }) < 0.05);
+});
+
+test("pool-lib: rights only passes authors who died before the cutoff", () => {
+  assert.equal(lib.rightsFor("X", { died: "3 May 1845" }).status, "public-domain-us");
+  assert.equal(lib.rightsFor("X", { died: "1950" }).status, "needs-review");
+  assert.equal(lib.rightsFor("X", {}).status, "needs-review");
+  assert.equal(lib.rightsFor("Emily Dickinson", { died: "1886" }).status, "public-domain-us-check-posthumous");
+});
+
+test("playdate export: poems.json is current and fits the screen", () => {
+  const file = JSON.parse(fs.readFileSync(playdate.OUT, "utf8"));
+  const fresh = JSON.parse(JSON.stringify(playdate.exportPoems(pool)));
+  assert.deepEqual(file, fresh, "run: node scripts/dispenser-pool/build-playdate.js");
+  assert.ok(file.poems.length >= 50);
+  const perAuthor = {};
+  for (const p of file.poems) perAuthor[p.author] = (perAuthor[p.author] || 0) + 1;
+  assert.ok(Math.max(...Object.values(perAuthor)) <= 10, "one author dominates the Playdate set");
+  for (const p of file.poems) {
+    assert.ok(lib.rowsAt(p.lines, lib.SIZES.playdate.cols) <= lib.SIZES.playdate.rows, p.id);
+    assert.ok(!p.moodTags.includes("dark"), `${p.id} is dark`);
+    assert.ok(p.lines.every((l) => /^[\x20-\x7e]*$/.test(l)), `${p.id} has characters the Playdate font may lack`);
+  }
+});

@@ -3,6 +3,7 @@
 // The existing CI command names this file explicitly; include startup protection.
 require("./browser-startup.test.js");
 require("./swipe-intro.test.js");
+require("./dispenser-pool.test.js");
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
