@@ -56,6 +56,13 @@ on:
         description: Excerpt batch file under imports/ (excerpt-import choices only)
         required: false
         default: ''
+      force_functions:
+        # Only for a deploy Firebase stops with "Pass the --force option to deploy
+        # functions that increase the minimum bill" (e.g. more memory on an
+        # always-on function). Get Sam's OK on the added cost first.
+        description: Deploy functions with --force (allows a higher minimum bill; needs Sam's OK)
+        type: boolean
+        default: false
 
 jobs:
   test_functions:
@@ -212,10 +219,10 @@ jobs:
           fi
 
       - name: Deploy Functions (debug)
-        if: steps.changes.outputs.functions == 'true'
+        if: steps.changes.outputs.functions == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_functions)
         run: |
           echo "Deploying FUNCTIONS…"
-          firebase --project poetry-please deploy --only functions --debug
+          firebase --project poetry-please deploy --only functions --debug ${{ (github.event_name == 'workflow_dispatch' && inputs.force_functions) && '--force' || '' }}
 
       - name: Authenticated internal API smoke tests
         if: steps.changes.outputs.functions == 'true'
