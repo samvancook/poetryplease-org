@@ -7,10 +7,23 @@
   <title>Poetry, Please — Outline Swipe</title>
   <link rel="icon" href="/pp-loader-logo.png">
   <link rel="stylesheet" href="/scroll.css?v=20261019c">
-  <link rel="stylesheet" href="/posts.css?v=20261020a">
+  <link rel="stylesheet" href="/posts.css?v=20261026a">
   <link rel="stylesheet" href="/posts-continuous.css?v=20261020a">
   <link rel="stylesheet" href="/posts-swipe.css?v=20261125-footer">
   <link rel="stylesheet" href="/posts-swipe-outline.css?v=20261020a">
+  <!-- Swipe's scripts, announced together so the browser fetches them at once instead of
+       discovering them one import at a time. Keep in step with the imports (tests/browser-startup.test.js). -->
+  <link rel="modulepreload" href="/mobile-entry.js?v=20261030-chapbook-embed">
+  <link rel="modulepreload" href="/scroll.js?v=20261105-swipe-ga">
+  <link rel="modulepreload" href="/scroll-feed-core.js">
+  <link rel="modulepreload" href="/post-cards.js">
+  <link rel="modulepreload" href="/posts-swipe.js">
+  <link rel="modulepreload" href="/swipe-reading.js">
+  <link rel="modulepreload" href="/feed-startup.js?v=20261107">
+  <link rel="modulepreload" href="/graphic-zoom.js">
+  <link rel="modulepreload" href="/graphic-asset-set.js">
+  <link rel="modulepreload" href="/poem-links.js">
+  <link rel="modulepreload" href="/review-icons.js">
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.0/firebase-auth-compat.js"></script>
   <script>
