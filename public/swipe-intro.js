@@ -3,7 +3,7 @@
 // 10% see the gumball dispenser intro, 10% the claw machine, 80% nothing.
 // The intro sits over the feed while the first card loads underneath; it never
 // holds up the feed, and the art only downloads for the two intro groups.
-import { isPlainVisit, variantFor, forcedVariant, shouldPlay, INTRO_VARIANTS } from './swipe-intro-rules.js';
+import { isPlainVisit, variantFor, forcedVariant, shouldPlay, pickArt, INTRO_VARIANTS } from './swipe-intro-rules.js';
 
 const VARIANT_KEY = 'pp_intro_variant';
 const SHOWN_KEY = 'pp_intro_last_shown';
@@ -109,7 +109,7 @@ async function run() {
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
     cardAlreadyShown: Boolean(document.querySelector('#feed > *')),
   });
-  if (ok) play(variant, Boolean(forced));
+  if (ok) play(pickArt(variant, Math.random()), Boolean(forced));
 }
 
 run().catch(() => {});

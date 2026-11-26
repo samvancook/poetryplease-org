@@ -39,4 +39,16 @@ test("intro plays once a day for signed-out visitors and never late", async () =
   assert.equal(shouldPlay({ ...base, signedIn: true, lastShown: base.now, forced: true }), true);
   assert.equal(forcedVariant("?intro=dispenser"), "dispenser");
   assert.equal(forcedVariant("?intro=bogus"), null);
+  assert.equal(forcedVariant("?intro=typewriter"), "typewriter");
+  assert.equal(shouldPlay({ ...base, variant: "press", signedIn: true, forced: true }), true);
+  assert.equal(shouldPlay({ ...base, variant: "none", forced: true }), false);
+  assert.equal(shouldPlay({ ...base, variant: "typewriter" }), false); // not a live test group
+});
+
+test("?intro=random plays one of the four drawn intros", async () => {
+  const { pickArt, forcedVariant, INTRO_ART_VARIANTS } = await rules();
+  assert.equal(forcedVariant("?intro=random"), "random");
+  assert.deepEqual([0, 0.26, 0.51, 0.99, 1].map(r => pickArt("random", r)), ["dispenser", "claw", "typewriter", "press", "press"]);
+  assert.equal(pickArt("claw", 0.9), "claw");
+  assert.deepEqual(INTRO_ART_VARIANTS, ["dispenser", "claw", "typewriter", "press"]);
 });
