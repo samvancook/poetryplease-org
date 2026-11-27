@@ -25,6 +25,17 @@ function tagGroup(variant) {
   else document.addEventListener('DOMContentLoaded', send, { once: true });
 }
 
+// Swipe's startup rewrites the address bar to its own filters (scroll.js updateRoute),
+// dropping ?intro= and campaign tags, often before this module runs. Read the URL the
+// page was opened with instead.
+function openedSearch() {
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    if (nav?.name) return new URL(nav.name).search;
+  } catch (_) {}
+  return location.search;
+}
+
 function authState() {
   return new Promise(resolve => {
     let settled = false, stop = () => {};
@@ -90,8 +101,9 @@ async function play(variant, forced) {
 async function run() {
   if (document.readyState === 'loading') await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
   if (document.body?.dataset.feedMode !== 'swipe') return;
-  const forced = forcedVariant(location.search);
-  if (!forced && (!isPlainVisit(location.search) || navigator.webdriver)) return;
+  const search = openedSearch();
+  const forced = forcedVariant(search);
+  if (!forced && (!isPlainVisit(search) || navigator.webdriver)) return;
   const user = forced ? null : await authState();
   if (!forced && user === undefined) return; // account check too slow; never show an intro late
   const signedIn = Boolean(user && !user.isAnonymous);
