@@ -556,6 +556,10 @@ jobs:
           # The probe must not inherit the cloud identity.
           env -u GOOGLE_APPLICATION_CREDENTIALS -u CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE -u GOOGLE_GHA_CREDS_PATH \
             node startup-probe.mjs
+          # The public /intros page, signed in (forced intros must play for signed-in readers too).
+          cp "$GITHUB_WORKSPACE/scripts/intro-probe.mjs" .
+          env -u GOOGLE_APPLICATION_CREDENTIALS -u CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE -u GOOGLE_GHA_CREDS_PATH \
+            node intro-probe.mjs
 
   # ------------------------------------------------------------
   # DEPLOY PREVIEW CHANNEL for non-main branches
