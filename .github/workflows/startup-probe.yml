@@ -50,6 +50,12 @@ jobs:
           cp scripts/link-probe.mjs /tmp/probe/
           cd /tmp/probe && node link-probe.mjs
 
+      - name: Public intros page plays each intro and hands off to Swipe
+        if: always()
+        run: |
+          cp scripts/intro-probe.mjs /tmp/probe/
+          cd /tmp/probe && node intro-probe.mjs
+
       - name: Anonymous browser start on Desktop, classic mobile and Swipe
         if: always()
         run: |
