@@ -112,12 +112,14 @@ function capsule(pen, x, y, r, rot, open = 0) {
 }
 
 // The capsule's slip unrolls into a numbered ticket and the poem types itself in.
-function slip(pen, t, t0, from, poem, ticket) {
-  const c = pen.ctx, g = backOut(seg(t, t0, t0 + .7));
+// o.instant shows the text at once (typed or printed already); o.font changes the
+// poem face; o.size is the [w, h] the slip grows from.
+function slip(pen, t, t0, from, poem, ticket, o = {}) {
+  const c = pen.ctx, g = (o.size ? easeOut : backOut)(seg(t, t0, t0 + .7));
   if (g <= 0) return;
   const fw = 288, fh = 40 + poem.lines.length * 26 + 30;
   const cx = lerp(from[0], 180, g), cy = lerp(from[1], 236, g);
-  const w = lerp(8, fw, g), h = lerp(10, fh, g);
+  const w = lerp(o.size ? o.size[0] : 8, fw, g), h = lerp(o.size ? o.size[1] : 10, fh, g);
   const x = cx - w / 2, y = cy - h / 2;
   const fold = 14 * clamp(g);
   pen.stroke([[x, y], [x + w - fold, y], [x + w, y + fold], [x + w, y + h], [x, y + h]], { closed: true, fill: BG, w: 2 });
@@ -127,14 +129,14 @@ function slip(pen, t, t0, from, poem, ticket) {
   pen.text('POEM No. ' + String(ticket).padStart(4, '0'), x + 16, y + 20, { align: 'left', ls: 1.6, font: '700 9px system-ui, sans-serif' });
   pen.stroke([[x + 14, y + 31], [x + w - 14, y + 31]], { w: 1, amp: .5 });
   c.restore();
-  let budget = Math.floor((t - t0 - .85) * 34);
+  let budget = o.instant ? 1e6 : Math.floor((t - t0 - .85) * 34);
   poem.lines.forEach((line, i) => {
     if (budget <= 0) return;
     const shown = line.slice(0, budget); budget -= line.length + 3;
-    pen.text(shown, x + 18, y + 52 + i * 26, { align: 'left', font: 'italic 19px Georgia, serif' });
+    pen.text(shown, x + 18, y + 52 + i * 26, { align: 'left', font: o.font || 'italic 19px Georgia, serif' });
   });
   if (budget > 0) {
-    c.save(); c.globalAlpha *= clamp(budget / 20);
+    c.save(); c.globalAlpha *= o.instant ? 1 : clamp(budget / 20);
     pen.text('— ' + poem.by.toUpperCase(), x + w - 16, y + h - 16, { align: 'right', ls: 1.4, font: '700 9px system-ui, sans-serif' });
     c.restore();
   }
@@ -349,17 +351,175 @@ const claw = (() => {
   return { draw, duration: T.end, fade: T.fade, still: 11.5 };
 })();
 
-const SCENES = { dispenser: { scene: gumball, speed: 1.35 }, claw: { scene: claw, speed: 1.7 } };
+
+/* ---------------- Typewriter ---------------- */
+// The poem is typed onto a sheet a key at a time; the bell rings at each line
+// end, then the sheet is pulled out and becomes the slip.
+const typewriter = (() => {
+  const CPS = 15, RETURN = .42, START = .9, CW = 9.2, LEFT = 62, TYPE_Y = 234, PLATEN = 262;
+  const FONT = '15px "Courier New", Courier, monospace';
+  function plan(poem) {
+    const lines = [...poem.lines, '— ' + poem.by];
+    const starts = []; let at = START;
+    lines.forEach(line => { starts.push(at); at += line.length / CPS + RETURN; });
+    return { lines, starts, done: at };
+  }
+  const timing = opts => { const d = plan(opts.poem).done; return { slipAt: d + .7, endAt: d + .7 + 2.4 }; };
+  function keyboard(pen, pressed) {
+    [[334, 80, 10], [357, 91, 9], [380, 102, 8]].forEach(([y, x0, n], r) => {
+      for (let i = 0; i < n; i++) {
+        const down = pressed === r * 10 + i;
+        pen.circle(x0 + i * 22, y + (down ? 2 : 0), down ? 6 : 7.5, { fill: down ? INK : BG, w: 1.6 });
+      }
+    });
+    pen.stroke([[128, 398], [232, 398], [232, 406], [128, 406]], { closed: true, fill: BG, w: 1.6 });
+  }
+  function draw(pen, t, opts) {
+    const c = pen.ctx, { lines, starts, done } = plan(opts.poem), T = timing(opts);
+    const reveal = seg(t, T.slipAt - .2, T.slipAt + .4);
+    // where the typing is: line index and characters shown on each line
+    let cur = 0;
+    for (let i = 0; i < lines.length; i++) if (t >= starts[i]) cur = i;
+    const shown = lines.map((line, i) => t < starts[i] ? 0 : Math.min(line.length, Math.floor((t - starts[i]) * CPS)));
+    const typing = t >= START && t < done && shown[cur] < lines[cur].length;
+    const col = shown[cur];
+    // the carriage slides left a little as a line is typed, then snaps back
+    const lineEnd = starts[cur] + lines[cur].length / CPS;
+    const back = seg(t, lineEnd + .05, lineEnd + RETURN - .05);
+    const shift = t < START ? 0 : -lerp(col, 0, cur < lines.length - 1 ? easeOut(back) : 0) * CW * .1;
+    // the sheet rolls up one line on each return
+    const roll = cur + (cur < lines.length - 1 ? easeOut(back) : 0);
+    const feed = easeOut(seg(t, 0, START));
+    const pull = easeIn(seg(t, done + .2, T.slipAt));
+    const top = lerp(PLATEN, TYPE_Y - 50, feed) - roll * 24 - pull * 70;
+
+    c.save(); c.globalAlpha *= lerp(1, .26, reveal);
+    ground(pen, 420, 18, 342);
+    // sheet (behind the platen), with what has been typed so far
+    if (pull < 1) {
+      c.save(); c.beginPath(); c.rect(0, 0, W, PLATEN); c.clip();
+      c.translate(shift, 0);
+      const bottom = Math.max(top + 10, PLATEN + 4);
+      pen.stroke([[40, top], [320, top], [320, bottom], [40, bottom]], { closed: true, fill: BG });
+      pen.text('POETRY, PLEASE · No. ' + String(opts.ticket).padStart(4, '0'), LEFT, top + 18, { align: 'left', ls: 1.4, font: '700 8px system-ui, sans-serif' });
+      lines.forEach((line, i) => {
+        if (!shown[i]) return;
+        pen.text(line.slice(0, shown[i]), LEFT, top + 50 + i * 24, { align: 'left', font: FONT });
+      });
+      c.restore();
+    }
+    // platen roller, knobs and return lever
+    c.save(); c.translate(shift, 0);
+    pen.stroke([[52, PLATEN - 8], [308, PLATEN - 8], [308, PLATEN + 12], [52, PLATEN + 12]], { closed: true, fill: BG });
+    pen.circle(42, PLATEN + 2, 11, { fill: BG }); pen.circle(318, PLATEN + 2, 11, { fill: BG });
+    pen.stroke([[40, PLATEN - 9], [22, PLATEN - 30], [12, PLATEN - 30]], { w: 2.4 });
+    c.restore();
+    // body, type basket, keys
+    pen.stroke([[66, 280], [294, 280], [334, 412], [26, 412]], { closed: true, fill: BG });
+    pen.stroke(arcPts(180, 300, 46, 18, Math.PI, TAU, 12), { w: 1.6, step: 1e9 });
+    for (let i = 0; i < 9; i++) { const a = Math.PI + (i + .5) * Math.PI / 9; pen.stroke([[180, 300], [180 + Math.cos(a) * 40, 300 + Math.sin(a) * 15]], { w: 1, amp: .4 }); }
+    let pressed = -1;
+    if (typing) {
+      const k = (t - starts[cur]) * CPS;
+      const ch = lines[cur][Math.floor(k)] || ' ';
+      if (k % 1 < .55 && ch !== ' ') {
+        pressed = (ch.charCodeAt(0) * 7) % 27;
+        pen.stroke([[180, 300], [180, TYPE_Y + 8]], { w: 2.6, amp: .3 });
+      }
+    }
+    keyboard(pen, pressed);
+    pen.text('POETRY, PLEASE', 180, 316, { ls: 2, font: '700 8px system-ui, sans-serif' });
+    // bell at the end of each line
+    if (t >= lineEnd && t < lineEnd + .35 && cur < lines.length - 1) pen.text('ding!', 330, PLATEN - 40, { font: 'italic 15px Georgia, serif' });
+    c.restore();
+
+    slip(pen, t, T.slipAt - .25, [180, top + 70], opts.poem, opts.ticket, { instant: true, font: FONT, size: [280, 150] });
+  }
+  return { draw, timing, speed: 1 };
+})();
+
+/* ---------------- Mimeograph ---------------- */
+// A hand-cranked stencil duplicator: the drum turns, a sheet feeds under it and
+// slides out printed, then lifts off the tray as the slip.
+const press = (() => {
+  const D = { x: 128, y: 176, r: 58 }, SHEET = { w: 128, h: 92, y: 268 }, EXIT = 214, LIFT = -36;
+  const T = { crank0: .6, crank1: 3.0, feed0: 1.0, feed1: 2.9, slipAt: 3.6 };
+  const timing = () => ({ slipAt: T.slipAt, endAt: T.slipAt + 3 });
+  function draw(pen, t, opts) {
+    const c = pen.ctx, reveal = seg(t, T.slipAt - .2, T.slipAt + .4);
+    const spin = ease(seg(t, T.crank0, T.crank1)) * TAU * 2;
+    const mid = (T.feed0 + T.feed1) / 2;
+    const first = ease(seg(t, T.feed0, mid)), second = ease(seg(t, mid, T.feed1));
+    const sx = lerp(EXIT - SHEET.w - 10, EXIT + 8, second);
+    c.save(); c.globalAlpha *= lerp(1, .26, reveal);
+    c.save(); c.translate(0, LIFT);
+    ground(pen, 404, 14, 346);
+    // stand and legs
+    pen.stroke([[52, 372], [52, 404]]); pen.stroke([[204, 372], [204, 404]]);
+    // feed table with a stack of blank sheets
+    for (let i = 0; i < 5; i++) pen.stroke([[20, 238 - i * 4], [74, 222 - i * 4]], { w: 1.4, amp: .5 });
+    pen.stroke([[16, 244], [80, 226]], { w: 2 });
+    // body
+    pen.stroke([[44, 232], [212, 232], [212, 372], [44, 372]], { closed: true, fill: BG });
+    pen.text('MIMEOGRAPH', 128, 300, { ls: 2.4, font: '700 9px system-ui, sans-serif' });
+    pen.text('POETRY, PLEASE', 128, 318, { ls: 1.6, font: '700 8px system-ui, sans-serif' });
+    pen.stroke([[62, 344], [194, 344]], { w: 1.2 });
+    // output tray and the printed sheet
+    pen.stroke([[EXIT, 368], [350, 360]], { w: 2 });
+    c.save(); c.beginPath(); c.rect(EXIT, 0, W - EXIT, H); c.clip();
+    const rows = [...opts.poem.lines, opts.poem.by];
+    const sheet = (x, y) => {
+      pen.stroke([[x, y], [x + SHEET.w, y - 4], [x + SHEET.w, y + SHEET.h - 4], [x, y + SHEET.h]], { closed: true, fill: BG, w: 1.8 });
+      rows.forEach((line, i) => {
+        const len = Math.min(SHEET.w - 30, line.length * 3.8);
+        pen.stroke([[x + 14, y + 22 + i * 14], [x + 14 + len, y + 21 + i * 14]], { w: i === rows.length - 1 ? 1 : 2, amp: .5 });
+      });
+    };
+    // two copies come off the drum; the second lands on the first
+    sheet(lerp(EXIT - SHEET.w - 10, EXIT + 14, first), SHEET.y + 6);
+    if (second > 0) sheet(sx, SHEET.y);
+    c.restore();
+    // drum with ink stripes, hub and crank
+    pen.circle(D.x, D.y, D.r, { fill: BG, w: 2.2 });
+    for (let i = 0; i < 6; i++) {
+      const a = spin + i * TAU / 6;
+      pen.stroke(arcPts(D.x, D.y, D.r - 9, D.r - 9, a, a + .45, 4), { w: 1.2, step: 1e9, amp: .4 });
+    }
+    pen.circle(D.x, D.y, 9, { fill: INK });
+    const kx = D.x + Math.cos(spin + Math.PI) * 74, ky = D.y + Math.sin(spin + Math.PI) * 74;
+    pen.stroke([[D.x, D.y], [kx, ky]], { w: 3, amp: .4 });
+    pen.circle(kx, ky, 7, { fill: BG });
+    if (t > T.crank0 && t < T.crank1) {
+      pen.stroke(arcPts(D.x, D.y, D.r + 10, D.r + 10, -1.1, -.6, 4), { w: 1.2, step: 1e9 });
+      pen.stroke(arcPts(D.x, D.y, D.r + 16, D.r + 16, -1.0, -.75, 3), { w: 1.2, step: 1e9 });
+    }
+    c.restore();
+    c.restore();
+    slip(pen, t, T.slipAt - .25, [sx + SHEET.w / 2, SHEET.y + LIFT + SHEET.h / 2], opts.poem, opts.ticket, { instant: true, size: [SHEET.w, SHEET.h] });
+  }
+  return { draw, timing, speed: 1 };
+})();
+
+const SLIP_CPS = 34;
+const typedTiming = slipAt => opts => {
+  const chars = opts.poem.lines.join('').length + opts.poem.lines.length * 3;
+  return { slipAt, endAt: slipAt + .85 + chars / SLIP_CPS + 1.6 };
+};
+const SCENES = {
+  dispenser: { scene: gumball, speed: 1.35, timing: typedTiming(5.6) },
+  claw: { scene: claw, speed: 1.7, timing: typedTiming(8.75) },
+  typewriter: { scene: typewriter, speed: 1, timing: typewriter.timing },
+  press: { scene: press, speed: 1, timing: press.timing },
+};
+export const INTRO_ART = Object.keys(SCENES);
 
 // Plays one intro on the canvas. onSlip fires when the poem slip opens and
 // onEnd when the slip has been read for a moment. Returns stop().
 export function playIntro(canvas, variant, { poem, ticket = 1, onSlip, onEnd } = {}) {
-  const { scene, speed } = SCENES[variant];
+  const { scene, speed, timing } = SCENES[variant];
   const ctx = canvas.getContext('2d'), pen = new Pen(ctx);
-  const slipAt = variant === 'dispenser' ? 5.6 : 8.75;
-  const chars = poem.lines.join('').length + poem.lines.length * 3;
-  const endAt = slipAt + 0.85 + chars / 34 + 1.6;
   const opts = { poem, ticket };
+  const { slipAt, endAt } = timing(opts);
   let start = null, raf = 0, key = '', slipped = false, ended = false;
   function size() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2), w = canvas.clientWidth || 260;

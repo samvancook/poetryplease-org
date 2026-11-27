@@ -97,6 +97,10 @@
         "destination": "/admin.html"
       },
       {
+        "source": "/intros",
+        "destination": "/intros.html"
+      },
+      {
         "source": "/scoreboard",
         "destination": "/scoreboard.html"
       },

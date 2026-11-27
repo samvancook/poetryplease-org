@@ -3,7 +3,7 @@
 // 10% see the gumball dispenser intro, 10% the claw machine, 80% nothing.
 // The intro sits over the feed while the first card loads underneath; it never
 // holds up the feed, and the art only downloads for the two intro groups.
-import { isPlainVisit, variantFor, forcedVariant, shouldPlay, INTRO_VARIANTS } from './swipe-intro-rules.js';
+import { isPlainVisit, variantFor, forcedVariant, shouldPlay, pickArt, INTRO_VARIANTS } from './swipe-intro-rules.js';
 
 const VARIANT_KEY = 'pp_intro_variant';
 const SHOWN_KEY = 'pp_intro_last_shown';
@@ -23,6 +23,17 @@ function tagGroup(variant) {
   const send = () => window.ppUserProperty?.('intro_variant', variant);
   if (window.ppUserProperty || document.readyState !== 'loading') send();
   else document.addEventListener('DOMContentLoaded', send, { once: true });
+}
+
+// Swipe's startup rewrites the address bar to its own filters (scroll.js updateRoute),
+// dropping ?intro= and campaign tags, often before this module runs. Read the URL the
+// page was opened with instead.
+function openedSearch() {
+  try {
+    const nav = performance.getEntriesByType('navigation')[0];
+    if (nav?.name) return new URL(nav.name).search;
+  } catch (_) {}
+  return location.search;
 }
 
 function authState() {
@@ -90,8 +101,9 @@ async function play(variant, forced) {
 async function run() {
   if (document.readyState === 'loading') await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve, { once: true }));
   if (document.body?.dataset.feedMode !== 'swipe') return;
-  const forced = forcedVariant(location.search);
-  if (!forced && (!isPlainVisit(location.search) || navigator.webdriver)) return;
+  const search = openedSearch();
+  const forced = forcedVariant(search);
+  if (!forced && (!isPlainVisit(search) || navigator.webdriver)) return;
   const user = forced ? null : await authState();
   if (!forced && user === undefined) return; // account check too slow; never show an intro late
   const signedIn = Boolean(user && !user.isAnonymous);
@@ -109,7 +121,7 @@ async function run() {
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
     cardAlreadyShown: Boolean(document.querySelector('#feed > *')),
   });
-  if (ok) play(variant, Boolean(forced));
+  if (ok) play(pickArt(variant, Math.random()), Boolean(forced));
 }
 
 run().catch(() => {});
