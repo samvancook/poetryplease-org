@@ -54,7 +54,15 @@ jobs:
         if: always()
         run: |
           cp scripts/intro-probe.mjs /tmp/probe/
-          cd /tmp/probe && PP_INTRO_DIRECT=1 node intro-probe.mjs; node intro-probe.mjs
+          cd /tmp/probe && PP_INTRO_DIRECT=1 node intro-probe.mjs; PP_INTRO_SHOTS=/tmp/probe/intro-shots node intro-probe.mjs
+
+      - name: Save intro screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: intro-screenshots
+          path: /tmp/probe/intro-shots
+          if-no-files-found: ignore
 
       - name: Anonymous browser start on Desktop, classic mobile and Swipe
         if: always()
