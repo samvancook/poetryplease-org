@@ -41,6 +41,15 @@ Sam's idea after seeing the Swipe intros (PR #449, live 23 Nov): a version of th
 - **First step.** Count how many excerpts fit at 3 and at 5 lines, so we know the size of the pool before building.
 - Prototype art: [Poetry Dispenser Intros](https://claude.ai/artifact/SbHSc2bM3NYW9RYfSuN4qn). Intro test code: `public/swipe-intro*.js`.
 
+## Typewriter Swipe mode — idea (26 November 2026)
+
+Sam's idea: a whole version of Swipe where you load in and everything is in typewriter fonts, with typewriter-style quote images (QI) shown first. Sam (27 Nov): the typewriter intro should lead into this mode eventually; for now it is fine that it leads into regular Swipe. Roadmap only; not approved for the live site yet.
+
+- **Entry.** The typewriter intro (PR #489) hands off to typewriter mode instead of regular Swipe. A link of its own (proposed `/typewriter`) also opens it. Regular Swipe at `/m` stays as it is.
+- **Look.** Typewriter faces throughout, red ribbon ink for credits, excerpts typed out on arrival, vote buttons as typewriter keys, optional key sound. Mock-up: [Typewriter Swipe preview](https://claude.ai/artifact/7UqnfNyuHvwi3WuHEbWXCm).
+- **Typewriter QIs.** No field marks them. A lettering scan of all 7,026 visible QIs (26 Nov) found 510 strong matches (about 5 in 6 right by eye) and 465 possible ones. The list is `typewriter-qi-candidates-2026-11-26.csv` in the project files (folder `typewriter-swipe/`). Before building: review the list, then store a `typewriter` flag on those graphics so the feed can move them up.
+- **Care.** `posts-swipe.html` script declarations are startup-protected (AGENTS.md), so build this as its own page that reuses Swipe, not as an edit to the Swipe shell.
+
 ## Compact startup ratings — 5 November 2026
 
 The anonymous Desktop welcome response previously returned ratings for all 8,224 content IDs even when the client requested includeRatingsSummary:false. A measured 12-card response was 1,621,904 bytes. Scoping its ratings to the selected cards reduced the equivalent JSON to 8,121 bytes. The bootstrap receiver now applies that scope after ranking when the compact response is requested. Full-summary callers retain their response. Focused tests compare identical selected cards and per-card ratings, including voted and author-excluded content.
