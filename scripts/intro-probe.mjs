@@ -6,6 +6,8 @@ import { chromium, devices } from "playwright-core";
 
 const base = process.argv[2] || process.env.PP_PROBE_BASE || "https://poetryplease.org";
 const choices = ["Surprise me", "Gumball dispenser", "Claw machine", "Typewriter", "Mimeograph"];
+// PP_INTRO_DIRECT=1 opens /posts-swipe?intro=… directly instead of tapping /intros.
+const direct = { "Surprise me": "random", "Gumball dispenser": "dispenser", "Claw machine": "claw", Typewriter: "typewriter", Mimeograph: "press" };
 const browser = await chromium.launch({ channel: process.env.PP_PROBE_CHANNEL || "chrome", executablePath: process.env.PP_PROBE_CHROME || undefined });
 let problems = 0;
 for (const choice of choices) {
@@ -15,10 +17,15 @@ for (const choice of choices) {
   page.on("pageerror", (error) => errors.push(error.message.split("\n")[0]));
   const started = Date.now();
   try {
-    await page.goto(base + "/intros", { waitUntil: "domcontentloaded", timeout: 60000 });
-    await page.getByRole("link", { name: choice }).click();
+    if (process.env.PP_INTRO_DIRECT) {
+      await page.goto(`${base}/posts-swipe?intro=${direct[choice]}`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    } else {
+      await page.goto(base + "/intros", { waitUntil: "domcontentloaded", timeout: 60000 });
+      await page.getByRole("link", { name: choice }).click();
+    }
     await page.waitForSelector(".pp-intro", { timeout: 20000 });
     const shownAt = Date.now() - started;
+    const art = await page.evaluate(() => document.querySelector(".pp-intro")?.dataset.variant || "");
     await page.waitForSelector(".pp-intro button[data-ready]", { timeout: 30000 });
     await page.click(".pp-intro button");
     await page.waitForSelector(".pp-intro", { state: "detached", timeout: 5000 });
@@ -28,7 +35,7 @@ for (const choice of choices) {
       cards: document.querySelectorAll("#feed [data-item-id]").length,
       first: document.querySelector("#feed [data-item-id]")?.dataset.itemId || "",
     }));
-    console.log(`ok   ${choice}: intro at ${shownAt}ms, then Swipe ${state.url} with ${state.cards} card(s), first ${state.first}${errors.length ? `; page errors: ${errors.join(" / ")}` : ""}`);
+    console.log(`ok   ${choice}: ${art || "?"} intro at ${shownAt}ms, then Swipe ${state.url} with ${state.cards} card(s), first ${state.first}${errors.length ? `; page errors: ${errors.join(" / ")}` : ""}`);
   } catch (error) {
     problems += 1;
     const intro = await page.$(".pp-intro").catch(() => null);
