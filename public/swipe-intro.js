@@ -64,6 +64,7 @@ async function play(variant, forced) {
   style.textContent = STYLE;
   const overlay = document.createElement('div');
   overlay.className = 'pp-intro';
+  overlay.dataset.variant = variant; // which machine is playing (read by scripts/intro-probe.mjs)
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Welcome to Poetry, Please');
