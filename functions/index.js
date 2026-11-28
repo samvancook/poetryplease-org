@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { GoogleAuth, Impersonated } from "google-auth-library";
 import { paginateScrollFeed } from "./scroll-feed.js";
 import { paginateMobileFeed } from "./swipe-feed.js";
+import { preferTypewriter, typewriterIdSet } from "./typewriter-feed.js";
 import { relatedExcerptIds, resolvePoemRelations } from "./poem-relations.js";
 import { registerImportJobRoutes } from "./import-jobs.js";
 import { createManuscriptReconciliationPhase2App, verifyReviewerViaPoetryPleaseApi } from "./manuscript-reconciliation-phase2.js";
@@ -324,6 +325,9 @@ const __dirname = path.dirname(__filename);
 const BOOK_CATALOG_LOOKUP_ROWS = JSON.parse(
   readFileSync(path.join(__dirname, "book-catalog-lookup.json"), "utf8")
 );
+const TYPEWRITER_QI_IDS = typewriterIdSet(JSON.parse(
+  readFileSync(path.join(__dirname, "typewriter-qi-ids.json"), "utf8")
+));
 const BROKEN_QI_MANIFEST = JSON.parse(
   readFileSync(path.join(__dirname, "broken-qi-ids.json"), "utf8")
 );
@@ -6065,7 +6069,7 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
     && !filters.bookGroup && !filters.contestYear && !filters.book && !filters.author
     && !filters.catalog && !filters.event;
   const pageStartedAt = Date.now();
-  const scrollPage = mobileFeed ? paginateMobileFeed(filteredNew, {
+  const regularPage = mobileFeed ? paginateMobileFeed(filteredNew, {
     ratingsSummary, servedIds, authorReview: !!filters.author, demoteStaffNegatives: defaultDiscovery,
     newcomer: !decoded?.email || votedIds.size < 8,
     preferVisual: !decoded?.email, includeMuted: Number(req.body?.sessionVotes || 0) >= 5,
@@ -6073,6 +6077,10 @@ app.post(getBoth("/fetchFiltered"), async (req, res) => {
   }) : req.body?.scroll === true ? paginateScrollFeed(filteredNew, {
     seed: normalizeText(req.body?.scrollSeed), after: normalizeText(req.body?.cursor), limit: req.body?.limit || 12,
   }) : null;
+  // Typewriter mode (after the typewriter intro) leads each page with typewriter quote images.
+  const scrollPage = mobileFeed && req.body?.look === "typewriter" && defaultDiscovery
+    ? preferTypewriter(regularPage, filteredNew, { typewriterIds: TYPEWRITER_QI_IDS, servedIds, limit: req.body?.limit || 12, seed: normalizeText(req.body?.scrollSeed) || userId })
+    : regularPage;
   timings.page = Date.now() - pageStartedAt;
   const fetchFilteredPayload = {
     allGraphics: scrollPage ? [] : filteredAll.map(mapToCounterArr),

@@ -60,6 +60,8 @@ const STYLE = `
 
 async function play(variant, forced) {
   const started = performance.now();
+  // The typewriter intro switches Swipe into typewriter mode behind it (Sam, Nov 27 2026).
+  if (variant === 'typewriter') import('./swipe-typewriter.js').then(mode => mode.startTypewriterMode()).catch(() => {});
   const style = document.createElement('style');
   style.textContent = STYLE;
   const overlay = document.createElement('div');

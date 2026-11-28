@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { paginateScrollFeed } from './scroll-feed.js';
 import { paginateMobileFeed } from './swipe-feed.js';
+import { preferTypewriter } from './typewriter-feed.js';
 import { ScrollFeedPager, safeMediaUrl, normalizeScrollItem, originalViewerUrl, arrivalCampaign, campaignBookUrl } from '../public/scroll-feed-core.js';
 
 const content = (count) => Array.from({ length: count }, (_, i) => ({ imageId: 'item-' + i, imageType: 'EXC', title: 'Poem ' + i, book: 'Roads', excerpt: 'line one\nline two' }));
@@ -132,6 +133,7 @@ function routeHarness(customContent, ratings = {}, votedIds = ['item-0'], bootst
     reviewVisibleContent: (items, full) => items.filter((i) => full || i.imageType !== 'FP'),
     parseOptionalCount: (value) => value == null ? null : Number(value), parseBoolean: (value) => value === true,
     sampleItems: (items, limit) => items.slice(0, limit), mapToCounterArr: (i) => i.imageId, mapToArr: (i) => row(i.imageId), paginateScrollFeed, paginateMobileFeed,
+    preferTypewriter, TYPEWRITER_QI_IDS: new Set(['item-7', 'item-8', 'item-9']),
   });
   vm.runInContext(source.slice(source.indexOf('function prioritizeVisualContent('), source.indexOf('function matchesFilterValue(')) + '\n' +
     source.slice(source.indexOf('function matchesFilterValue('), source.indexOf('function firstNonEmpty(')) + '\n' +
@@ -210,7 +212,7 @@ test('only Swipe requests mobile ranking and sends all already-shown IDs on the 
   const block = client.slice(client.indexOf('const pager = new ScrollFeedPager('), client.indexOf('function restartFeed()'));
   for (const swipeVariant of [false, true]) {
     const requests = [];
-    const context = vm.createContext({ ScrollFeedPager, swipeVariant, contestReading: false, linkedItemId: '', anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false,
+    const context = vm.createContext({ ScrollFeedPager, swipeVariant, contestReading: false, linkedItemId: '', anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false, feedLook: () => undefined,
       renderCard() {}, loader: { update() {} }, discardReading() {}, closePostDetails() {}, resetSwipeReview() {}, postVariant: true, $: () => ({ replaceChildren() {} }),
       api: async (path, body) => { requests.push({ path, body }); return { newGraphics: requests.length === 1 ? [row('A'), row('B')] : [row('C')], hasMore: requests.length === 1, nextCursor: requests.length === 1 ? 'next' : null }; },
     });
@@ -231,7 +233,7 @@ test('a linked poem opens first and the normal Swipe feed follows it', async () 
   const client = readFileSync(new URL('../public/scroll.js', import.meta.url), 'utf8');
   const block = client.slice(client.indexOf('const pager = new ScrollFeedPager('), client.indexOf('function restartFeed()'));
   const requests = [];
-  const context = vm.createContext({ ScrollFeedPager, swipeVariant: true, contestReading: false, anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false,
+  const context = vm.createContext({ ScrollFeedPager, swipeVariant: true, contestReading: false, anonymousId: 'reader', auth: { currentUser: null }, sessionVotes: 0, welcomeCalibrated: false, feedLook: () => undefined,
     renderCard() {}, loader: { update() {} }, discardReading() {}, closePostDetails() {}, resetSwipeReview() {}, postVariant: false, $: () => ({ replaceChildren() {} }),
     URLSearchParams,
     linkedItemPage: async (id, fetchItem) => { const result = await fetchItem(id); return { newGraphics: [result.item], hasMore: false, nextCursor: null }; },
@@ -395,4 +397,28 @@ test('campaign capture survives storage that throws', () => {
   const blocked = { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); } };
   assert.deepEqual(arrivalCampaign('?utm_source=mailchimp', blocked), { utm_source: 'mailchimp' });
   assert.deepEqual(arrivalCampaign('?item=X', blocked), {});
+});
+
+test('typewriter mode leads Swipe pages with typewriter quote images; other readers are unchanged', async () => {
+  const call = routeHarness();
+  const request = { scroll: true, feedPolicy: 'mobile', anonId: 'reader', type: 'PROMO', limit: 3, scrollSeed: 'seed' };
+  const plain = (await call(request)).data.newGraphics.map(r => r[3]);
+  const first = (await call({ ...request, look: 'typewriter' })).data;
+  const ids = first.newGraphics.map(r => r[3]);
+  assert.equal(ids.length, 3);
+  assert.ok(['item-7', 'item-8', 'item-9'].includes(ids[0]) && ['item-7', 'item-8', 'item-9'].includes(ids[1]));
+  assert.equal(new Set(ids).size, 3);
+  const second = (await call({ ...request, look: 'typewriter', servedIds: ids })).data.newGraphics.map(r => r[3]);
+  assert.ok(['item-7', 'item-8', 'item-9'].includes(second[0]));
+  assert.ok(second.every(id => !ids.includes(id)));
+  // Lanes (an author or book) never switch to typewriter ordering.
+  const lane = (await call({ ...request, type: '', book: 'Roads', look: 'typewriter' })).data.newGraphics.map(r => r[3]);
+  assert.deepEqual(lane, (await call({ ...request, type: '', book: 'Roads' })).data.newGraphics.map(r => r[3]));
+  assert.equal(plain.length, 3);
+});
+
+test('Swipe asks for typewriter mode only when it is on', async () => {
+  const client = readFileSync(new URL('../public/scroll.js', import.meta.url), 'utf8');
+  assert.match(client, /look: feedLook\(\)/);
+  assert.match(client, /window\.ppFeedLook \|\| \(initial\.get\('intro'\) === 'typewriter'/);
 });
