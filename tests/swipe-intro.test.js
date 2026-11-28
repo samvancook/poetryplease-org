@@ -52,3 +52,18 @@ test("?intro=random plays one of the four drawn intros", async () => {
   assert.equal(pickArt("claw", 0.9), "claw");
   assert.deepEqual(INTRO_ART_VARIANTS, ["dispenser", "claw", "typewriter", "press"]);
 });
+
+test("intro wording rotates through seven versions that fit the slip", async () => {
+  const { INTRO_COPY, pickCopy } = await rules();
+  assert.equal(INTRO_COPY.length, 7);
+  for (const copy of INTRO_COPY) {
+    assert.ok(copy.headline);
+    assert.equal(copy.lines.length, 3);
+    for (const line of copy.lines) assert.ok(line.length <= 24, line);
+  }
+  assert.equal(pickCopy("", 0).number, 1);
+  assert.equal(pickCopy("", 0.99).number, 7);
+  assert.equal(pickCopy("", 1).number, 7);
+  assert.equal(pickCopy("?intro=claw&copy=5", 0).number, 5);
+  assert.equal(pickCopy("?copy=9", 0.5).number, 4); // out of range falls back to random
+});

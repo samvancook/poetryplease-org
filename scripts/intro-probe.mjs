@@ -48,7 +48,7 @@ for (const [deviceName, profile] of deviceProfiles) {
       }
       await page.waitForSelector(".pp-intro", { timeout: 20000 });
       const shownAt = Date.now() - started;
-      const art = await page.evaluate(() => document.querySelector(".pp-intro")?.dataset.variant || "");
+      const art = await page.evaluate(() => { const o = document.querySelector(".pp-intro"); return o ? `${o.dataset.variant}${o.dataset.copy ? ` (wording ${o.dataset.copy})` : ""}` : ""; });
       await page.waitForSelector(".pp-intro button[data-ready]", { timeout: 30000 });
       const slipAt = Date.now() - started;
       if (shots) { await page.waitForTimeout(800); await page.screenshot({ path: `${shots}/${deviceName}-${intro}-1-slip.png` }); }

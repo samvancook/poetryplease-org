@@ -3,12 +3,11 @@
 // 10% see the gumball dispenser intro, 10% the claw machine, 80% nothing.
 // The intro sits over the feed while the first card loads underneath; it never
 // holds up the feed, and the art only downloads for the two intro groups.
-import { isPlainVisit, variantFor, forcedVariant, shouldPlay, pickArt, INTRO_VARIANTS } from './swipe-intro-rules.js';
+import { isPlainVisit, variantFor, forcedVariant, shouldPlay, pickArt, pickCopy, INTRO_VARIANTS } from './swipe-intro-rules.js';
 
 const VARIANT_KEY = 'pp_intro_variant';
 const SHOWN_KEY = 'pp_intro_last_shown';
 const AUTH_WAIT_MS = 1200;
-const SLIP = { lines: ['Swipe up for a poem.', 'Tap a reaction to tell', 'us how it landed.'], by: 'Poetry, Please' };
 
 const read = key => { try { return localStorage.getItem(key); } catch (_) { return null; } };
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch (_) {} };
@@ -58,24 +57,26 @@ const STYLE = `
 .pp-intro button[data-ready]{background:#fff;color:#000;border-color:#fff}
 .pp-intro button:focus-visible{outline:2px solid #fff;outline-offset:3px}`;
 
-async function play(variant, forced) {
+async function play(variant, forced, copy) {
   const started = performance.now();
   const style = document.createElement('style');
   style.textContent = STYLE;
   const overlay = document.createElement('div');
   overlay.className = 'pp-intro';
   overlay.dataset.variant = variant; // which machine is playing (read by scripts/intro-probe.mjs)
+  overlay.dataset.copy = String(copy.number); // which wording (INTRO_COPY)
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', 'Welcome to Poetry, Please');
   overlay.innerHTML = '<div class="pp-intro__brand">POETRY, PLEASE</div><canvas aria-hidden="true"></canvas>' +
-    '<h2>A poetry dispenser.</h2><button type="button">Skip intro</button>';
+    '<h2></h2><button type="button">Skip intro</button>';
+  overlay.querySelector('h2').textContent = copy.headline;
   const canvas = overlay.querySelector('canvas'), button = overlay.querySelector('button');
   let stop = () => {}, closed = false;
   const close = how => {
     if (closed) return;
     closed = true;
-    track('intro_done', { intro_variant: variant, how, ms: Math.round(performance.now() - started) });
+    track('intro_done', { intro_variant: variant, intro_copy: copy.number, how, ms: Math.round(performance.now() - started) });
     overlay.dataset.leaving = '';
     setTimeout(() => { stop(); overlay.remove(); style.remove(); document.getElementById('feed')?.focus({ preventScroll: true }); }, 300);
   };
@@ -85,12 +86,12 @@ async function play(variant, forced) {
   document.body.appendChild(overlay);
   button.focus({ preventScroll: true });
   if (!forced) write(SHOWN_KEY, String(Date.now()));
-  track('intro_shown', { intro_variant: variant });
+  track('intro_shown', { intro_variant: variant, intro_copy: copy.number });
   try {
     const { playIntro } = await import('./swipe-intro-art.js');
     if (closed) return;
     stop = playIntro(canvas, variant, {
-      poem: SLIP,
+      poem: { lines: copy.lines, by: 'Poetry, Please' },
       onSlip: () => { button.textContent = 'Start reading'; button.dataset.ready = ''; },
       onEnd: () => setTimeout(() => close('auto'), 1200),
     });
@@ -122,7 +123,7 @@ async function run() {
     reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
     cardAlreadyShown: Boolean(document.querySelector('#feed > *')),
   });
-  if (ok) play(pickArt(variant, Math.random()), Boolean(forced));
+  if (ok) play(pickArt(variant, Math.random()), Boolean(forced), pickCopy(search, Math.random()));
 }
 
 run().catch(() => {});

@@ -38,3 +38,25 @@ export function shouldPlay({ variant, signedIn, lastShown, now, reducedMotion, c
   if (signedIn || reducedMotion || cardAlreadyShown) return false;
   return !(lastShown && now - lastShown < INTRO_GAP_MS);
 }
+
+// The words on the intro: a headline under the machine and three lines on the slip.
+// One is picked at random each time an intro plays (Sam, Nov 28 2026: keep all seven).
+// Echoes the first Apps Script version, a page called "Poetry Dispenser" with a
+// "Poetry please" button. Keep slip lines to 24 characters so they fit every machine.
+export const INTRO_COPY = [
+  { headline: 'A poetry dispenser.', lines: ['Swipe up for a poem.', 'Tap a reaction to tell', 'us how it landed.'] },
+  { headline: 'A poetry discovery toy.', lines: ['One turn, one poem.', 'Swipe up for the next.', 'Keep what lands.'] },
+  { headline: 'Poetry, please.', lines: ['You asked nicely.', "Here's your first poem.", 'Swipe up for more.'] },
+  { headline: 'A poetry dispenser.', lines: ['Out comes a poem.', 'Swipe up for another.', 'Tell us how it landed.'] },
+  { headline: 'A poetry discovery toy.', lines: ['Every swipe, a new poem.', 'Find one you love,', 'then find the book.'] },
+  { headline: 'Insert curiosity.', lines: ['No coins needed.', 'Swipe up for a poem.', 'Tell us how it landed.'] },
+  { headline: 'Poetry, please.', lines: ['Found a poet you like?', "There's more where", 'that came from.'] },
+];
+
+// ?copy=1..7 shows a given version (for review links); otherwise random.
+export function pickCopy(search, random) {
+  const n = Number(new URLSearchParams(search).get('copy'));
+  const index = Number.isInteger(n) && n >= 1 && n <= INTRO_COPY.length
+    ? n - 1 : Math.min(INTRO_COPY.length - 1, Math.floor(random * INTRO_COPY.length));
+  return { number: index + 1, ...INTRO_COPY[index] };
+}
