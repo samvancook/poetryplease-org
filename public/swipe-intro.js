@@ -8,7 +8,7 @@ import { isPlainVisit, variantFor, forcedVariant, shouldPlay, pickArt, INTRO_VAR
 const VARIANT_KEY = 'pp_intro_variant';
 const SHOWN_KEY = 'pp_intro_last_shown';
 const AUTH_WAIT_MS = 1200;
-const SLIP = { lines: ['Swipe up for a poem.', 'Tap a reaction to tell', 'the machine how it landed.'], by: 'Poetry, Please' };
+const SLIP = { lines: ['Swipe up for a poem.', 'Tap a reaction to tell', 'us how it landed.'], by: 'Poetry, Please' };
 
 const read = key => { try { return localStorage.getItem(key); } catch (_) { return null; } };
 const write = (key, value) => { try { localStorage.setItem(key, value); } catch (_) {} };
