@@ -62,6 +62,9 @@ function node(tag, className, text) {
   if (text !== undefined) element.textContent = text;
   return element;
 }
+// Typewriter mode (swipe-typewriter.js) asks the server to lead with typewriter quote images.
+// A link that opens the typewriter intro asks for it from the first page.
+function feedLook() { return window.ppFeedLook || (initial.get('intro') === 'typewriter' ? 'typewriter' : undefined); }
 function isStaff() { return account?.roles?.some((role) => role === 'team' || role === 'admin'); }
 function isAuthorOnly() { return account?.roles?.includes('author') && !isStaff(); }
 function routeFilters() {
@@ -130,7 +133,7 @@ const pager = new ScrollFeedPager({
     }
     if (feedContext.cursor === AFTER_LINKED_ITEM) feedContext.cursor = null;
     return api('fetchFiltered', { ...feedContext, anonId: anonymousId, scroll: !contestReading, limit: swipeVariant && !contestReading ? 3 : 12,
-    ...(swipeVariant && !contestReading ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated } : {}),
+    ...(swipeVariant && !contestReading ? { feedPolicy: 'mobile', servedIds: [...pager.seen], sessionVotes, welcome: !auth.currentUser?.email && !welcomeCalibrated, look: feedLook() } : {}),
     }, signal);
   },
   // On Swipe the footer fills the screen. A reader who reaches it before the next
