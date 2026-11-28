@@ -126,3 +126,73 @@ export class ScrollFeedPager {
     }
   }
 }
+
+// ---------- Test mix of public-domain classics (Swipe, ?classics=1 only) ----------
+// Off unless the page was opened with ?classics=1 (remembered for the tab).
+// Nothing here changes the normal feed, and votes on classic cards are kept in
+// this browser only: they never reach the vote API or anyone's scores.
+// Sample and proposal: imports/dispenser-pool/README.md.
+export const CLASSICS_EVERY = 10; // one classic per this many cards, never two in a row
+const CLASSICS_FLAG = 'pp_classics_test';
+
+
+export function classicsTestOn(search = globalThis.location?.search || '', store) {
+  const value = new URLSearchParams(search).get('classics');
+  try {
+    const storage = store ?? globalThis.sessionStorage;
+    if (value === '1') storage?.setItem(CLASSICS_FLAG, '1');
+    if (value === '0') storage?.removeItem(CLASSICS_FLAG);
+    return storage?.getItem(CLASSICS_FLAG) === '1';
+  } catch {
+    return value === '1';
+  }
+}
+
+// rows from classics-mix.json -> feed items the shared card renderer can draw.
+export function classicItems(data) {
+  return (data?.poems || []).map((p) => ({
+    id: 'PD-' + p.id, type: 'FP', classic: true,
+    title: String(p.title || ''), author: String(p.author || ''),
+    text: (p.lines || []).join('\n'),
+    book: p.source || '', bookRelation: 'classic', bookUrl: '', mediaUrl: '', previewUrl: '',
+    catalog: '', assetSet: null,
+  }));
+}
+
+// Puts one classic after every EVERY-1 regular cards, carrying the count
+// across batches. Each classic is shown once per page load.
+export function createClassicsMixer(items, { every = CLASSICS_EVERY, random = Math.random } = {}) {
+  const queue = items.slice();
+  for (let i = queue.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [queue[i], queue[j]] = [queue[j], queue[i]];
+  }
+  let sinceLast = 0;
+  return function mix(batch) {
+    const out = [];
+    for (const item of batch) {
+      out.push(item);
+      sinceLast++;
+      if (sinceLast >= every - 1 && queue.length) {
+        out.push(queue.shift());
+        sinceLast = 0;
+      }
+    }
+    return out;
+  };
+}
+
+export function saveClassicVote(item, value, store) {
+  try {
+    const storage = store ?? globalThis.localStorage;
+    const all = JSON.parse(storage.getItem('pp_classics_test_votes') || '{}');
+    all[item.id] = { vote: value, title: item.title, author: item.author, at: new Date().toISOString() };
+    storage.setItem('pp_classics_test_votes', JSON.stringify(all));
+  } catch { /* A test vote that can't be stored is simply not kept. */ }
+}
+
+export async function loadClassicsMixer(fetcher = globalThis.fetch) {
+  const res = await fetcher('/classics-mix.json');
+  if (!res.ok) throw new Error('classics-mix.json ' + res.status);
+  return createClassicsMixer(classicItems(await res.json()));
+}

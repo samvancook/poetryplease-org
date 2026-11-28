@@ -1,4 +1,4 @@
-import { ScrollFeedPager, originalViewerUrl, safeMediaUrl, bookLine, campaignBookUrl } from './scroll-feed-core.js';
+import { ScrollFeedPager, originalViewerUrl, safeMediaUrl, bookLine, campaignBookUrl, classicsTestOn, loadClassicsMixer, saveClassicVote } from './scroll-feed-core.js';
 import { renderPostCard, closePostDetails } from './post-cards.js';
 import { renderSwipeCard, resetSwipeReview, observeSwipeCards } from './posts-swipe.js';
 import { linkedItemPage, chapbookLaneFilters } from './mobile-entry.js?v=20261030-chapbook-embed';
@@ -23,6 +23,13 @@ let account = null;
 let ownAuthor = '';
 let automaticPages = true;
 let sessionVotes = 0;
+// Test only: classic public-domain poems mixed into Swipe when opened with
+// ?classics=1. The normal feed fetches nothing extra.
+let mixClassics = null;
+if (swipeVariant && classicsTestOn()) {
+  loadClassicsMixer().then((mix) => { mixClassics = mix; })
+    .catch(() => { /* The test mix is optional; the normal feed carries on. */ });
+}
 let welcomeCalibrated = (() => { try { return localStorage.getItem('pp_welcome_calibrated') === '1'; } catch { return false; } })();
 // The scroll view has one mixed feed. URL lane/book filters are intentionally ignored.
 let filters = { type: 'PROMO', author: '' };
@@ -140,7 +147,7 @@ const pager = new ScrollFeedPager({
     const before = $('feed').children.length;
     const onFooter = swipeVariant && automaticPages && !$('feed-footer').hidden
       && $('feed-footer').getBoundingClientRect().top < innerHeight / 2;
-    items.forEach(renderCard);
+    (mixClassics ? mixClassics(items) : items).forEach(renderCard);
     if (onFooter) $('feed').children[before]?.scrollIntoView({ block: 'start', behavior: 'instant' });
   },
   changed: loader.update,
@@ -400,6 +407,13 @@ function createVoteControls(item, card) {
     button.addEventListener('click', async () => {
       const identity = readerIdentity();
       for (const control of controls.children) control.disabled = true;
+      if (item.classic) {
+        // Test classics: kept in this browser only, never sent as a vote.
+        saveClassicVote(item, value);
+        button.setAttribute('aria-pressed', 'true');
+        status.textContent = 'Saved: ' + label + ' (test only, not counted).';
+        return;
+      }
       status.textContent = 'Saving your response…';
       try {
         if (!auth.currentUser) await auth.signInAnonymously();

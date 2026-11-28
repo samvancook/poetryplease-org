@@ -161,7 +161,7 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
   frame.append(art);
   const credit = make('div', 'post-attribution');
   if (item.type === 'EXC') credit.append(make('span', 'post-credit-kind', 'Excerpt from'));
-  if (item.type === 'FP') credit.append(make('span', 'post-credit-kind', 'Full poem'));
+  if (item.type === 'FP') credit.append(make('span', 'post-credit-kind', (item.classic ? 'Classic · Public domain' : 'Full poem')));
   if (item.title) credit.append(make('span', 'post-credit-title', item.title));
   if (item.author) credit.append(make('span', 'post-credit-author', item.author));
   if (credit.childElementCount) frame.append(credit);
@@ -210,7 +210,7 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
   info.hidden = true;
   const meta = make('div', 'post-meta');
   if (item.type === 'EXC') meta.append(make('span', 'post-kind', 'Excerpt from'));
-  if (item.type === 'FP') meta.append(make('span', 'post-kind', 'Full poem'));
+  if (item.type === 'FP') meta.append(make('span', 'post-kind', (item.classic ? 'Classic · Public domain' : 'Full poem')));
   if (item.title) meta.append(make('h2', '', item.title));
   if (item.author) meta.append(make('p', 'post-author', item.author));
   const line = bookLine(item);
@@ -241,8 +241,9 @@ export function renderPostCard(item, { createVotes, openImage, viewerUrl, openRe
       if (result === 'manual') { link.focus(); link.select(); }
     } finally { share.disabled = false; }
   });
-  actions.append(share);
-  const related = createPoemLinks(item.id, openRelated);
+  // Test classics have no permalink or related links yet (scroll-feed-core.js).
+  if (!item.classic) actions.append(share);
+  const related = item.classic ? { element: make('div'), load() {} } : createPoemLinks(item.id, openRelated);
   info.append(actions, related.element, shareStatus, link);
   card.append(info);
 

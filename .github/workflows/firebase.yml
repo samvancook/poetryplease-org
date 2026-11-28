@@ -566,7 +566,10 @@ jobs:
   # ------------------------------------------------------------
   # Preview channels are paused; branch tests and main deployment still run.
   deploy_preview:
-    if: ${{ false }}
+    # Only the classics test branch gets a preview channel (Sam asked for a test
+    # link, 28 Nov 2026). Preview channels never touch the live site; they
+    # expire after 7 days. Set back to false when that test ends.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/claude/project-thread-n2nyr1' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

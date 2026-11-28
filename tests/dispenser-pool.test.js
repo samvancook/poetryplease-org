@@ -141,3 +141,40 @@ test("playdate export: poems.json is current and fits the screen", () => {
     assert.ok(p.lines.every((l) => /^[\x20-\x7e]*$/.test(l)), `${p.id} has characters the Playdate font may lack`);
   }
 });
+
+test("classics test mix: off by default, one in ten, never two in a row", async () => {
+  const mix = await import("../public/scroll-feed-core.js");
+  const store = () => { const m = new Map(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v), removeItem: (k) => m.delete(k) }; };
+  const s = store();
+  assert.equal(mix.classicsTestOn("", s), false);
+  assert.equal(mix.classicsTestOn("?classics=1", s), true);
+  assert.equal(mix.classicsTestOn("", s), true, "remembered for the tab");
+  assert.equal(mix.classicsTestOn("?classics=0", s), false);
+
+  const data = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "public", "classics-mix.json"), "utf8"));
+  const classics = mix.classicItems(data);
+  assert.ok(classics.length >= 30);
+  for (const c of classics) {
+    assert.ok(c.classic && c.type === "FP" && c.id.startsWith("PD-") && c.text && c.title && c.author, c.id);
+    assert.ok(!c.bookUrl, `${c.id} must not link to a Button book`);
+  }
+  const mixer = mix.createClassicsMixer(classics, { random: () => 0.5 });
+  const shown = [];
+  for (let b = 0; b < 20; b++) shown.push(...mixer(Array.from({ length: 3 }, (_, i) => ({ id: `r${b}-${i}` }))));
+  const flags = shown.map((x) => !!x.classic);
+  for (let i = 1; i < flags.length; i++) assert.ok(!(flags[i] && flags[i - 1]), "two classics in a row");
+  const n = flags.filter(Boolean).length;
+  assert.equal(n, Math.floor(60 / (mix.CLASSICS_EVERY - 1)), "one classic after every nine regular cards");
+  assert.equal(new Set(shown.filter((x) => x.classic).map((x) => x.id)).size, n, "no repeats");
+});
+
+test("classics test mix: data matches the checked sample", () => {
+  const cm = require("../scripts/dispenser-pool/build-classics-mix.js");
+  const fresh = JSON.parse(JSON.stringify(cm.exportMix(JSON.parse(fs.readFileSync(cm.SAMPLE, "utf8")))));
+  assert.deepEqual(JSON.parse(fs.readFileSync(cm.OUT, "utf8")), fresh, "run: node scripts/dispenser-pool/build-classics-mix.js");
+  const ids = new Set(pool.poems.map((p) => p.id));
+  for (const p of fresh.poems) {
+    assert.ok(ids.has(p.id), `${p.id} is not in the cleared pool`);
+    assert.match(p.checkedUrl, /^https:\/\//, `${p.id} has no source for its date`);
+  }
+});
