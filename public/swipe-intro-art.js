@@ -356,7 +356,7 @@ const claw = (() => {
 // The poem is typed onto a sheet a key at a time; the bell rings at each line
 // end, then the sheet is pulled out and becomes the slip.
 const typewriter = (() => {
-  const CPS = 15, RETURN = .42, START = .9, CW = 9.2, LEFT = 62, TYPE_Y = 234, PLATEN = 262;
+  const CPS = 28, RETURN = .3, START = .6, CW = 9.2, LEFT = 62, TYPE_Y = 234, PLATEN = 262;
   const FONT = '15px "Courier New", Courier, monospace';
   function plan(poem) {
     const lines = [...poem.lines, '— ' + poem.by];
