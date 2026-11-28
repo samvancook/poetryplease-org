@@ -21935,6 +21935,31 @@
 }
 ]
 },
+"Alan Seeger": {
+"name": "Alan Seeger",
+"born": "22 June 1888",
+"died": "4 July 1916",
+"nationality": "American",
+"period": "First World War",
+"movements": [],
+"themes": [
+"First World War",
+"Death",
+"Honour and duty",
+"Comradeship",
+"Romantic idealism"
+],
+"notable_poems": [
+{
+"title": "I Have a Rendezvous with Death",
+"in_corpus": true
+},
+{
+"title": "Ode in Memory of the American Volunteers Fallen for France",
+"in_corpus": true
+}
+]
+},
 "Alexander Pope": {
 "name": "Alexander Pope",
 "born": "21 May 1688",
@@ -22092,6 +22117,46 @@
 {
 "title": "The Lost Friend",
 "in_corpus": true
+}
+]
+},
+"Andrew Marvell": {
+"name": "Andrew Marvell",
+"born": "31 March 1621",
+"died": "18 August 1678",
+"nationality": "English",
+"period": "17th century",
+"movements": [
+"Metaphysical poets"
+],
+"themes": [
+"Love, time and death",
+"Nature",
+"Political corruption",
+"Monarchical power",
+"Religious and political liberty",
+"Social and political change"
+],
+"notable_poems": [
+{
+"title": "To His Coy Mistress",
+"in_corpus": false
+},
+{
+"title": "Upon Appleton House",
+"in_corpus": false
+},
+{
+"title": "The Garden",
+"in_corpus": false
+},
+{
+"title": "An Horatian Ode upon Cromwell’s Return from Ireland",
+"in_corpus": false
+},
+{
+"title": "The Last Instructions to a Painter",
+"in_corpus": false
 }
 ]
 },
@@ -22265,6 +22330,54 @@
 },
 {
 "title": "A Nocturnal Reverie",
+"in_corpus": false
+}
+]
+},
+"Annie Louisa Walker": {
+"name": "Annie Louisa Walker",
+"born": "c. 1836",
+"died": "1907",
+"nationality": "British-Canadian",
+"period": "Victorian",
+"movements": [],
+"themes": [
+"religion",
+"nature",
+"domestic life"
+],
+"notable_poems": [
+{
+"title": "Women's Rights",
+"in_corpus": true
+},
+{
+"title": "The Night Cometh",
+"in_corpus": false
+}
+]
+},
+"Arthur Hugh Clough": {
+"name": "Arthur Hugh Clough",
+"born": "1 January 1819",
+"died": "13 November 1861",
+"nationality": "British",
+"period": "Victorian",
+"movements": [],
+"themes": [
+"Religious doubt",
+"Romantic love",
+"Social conflict",
+"Social and spiritual change",
+"Victorian moral complacency"
+],
+"notable_poems": [
+{
+"title": "Dipsychus",
+"in_corpus": false
+},
+{
+"title": "The Latest Decalogue",
 "in_corpus": false
 }
 ]
@@ -22458,6 +22571,89 @@
 }
 ]
 },
+"Christopher Marlowe": {
+"name": "Christopher Marlowe",
+"born": "1564",
+"died": "30 May 1593",
+"nationality": "English",
+"period": "English Renaissance (Elizabethan era)",
+"movements": [
+"University Wits"
+],
+"themes": [
+"Love",
+"Ambition",
+"Power",
+"Religion",
+"Religious conflict",
+"Moral ambiguity"
+],
+"notable_poems": [
+{
+"title": "The Passionate Shepherd to His Love",
+"in_corpus": true
+},
+{
+"title": "Hero and Leander",
+"in_corpus": false
+}
+]
+},
+"Christopher Smart": {
+"name": "Christopher Smart",
+"born": "11 April 1722",
+"died": "21 May 1771",
+"nationality": "English",
+"period": "18th century",
+"movements": [],
+"themes": [
+"Christian spirituality",
+"divine language",
+"praise",
+"creation",
+"poetic vocation",
+"everyday life"
+],
+"notable_poems": [
+{
+"title": "A Song to David",
+"in_corpus": true
+},
+{
+"title": "Jubilate Agno",
+"in_corpus": false
+},
+{
+"title": "My cat, Jeoffry",
+"in_corpus": false
+}
+]
+},
+"Coventry Patmore": {
+"name": "Coventry Patmore",
+"born": "23 July 1823",
+"died": "26 November 1896",
+"nationality": "English",
+"period": "Victorian era",
+"movements": [],
+"themes": [
+"Human love",
+"Divine love",
+"Marriage",
+"Domestic life",
+"Religious faith"
+],
+"notable_poems": [
+{
+"title": "The Angel in the House",
+"in_corpus": false
+},
+{
+"title": "A London Fête",
+"in_corpus": false
+}
+]
+},
 "Edgar Allan Poe": {
 "name": "Edgar Allan Poe",
 "born": "19 January 1809",
@@ -22540,6 +22736,26 @@
 {
 "title": "Sonnet 75",
 "in_corpus": true
+}
+]
+},
+"Edward Fitzgerald": {
+"name": "Edward Fitzgerald",
+"born": "31 March 1809",
+"died": "14 June 1883",
+"nationality": "English",
+"period": "Victorian era",
+"movements": [],
+"themes": [
+"Hedonism",
+"Agnosticism",
+"The mystery of life and death",
+"Epicurean pathos"
+],
+"notable_poems": [
+{
+"title": "The Rubáiyát of Omar Khayyám",
+"in_corpus": false
 }
 ]
 },
@@ -22666,6 +22882,31 @@
 }
 ]
 },
+"Eliza Cook": {
+"name": "Eliza Cook",
+"born": "24 December 1818",
+"died": "23 September 1889",
+"nationality": "English",
+"period": "Victorian era",
+"movements": [],
+"themes": [
+"everyday life",
+"romantic love",
+"political freedom for women",
+"class",
+"social justice"
+],
+"notable_poems": [
+{
+"title": "The Old Arm-Chair",
+"in_corpus": false
+},
+{
+"title": "Don’t Tell the World That You’re Waiting for Me",
+"in_corpus": false
+}
+]
+},
 "Elizabeth Barrett Browning": {
 "name": "Elizabeth Barrett Browning",
 "born": "6 March 1806",
@@ -22753,6 +22994,47 @@
 }
 ]
 },
+"Emily Dickinson": {
+"name": "Emily Dickinson",
+"born": "1830",
+"died": "1886",
+"nationality": "American",
+"period": "19th century",
+"movements": [],
+"themes": [
+"death",
+"faith and religion",
+"nature",
+"love",
+"pain and grief"
+],
+"notable_poems": [
+{
+"title": "Because I could not stop for Death",
+"in_corpus": true
+},
+{
+"title": "Hope is the thing with feathers",
+"in_corpus": true
+},
+{
+"title": "I'm nobody!  Who are you?",
+"in_corpus": true
+},
+{
+"title": "I heard a fly buzz when I died",
+"in_corpus": true
+},
+{
+"title": "I died for beauty, but was scarce",
+"in_corpus": true
+},
+{
+"title": "Success is counted sweetest",
+"in_corpus": true
+}
+]
+},
 "Emma Lazarus": {
 "name": "Emma Lazarus",
 "born": "22 July 1849",
@@ -22829,6 +23111,69 @@
 {
 "title": "Wynken, Blynken, and Nod",
 "in_corpus": true
+}
+]
+},
+"Francis Thompson": {
+"name": "Francis Thompson",
+"born": "18 December 1859",
+"died": "13 November 1907",
+"nationality": "English",
+"period": "1890s",
+"movements": [
+"Aestheticism"
+],
+"themes": [
+"Roman Catholicism",
+"Religious experience",
+"Human and divine love",
+"Mysticism",
+"Destitution and outcast experience",
+"Cricket"
+],
+"notable_poems": [
+{
+"title": "The Hound of Heaven",
+"in_corpus": true
+},
+{
+"title": "At Lord’s",
+"in_corpus": false
+},
+{
+"title": "The Mistress of Vision",
+"in_corpus": false
+},
+{
+"title": "Anthem of Earth",
+"in_corpus": false
+}
+]
+},
+"Geoffrey Chaucer": {
+"name": "Geoffrey Chaucer",
+"born": "c. 1342/43",
+"died": "25 October 1400",
+"nationality": "English",
+"period": "Middle Ages",
+"movements": [],
+"themes": [
+"earthly and divine love",
+"human relationships",
+"human frailty and nobility",
+"language and artifice",
+"storytelling",
+"social class",
+"philosophical and religious questions"
+],
+"notable_poems": [
+{
+"title": "The Canterbury Tales",
+"in_corpus": false
+},
+{
+"title": "The Book of the Duchess",
+"in_corpus": false
 }
 ]
 },
@@ -23047,6 +23392,59 @@
 }
 ]
 },
+"Henry Vaughan": {
+"name": "Henry Vaughan",
+"born": null,
+"died": "23 April 1695",
+"nationality": "Anglo-Welsh",
+"period": "17th century; Commonwealth period",
+"movements": [
+"Metaphysical poets"
+],
+"themes": [
+"Christian devotion",
+"spiritual vision",
+"childhood innocence",
+"death and eternity",
+"nature",
+"religious and political loss",
+"the Welsh landscape"
+],
+"notable_poems": [
+{
+"title": "The Retreat",
+"in_corpus": false
+},
+{
+"title": "The World",
+"in_corpus": false
+},
+{
+"title": "They Are All Gone into the World of Light",
+"in_corpus": false
+},
+{
+"title": "Man",
+"in_corpus": false
+},
+{
+"title": "Cock-crowing",
+"in_corpus": false
+},
+{
+"title": "Peace",
+"in_corpus": true
+},
+{
+"title": "Unprofitableness",
+"in_corpus": false
+},
+{
+"title": "The Dedication",
+"in_corpus": false
+}
+]
+},
 "Henry Wadsworth Longfellow": {
 "name": "Henry Wadsworth Longfellow",
 "born": "27 February 1807",
@@ -23081,6 +23479,27 @@
 },
 {
 "title": "The Wreck of the Hesperus",
+"in_corpus": false
+}
+]
+},
+"Hugh Henry Brackenridge": {
+"name": "Hugh Henry Brackenridge",
+"born": "1748",
+"died": "25 June 1816",
+"nationality": "American",
+"period": "American Revolutionary and early national periods",
+"movements": [],
+"themes": [
+"American Revolution",
+"Patriotism",
+"Frontier life",
+"Politics",
+"Whiskey Rebellion"
+],
+"notable_poems": [
+{
+"title": "The Rising Glory of America",
 "in_corpus": false
 }
 ]
@@ -23437,6 +23856,64 @@
 }
 ]
 },
+"John Greenleaf Whittier": {
+"name": "John Greenleaf Whittier",
+"born": "17 December 1807",
+"died": "7 September 1892",
+"nationality": "American",
+"period": "19th century",
+"movements": [
+"Fireside Poets",
+"American Renaissance"
+],
+"themes": [
+"Abolition of slavery",
+"Justice and tolerance",
+"Quaker religion",
+"Rural New England",
+"Nature",
+"Family and memory",
+"New England history and folklore"
+],
+"notable_poems": [
+{
+"title": "Snow-Bound",
+"in_corpus": false
+},
+{
+"title": "Barbara Frietchie",
+"in_corpus": false
+},
+{
+"title": "Maud Muller",
+"in_corpus": false
+},
+{
+"title": "Telling the Bees",
+"in_corpus": false
+},
+{
+"title": "Ichabod",
+"in_corpus": false
+},
+{
+"title": "Massachusetts to Virginia",
+"in_corpus": false
+},
+{
+"title": "Skipper Ireson’s Ride",
+"in_corpus": false
+},
+{
+"title": "The Rendition",
+"in_corpus": false
+},
+{
+"title": "The Double-Headed Snake of Newbury",
+"in_corpus": false
+}
+]
+},
 "John Keats": {
 "name": "John Keats",
 "born": "31 October 1795",
@@ -23553,6 +24030,26 @@
 }
 ]
 },
+"John Trumbull": {
+"name": "John Trumbull",
+"born": "24 April 1750",
+"died": "11 May 1831",
+"nationality": "American",
+"period": "American Revolutionary period",
+"movements": [
+"Hartford Wits"
+],
+"themes": [
+"Whig–Tory politics",
+"Educational methods"
+],
+"notable_poems": [
+{
+"title": "M’Fingal",
+"in_corpus": false
+}
+]
+},
 "John Wilmot": {
 "name": "John Wilmot",
 "born": "1 April 1647",
@@ -23588,6 +24085,49 @@
 }
 ]
 },
+"Jonathan Swift": {
+"name": "Jonathan Swift",
+"born": "30 November 1667",
+"died": "19 October 1745",
+"nationality": "Anglo-Irish",
+"period": "Augustan Age",
+"movements": [],
+"themes": [
+"Literary convention and poetic cant",
+"Judgement"
+],
+"notable_poems": [
+{
+"title": "The Day of Judgement",
+"in_corpus": false
+},
+{
+"title": "Verses on the Death of Dr. Swift, D.S.P.D.",
+"in_corpus": false
+}
+]
+},
+"Joseph Warton": {
+"name": "Joseph Warton",
+"born": null,
+"died": "23 February 1800",
+"nationality": "English",
+"period": "18th century",
+"movements": [],
+"themes": [
+"Nature",
+"Imagination",
+"The sublime",
+"Originality",
+"Freedom from poetic rules"
+],
+"notable_poems": [
+{
+"title": "The Enthusiast; or the Lover of Nature",
+"in_corpus": false
+}
+]
+},
 "Joyce Kilmer": {
 "name": "Joyce Kilmer",
 "born": "6 December 1886",
@@ -23604,6 +24144,46 @@
 "notable_poems": [
 {
 "title": "Trees",
+"in_corpus": true
+}
+]
+},
+"Julia Ward Howe": {
+"name": "Julia Ward Howe",
+"born": "27 May 1819",
+"died": "17 October 1910",
+"nationality": "American",
+"period": "American Civil War and late nineteenth century",
+"movements": [],
+"themes": [
+"Abolition and emancipation",
+"Union victory in the US Civil War",
+"Domestic unhappiness",
+"Suicide, violent love and betrayal"
+],
+"notable_poems": [
+{
+"title": "Battle-Hymn of the Republic",
+"in_corpus": false
+}
+]
+},
+"Jupiter Hammon": {
+"name": "Jupiter Hammon",
+"born": "1711",
+"died": "c. 1806",
+"nationality": "American",
+"period": "18th century",
+"movements": [],
+"themes": [
+"salvation",
+"Christian faith",
+"death",
+"slavery"
+],
+"notable_poems": [
+{
+"title": "An Evening Thought: Salvation by Christ, with Penetential Cries",
 "in_corpus": true
 }
 ]
@@ -23630,6 +24210,29 @@
 },
 {
 "title": "To M. A. At Parting",
+"in_corpus": false
+}
+]
+},
+"Lady Mary Chudleigh": {
+"name": "Lady Mary Chudleigh",
+"born": "1656",
+"died": "15 December 1710",
+"nationality": "English",
+"period": "Late seventeenth and early eighteenth centuries",
+"movements": [],
+"themes": [
+"gender roles",
+"marriage",
+"women’s liberty",
+"friendship",
+"bereavement",
+"solitude",
+"mortality"
+],
+"notable_poems": [
+{
+"title": "To the Ladies",
 "in_corpus": false
 }
 ]
@@ -23781,6 +24384,59 @@
 },
 {
 "title": "To Miss",
+"in_corpus": false
+}
+]
+},
+"Mark Twain": {
+"name": "Mark Twain",
+"born": "30 November 1835",
+"died": "21 April 1910",
+"nationality": "American",
+"period": "Nineteenth- and early twentieth-century American literature",
+"movements": [
+"frontier humour",
+"local colour"
+],
+"themes": [
+"social commentary",
+"human nature"
+],
+"notable_poems": [
+{
+"title": "A Sweltering Day in Australia",
+"in_corpus": true
+},
+{
+"title": "Genius",
+"in_corpus": false
+},
+{
+"title": "O Lord, Our Father",
+"in_corpus": false
+},
+{
+"title": "Ode to Stephen Dowling Bots, Dec’d.",
+"in_corpus": false
+},
+{
+"title": "The Aged Pilot Man",
+"in_corpus": false
+},
+{
+"title": "Those Annual Bills",
+"in_corpus": false
+},
+{
+"title": "To Jennie",
+"in_corpus": false
+},
+{
+"title": "The Lowest Animal",
+"in_corpus": false
+},
+{
+"title": "The War Prayer",
 "in_corpus": false
 }
 ]
@@ -23970,6 +24626,36 @@
 }
 ]
 },
+"Oliver Wendell Holmes": {
+"name": "Oliver Wendell Holmes",
+"born": "29 August 1809",
+"died": "7 October 1894",
+"nationality": "American",
+"period": "19th century",
+"movements": [
+"Fireside Poets",
+"American Renaissance",
+"Brahmin"
+],
+"themes": [
+"Preservation of the USS Constitution",
+"Critique of Calvinism"
+],
+"notable_poems": [
+{
+"title": "Old Ironsides",
+"in_corpus": false
+},
+{
+"title": "The Chambered Nautilus",
+"in_corpus": false
+},
+{
+"title": "The Last Leaf",
+"in_corpus": false
+}
+]
+},
 "Oscar Wilde": {
 "name": "Oscar Wilde",
 "born": "16 October 1854",
@@ -24109,6 +24795,52 @@
 }
 ]
 },
+"Phillis Wheatley": {
+"name": "Phillis Wheatley",
+"born": "c. 1753",
+"died": "5 December 1784",
+"nationality": "American",
+"period": "18th century",
+"movements": [
+"Neoclassicism"
+],
+"themes": [
+"Christianity",
+"Piety",
+"Morality",
+"Slavery",
+"Freedom",
+"American independence",
+"Death and mourning",
+"Classical subjects"
+],
+"notable_poems": [
+{
+"title": "On Being Brought from Africa to America",
+"in_corpus": false
+},
+{
+"title": "An Elegiac Poem, on the Death of That Celebrated Divine, and Eminent Servant of Jesus Christ, the Reverend and Learned George Whitefield",
+"in_corpus": false
+},
+{
+"title": "To His Excellency General Washington",
+"in_corpus": false
+},
+{
+"title": "Niobe in Distress for Her Children Slain by Apollo, from Ovid’s Metamorphoses, Book VI, and from a View of the Painting of Mr. Richard Wilson",
+"in_corpus": false
+},
+{
+"title": "To Maecenas",
+"in_corpus": false
+},
+{
+"title": "Liberty and Peace",
+"in_corpus": false
+}
+]
+},
 "Ralph Waldo Emerson": {
 "name": "Ralph Waldo Emerson",
 "born": "25 May 1803",
@@ -24179,6 +24911,34 @@
 },
 {
 "title": "On the Blessed Virgins bashfulnesse",
+"in_corpus": false
+}
+]
+},
+"Richard Lovelace": {
+"name": "Richard Lovelace",
+"born": "1618",
+"died": "1657",
+"nationality": "English",
+"period": "17th century",
+"movements": [
+"Cavalier poets"
+],
+"themes": [
+"Love",
+"Politics",
+"Royalist loyalty",
+"Freedom and imprisonment",
+"Beauty",
+"Relationships"
+],
+"notable_poems": [
+{
+"title": "To Althea, from Prison",
+"in_corpus": false
+},
+{
+"title": "To Lucasta, Going to the Wars",
 "in_corpus": false
 }
 ]
@@ -24497,6 +25257,32 @@
 }
 ]
 },
+"Samuel Johnson": {
+"name": "Samuel Johnson",
+"born": "18 September 1709",
+"died": "13 December 1784",
+"nationality": "English",
+"period": "18th century",
+"movements": [],
+"themes": [
+"Urban life",
+"Poverty",
+"Politics",
+"Religion",
+"Melancholy",
+"Friendship"
+],
+"notable_poems": [
+{
+"title": "London",
+"in_corpus": false
+},
+{
+"title": "The Vanity of Human Wishes",
+"in_corpus": false
+}
+]
+},
 "Sarah Flower Adams": {
 "name": "Sarah Flower Adams",
 "born": "22 February 1805",
@@ -24534,6 +25320,34 @@
 "notable_poems": [
 {
 "title": "The Marshes of Glynn",
+"in_corpus": false
+}
+]
+},
+"Sir John Suckling": {
+"name": "Sir John Suckling",
+"born": "February 1609",
+"died": "1642",
+"nationality": "English",
+"period": "17th century",
+"movements": [
+"Cavalier poets"
+],
+"themes": [
+"love and dalliance",
+"anti-Platonic love",
+"loyalty to Charles I",
+"love and war",
+"gambling",
+"libertine cynicism"
+],
+"notable_poems": [
+{
+"title": "A Ballad upon a Wedding",
+"in_corpus": true
+},
+{
+"title": "A Session of the Poets",
 "in_corpus": false
 }
 ]
@@ -24685,6 +25499,145 @@
 {
 "title": "Do not weep, maiden, for war is kind",
 "in_corpus": true
+}
+]
+},
+"Thomas Campbell": {
+"name": "Thomas Campbell",
+"born": "27 July 1777",
+"died": "15 June 1844",
+"nationality": "Scottish",
+"period": "Romantic period",
+"movements": [
+"Romanticism"
+],
+"themes": [
+"Patriotism",
+"War",
+"Human affairs"
+],
+"notable_poems": [
+{
+"title": "The Pleasures of Hope",
+"in_corpus": false
+},
+{
+"title": "Ye Mariners of England",
+"in_corpus": false
+},
+{
+"title": "The Soldier’s Dream",
+"in_corpus": false
+}
+]
+},
+"Thomas Chatterton": {
+"name": "Thomas Chatterton",
+"born": "20 November 1752",
+"died": "24 August 1770",
+"nationality": "British",
+"period": "18th century",
+"movements": [
+"Gothic literary revival",
+"Romanticism"
+],
+"themes": [
+"Bristol history",
+"The medieval past",
+"Political satire",
+"Liberty",
+"Anti-slavery"
+],
+"notable_poems": [
+{
+"title": "An Excelente Balade of Charitie",
+"in_corpus": false
+}
+]
+},
+"Thomas Flatman": {
+"name": "Thomas Flatman",
+"born": "1635",
+"died": "8 December 1688",
+"nationality": "English",
+"period": "Restoration",
+"movements": [],
+"themes": [
+"death and commemoration",
+"monarchy and political loyalty",
+"public events"
+],
+"notable_poems": [
+{
+"title": "The Sad Day by Thomas Flatman",
+"in_corpus": false
+},
+{
+"title": "Advice To An Old Man of Sixty Three About To Marry a Girle of Sixteen by Thomas Flatman",
+"in_corpus": false
+},
+{
+"title": "The Batchelors Song by Thomas Flatman",
+"in_corpus": false
+}
+]
+},
+"Thomas Gray": {
+"name": "Thomas Gray",
+"born": "26 December 1716",
+"died": "30 July 1771",
+"nationality": "English",
+"period": "18th century",
+"movements": [
+"Graveyard school"
+],
+"themes": [
+"Mortality",
+"Loss and grief",
+"Nostalgia",
+"Lost innocence",
+"Social equality in death",
+"Rejection of sexual desire",
+"Loneliness and alienation",
+"Poetic vocation",
+"Classical, Celtic and Scandinavian antiquity"
+],
+"notable_poems": [
+{
+"title": "Elegy Written in a Country Churchyard",
+"in_corpus": false
+},
+{
+"title": "Ode on the Spring",
+"in_corpus": true
+},
+{
+"title": "Sonnet on the Death of Richard West",
+"in_corpus": false
+},
+{
+"title": "Hymn to Adversity",
+"in_corpus": false
+},
+{
+"title": "Ode on a Distant Prospect of Eton College",
+"in_corpus": false
+},
+{
+"title": "Ode on the Death of a Favourite Cat, Drowned in a Tub of Gold Fishes",
+"in_corpus": false
+},
+{
+"title": "The Progress of Poesy",
+"in_corpus": true
+},
+{
+"title": "The Bard",
+"in_corpus": false
+},
+{
+"title": "A Long Story",
+"in_corpus": false
 }
 ]
 },
@@ -24948,6 +25901,38 @@
 }
 ]
 },
+"William Barnes": {
+"name": "William Barnes",
+"born": "22 February 1801",
+"died": "7 October 1886",
+"nationality": "English",
+"period": "Victorian",
+"movements": [],
+"themes": [
+"Rural life and labour",
+"Dorset landscape and customs",
+"Loss and grief",
+"Nature"
+],
+"notable_poems": [
+{
+"title": "Linden Lea",
+"in_corpus": false
+},
+{
+"title": "The Wife a-Lost",
+"in_corpus": true
+},
+{
+"title": "Woak Hill",
+"in_corpus": false
+},
+{
+"title": "A Bit o’ Sly Coorten",
+"in_corpus": false
+}
+]
+},
 "William Blake": {
 "name": "William Blake",
 "born": "28 November 1757",
@@ -25002,6 +25987,81 @@
 {
 "title": "Britannia’s Pastorals",
 "in_corpus": false
+}
+]
+},
+"William Cowper": {
+"name": "William Cowper",
+"born": "1731",
+"died": "25 April 1800",
+"nationality": "English",
+"period": "18th century",
+"movements": [],
+"themes": [
+"Nature and common life",
+"Rural and domestic life",
+"Evangelical faith and religious doubt",
+"Melancholia and fears of damnation",
+"Retirement and isolation",
+"Poverty and oppression",
+"Opposition to slavery"
+],
+"notable_poems": [
+{
+"title": "The Task",
+"in_corpus": false
+},
+{
+"title": "The Diverting History of John Gilpin",
+"in_corpus": false
+},
+{
+"title": "The Castaway",
+"in_corpus": false
+},
+{
+"title": "The Poplar Trees",
+"in_corpus": false
+},
+{
+"title": "The Negro’s Complaint",
+"in_corpus": false
+},
+{
+"title": "God moves in a mysterious way",
+"in_corpus": false
+},
+{
+"title": "Oh for a closer Walk with God",
+"in_corpus": false
+}
+]
+},
+"William Cullen Bryant": {
+"name": "William Cullen Bryant",
+"born": "3 November 1794",
+"died": "12 June 1878",
+"nationality": "American",
+"period": "19th century",
+"movements": [
+"Fireside Poets",
+"Knickerbocker school",
+"Romanticism"
+],
+"themes": [
+"nature",
+"mortality and death",
+"religious belief",
+"politics"
+],
+"notable_poems": [
+{
+"title": "Thanatopsis",
+"in_corpus": false
+},
+{
+"title": "To a Waterfowl",
+"in_corpus": true
 }
 ]
 },
@@ -25140,6 +26200,77 @@
 "notable_poems": [
 {
 "title": "The Tay Bridge Disaster",
+"in_corpus": false
+}
+]
+},
+"William Vaughn Moody": {
+"name": "William Vaughn Moody",
+"born": "1869",
+"died": "1910",
+"nationality": "American",
+"period": "late 19th–early 20th century",
+"movements": [],
+"themes": [
+"love",
+"patriotism",
+"human suffering",
+"God and the soul",
+"social conscience"
+],
+"notable_poems": [
+{
+"title": "On a Soldier Fallen in the Philippines",
+"in_corpus": true
+},
+{
+"title": "Gloucester Moors",
+"in_corpus": false
+},
+{
+"title": "The Menagerie",
+"in_corpus": false
+}
+]
+},
+"William Wordsworth": {
+"name": "William Wordsworth",
+"born": "7 April 1770",
+"died": "23 April 1850",
+"nationality": "English",
+"period": "Romantic era",
+"movements": [
+"Romanticism"
+],
+"themes": [
+"Nature",
+"The human relationship with nature",
+"Spiritual and epistemological speculation",
+"The lives, troubles and speech of common people"
+],
+"notable_poems": [
+{
+"title": "I Wandered Lonely As a Cloud",
+"in_corpus": true
+},
+{
+"title": "The Prelude",
+"in_corpus": false
+},
+{
+"title": "Tintern Abbey",
+"in_corpus": false
+},
+{
+"title": "The Solitary Reaper",
+"in_corpus": false
+},
+{
+"title": "Resolution and Independence",
+"in_corpus": false
+},
+{
+"title": "Ode: Intimations of Immortality",
 "in_corpus": false
 }
 ]

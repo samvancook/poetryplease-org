@@ -9,14 +9,17 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const lib = require("../scripts/dispenser-pool/pool-lib.js");
-const { build, SNAPSHOT, OUT } = require("../scripts/dispenser-pool/build-pool.js");
+const { build, SNAPSHOT, GUTENBERG, PDP, OUT } = require("../scripts/dispenser-pool/build-pool.js");
+const gutenbergBooks = require("../scripts/dispenser-pool/fetch-gutenberg.js").BOOKS;
 const playdate = require("../scripts/dispenser-pool/build-playdate.js");
 
 const pool = JSON.parse(fs.readFileSync(OUT, "utf8"));
 
 test("dispenser pool: pool.json matches a fresh build of the snapshot", () => {
   const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT, "utf8"));
-  const fresh = JSON.parse(JSON.stringify(build(snapshot)));
+  const gutenberg = JSON.parse(fs.readFileSync(GUTENBERG, "utf8"));
+  const pdp = JSON.parse(fs.readFileSync(PDP, "utf8"));
+  const fresh = JSON.parse(JSON.stringify(build(snapshot, gutenberg, pdp)));
   assert.deepEqual(pool, fresh, "run: node scripts/dispenser-pool/build-pool.js");
 });
 
@@ -29,9 +32,42 @@ test("dispenser pool: every poem has text, a unique id and a rights record", () 
     assert.ok(p.title && p.author, `${p.id} missing title/author`);
     assert.ok(p.lines.some((l) => l.trim()), `${p.id} has no text`);
     assert.ok(!p.lines.some((l) => /\[back\]|^\s*Note \d+\./.test(l)), `${p.id} still has a footnote`);
+    assert.ok(!lib.isGarbled(p.title, p.lines), `${p.id} has lost characters or is a picture caption`);
     assert.ok(p.rights && p.rights.source && p.rights.basis, `${p.id} missing rights source/basis`);
     assert.match(p.rights.status, /^public-domain-us/, `${p.id} is ${p.rights.status}`);
-    assert.ok(p.rights.authorDied < lib.PD_CUTOFF_YEAR, `${p.id} author died ${p.rights.authorDied}`);
+    if (p.collection) {
+      // Gutenberg book: cleared by publication year.
+      assert.ok(p.published < lib.PD_CUTOFF_YEAR, `${p.id} published ${p.published}`);
+      assert.match(p.rights.source, /Project Gutenberg #\d+/);
+    } else {
+      assert.ok(p.rights.authorDied < lib.PD_CUTOFF_YEAR, `${p.id} author died ${p.rights.authorDied}`);
+    }
+  }
+});
+
+test("gutenberg sources: every book is pre-1931 and says why it is here", () => {
+  for (const b of gutenbergBooks) {
+    assert.ok(b.year < lib.PD_CUTOFF_YEAR, `#${b.id} ${b.year}`);
+    assert.ok(b.why && b.book && b.repo.endsWith(`_${b.id}`), `#${b.id}`);
+  }
+  const g = JSON.parse(fs.readFileSync(GUTENBERG, "utf8"));
+  // Translated work must name a public-domain translator.
+  for (const p of g.poems) {
+    if (/Rumi|Hafez|Japanese|Tagore/.test(p.author)) assert.ok(p.translator, `${p.author}: ${p.title} has no translator`);
+    assert.ok(!/gutenberg|produced by|https?:/i.test(p.lines.join(" ")), `${p.title} has front matter`);
+  }
+});
+
+test("public-domain-poetry.com set: only poets in the cleared table, all died before 1931", () => {
+  const { CLEARED } = require("../scripts/dispenser-pool/pdp-authors.js");
+  const cleared = new Set(Object.values(CLEARED).map((v) => v[0]));
+  const pdp = JSON.parse(fs.readFileSync(PDP, "utf8"));
+  for (const p of pdp.poems) {
+    assert.ok(cleared.has(p.author), `${p.author} not in cleared table`);
+    assert.ok(p.authorDied < lib.PD_CUTOFF_YEAR, `${p.author} died ${p.authorDied}`);
+  }
+  for (const name of ["Emily Dickinson", "Yehuda Amichai", "Nizar Qabbani", "Robert Lee Frost", "Basho"]) {
+    assert.ok(!pdp.poems.some((p) => p.author === name), `${name} should not be cleared`);
   }
 });
 

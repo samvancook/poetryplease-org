@@ -11,13 +11,69 @@ const lib = require("./pool-lib.js");
 
 const ROOT = path.join(__dirname, "..", "..");
 const SNAPSHOT = path.join(ROOT, "imports", "dispenser-pool", "poetrydb-short-2026-11-24.json");
+const GUTENBERG = path.join(ROOT, "imports", "dispenser-pool", "gutenberg-short.json");
+const PDP = path.join(ROOT, "imports", "dispenser-pool", "pdp-short.json");
 const OUT = path.join(ROOT, "imports", "dispenser-pool", "pool.json");
 
 function normTitle(t) {
   return String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-function build(snapshot) {
+// One list of {title, author, lines, rights, extra} from both sources.
+// PoetryDB first, so on a duplicate its notable-poem data wins.
+function records(snapshot, gutenberg, pdp) {
+  const out = [];
+  for (const raw of snapshot.poems) {
+    out.push({
+      title: raw.title,
+      author: raw.author,
+      lines: raw.lines,
+      rights: {
+        ...lib.rightsFor(raw.author, snapshot.authors[raw.author] || {}),
+        source: "PoetryDB (https://poetrydb.org), texts from Project Gutenberg and similar archives",
+        credit: "Curation: PoetryDB, CC BY 4.0",
+      },
+      extra: {},
+    });
+  }
+  for (const raw of (gutenberg && gutenberg.poems) || []) {
+    const b = raw.book;
+    out.push({
+      title: raw.title,
+      author: raw.author,
+      lines: raw.lines,
+      rights: {
+        status: b.year < lib.PD_CUTOFF_YEAR ? "public-domain-us" : "needs-review",
+        basis: `Published in ${b.title} (${b.year})${raw.translator ? `, translated by ${raw.translator}` : ""}, before ${lib.PD_CUTOFF_YEAR}.`,
+        published: b.year,
+        source: `Project Gutenberg #${b.gutenbergId} (https://www.gutenberg.org/ebooks/${b.gutenbergId})`,
+      },
+      extra: { collection: b.title, published: b.year, ...(raw.translator ? { translator: raw.translator } : {}) },
+    });
+  }
+  for (const raw of (pdp && pdp.poems) || []) {
+    out.push({
+      title: raw.title,
+      author: raw.author,
+      lines: raw.lines,
+      rights: {
+        status: "public-domain-us",
+        basis: raw.basis,
+        authorDied: raw.authorDied,
+        source: `${pdp.source}, file ${raw.file}`,
+      },
+      extra: {},
+    });
+  }
+  return out;
+}
+
+function firstLineKey(author, lines) {
+  const first = lines.find((l) => l.trim()) || "";
+  return `${author}|${first.toLowerCase().replace(/[^a-z]+/g, "")}`;
+}
+
+function build(snapshot, gutenberg, pdp) {
   const notableByAuthor = new Map();
   for (const [author, info] of Object.entries(snapshot.authors || {})) {
     const set = new Set((info && info.notable_poems || []).map((n) => normTitle(n.title)));
@@ -26,13 +82,15 @@ function build(snapshot) {
 
   const seen = new Set();
   const poems = [];
-  const skipped = { fragment: 0, duplicate: 0, empty: 0 };
+  const skipped = { fragment: 0, duplicate: 0, empty: 0, garbled: 0 };
 
-  for (const raw of snapshot.poems) {
-    const lines = lib.cleanLines(raw.lines);
+  for (const raw of records(snapshot, gutenberg, pdp)) {
+    const lines = lib.cleanLines(raw.lines, raw.title);
     if (!lines.length) { skipped.empty++; continue; }
+    // Characters lost in the source's encoding (U+FFFD), or a picture caption parsed as a poem.
+    if (lib.isGarbled(raw.title, lines)) { skipped.garbled++; continue; }
     if (lib.isFragment(raw.title, lines)) { skipped.fragment++; continue; }
-    const key = `${raw.author}|${lines.join("\n").toLowerCase().replace(/\s+/g, " ")}`;
+    const key = firstLineKey(raw.author, lines);
     if (seen.has(key)) { skipped.duplicate++; continue; }
     seen.add(key);
 
@@ -70,11 +128,8 @@ function build(snapshot) {
       readability: readabilityScore,
       notable,
       prior,
-      rights: {
-        ...lib.rightsFor(raw.author, info),
-        source: "PoetryDB (https://poetrydb.org), texts from Project Gutenberg and similar archives",
-        credit: "Curation: PoetryDB, CC BY 4.0",
-      },
+      ...raw.extra,
+      rights: raw.rights,
     });
   }
 
@@ -96,9 +151,9 @@ function build(snapshot) {
   }
 
   return {
-    builtFrom: path.basename(SNAPSHOT),
-    fetchedAt: snapshot.fetchedAt,
-    license: snapshot.license,
+    builtFrom: [path.basename(SNAPSHOT), path.basename(GUTENBERG), path.basename(PDP)],
+    fetchedAt: { poetrydb: snapshot.fetchedAt, gutenberg: gutenberg && gutenberg.fetchedAt },
+    license: `${snapshot.license} Gutenberg poems: published before ${lib.PD_CUTOFF_YEAR}, see each poem's rights.basis.`,
     sizes: lib.SIZES,
     ranking: {
       prior: "0.40 notable + 0.20 author canon + 0.15 readability + 0.25 mood fit (nature/cozy/thoughtful up, dark down)",
@@ -112,9 +167,11 @@ function build(snapshot) {
 
 if (require.main === module) {
   const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT, "utf8"));
-  const pool = build(snapshot);
+  const gutenberg = JSON.parse(fs.readFileSync(GUTENBERG, "utf8"));
+  const pdp = JSON.parse(fs.readFileSync(PDP, "utf8"));
+  const pool = build(snapshot, gutenberg, pdp);
   fs.writeFileSync(OUT, JSON.stringify(pool, null, 1) + "\n");
   console.log(JSON.stringify(pool.counts, null, 2));
 }
 
-module.exports = { build, SNAPSHOT, OUT };
+module.exports = { build, SNAPSHOT, GUTENBERG, PDP, OUT };
