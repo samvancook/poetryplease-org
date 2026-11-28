@@ -175,11 +175,15 @@ function rightsFor(author, authorInfo) {
 }
 
 // ---------- Cleaning ----------
-function cleanLines(lines) {
+function cleanLines(lines, title) {
   const out = [];
+  const norm = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   for (const raw of lines || []) {
     const line = String(raw).replace(/\s+$/g, "");
     if (/\[back\]/i.test(line) || /^\s*Note \d+\./.test(line)) break; // footnotes
+    if (/^\s*\[Illustration/i.test(line)) continue; // picture captions
+    // A first line that only repeats the title ("To Captain H-----D.").
+    if (title && !out.some((l) => l.trim()) && line.trim() && norm(line) === norm(title) && /[.:]\s*$/.test(line)) continue;
     out.push(
       line
         .replace(/(["”’.,;!?])\s+\d+$/, "$1") // trailing note markers
@@ -190,6 +194,10 @@ function cleanLines(lines) {
   while (out.length && !out[0].trim()) out.shift();
   // collapse multiple blank lines
   return out.filter((l, i) => l.trim() || (i > 0 && out[i - 1].trim()));
+}
+
+function isGarbled(title, lines) {
+  return /\ufffd/.test(title + lines.join("")) || /^\s*\[Illustration/i.test(title);
 }
 
 function isFragment(title, lines) {
@@ -247,6 +255,7 @@ function slug(text) {
 }
 
 module.exports = {
+  isGarbled,
   SIZES,
   SIZE_ORDER,
   MOOD_WORDS,
