@@ -6,6 +6,7 @@ Nothing here is served to Poetry Please visitors.
 | File | What it is |
 | --- | --- |
 | `poetrydb-short-2026-11-24.json` | Raw snapshot: every PoetryDB poem of 1 to 16 lines, plus author pages (death year, notable poems). |
+| `gutenberg-short.json` | Short poems pulled from 26 Project Gutenberg books (list and reasons in `scripts/dispenser-pool/fetch-gutenberg.js`). Refetch with `node scripts/dispenser-pool/fetch-gutenberg.js`. |
 | `pool.json` | Built pool: cleaned text, size and mood tags, rights record, starting score. Best first. |
 
 Rebuild with `node scripts/dispenser-pool/build-pool.js`, then
@@ -15,6 +16,11 @@ Rebuild with `node scripts/dispenser-pool/build-pool.js`, then
 ## Rights
 
 Every poem records `rights.status`, `rights.basis` and `rights.source`.
+Gutenberg poems are cleared by the book's publication year (all 1930 or
+earlier; `published` and `collection` on each poem). Translations count only
+when the translation itself is that old: Rumi (Nicholson, Whinfield and
+others, 1907 selection), Hafez (Gertrude Bell, 1897), Japanese poems (1900
+Colonial Press edition) and Tagore's own 1916 English.
 US public domain in 2026 covers works published before 1931. PoetryDB gives
 author death years, so an author who died before 1931 passes
 (`public-domain-us`). Poets whose work was largely printed after death
@@ -45,16 +51,30 @@ machine's own reactions take over:
 - reactions: moved 1, like 2/3, meh 1/3, dislike 0, blended in as if the
   starting score were 8 reactions
 
-## To add when Project Gutenberg is back up (down for maintenance 24 Nov)
+## Sources added 28 Nov 2026
 
-- Emily Dickinson (Poems, Series 1 to 3, 1890 to 1896); PoetryDB's
-  line-count lookup missed her short poems
-- Adelaide Crapsey, *Verse* (1915), cinquains for 5-line slips
-- Pre-1931 haiku translations: Basil Hall Chamberlain (1902), William N.
-  Porter, *A Year of Japanese Epigrams* (1911), Yone Noguchi (1920), Curtis
-  Hidden Page (1923); for 3-line slips
-- Stephen Crane, *The Black Riders* (1895) in full; Sara Teasdale and Carl
-  Sandburg (pre-1931 books); Tagore, *Stray Birds* (1916)
-- Anthology counts as a stronger "best" signal: how many of Palgrave's
-  *Golden Treasury*, the *Oxford Book of English Verse* (1900) and
-  Untermeyer's *Modern American Poetry* (1921) include each poem
+- Dickinson (1890 to 1896 series), Crapsey's cinquains (1915), Crane's
+  *Black Riders* (1895), Tagore's *Stray Birds* (1916), Japanese poems (1900)
+- Poets Sam asked about: Phillis Wheatley, Frances E. W. Harper, Alice
+  Dunbar-Nelson, E. Pauline Johnson, Sarojini Naidu, and *The Book of
+  American Negro Poetry* (1922: Georgia Douglas Johnson, Jessie Fauset,
+  Anne Spencer, Dunbar-Nelson and others)
+- Mary Oliver's line: per Wikipedia she named Whitman, Emerson, Shelley, Keats, Rumi and
+  Hafez as favourites, and Millay was her early model. Millay (1917 to 1923
+  books), Emerson, Rumi and Hafez are added; Whitman, Shelley and Keats were
+  already in. Their own influences (Wordsworth, Shakespeare, Spenser,
+  Milton, Burns, Coleridge, Herbert) are mostly already in from PoetryDB;
+  *Lyrical Ballads* (1798) adds no short poems. Sara Teasdale and the
+  Imagist anthologies (1915, 1916) fill out the short nature lyric.
+
+## Not added
+
+- Mary Oliver, Sylvia Plath, Gwendolyn Brooks: still under copyright.
+- E. E. Cummings (*Tulips and Chimneys*, 1923, and other pre-1931 books):
+  public domain, but not on the Gutenberg mirror this uses. Next time.
+- Angelina Weld Grimké, Gwendolyn Bennett, Helene Johnson: their pre-1931
+  poems were in magazines and anthologies not on the mirror.
+- Hafez (Bell) and Wordsworth: their poems here are all longer than 16
+  lines.
+- A stronger "best" signal from anthology counts (Golden Treasury, Oxford
+  Book of English Verse 1900, Untermeyer 1921) is still to do.

@@ -9,14 +9,16 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const lib = require("../scripts/dispenser-pool/pool-lib.js");
-const { build, SNAPSHOT, OUT } = require("../scripts/dispenser-pool/build-pool.js");
+const { build, SNAPSHOT, GUTENBERG, OUT } = require("../scripts/dispenser-pool/build-pool.js");
+const gutenbergBooks = require("../scripts/dispenser-pool/fetch-gutenberg.js").BOOKS;
 const playdate = require("../scripts/dispenser-pool/build-playdate.js");
 
 const pool = JSON.parse(fs.readFileSync(OUT, "utf8"));
 
 test("dispenser pool: pool.json matches a fresh build of the snapshot", () => {
   const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT, "utf8"));
-  const fresh = JSON.parse(JSON.stringify(build(snapshot)));
+  const gutenberg = JSON.parse(fs.readFileSync(GUTENBERG, "utf8"));
+  const fresh = JSON.parse(JSON.stringify(build(snapshot, gutenberg)));
   assert.deepEqual(pool, fresh, "run: node scripts/dispenser-pool/build-pool.js");
 });
 
@@ -31,7 +33,26 @@ test("dispenser pool: every poem has text, a unique id and a rights record", () 
     assert.ok(!p.lines.some((l) => /\[back\]|^\s*Note \d+\./.test(l)), `${p.id} still has a footnote`);
     assert.ok(p.rights && p.rights.source && p.rights.basis, `${p.id} missing rights source/basis`);
     assert.match(p.rights.status, /^public-domain-us/, `${p.id} is ${p.rights.status}`);
-    assert.ok(p.rights.authorDied < lib.PD_CUTOFF_YEAR, `${p.id} author died ${p.rights.authorDied}`);
+    if (p.collection) {
+      // Gutenberg book: cleared by publication year.
+      assert.ok(p.published < lib.PD_CUTOFF_YEAR, `${p.id} published ${p.published}`);
+      assert.match(p.rights.source, /Project Gutenberg #\d+/);
+    } else {
+      assert.ok(p.rights.authorDied < lib.PD_CUTOFF_YEAR, `${p.id} author died ${p.rights.authorDied}`);
+    }
+  }
+});
+
+test("gutenberg sources: every book is pre-1931 and says why it is here", () => {
+  for (const b of gutenbergBooks) {
+    assert.ok(b.year < lib.PD_CUTOFF_YEAR, `#${b.id} ${b.year}`);
+    assert.ok(b.why && b.book && b.repo.endsWith(`_${b.id}`), `#${b.id}`);
+  }
+  const g = JSON.parse(fs.readFileSync(GUTENBERG, "utf8"));
+  // Translated work must name a public-domain translator.
+  for (const p of g.poems) {
+    if (/Rumi|Hafez|Japanese|Tagore/.test(p.author)) assert.ok(p.translator, `${p.author}: ${p.title} has no translator`);
+    assert.ok(!/gutenberg|produced by|https?:/i.test(p.lines.join(" ")), `${p.title} has front matter`);
   }
 });
 
