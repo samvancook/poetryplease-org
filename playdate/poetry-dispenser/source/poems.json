@@ -42,6 +42,57 @@
    "prior": 0.775
   },
   {
+   "id": "pd-ambrose-bierce-elegy",
+   "title": "Elegy",
+   "author": "Ambrose Bierce",
+   "lines": [
+    "The cur foretells the knell of parting day;",
+    "The loafing herd winds slowly o'er the lea;",
+    "The wise man homewards plods; I only stay",
+    "To fiddle-faddle in a minor key."
+   ],
+   "moodTags": [],
+   "prior": 0.736
+  },
+  {
+   "id": "pd-james-henry-leigh-hunt-jenny-kissed-me",
+   "title": "Jenny Kissed Me",
+   "author": "James Henry Leigh Hunt",
+   "lines": [
+    "Jenny kissed me when we met,",
+    "Jumping from the chair she sat in;",
+    "Time, you thief, who love to get",
+    "Sweets into your list, put that in!",
+    "Say Im weary, say Im sad,",
+    "Say that health and wealth have missed me,",
+    "Say Im growing old, but add,",
+    "Jenny kissed me."
+   ],
+   "moodTags": [],
+   "prior": 0.688
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-the-snowdrop",
+   "title": "The Snowdrop",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Many, many welcomes,",
+    "February fair-maid,",
+    "Ever as of old time,",
+    "Solitary firstling,",
+    "Coming in the cold time,",
+    "Prophet of the gay time,",
+    "Prophet of the May time,",
+    "Prophet of the roses,",
+    "Many, many welcomes,",
+    "February fair-maid!"
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.6
+  },
+  {
    "id": "pd-percy-bysshe-shelley-a-dirge",
    "title": "A Dirge",
    "author": "Percy Bysshe Shelley",
@@ -58,6 +109,25 @@
    "moodTags": [
     "nature",
     "cozy"
+   ],
+   "prior": 0.6
+  },
+  {
+   "id": "pd-percy-bysshe-shelley-o-that-a-chariot-of-cloud-were-mine",
+   "title": "O That A Chariot Of Cloud Were Mine",
+   "author": "Percy Bysshe Shelley",
+   "lines": [
+    "O that a chariot of cloud were mine!",
+    "Of cloud which the wild tempest weaves in air,",
+    "When the moon over the ocean's line",
+    "Is spreading the locks of her bright gray hair.",
+    "O that a chariot of cloud were mine!",
+    "I would sail on the waves of the billowy wind",
+    "To the mountain peak and the rocky lake,",
+    "And the..."
+   ],
+   "moodTags": [
+    "nature"
    ],
    "prior": 0.6
   },
@@ -84,6 +154,232 @@
    "prior": 0.6
   },
   {
+   "id": "pd-robert-burns-on-a-friend",
+   "title": "On A Friend.",
+   "author": "Robert Burns",
+   "lines": [
+    "An honest man here lies at rest",
+    "As e'er God with his image blest!",
+    "The friend of man, the friend of truth;",
+    "The friend of age, and guide of youth;",
+    "Few hearts like his, with virtue warm'd,",
+    "Few heads with knowledge so inform'd:",
+    "If there's another world, he lives in bliss;",
+    "If there is none, he made the best of this."
+   ],
+   "moodTags": [
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.6
+  },
+  {
+   "id": "pd-thomas-moore-to-julia-on-her-birthday",
+   "title": "To Julia. On Her Birthday.",
+   "author": "Thomas Moore",
+   "lines": [
+    "When Time was entwining the garland of years,",
+    "Which to crown my beloved was given,",
+    "Though some of the leaves might be sullied with tears,",
+    "Yet the flowers were all gathered in heaven.",
+    "",
+    "And long may this garland be sweet to the eye,",
+    "May its verdure forever be new;",
+    "Young Love shall enrich it with many a sigh,",
+    "And Sympathy nurse it with dew."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.593
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-flower-in-the-crannied-wall",
+   "title": "Flower In The Crannied Wall",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Flower in the crannied wall,",
+    "I pluck you out of the crannies,",
+    "I hold you here, root and all, in my hand,",
+    "Little flowerbut if I could understand",
+    "What you are, root and all, and all in all,",
+    "I should know what God and man is."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.585
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-circumstance",
+   "title": "Circumstance",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Two children in two neighbor villages",
+    "Playing mad pranks along the heathy leas;",
+    "Two strangers meeting at a festival;",
+    "Two lovers whispering by an orchard wall:",
+    "Two lives bound fast in one with golden ease;",
+    "Two graves grass-green beside a gray church-tower,",
+    "Washd with still rains and daisy-blossomed;",
+    "Two children in one hamlet born and bred:",
+    "So runs the round of life from hour to hour."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.579
+  },
+  {
+   "id": "pd-thomas-moore-a-reflection-at-sea",
+   "title": "A Reflection At Sea.",
+   "author": "Thomas Moore",
+   "lines": [
+    "See how, beneath the moonbeam's smile,",
+    "Yon little billow heaves its breast,",
+    "And foams and sparkles for awhile,--",
+    "Then murmuring subsides to rest.",
+    "",
+    "Thus man, the sport of bliss and care,",
+    "Rises on time's eventful sea:",
+    "And, having swelled a moment there,",
+    "Thus melts into eternity!"
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.579
+  },
+  {
+   "id": "pd-robert-browning-parting-at-morning",
+   "title": "Parting At Morning",
+   "author": "Robert Browning",
+   "lines": [
+    "Round the cape of a sudden came the sea,",
+    "And the sun looked over the mountains rim",
+    "And straight was a path of gold for him,",
+    "And the need of a world of men for me."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.575
+  },
+  {
+   "id": "pd-robert-browning-pippa-s-song",
+   "title": "Pippa's Song",
+   "author": "Robert Browning",
+   "lines": [
+    "The year's at the spring,",
+    "And day's at the morn;",
+    "Morning's at seven;",
+    "The hill-side's dew-pearl'd;",
+    "The lark's on the wing;",
+    "The snail's on the thorn;",
+    "God's in His heaven",
+    "All's right with the world!"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.575
+  },
+  {
+   "id": "pd-walter-savage-landor-dirce",
+   "title": "Dirce",
+   "author": "Walter Savage Landor",
+   "lines": [
+    "Stand close around, ye Stygian set,",
+    "With Dirce in one boat conveyed,",
+    "Or Charon, seeing, may forget",
+    "That he is old and she a shade."
+   ],
+   "moodTags": [],
+   "prior": 0.575
+  },
+  {
+   "id": "pd-walt-whitman-i-thought-i-was-not-alone",
+   "title": "I Thought I Was Not Alone",
+   "author": "Walt Whitman",
+   "lines": [
+    "I thought I was not alone, walking here by the shore,",
+    "But the one I thought was with me, as now I walk by the shore,",
+    "As I lean and look through the glimmering light - that one has utterly disappeared,",
+    "And those appear that perplex me."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.563
+  },
+  {
+   "id": "pd-john-greenleaf-whittier-inscription-for-the-relief-by-preston-powers",
+   "title": "Inscription-For The Relief By Preston Powers",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "The Eagle, stooping from yon snow-blown peaks,",
+    "For the wild hunter and the Bison seeks,",
+    "In the changed world below; and finds alone",
+    "Their graven semblance in the eternal stone"
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.56
+  },
+  {
+   "id": "pd-thomas-moore-a-dream",
+   "title": "A Dream.",
+   "author": "Thomas Moore",
+   "lines": [
+    "I thought this heart enkindled lay",
+    "On Cupid's burning shrine:",
+    "I thought he stole thy heart away,",
+    "And placed it near to mine.",
+    "",
+    "I saw thy heart begin to melt,",
+    "Like ice before the sun;",
+    "Till both a glow congenial felt,",
+    "And mingled into one!"
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.56
+  },
+  {
+   "id": "pd-walt-whitman-a-farm-picture",
+   "title": "A Farm-Picture",
+   "author": "Walt Whitman",
+   "lines": [
+    "Through the ample open door of the peaceful country barn,",
+    "A sun-lit pasture field, with cattle and horses feeding;",
+    "And haze, and vista, and the far horizon, fading away."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.559
+  },
+  {
+   "id": "pd-william-cowper-to-the-spanish-admiral-count-gravina-on-his-translating-the-",
+   "title": "To The Spanish Admiral Count Gravina, On His Translating The Authors Song On A Rose Into Italian Verse.",
+   "author": "William Cowper",
+   "lines": [
+    "My rose, Gravina, blooms anew,",
+    "And steepd not now in rain,",
+    "But in Castilian streams by you,",
+    "Will never fade again."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.553
+  },
+  {
    "id": "pd-percy-bysshe-shelley-mighty-eagle",
    "title": "'Mighty Eagle'",
    "author": "Percy Bysshe Shelley",
@@ -103,6 +399,386 @@
    "prior": 0.552
   },
   {
+   "id": "pd-edward-lear-d-from-nonsense-alphabet",
+   "title": "D from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "D was a dove,",
+    "Who lived in a wood,",
+    "With such pretty soft wings,",
+    "And so gentle and good!",
+    "",
+    "d!",
+    "Dear little Dove!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-edward-lear-l-from-nonsense-alphabet-2",
+   "title": "L from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "L was a lily,",
+    "So white and so sweet!",
+    "To see it and smell it",
+    "Was quite a nice treat.",
+    "",
+    "l!",
+    "Beautiful Lily!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-edward-lear-l-from-nonsense-alphabet-3",
+   "title": "l from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "L was once a little lark,",
+    "Larky,",
+    "Marky,",
+    "Harky,",
+    "Larky,",
+    "In the parky,",
+    "Little lark!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-edward-lear-q-from-nonsense-alphabet-2",
+   "title": "Q from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "Q was a Quince that hung",
+    "Upon a garden tree;",
+    "Papa he brought it with him home,",
+    "And ate it with his tea."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-edward-lear-r-from-nonsense-alphabet-3",
+   "title": "r from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "R was once a little rose,",
+    "Rosy,",
+    "Posy,",
+    "Nosy,",
+    "Rosy,",
+    "Blows-y, grows-y,",
+    "Little rose!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-edward-lear-t-from-nonsense-alphabet-3",
+   "title": "t from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "T was once a little thrush,",
+    "Thrushy,",
+    "Hushy,",
+    "Bushy,",
+    "Thrushy,",
+    "Flitty, flushy,",
+    "Little thrush!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-edward-lear-the-bountiful-beetle",
+   "title": "The Bountiful Beetle,",
+   "author": "Edward Lear",
+   "lines": [
+    "The Bountiful Beetle,",
+    "who always carried a Green Umbrella when it didn't rain,",
+    "and left it at home when it did."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-elizabeth-barrett-browning-the-best-thing-in-the-world",
+   "title": "The Best Thing In The World",
+   "author": "Elizabeth Barrett Browning",
+   "lines": [
+    "What's the best thing in the world?",
+    "June-rose, by May-dew impearled;",
+    "Sweet south-wind, that means no rain;",
+    "Truth, not cruel to a friend;",
+    "Pleasure, not in haste to end;",
+    "Beauty, not self-decked and curled",
+    "Till its pride is over-plain;",
+    "Love, when, so, you're loved again.",
+    "What's the best thing in the world?",
+    "Something out of it, I think."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-a-rose",
+   "title": "A Rose",
+   "author": "Emily Dickinson",
+   "lines": [
+    "A sepal, petal, and a thorn",
+    "  Upon a common summer's morn,",
+    "A flash of dew, a bee or two,",
+    "A breeze",
+    "A caper in the trees,--",
+    "  And I'm a rose!"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-dawn-2",
+   "title": "Dawn",
+   "author": "Emily Dickinson",
+   "lines": [
+    "Not knowing when the dawn will come",
+    "  I open every door;",
+    "Or has it feathers like a bird,",
+    "  Or billows like a shore?"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-death-and-life",
+   "title": "Death and Life",
+   "author": "Emily Dickinson",
+   "lines": [
+    "Apparently with no surprise",
+    "To any happy flower,",
+    "The frost beheads it at its play",
+    "In accidental power.",
+    "The blond assassin passes on,",
+    "The sun proceeds unmoved",
+    "To measure off another day",
+    "For an approving God."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-ix-morning-is-the-place-for-dew",
+   "title": "IX. Morning is the place for dew",
+   "author": "Emily Dickinson",
+   "lines": [
+    "Morning is the place for dew,",
+    "  Corn is made at noon,",
+    "After dinner light for flowers,",
+    "  Dukes for setting sun!"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-li-water-is-taught-by-thirst",
+   "title": "LI. Water is taught by thirst",
+   "author": "Emily Dickinson",
+   "lines": [
+    "Water is taught by thirst;",
+    "Land, by the oceans passed;",
+    "  Transport, by throe;",
+    "Peace, by its battles told;",
+    "Love, by memorial mould;",
+    "  Birds, by the snow."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-nature",
+   "title": "Nature",
+   "author": "Emily Dickinson",
+   "lines": [
+    "New feet within my garden go,",
+    "New fingers stir the sod;",
+    "A troubadour upon the elm",
+    "Betrays the solitude.",
+    "",
+    "New children play upon the green,",
+    "New weary sleep below;",
+    "And still the pensive spring returns,",
+    "And still the punctual snow!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-playmates",
+   "title": "Playmates",
+   "author": "Emily Dickinson",
+   "lines": [
+    "God permits industrious angels",
+    "Afternoons to play.",
+    "I met one, -- forgot my school-mates,",
+    "All, for him, straightway.",
+    "",
+    "God calls home the angels promptly",
+    "At the setting sun;",
+    "I missed mine. How dreary marbles,",
+    "After playing Crown!"
+   ],
+   "moodTags": [
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-the-battle-field",
+   "title": "The Battle-Field",
+   "author": "Emily Dickinson",
+   "lines": [
+    "They dropped like flakes, they dropped like stars,",
+    "   Like petals from a rose,",
+    "When suddenly across the June",
+    "   A wind with fingers goes.",
+    "",
+    "They perished in the seamless grass,--",
+    "   No eye could find the place;",
+    "But God on his repealless list",
+    "   Can summon every face."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-v-the-pedigree-of-honey",
+   "title": "V. The pedigree of honey",
+   "author": "Emily Dickinson",
+   "lines": [
+    "The pedigree of honey",
+    "Does not concern the bee;",
+    "A clover, any time, to him",
+    "Is aristocracy."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-emily-dickinson-xv-to-make-a-prairie-it-takes-a-clover-and-one-bee",
+   "title": "XV. To make a prairie it takes a clover and one bee",
+   "author": "Emily Dickinson",
+   "lines": [
+    "To make a prairie it takes a clover and one bee,--",
+    "One clover, and a bee,",
+    "And revery.",
+    "The revery alone will do",
+    "If bees are few."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-stephen-crane-ii-three-little-birds-in-a-row",
+   "title": "II. Three little birds in a row",
+   "author": "Stephen Crane",
+   "lines": [
+    "Three little birds in a row",
+    "Sat musing.",
+    "A man passed near that place.",
+    "Then did the little birds nudge each other.",
+    "They said, \"He thinks he can sing.\"",
+    "They threw back their heads to laugh,",
+    "With quaint countenances",
+    "They regarded him.",
+    "They were very curious,",
+    "Those three little birds in a row."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-thomas-moore-a-joke-versified",
+   "title": "A Joke Versified.",
+   "author": "Thomas Moore",
+   "lines": [
+    "\"Come, come,\" said Tom's father, \"at your time of life,",
+    "\"There's no longer excuse for thus playing the rake--",
+    "\"It is time you should think, boy, of taking a wife\"--",
+    "\"Why, so it is, father--whose wife shall I take?\""
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.55
+  },
+  {
+   "id": "pd-percy-bysshe-shelley-mighty-eagle-supposed-to-be-addressed-to-william-godwin",
+   "title": "Mighty Eagle. Supposed To Be Addressed To William Godwin.",
+   "author": "Percy Bysshe Shelley",
+   "lines": [
+    "Mighty eagle! thou that soarest",
+    "O'er the misty mountain forest,",
+    "And amid the light of morning",
+    "Like a cloud of glory hiest,",
+    "And when night descends defiest",
+    "The embattled tempests' warning!"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.542
+  },
+  {
    "id": "pd-george-gordon-lord-byron-remembrance",
    "title": "Remembrance",
    "author": "George Gordon, Lord Byron",
@@ -119,6 +795,21 @@
     "thoughtful"
    ],
    "prior": 0.54
+  },
+  {
+   "id": "pd-walt-whitman-a-child-s-amaze",
+   "title": "A Child's Amaze",
+   "author": "Walt Whitman",
+   "lines": [
+    "Slient and amazed, even when a little boy,",
+    "I remember I heard the preacher every Sunday put God in his",
+    "statements,",
+    "As contending against some being or influence."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.539
   },
   {
    "id": "pd-walt-whitman-i-dream-d-in-a-dream",
@@ -140,6 +831,58 @@
    "prior": 0.539
   },
   {
+   "id": "pd-william-cowper-epitaph-on-mr-chester-of-chicheley",
+   "title": "Epitaph On Mr. Chester, Of Chicheley.",
+   "author": "William Cowper",
+   "lines": [
+    "Tears flow, and cease not, where the good man lies,",
+    "Till all who knew him follow to the skies.",
+    "Tears therefore fall where Chesters ashes sleep;",
+    "Him wife, friends, brothers, children, servants weep",
+    "And justlyfew shall ever him transcend",
+    "As husband, parent, brother, master, friend."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.537
+  },
+  {
+   "id": "pd-thomas-moore-the-lake-of-the-dismal-swamp",
+   "title": "The Lake of the Dismal Swamp",
+   "author": "Thomas Moore",
+   "lines": [
+    "They made her a grave too cold and damp",
+    "For a soul so warm and true;",
+    "And she's gone to the Lake of the Dismal Swamp",
+    "Where all night long, by a firefly lamp,",
+    "She paddles her birch canoe."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.535
+  },
+  {
+   "id": "pd-thomas-moore-odes-of-anacreon-ode-lxx",
+   "title": "Odes Of Anacreon - Ode LXX.",
+   "author": "Thomas Moore",
+   "lines": [
+    "A broken cake, with honey sweet,",
+    "Is all my spare and simple treat:",
+    "And while a generous bowl I crown",
+    "To float my little banquet down,",
+    "I take the soft, the amorous lyre,",
+    "And sing of love's delicious fire:",
+    "In mirthful measures warm and free,",
+    "I sing, dear maid, and sing for thee!"
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.534
+  },
+  {
    "id": "pd-percy-bysshe-shelley-to-harriet",
    "title": "To Harriet",
    "author": "Percy Bysshe Shelley",
@@ -153,6 +896,44 @@
     "thoughtful"
    ],
    "prior": 0.532
+  },
+  {
+   "id": "pd-robert-burns-on-a-noted-coxcomb",
+   "title": "On A Noted Coxcomb.",
+   "author": "Robert Burns",
+   "lines": [
+    "Light lay the earth on Willy's breast,",
+    "His chicken-heart so tender;",
+    "But build a castle on his head,",
+    "His skull will prop it under."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.53
+  },
+  {
+   "id": "pd-thomas-moore-odes-of-anacreon-ode-xli",
+   "title": "Odes Of Anacreon - Ode XLI.",
+   "author": "Thomas Moore",
+   "lines": [
+    "When Spring adorns the dewy scene,",
+    "How sweet to walk the velvet green,",
+    "And hear the west wind's gentle sighs,",
+    "As o'er the scented mead it flies!",
+    "How sweet to mark the pouting vine,",
+    "Ready to burst in tears of wine;",
+    "And with some maid, who breathes but love,",
+    "To walk, at noontide, through the grove,",
+    "Or sit in some cool, green recess--",
+    "Oh, is this not true happiness?"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.53
   },
   {
    "id": "pd-edward-lear-there-was-an-old-man-in-a-tree",
@@ -169,6 +950,89 @@
     "nature"
    ],
    "prior": 0.528
+  },
+  {
+   "id": "pd-stephen-crane-lxv-once-i-knew-a-fine-song",
+   "title": "LXV. Once, I knew a fine song",
+   "author": "Stephen Crane",
+   "lines": [
+    "Once, I knew a fine song,",
+    "--It is true, believe me,--",
+    "It was all of birds,",
+    "And I held them in a basket;",
+    "When I opened the wicket,",
+    "Heavens!  They all flew away.",
+    "I cried, \"Come back, little thoughts!\"",
+    "But they only laughed.",
+    "They flew on",
+    "Until they were as sand",
+    "Thrown between me and the sky."
+   ],
+   "moodTags": [],
+   "prior": 0.528
+  },
+  {
+   "id": "pd-john-greenleaf-whittier-all-s-well",
+   "title": "Alls Well",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "The clouds, which rise with thunder, slake",
+    "Our thirsty souls with rain;",
+    "The blow most dreaded falls to break",
+    "From off our limbs a chain;",
+    "And wrongs of man to man but make",
+    "The love of God more plain.",
+    "As through the shadowy lens of even",
+    "The eye looks farthest into heaven",
+    "On gleams of star and depths of blue",
+    "The glaring sunshine never knew"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.527
+  },
+  {
+   "id": "pd-christina-rossetti-bitter-for-sweet",
+   "title": "Bitter For Sweet",
+   "author": "Christina Rossetti",
+   "lines": [
+    "Summer is gone with all its roses,",
+    "Its sun and perfumes and sweet flowers,",
+    "Its warm air and refreshing showers:",
+    "And even Autumn closes.",
+    "",
+    "Yea, Autumn's chilly self is going,",
+    "And winter comes which is yet colder;",
+    "Each day the hoar-frost waxes bolder,",
+    "And the last buds cease blowing."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.525
+  },
+  {
+   "id": "pd-matthew-arnold-despondency",
+   "title": "Despondency",
+   "author": "Matthew Arnold",
+   "lines": [
+    "The thoughts that rain their steady glow",
+    "Like stars on lifes cold sea,",
+    "Which others know, or say they know",
+    "They never shone for me.",
+    "",
+    "Thoughts light, like gleams, my spirits sky,",
+    "But they will not remain.",
+    "They light me once, they hurry by,",
+    "And never come again."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.525
   },
   {
    "id": "pd-stephen-crane-i-have-heard-the-sunset-song-of-the-birches",
@@ -192,6 +1056,43 @@
    "prior": 0.525
   },
   {
+   "id": "pd-john-greenleaf-whittier-mulford",
+   "title": "Mulford",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "Unnoted as the setting of a star",
+    "He passed; and sect and party scarcely knew",
+    "When from their midst a sage and seer withdrew",
+    "To fitter audience, where the great dead are",
+    "In God's republic of the heart and mind,",
+    "Leaving no purer, nobler soul behind"
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.524
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-requiescat",
+   "title": "Requiescat",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Fair is her cottage in its place,",
+    "Where yon broad water sweetly, slowly glides.",
+    "It sees itself from thatch to base",
+    "Dream in the sliding tides.",
+    "",
+    "And fairer she, but ah, how soon to die!",
+    "Her quiet dream of life this hour may cease.",
+    "Her peaceful being slowly passes by",
+    "To some more perfect peace."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.523
+  },
+  {
    "id": "pd-robert-burns-song-love-in-the-guise-of-friendship",
    "title": "Song: Love in the Guise of Friendship",
    "author": "Robert Burns",
@@ -212,6 +1113,237 @@
    "prior": 0.52
   },
   {
+   "id": "pd-thomas-moore-how-dear-to-me-the-hour",
+   "title": "How Dear To Me The Hour.",
+   "author": "Thomas Moore",
+   "lines": [
+    "How dear to me the hour when daylight dies,",
+    "And sunbeams melt along the silent sea,",
+    "For then sweet dreams of other days arise,",
+    "And memory breathes her vesper sigh to thee.",
+    "",
+    "And, as I watch the line of light, that plays",
+    "Along the smooth wave toward the burning west,",
+    "I long to tread that golden path of rays,",
+    "And think 'twould lead to some bright isle of rest."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.518
+  },
+  {
+   "id": "pd-edward-lear-b-from-nonsense-alphabet",
+   "title": "B from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "B was a bat,",
+    "Who slept all the day,",
+    "And fluttered about",
+    "When the sun went away.",
+    "",
+    "b!",
+    "Brown little bat!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.516
+  },
+  {
+   "id": "pd-edward-lear-p-from-nonsense-alphabet-2",
+   "title": "P from Nonsense Alphabet",
+   "author": "Edward Lear",
+   "lines": [
+    "P was a polly,",
+    "All red, blue, and green,--",
+    "The most beautiful polly",
+    "That ever was seen.",
+    "",
+    "p!",
+    "Poor little Polly!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.516
+  },
+  {
+   "id": "pd-walt-whitman-offerings",
+   "title": "Offerings",
+   "author": "Walt Whitman",
+   "lines": [
+    "A thousand perfect men and women appear,",
+    "Around each gathers a cluster of friends, and gay children and youths, with offerings."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.515
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-the-roses-on-the-terrace",
+   "title": "The Roses On The Terrace",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Rose, on this terrace fifty years ago,",
+    "When I was in my June, you in your May,",
+    "Two words, My Rose, set all your face aglow,",
+    "And now that I am white and you are gray,",
+    "That blush of fifty years ago, my dear,",
+    "Blooms in the past, but close to me to-day,",
+    "As this red rose, which on our terrace here",
+    "Glows in the blue of fifty miles away."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.511
+  },
+  {
+   "id": "pd-emily-bronte-the-sun-has-set",
+   "title": "The Sun Has Set",
+   "author": "Emily Bronte",
+   "lines": [
+    "The sun has set, and the long grass now",
+    "Waves dreamily in the evening wind;",
+    "And the wild bird has flown from that old gray stone",
+    "In some warm nook a couch to find.",
+    "",
+    "In all the lonely landscape round",
+    "I see no light and hear no sound,",
+    "Except the wind that far away",
+    "Come sighing o'er the healthy sea."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.51
+  },
+  {
+   "id": "pd-robert-burns-written-on-a-pane-of-glass-in-the-inn-at-moffat",
+   "title": "Written On A Pane Of Glass, In The Inn At Moffat.",
+   "author": "Robert Burns",
+   "lines": [
+    "Ask why God made the gem so small,",
+    "And why so huge the granite?",
+    "Because God meant mankind should set",
+    "The higher value on it."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.51
+  },
+  {
+   "id": "pd-william-cowper-on-receiving-hayley-s-picture",
+   "title": "On Receiving Hayleys Picture.",
+   "author": "William Cowper",
+   "lines": [
+    "In language warm as could be breathed or pennd",
+    "Thy picture speaks the original, my friend,",
+    "Not by those looks that indicate thy mind",
+    "They only speak thee friend of all mankind;",
+    "Expression here more soothing still I see,",
+    "That friend of all a partial friend to me."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.51
+  },
+  {
+   "id": "pd-walt-whitman-abraham-lincoln-born-feb-12-1809",
+   "title": "Abraham Lincoln, Born Feb. 12, 1809",
+   "author": "Walt Whitman",
+   "lines": [
+    "To-day, from each and all, a breath of prayer, a pulse of thought,",
+    "To memory of Him, to birth of Him."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.507
+  },
+  {
+   "id": "pd-john-greenleaf-whittier-conduct",
+   "title": "Conduct",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "From the Mahabharata.",
+    "",
+    "Heed how thou livest. Do no act by day",
+    "Which from the night shall drive thy peace away.",
+    "In months of sun so live that months of rain",
+    "Shall still be happy. Evermore restrain",
+    "Evil and cherish good, so shall there be",
+    "Another and a happier life for thee."
+   ],
+   "moodTags": [],
+   "prior": 0.506
+  },
+  {
+   "id": "pd-john-greenleaf-whittier-lydia-h-sigourney",
+   "title": "Lydia H. Sigourney",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "She sang alone, ere womanhood had known",
+    "The gift of song which fills the air to-day",
+    "Tender and sweet, a music all her own",
+    "May fitly linger where she knelt to pray"
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.505
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-in-memoriam-w-g-ward",
+   "title": "In Memoriam W. G. Ward",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Farewell, whose like on earth I shall not find,",
+    "Whose Faith and Work were bells of full accord,",
+    "My friend, the most unworldly of mankind,",
+    "Most generous of all Ultramontanes, Ward,",
+    "How subtle at tierce and quart of mind with mind,",
+    "How loyal in the following of thy Lord!"
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.504
+  },
+  {
+   "id": "pd-alexander-pope-epitaph-on-lord-coningsby",
+   "title": "Epitaph On Lord Coningsby.",
+   "author": "Alexander Pope",
+   "lines": [
+    "Here lies Lord Coningsby--be civil!",
+    "The rest God knows--perhaps the Devil."
+   ],
+   "moodTags": [
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.5
+  },
+  {
+   "id": "pd-ambrose-bierce-piety",
+   "title": "Piety",
+   "author": "Ambrose Bierce",
+   "lines": [
+    "The pig is taught by sermons and epistles",
+    "To think the God of Swine has snout and bristles."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.5
+  },
+  {
    "id": "pd-john-clare-grasshoppers",
    "title": "Grasshoppers",
    "author": "John Clare",
@@ -222,6 +1354,86 @@
     "While arching oxeye doubles with his weight.",
     "Next on the cat-tail-grass with farther bound",
     "He springs, that bends until they touch the ground."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.5
+  },
+  {
+   "id": "pd-john-wilmot-god-bless-our-good-and-gracious-king",
+   "title": "God Bless Our Good And Gracious King",
+   "author": "John Wilmot",
+   "lines": [
+    "God bless our good and gracious kind,",
+    "Whose promise none relies on,",
+    "Who never said a foolish thing,",
+    "Nor ever did a wise one."
+   ],
+   "moodTags": [
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.5
+  },
+  {
+   "id": "pd-walter-savage-landor-heartsease",
+   "title": "Heartsease",
+   "author": "Walter Savage Landor",
+   "lines": [
+    "There is a flower I wish to wear,",
+    "But not until first worn by you,",
+    "Heartsease of all earths flowers most rare;",
+    "Bring it; and bring enough for two."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.5
+  },
+  {
+   "id": "pd-walter-savage-landor-ianthe",
+   "title": "Ianthe",
+   "author": "Walter Savage Landor",
+   "lines": [
+    "From you, Ianthe, little troubles pass",
+    "Like little ripples down a sunny river;",
+    "Your pleasures spring like daisies in the grass,",
+    "Cut down, and up again as blithe as ever."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.5
+  },
+  {
+   "id": "pd-walter-savage-landor-ianthe-s-troubles",
+   "title": "Ianthes Troubles",
+   "author": "Walter Savage Landor",
+   "lines": [
+    "Your pleasures spring like daisies in the grass,",
+    "Cut down and up again as blithe as ever;",
+    "From you, Ianthe, little troubles pass",
+    "Like little ripples in a sunny river."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.5
+  },
+  {
+   "id": "pd-walter-savage-landor-leaf-after-leaf-drops-off-flower-after-flower",
+   "title": "Leaf after leaf drops off, flower after flower,",
+   "author": "Walter Savage Landor",
+   "lines": [
+    "Leaf after leaf drops off, flower after flower,",
+    "Some in the chill, some in the warmer hour:",
+    "Alike they flourish and alike they fall,",
+    "And Earth who nourisht them receives them all.",
+    "Should we, her wiser sons, be less content",
+    "To sink into her lap when life is spent?"
    ],
    "moodTags": [
     "nature"
@@ -245,6 +1457,21 @@
    "prior": 0.5
   },
   {
+   "id": "pd-walter-savage-landor-persistence",
+   "title": "Persistence",
+   "author": "Walter Savage Landor",
+   "lines": [
+    "My hopes retire; my wishes as before",
+    "Struggle to find their resting-place in vain:",
+    "The ebbing sea thus beats against the shore;",
+    "The shore repels it; it returns again."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.5
+  },
+  {
    "id": "pd-william-blake-nurse-s-song",
    "title": "Nurse's Song",
    "author": "William Blake",
@@ -264,6 +1491,228 @@
     "cozy"
    ],
    "prior": 0.5
+  },
+  {
+   "id": "pd-william-ernest-henley-bring-her-again-o-western-wind",
+   "title": "Bring Her Again, O Western Wind",
+   "author": "William Ernest Henley",
+   "lines": [
+    "Bring her again, O western wind,",
+    "Over the western sea:",
+    "Gentle and good and fair and kind,",
+    "Bring her again to me!",
+    "",
+    "Not that her fancy holds me dear,",
+    "Not that a hope may be:",
+    "Only that I may know her near,",
+    "Wind of the western sea.",
+    "",
+    "1875"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.5
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-song-the-winds-as-at-their-hour-of-birth",
+   "title": "Song: The Winds, As At Their Hour Of Birth",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "The winds, as at their hour of birth,",
+    "Leaning upon the ridged sea,",
+    "Breathed low around the rolling earth",
+    "With mellow preludes, We are free.",
+    "",
+    "The streams, through many a lilied row",
+    "Down-carolling to the crisped sea,",
+    "Low-tinkled with a bell-like flow",
+    "Atween the blossoms, We are free."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.498
+  },
+  {
+   "id": "pd-thomas-moore-to-phillis",
+   "title": "To Phillis.",
+   "author": "Thomas Moore",
+   "lines": [
+    "Phillis, you little rosy rake,",
+    "That heart of yours I long to rifle;",
+    "Come, give it me, and do not make",
+    "So much ado about a trifle!"
+   ],
+   "moodTags": [],
+   "prior": 0.498
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-epitaph-on-general-gordon",
+   "title": "Epitaph On General Gordon",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Warrior of God, mans friend, and tyrants foe,",
+    "Now somewhere dead far in the waste Soudan,",
+    "Thou livest in all hearts, for all men know",
+    "This earth has never borne a nobler man."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.497
+  },
+  {
+   "id": "pd-walt-whitman-as-if-a-phantom-caress-d-me",
+   "title": "As If A Phantom Caress'd Me",
+   "author": "Walt Whitman",
+   "lines": [
+    "As if a phantom caress'd me,",
+    "I thought I was not alone, walking here by the shore;",
+    "But the one I thought was with me, as now I walk by the shore--the one I loved, that caress'd me,",
+    "As I lean and look through the glimmering light--that one has utterly disappear'd,",
+    "And those appear that are hateful to me, and mock me."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.497
+  },
+  {
+   "id": "pd-john-greenleaf-whittier-to-e-c-s",
+   "title": "To E. C. S.",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "Poet and friend of poets, if thy glass",
+    "Detects no flower in winter's tuft of grass,",
+    "Let this slight token of the debt I owe",
+    "Outlive for thee December's frozen day,",
+    "And, like the arbutus budding under snow,",
+    "Take bloom and fragrance from some morn of May",
+    "When he who gives it shall have gone the way",
+    "Where faith shall see and reverent trust shall know."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.496
+  },
+  {
+   "id": "pd-william-ernest-henley-a-wink-from-hesper",
+   "title": "A Wink From Hesper",
+   "author": "William Ernest Henley",
+   "lines": [
+    "A wink from Hesper, falling",
+    "Fast in the wintry sky,",
+    "Comes through the even blue,",
+    "Dear, like a word from you . . .",
+    "Is it good-bye?",
+    "",
+    "Across the miles between us",
+    "I send you sigh for sigh.",
+    "Good-night, sweet friend, good-night:",
+    "Till life and all take flight,",
+    "Never good-bye."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.496
+  },
+  {
+   "id": "pd-robert-burns-the-highland-welcome",
+   "title": "The Highland Welcome.",
+   "author": "Robert Burns",
+   "lines": [
+    "When Death's dark stream I ferry o'er,",
+    "A time that surely shall come;",
+    "In Heaven itself I'll ask no more",
+    "Than just a Highland welcome."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.494
+  },
+  {
+   "id": "pd-stephen-crane-xlvii-think-as-i-think-said-a-man",
+   "title": "XLVII. \"Think as I think,\" said a man",
+   "author": "Stephen Crane",
+   "lines": [
+    "\"Think as I think,\" said a man,",
+    "\"Or you are abominably wicked;",
+    "\"You are a toad.\"",
+    "",
+    "And after I had thought of it,",
+    "I said, \"I will, then, be a toad.\""
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.494
+  },
+  {
+   "id": "pd-robert-burns-her-flowing-locks",
+   "title": "Her Flowing Locks.",
+   "author": "Robert Burns",
+   "lines": [
+    "Her flowing locks, the raven's wing,",
+    "Adown her neck and bosom hing;",
+    "How sweet unto that breast to cling,",
+    "And round that neck entwine her!",
+    "Her lips are roses wat wi' dew,",
+    "O, what a feast her bonnie mou'!",
+    "Her cheeks a mair celestial hue,",
+    "A crimson still diviner."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.492
+  },
+  {
+   "id": "pd-thomas-moore-odes-of-anacreon-ode-xxxix",
+   "title": "Odes Of Anacreon - Ode XXXIX.",
+   "author": "Thomas Moore",
+   "lines": [
+    "How I love the festive boy,",
+    "Tripping through the dance of joy!",
+    "How I love the mellow sage,",
+    "Smiling through the veil of age!",
+    "And whene'er this man of years",
+    "In the dance of joy appears,",
+    "Snows may o'er his head be flung,",
+    "But his heart--his heart is young."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.492
+  },
+  {
+   "id": "pd-william-ernest-henley-the-surges-gushed-and-sounded",
+   "title": "The Surges Gushed And Sounded",
+   "author": "William Ernest Henley",
+   "lines": [
+    "The surges gushed and sounded,",
+    "The blue was the blue of June,",
+    "And low above the brightening east",
+    "Floated a shred of moon.",
+    "",
+    "The woods were black and solemn,",
+    "The night winds large and free,",
+    "And in your thought a blessing seemed",
+    "To fall on land and sea.",
+    "",
+    "1877"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.492
   },
   {
    "id": "pd-walt-whitman-mother-and-babe",
@@ -299,6 +1748,58 @@
    "prior": 0.488
   },
   {
+   "id": "pd-matthew-prior-songs-set-to-music-21-set-by-mr-de-fesch",
+   "title": "Songs Set To Music: 21. Set By Mr. De Fesch",
+   "author": "Matthew Prior",
+   "lines": [
+    "Touch the lyre, touch every string;",
+    "Touch it, Orpheus; I will sing",
+    "A song which shall immortal be,",
+    "Since she I sing's a deity;",
+    "A Leonora, whose bless'd birth",
+    "Has no relation to this earth."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.487
+  },
+  {
+   "id": "pd-christina-rossetti-the-city-mouse-and-the-garden-mouse",
+   "title": "The City Mouse and the Garden Mouse",
+   "author": "Christina Rossetti",
+   "lines": [
+    "The city mouse lives in a house;--",
+    "The garden mouse lives in a bower,",
+    "He's friendly with the frogs and toads,",
+    "And sees the pretty plants in flower.",
+    "The city mouse eats bread and cheese;--",
+    "The garden mouse eats what he can;",
+    "We will not grudge him seeds and stocks,",
+    "Poor little timid furry man."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.485
+  },
+  {
+   "id": "pd-walt-whitman-i-dream-d-in-a-dream-2",
+   "title": "I Dream'd In A Dream",
+   "author": "Walt Whitman",
+   "lines": [
+    "I dream'd in a dream, I saw a city invincible to the attacks of the whole of the rest of the earth;",
+    "I dream'd that was the new City of Friends;",
+    "Nothing was greater there than the quality of robust love - it led the rest;",
+    "It was seen every hour in the actions of the men of that city,",
+    "And in all their looks and words."
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.485
+  },
+  {
    "id": "pd-william-blake-my-pretty-rose-tree",
    "title": "My Pretty Rose Tree",
    "author": "William Blake",
@@ -319,6 +1820,23 @@
    "prior": 0.485
   },
   {
+   "id": "pd-stephen-crane-i-black-riders-came-from-the-sea",
+   "title": "I. Black Riders came from the sea",
+   "author": "Stephen Crane",
+   "lines": [
+    "Black Riders came from the sea.",
+    "There was clang and clang of spear and shield,",
+    "And clash and clash of hoof and heel,",
+    "Wild shouts and the wave of hair",
+    "In the rush upon the wind:",
+    "Thus the ride of Sin."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.483
+  },
+  {
    "id": "pd-percy-bysshe-shelley-on-fanny-godwin",
    "title": "On Fanny Godwin",
    "author": "Percy Bysshe Shelley",
@@ -334,6 +1852,455 @@
     "thoughtful"
    ],
    "prior": 0.482
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-song-who-can-say",
+   "title": "Song: Who Can Say",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "Who can say",
+    "Why To-day",
+    "To-morrow will be yesterday?",
+    "Who can tell",
+    "Why to smell",
+    "The violet recalls the dewy prime",
+    "Of youth and buried time?",
+    "The cause is nowhere found in rhyme."
+   ],
+   "moodTags": [],
+   "prior": 0.481
+  },
+  {
+   "id": "pd-walter-savage-landor-on-living-too-long",
+   "title": "On Living Too Long",
+   "author": "Walter Savage Landor",
+   "lines": [
+    "Is it not better at an early hour",
+    "In its calm cell to rest the weary head,",
+    "While birds are singing and while blooms the bower,",
+    "Than sit the fire out and go starvd to bed?"
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.48
+  },
+  {
+   "id": "pd-william-wordsworth-glad-sight-wherever-new-with-old",
+   "title": "Glad Sight Wherever New With Old",
+   "author": "William Wordsworth",
+   "lines": [
+    " Glad sight wherever new with old",
+    " Is joined through some dear homeborn tie;",
+    " The life of all that we behold",
+    " Depends upon that mystery.",
+    " Vain is the glory of the sky,",
+    " The beauty vain of field and grove,",
+    " Unless, while with admiring eye",
+    " We gaze, we also learn to love."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.48
+  },
+  {
+   "id": "pd-william-cowper-lines-written-in-an-album-of-miss-patty-more-s-sister-of-han",
+   "title": "Lines Written In An Album Of Miss Patty Mores, Sister Of Hannah More.",
+   "author": "William Cowper",
+   "lines": [
+    "In vain to live from age to age",
+    "While modern bards endeavour,",
+    "I write my name in Pattys page,",
+    "And gain my point for ever."
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.479
+  },
+  {
+   "id": "pd-john-greenleaf-whittier-incription-to-milton",
+   "title": "Incription To Milton",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "The new world honors him whose lofty plea",
+    "For England's freedom made her own more sure,",
+    "Whose song, immortal as its theme, shall be",
+    "Their common freehold while both worlds endure"
+   ],
+   "moodTags": [],
+   "prior": 0.478
+  },
+  {
+   "id": "pd-william-ernest-henley-the-full-sea-rolls-and-thunders",
+   "title": "The Full Sea Rolls And Thunders",
+   "author": "William Ernest Henley",
+   "lines": [
+    "The full sea rolls and thunders",
+    "In glory and in glee.",
+    "O, bury me not in the senseless earth",
+    "But in the living sea!",
+    "",
+    "Ay, bury me where it surges",
+    "A thousand miles from shore,",
+    "And in its brotherly unrest",
+    "I'll range for evermore.",
+    "",
+    "1876"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.478
+  },
+  {
+   "id": "pd-oliver-wendell-holmes-la-maison-d-or",
+   "title": "La Maison D'Or",
+   "author": "Oliver Wendell Holmes",
+   "lines": [
+    "(Bar Harbor)",
+    "",
+    "From this fair home behold on either side",
+    "The restful mountains or the restless sea",
+    "So the warm sheltering walls of life divide",
+    "Time and its tides from still eternity.",
+    "",
+    "Look on the waves: their stormy voices teach",
+    "That not on earth may toil and struggle cease.",
+    "Look on the mountains: better far than speech",
+    "Their silent promise of eternal peace."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-atom-from-atom-yawns-as-far",
+   "title": "Atom from atom yawns as far",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "Atom from atom yawns as far",
+    "As moon from earth, or star from star."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-character",
+   "title": "Character",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "The sun set, but set not his hope:",
+    "Stars rose; his faith was earlier up:",
+    "Fixed on the enormous galaxy,",
+    "Deeper and older seemed his eye;",
+    "And matched his sufferance sublime",
+    "The taciturnity of time.",
+    "He spoke, and words more soft than rain",
+    "Brought the Age of Gold again:",
+    "His action won such reverence sweet",
+    "As hid all measure of the feat."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-climacteric",
+   "title": "Climacteric",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "I am not wiser for my age,",
+    "Nor skilful by my grief;",
+    "Life loiters at the book's first page,--",
+    "Ah! could we turn the leaf."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-excelsior",
+   "title": "Excelsior",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "Over his head were the maple buds,",
+    "And over the tree was the moon,",
+    "And over the moon were the starry studs",
+    "That drop from the angels' shoon."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-forbore-the-ant-hill-shunned-to-tread",
+   "title": "Forbore the ant-hill, shunned to tread",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "Forbore the ant-hill, shunned to tread,",
+    "In mercy, on one little head."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-friends-to-me-are-frozen-wine",
+   "title": "Friends to me are frozen wine",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "Friends to me are frozen wine;",
+    "I wait the sun on them should shine."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-hafiz",
+   "title": "Hafiz",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "Her passions the shy violet",
+    "From Hafiz never hides;",
+    "Love-longings of the raptured bird",
+    "The bird to him confides."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-he-lives-not-who-can-refuse-me",
+   "title": "He lives not who can refuse me",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "He lives not who can refuse me;",
+    "All my force saith, Come and use me:",
+    "A gleam of sun, a summer rain,",
+    "And all the zone is green again."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-he-planted-where-the-deluge-ploughed",
+   "title": "He planted where the deluge ploughed",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "He planted where the deluge ploughed.",
+    "His hired hands were wind and cloud;",
+    "His eyes detect the Gods concealed",
+    "In the hummock of the field."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-ralph-waldo-emerson-his-instant-thought-a-poet-spoke",
+   "title": "His instant thought a poet spoke",
+   "author": "Ralph Waldo Emerson",
+   "lines": [
+    "His instant thought a poet spoke,",
+    "And filled the age his fame;",
+    "An inch of ground the lightning strook",
+    "But lit the sky with flame."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-clouds",
+   "title": "Clouds.",
+   "author": "Robert Herrick",
+   "lines": [
+    "He that ascended in a cloud, shall come",
+    "In clouds descending to the public doom."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-dreams",
+   "title": "Dreams",
+   "author": "Robert Herrick",
+   "lines": [
+    "Here we are all, by day; by night we're hurl'd",
+    "By dreams, each one into a several world."
+   ],
+   "moodTags": [
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-how-primroses-came-green",
+   "title": "How Primroses Came Green.",
+   "author": "Robert Herrick",
+   "lines": [
+    "Virgins, time-past, known were these,",
+    "Troubled with green-sicknesses:",
+    "Turn'd to flowers, still the hue,",
+    "Sickly girls, they bear of you."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-money-makes-the-mirth",
+   "title": "Money Makes The Mirth",
+   "author": "Robert Herrick",
+   "lines": [
+    "When all birds else do of their music fail,",
+    "Money's the still-sweet-singing nightingale!"
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-no-time-in-eternity",
+   "title": "No Time In Eternity.",
+   "author": "Robert Herrick",
+   "lines": [
+    "By hours we all live here; in Heaven is known",
+    "No spring of time, or time's succession."
+   ],
+   "moodTags": [
+    "nature",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-on-a-perfumed-lady",
+   "title": "On A Perfumed Lady",
+   "author": "Robert Herrick",
+   "lines": [
+    "You say you're sweet: how should we know",
+    "Whether that you be sweet or no?",
+    "From powders and perfumes keep free;",
+    "Then we shall smell how sweet you be!"
+   ],
+   "moodTags": [
+    "cozy"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-the-coming-of-good-luck",
+   "title": "The Coming Of Good Luck",
+   "author": "Robert Herrick",
+   "lines": [
+    "So Good-Luck came, and on my roof did light,",
+    "Like noiseless snow, or as the dew of night;",
+    "Not all at once, but gently, as the trees",
+    "Are by the sun-beams, tickled by degrees."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-robert-herrick-the-heart",
+   "title": "The Heart",
+   "author": "Robert Herrick",
+   "lines": [
+    "In prayer the lips ne'er act the winning part",
+    "Without the sweet concurrence of the heart."
+   ],
+   "moodTags": [
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-william-morris-the-orchard",
+   "title": "The Orchard.",
+   "author": "William Morris",
+   "lines": [
+    "Midst bitten mead and acre shorn,",
+    "The world without is waste and worn,",
+    "",
+    "But here within our orchard-close,",
+    "The guerdon of its labour shows.",
+    "",
+    "O valiant Earth, O happy year",
+    "That mocks the threat of winter near,",
+    "",
+    "And hangs aloft from tree to tree",
+    "The banners of the Spring to be."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-william-morris-the-woodpecker",
+   "title": "The Woodpecker.",
+   "author": "William Morris",
+   "lines": [
+    "I once a King and chief",
+    "Now am the tree-bark's thief,",
+    "Ever 'twixt trunk and leaf",
+    "Chasing the prey."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
+  },
+  {
+   "id": "pd-william-wordsworth-the-crescent-moon-the-star-of-love",
+   "title": "The Crescent-Moon, The Star Of Love",
+   "author": "William Wordsworth",
+   "lines": [
+    " The Crescent-moon, the Star of Love,",
+    " Glories of evening, as ye there are seen",
+    " With but a span of sky between",
+    " Speak one of you, my doubts remove,",
+    " Which is the attendant Page and which the Queen?"
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.475
   },
   {
    "id": "pd-algernon-charles-swinburne-blessed-among-women-to-the-signora-cairoli",
@@ -366,6 +2333,95 @@
    "prior": 0.472
   },
   {
+   "id": "pd-james-whitcomb-riley-the-plaint-human",
+   "title": "The Plaint Human",
+   "author": "James Whitcomb Riley",
+   "lines": [
+    "Season of snows, and season of flowers,",
+    "Seasons of loss and gain! -",
+    "Since grief and joy must alike be ours,",
+    "Why do we still complain?",
+    "",
+    "Ever our failing, from sun to sun,",
+    "O my intolerent brother: -",
+    "We want just a little too little of one,",
+    "And much too much of the other."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.471
+  },
+  {
+   "id": "pd-john-greenleaf-whittier-james-russell-lowell",
+   "title": "James Russell Lowell",
+   "author": "John Greenleaf Whittier",
+   "lines": [
+    "From purest wells of English undefiled",
+    "None deeper drank than he, the New World's child,",
+    "Who in the language of their farm-fields spoke",
+    "The wit and wisdom of New England folk,",
+    "Shaming a monstrous wrong. The world-wide laugh",
+    "Provoked thereby might well have shaken half",
+    "The walls of Slavery down, ere yet the ball",
+    "And mine of battle overthrew them all."
+   ],
+   "moodTags": [],
+   "prior": 0.471
+  },
+  {
+   "id": "pd-walt-whitman-joy-shipmate-joy",
+   "title": "Joy, Shipmate, Joy!",
+   "author": "Walt Whitman",
+   "lines": [
+    "Joy! shipmate - joy!",
+    "(Pleas'd to my Soul at death I cry;)",
+    "Our life is closed - our life begins;",
+    "The long, long anchorage we leave,",
+    "The ship is clear at last - she leaps!",
+    "She swiftly courses from the shore;",
+    "Joy! shipmate - joy!"
+   ],
+   "moodTags": [
+    "thoughtful"
+   ],
+   "prior": 0.471
+  },
+  {
+   "id": "pd-emily-bronte-fall-leaves-fall",
+   "title": "Fall, Leaves, Fall",
+   "author": "Emily Bronte",
+   "lines": [
+    "Fall, leaves, fall; die, flowers, away;",
+    "Lengthen night and shorten day;",
+    "Every leaf speaks bliss to me",
+    "Fluttering from the autumn tree.",
+    "",
+    "I shall smile when wreaths of snow",
+    "Blossom where the rose should grow;",
+    "I shall sing when night's decay",
+    "Ushers in a drearier day."
+   ],
+   "moodTags": [
+    "nature",
+    "cozy"
+   ],
+   "prior": 0.47
+  },
+  {
+   "id": "pd-lord-alfred-tennyson-on-one-who-affected-an-effeminate-manner",
+   "title": "On One Who Affected An Effeminate Manner",
+   "author": "Lord Alfred Tennyson",
+   "lines": [
+    "While man and woman still are incomplete,",
+    "I prize that soul where man and woman meet,",
+    "Which types all Natures male and female plan,",
+    "But, friend, man-woman is not woman-man."
+   ],
+   "moodTags": [],
+   "prior": 0.47
+  },
+  {
    "id": "pd-percy-bysshe-shelley-time",
    "title": "Time",
    "author": "Percy Bysshe Shelley",
@@ -387,6 +2443,56 @@
    "prior": 0.469
   },
   {
+   "id": "pd-william-cowper-inscription-for-a-hermitage-in-the-author-s-garden",
+   "title": "Inscription For A Hermitage In The Authors Garden.",
+   "author": "William Cowper",
+   "lines": [
+    "This cabin, Mary, in my sight appears,",
+    "Built as it has been in our waning years,",
+    "A rest afforded to our weary feet,",
+    "Preliminary tothe last retreat."
+   ],
+   "moodTags": [],
+   "prior": 0.469
+  },
+  {
+   "id": "pd-william-wordsworth-how-beautiful-the-queen-of-night",
+   "title": "How Beautiful The Queen Of Night",
+   "author": "William Wordsworth",
+   "lines": [
+    " How beautiful the Queen of Night, on high",
+    " Her way pursuing among scattered clouds,",
+    " Where, ever and anon, her head she shrouds",
+    " Hidden from view in dense obscurity.",
+    " But look, and to the watchful eye",
+    " A brightening edge will indicate that soon",
+    " We shall behold the struggling Moon",
+    " Break forth, again to walk the clear blue sky."
+   ],
+   "moodTags": [
+    "nature"
+   ],
+   "prior": 0.469
+  },
+  {
+   "id": "pd-john-dryden-epitaph-on-mrs-margaret-paston-of-burningham-in-norfolk",
+   "title": "Epitaph On Mrs Margaret Paston, Of Burningham In Norfolk.",
+   "author": "John Dryden",
+   "lines": [
+    "So fair, so young, so innocent, so sweet,",
+    "So ripe a judgment, and so rare a wit,",
+    "Require at least an age in one to meet.",
+    "In her they met; but long they could not stay,",
+    "'Twas gold too fine to mix without allay.",
+    "Heaven's image was in her so well express'd,",
+    "Her very sight upbraided all the rest;",
+    "Too justly ravish'd from an age like this,",
+    "Now she is gone, the world is of a piece."
+   ],
+   "moodTags": [],
+   "prior": 0.468
+  },
+  {
    "id": "pd-john-clare-song",
    "title": "Song",
    "author": "John Clare",
@@ -406,6 +2512,22 @@
    "prior": 0.464
   },
   {
+   "id": "pd-alexander-pope-on-drawings-of-the-statues-of-apollo-venus-and-hercules-made",
+   "title": "On Drawings Of The Statues Of Apollo, Venus, And Hercules, Made For Pope By Sir Godfrey Kneller.",
+   "author": "Alexander Pope",
+   "lines": [
+    "What god, what genius did the pencil move,",
+    "When Kneller painted these?",
+    "'Twas friendship, warm as Phoebus, kind as Love,",
+    "And strong as Hercules."
+   ],
+   "moodTags": [
+    "cozy",
+    "thoughtful"
+   ],
+   "prior": 0.463
+  },
+  {
    "id": "pd-walter-savage-landor-soon-o-ianthe-life-is-o-er",
    "title": "Soon, O Ianthe! Life is o'er",
    "author": "Walter Savage Landor",
@@ -422,1495 +2544,75 @@
    "prior": 0.463
   },
   {
-   "id": "pd-anne-killigrew-st-john-baptist-painted-by-her-self-in-the-wilderness-with-a",
-   "title": "St. John Baptist Painted by her self in the Wilderness, with Angels appearing to him, and with a Lamb by him",
-   "author": "Anne Killigrew",
-   "lines": [
-    "THe Sun's my Fire, when it does shine,",
-    "The hollow Spring's my Cave of Wine,",
-    "The Rocks and Woods afford me Meat;",
-    "This Lamb and I on one Dish eat:",
-    "The neighbouring Herds my Garments send,",
-    "My Pallet the kind Earth doth lend:",
-    "Excess and Grandure I decline,",
-    "M'Associates onely are Divine."
-   ],
-   "moodTags": [],
-   "prior": 0.453
-  },
-  {
-   "id": "pd-stephen-crane-two-or-three-angels",
-   "title": "Two or three angels",
-   "author": "Stephen Crane",
-   "lines": [
-    "Two or three angels",
-    "Came near to the earth.",
-    "They saw a fat church.",
-    "Little black streams of people",
-    "Came and went in continually.",
-    "And the angels were puzzled",
-    "To know why the people went thus,",
-    "And why they stayed so long within."
-   ],
-   "moodTags": [],
-   "prior": 0.45
-  },
-  {
-   "id": "pd-william-allingham-a-memory",
-   "title": "A Memory",
-   "author": "William Allingham",
-   "lines": [
-    "Four ducks on a pond,",
-    "A grass-bank beyond,",
-    "A blue sky of spring,",
-    "White clouds on the wing;",
-    "What a little thing",
-    "To remember for years-",
-    "To remember with tears!"
-   ],
-   "moodTags": [
-    "nature",
-    "thoughtful"
-   ],
-   "prior": 0.45
-  },
-  {
-   "id": "pd-robert-burns-lines-to-an-old-sweetheart",
-   "title": "Lines to an Old Sweetheart",
-   "author": "Robert Burns",
-   "lines": [
-    "ONCE fondly lov'd, and still remember'd dear,",
-    "  Sweet early object of my youthful vows,",
-    "Accept this mark of friendship, warm, sincere,",
-    "  Friendship! 'tis all cold duty now allows.",
-    "And when you read the simple artless rhymes,",
-    "  One friendly sigh for him--he asks no more,",
-    "Who, distant, burns in flaming torrid climes,",
-    "  Or haply lies beneath th' Atlantic roar."
-   ],
-   "moodTags": [],
-   "prior": 0.448
-  },
-  {
-   "id": "pd-william-blake-the-little-boy-lost",
-   "title": "The Little Boy Lost",
-   "author": "William Blake",
-   "lines": [
-    "\"Father, father, where are you going?",
-    "  Oh do not walk so fast!",
-    "Speak, father, speak to your little boy,",
-    "  Or else I shall be lost.\"",
-    "",
-    "The night was dark, no father was there,",
-    "  The child was wet with dew;",
-    "The mire was deep, and the child did weep,",
-    "  And away the vapour flew."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.448
-  },
-  {
-   "id": "pd-walt-whitman-look-down-fair-moon",
-   "title": "Look Down, Fair Moon",
-   "author": "Walt Whitman",
-   "lines": [
-    "LOOK down, fair moon, and bathe this scene;",
-    "Pour softly down night's nimbus floods, on faces ghastly, swollen, purple;",
-    "On the dead, on their backs, with their arms toss'd wide,",
-    "Pour down your unstinted nimbus, sacred moon."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.44
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-impromptu-in-reply-to-a-friend",
-   "title": "Impromptu, in Reply to a Friend",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "When, from the heart where Sorrow sits,",
-    "  Her dusky shadow mounts too high,",
-    "And o'er the changing aspect flits,",
-    "  And clouds the brow, or fills the eye;",
-    "Heed not that gloom, which soon shall sink:",
-    "  My Thoughts their dungeon know too well;",
-    "Back to my breast the Wanderers shrink,",
-    "  And droop within their silent cell."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.439
-  },
-  {
-   "id": "pd-ann-taylor-the-baby-s-dance",
-   "title": "The Baby's Dance",
-   "author": "Ann Taylor",
-   "lines": [
-    "Dance little baby, dance up high,",
-    "Never mind baby, mother is by;",
-    "Crow and caper, caper and crow,",
-    "There little baby, there you go;",
-    "Up to the ceiling, down to the ground,",
-    "Backwards and forwards, round and round;",
-    "Dance little baby, and mother shall sing,",
-    "With the merry coral, ding, ding, ding."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.438
-  },
-  {
-   "id": "pd-william-blake-the-little-boy-found",
-   "title": "The Little Boy Found",
-   "author": "William Blake",
-   "lines": [
-    "The little boy lost in the lonely fen,",
-    "  Led by the wandering light,",
-    "Began to cry, but God, ever nigh,",
-    "  Appeared like his father, in white.",
-    "",
-    "He kissed the child, and by the hand led,",
-    "  And to his mother brought,",
-    "Who in sorrow pale, through the lonely dale,",
-    "  The little boy weeping sought."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.438
-  },
-  {
-   "id": "pd-william-morris-spring",
-   "title": "Spring",
-   "author": "William Morris",
-   "lines": [
-    "Spring am I, too soft of heart",
-    "Much to speak ere I depart:",
-    "Ask the Summer-tide to prove",
-    "The abundance of my love."
-   ],
-   "moodTags": [
-    "nature",
-    "thoughtful"
-   ],
-   "prior": 0.438
-  },
-  {
-   "id": "pd-william-blake-infant-sorrow",
-   "title": "Infant Sorrow",
-   "author": "William Blake",
-   "lines": [
-    "My mother groaned, my father wept:",
-    "Into the dangerous world I leapt,",
-    "Helpless, naked, piping loud,",
-    "Like a fiend hid in a cloud.",
-    "",
-    "Struggling in my father's hands,",
-    "Striving against my swaddling-bands,",
-    "Bound and weary, I thought best",
-    "To sulk upon my mother's breast."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.437
-  },
-  {
-   "id": "pd-john-clare-idle-fame",
-   "title": "Idle Fame",
-   "author": "John Clare",
-   "lines": [
-    "I would not wish the burning blaze",
-    "  Of fame around a restless world,",
-    "The thunder and the storm of praise",
-    "  In crowded tumults heard and hurled.",
-    "I would not be a flower to stand",
-    "  The stare of every passer-bye;",
-    "But in some nook of fairyland,",
-    "  Seen in the praise of beauty's eye."
-   ],
-   "moodTags": [],
-   "prior": 0.436
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-elegy",
-   "title": "Elegy",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "BEHOLD the blessings of a lucky lot!",
-    "My play is damned, and Lady Noel not."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.434
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-a-woman-s-hair",
-   "title": "A Woman's Hair",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "Oh! little lock of golden hue",
-    "  In gently waving ringlet curl'd,",
-    "By the dear head on which you grew,",
-    "  I would not lose you for a world.",
-    "",
-    "Not though a thousand more adorn",
-    "  The polished brow where once you shone,",
-    "Like rays which guild a cloudless sky",
-    "  Beneath Columbia's fervid zone."
-   ],
-   "moodTags": [],
-   "prior": 0.43
-  },
-  {
-   "id": "pd-walt-whitman-the-ship-starting",
-   "title": "The Ship Starting",
-   "author": "Walt Whitman",
-   "lines": [
-    "LO! the unbounded sea!",
-    "On its breast a Ship starting, spreading all her sails--an ample Ship,",
-    "  carrying even her moonsails;",
-    "The pennant is flying aloft, as she speeds, she speeds so stately--below,",
-    "  emulous waves press forward,",
-    "They surround the Ship, with shining curving motions, and foam."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.43
-  },
-  {
-   "id": "pd-william-blake-ah-sunflower",
-   "title": "Ah Sunflower",
-   "author": "William Blake",
-   "lines": [
-    "Ah Sunflower, weary of time,",
-    "  Who countest the steps of the sun;",
-    "Seeking after that sweet golden clime",
-    "  Where the traveller's journey is done;",
-    "",
-    "Where the Youth pined away with desire,",
-    "  And the pale virgin shrouded in snow,",
-    "Arise from their graves, and aspire",
-    "  Where my Sunflower wishes to go!"
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.43
-  },
-  {
-   "id": "pd-stephen-crane-there-was-a-man-who-lived-a-life-of-fire",
-   "title": "There was a man who lived a life of fire",
-   "author": "Stephen Crane",
-   "lines": [
-    "There was a man who lived a life of fire.",
-    "Even upon the fabric of time,",
-    "Where purple becomes orange",
-    "And orange purple,",
-    "This life glowed,",
-    "A dire red stain, indelible;",
-    "Yet when he was dead,",
-    "He saw that he had not lived."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.429
-  },
-  {
-   "id": "pd-walter-savage-landor-god-scatters-beauty",
-   "title": "God Scatters Beauty",
-   "author": "Walter Savage Landor",
-   "lines": [
-    "God scatters beauty as he scatters flowers",
-    "O'er the wide earth, and tells us all are ours.",
-    "A hundred lights in every temple burn,",
-    "And at each shrine I bend my knee in turn."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.429
-  },
-  {
-   "id": "pd-robert-burns-epitaph-on-a-lap-dog",
-   "title": "Epitaph on a Lap-dog",
-   "author": "Robert Burns",
-   "lines": [
-    "IN wood and wild, ye warbling throng,",
-    "  Your heavy loss deplore;",
-    "Now, half extinct your powers of song,",
-    "  Sweet Echo is no more.",
-    "",
-    "Ye jarring, screeching things around,",
-    "  Scream your discordant joys;",
-    "Now, half your din of tuneless sound",
-    "  With Echo silent lies."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.427
-  },
-  {
-   "id": "pd-joyce-kilmer-easter",
-   "title": "Easter",
-   "author": "Joyce Kilmer",
-   "lines": [
-    "The air is like a butterfly",
-    "With frail blue wings.",
-    "The happy earth looks at the sky",
-    "And sings."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.425
-  },
-  {
-   "id": "pd-robert-herrick-peace-not-permanent",
-   "title": "Peace Not Permanent",
-   "author": "Robert Herrick",
-   "lines": [
-    "Great cities seldom rest; if there be none",
-    "T' invade from far, they'll find worse foes at home."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.425
-  },
-  {
-   "id": "pd-percy-bysshe-shelley-farewell-to-north-devon",
-   "title": "Farewell to North Devon",
-   "author": "Percy Bysshe Shelley",
-   "lines": [
-    "Where man's profane and tainting hand",
-    "Nature's primaeval loveliness has marred,",
-    "And some few souls of the high bliss debarred",
-    "Which else obey her powerful command;",
-    "...mountain piles",
-    "That load in grandeur Cambria's emerald vales."
-   ],
-   "moodTags": [],
-   "prior": 0.423
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-epigram-on-an-old-lady-who-had-some-curious-notions-respecti",
-   "title": "Epigram on an Old Lady Who Had Some Curious Notions Respecting the Soul",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "IN Nottingham county there lives at Swan Green,",
-    "  As curst an old Lady as ever was seen;",
-    "And when she does die, which I hope will be soon,",
-    "  She firmly believes she will go to the Moon!"
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.422
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-substitute-for-an-epitaph",
-   "title": "Substitute for an Epitaph",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "KIND Reader! take your choice to cry or laugh;",
-    "Here HAROLD lies--but where's his Epitaph?",
-    "If such you seek, try Westminster, and view",
-    "Ten thousand just as fit for him as you."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.422
-  },
-  {
-   "id": "pd-robert-louis-stevenson-the-angler-rose-he-took-his-rod",
-   "title": "The Angler Rose, He Took His Rod",
-   "author": "Robert Louis Stevenson",
-   "lines": [
-    "THE angler rose, he took his rod,",
-    "He kneeled and made his prayers to God.",
-    "The living God sat overhead:",
-    "The angler tripped, the eels were fed"
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.416
-  },
-  {
-   "id": "pd-william-blake-the-shepherd",
-   "title": "The Shepherd",
-   "author": "William Blake",
-   "lines": [
-    "How sweet is the Shepherd's sweet lot!",
-    "From the morn to the evening he stays;",
-    "He shall follow his sheep all the day,",
-    "And his tongue shall be filled with praise.",
-    "",
-    "For he hears the lambs' innocent call,",
-    "And he hears the ewes' tender reply;",
-    "He is watching while they are in peace,",
-    "For they know when their Shepherd is nigh."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.414
-  },
-  {
-   "id": "pd-william-blake-the-lily",
-   "title": "The Lily",
-   "author": "William Blake",
-   "lines": [
-    "The modest Rose puts forth a thorn,",
-    "The humble sheep a threat'ning horn:",
-    "While the Lily white shall in love delight,",
-    "Nor a thorn nor a threat stain her beauty bright."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.413
-  },
-  {
-   "id": "pd-alexander-pope-epitaph-for-one-who-would-not-be-buried-in-westminster-abbey",
-   "title": "Epitaph. For One Who Would Not Be Buried in Westminster Abbey.",
-   "author": "Alexander Pope",
-   "lines": [
-    "Heroes and kings! your distance keep:",
-    "In peace let one poor poet sleep,",
-    "Who never flatter'd folks like you:",
-    "Let Horace blush, and Virgil too."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.41
-  },
-  {
-   "id": "pd-george-eliot-roses",
-   "title": "Roses",
-   "author": "George Eliot",
-   "lines": [
-    "You love the roses - so do I. I wish",
-    "The sky would rain down roses, as they rain",
-    "From off the shaken bush. Why will it not?",
-    "Then all the valley would be pink and white",
-    "And soft to tread on. They would fall as light",
-    "As feathers, smelling sweet; and it would be",
-    "Like sleeping and like waking, all at once!"
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.41
-  },
-  {
-   "id": "pd-percy-bysshe-shelley-a-hate-song",
-   "title": "A Hate-Song",
-   "author": "Percy Bysshe Shelley",
-   "lines": [
-    "A hater he came and sat by a ditch,",
-    "And he took an old cracked lute;",
-    "And he sang a song which was more of a screech",
-    "'Gainst a woman that was a brute."
-   ],
-   "moodTags": [],
-   "prior": 0.408
-  },
-  {
-   "id": "pd-percy-bysshe-shelley-the-waning-moon",
-   "title": "The Waning Moon",
-   "author": "Percy Bysshe Shelley",
-   "lines": [
-    "And like a dying lady, lean and pale,",
-    "Who totters forth, wrapped in a gauzy veil,",
-    "Out of her chamber, led by the insane",
-    "And feeble wanderings of her fading brain,",
-    "The moon arose up in the murky East,",
-    "A white and shapeless mass--"
-   ],
-   "moodTags": [],
-   "prior": 0.408
-  },
-  {
-   "id": "pd-robert-herrick-the-parliament-of-roses-to-julia",
-   "title": "The Parliament of Roses to Julia",
-   "author": "Robert Herrick",
-   "lines": [
-    "I dreamt the Roses one time went",
-    "To meet and sit in Parliament;",
-    "The place for these, and for the rest",
-    "Of flowers, was thy spotless breast.",
-    "Over the which a state was drawn",
-    "Of tiffany, or cob-web lawn;",
-    "Then in that Parly all those powers",
-    "Voted the Rose the Queen of flowers;",
-    "But so, as that herself should be",
-    "The Maid of Honour unto thee."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.408
-  },
-  {
-   "id": "pd-walter-savage-landor-the-evening-star",
-   "title": "The Evening Star",
-   "author": "Walter Savage Landor",
-   "lines": [
-    "Smiles soon abate; the boisterous throes",
-    "Of anger long burst forth;",
-    "Inconstantly the south-wind blows,",
-    "But steadily the north.",
-    "",
-    "Thy star, O Venus! often changes",
-    "Its radiant seat above,",
-    "The chilling pole-star never ranges --",
-    "'Tis thus with Hate and Love."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.407
-  },
-  {
-   "id": "pd-john-dryden-happy-the-man",
-   "title": "Happy the Man",
-   "author": "John Dryden",
-   "lines": [
-    "Happy the man, and happy he alone,",
-    "He who can call today his own:",
-    "He who, secure within, can say,",
-    "Tomorrow do thy worst, for I have lived today.",
-    "Be fair or foul or rain or shine",
-    "The joys I have possessed, in spite of fate, are mine.",
-    "Not Heaven itself upon the past has power,",
-    "But what has been, has been, and I have had my hour."
-   ],
-   "moodTags": [],
-   "prior": 0.404
-  },
-  {
-   "id": "pd-christina-rossetti-is-it-well-with-the-child",
-   "title": "Is it Well with the Child?",
-   "author": "Christina Rossetti",
-   "lines": [
-    "SAFE where I cannot die yet,",
-    "   Safe where I hope to lie too,",
-    "Safe from the fume and the fret;",
-    "   You, and you,",
-    "   Whom I never forget.",
-    "Safe from the frost and the snow,",
-    "   Safe from the storm and the sun,",
-    "Safe where the seeds wait to grow",
-    "   One by one,",
-    "   And to come back in blow."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.399
-  },
-  {
-   "id": "pd-anne-kingsmill-finch-hope",
+   "id": "pd-thomas-campbell-hope",
    "title": "Hope",
-   "author": "Anne Kingsmill Finch",
+   "author": "Thomas Campbell",
    "lines": [
-    "The Tree of Knowledge we in Eden prov'd;",
-    "The Tree of Life was thence to Heav'n remov'd:",
-    "Hope is the growth of Earth, the only Plant,",
-    "Which either Heav'n, or Paradise cou'd want.",
-    "",
-    "Hell knows it not, to Us alone confin'd,",
-    "And Cordial only to the Human Mind.",
-    "Receive it then, t'expel these mortal Cares,",
-    "Nor wave a Med'cine, which thy God prepares."
+    "At summer eve, when heaven's aerial bow",
+    "Spans with bright arch the glittering hills below,",
+    "Why to yon mountain turns the musing eye,",
+    "Whose sunbright summit mingles with the sky?",
+    "Why do those cliffs of shadowy tint appear",
+    "More sweet than all the landscape smiling near?",
+    "'Tis distance lends enchantment to the view,",
+    "And robes the mountain in its azure hue."
    ],
    "moodTags": [
-    "nature",
+    "nature"
+   ],
+   "prior": 0.462
+  },
+  {
+   "id": "pd-robert-herrick-like-loves-his-like",
+   "title": "Like Loves His Like.",
+   "author": "Robert Herrick",
+   "lines": [
+    "Like will to like, each creature loves his kind;",
+    "Chaste words proceed still from a bashful mind."
+   ],
+   "moodTags": [
+    "cozy",
     "thoughtful"
    ],
-   "prior": 0.395
+   "prior": 0.461
   },
   {
-   "id": "pd-walt-whitman-primeval-my-love-for-the-woman-i-love",
-   "title": "Primeval my Love for the Woman I Love",
-   "author": "Walt Whitman",
+   "id": "pd-william-cowper-another-comparison-addressed-to-a-young-lady",
+   "title": "Another Comparison. Addressed To A Young Lady.",
+   "author": "William Cowper",
    "lines": [
-    "PRIMEVAL my love for the woman I love,",
-    "O bride! O wife! more resistless, more enduring than I can tell, the thought of you!",
-    "Then separate, as disembodied, the purest born,",
-    "The ethereal, the last athletic reality, my consolation,",
-    "I ascend--I float in the regions of your love, O man,",
-    "O sharer of my roving life."
+    "Sweet stream that winds through yonder glade,",
+    "Apt emblem of a virtuous maid",
+    "Silent and chaste she steals along,",
+    "Far from the worlds gay busy throng;",
+    "With gentle yet prevailing force,",
+    "Intent upon her destined course;",
+    "Graceful and useful all she does,",
+    "Blessing and blest whereer she goes.",
+    "Pure-bosomd as that watery glass,",
+    "And heaven reflected in her face."
    ],
    "moodTags": [],
-   "prior": 0.395
+   "prior": 0.461
   },
   {
-   "id": "pd-percy-bysshe-shelley-kissing-helena",
-   "title": "Kissing Helena",
-   "author": "Percy Bysshe Shelley",
-   "lines": [
-    "FROM THE GREEK OF PLATO.",
-    "",
-    "Kissing Helena, together",
-    "With my kiss, my soul beside it",
-    "Came to my lips, and there I kept it,--",
-    "For the poor thing had wandered thither,",
-    "To follow where the kiss should guide it,",
-    "Oh, cruel I, to intercept it!"
-   ],
-   "moodTags": [],
-   "prior": 0.394
-  },
-  {
-   "id": "pd-alexander-pope-epitaph-intended-for-sir-isaac-newton-in-westminster-abbey",
-   "title": "Epitaph. Intended for Sir Isaac Newton, in Westminster Abbey.",
-   "author": "Alexander Pope",
-   "lines": [
-    "    ISAACUS NEWTONUS:",
-    "    QUEM IMMORTALEM",
-    "TESTANTUR TEMPUS, NATURA, COELUM:",
-    "      MORTALEM",
-    "    HOC MARMOR FATETUR.",
-    "",
-    "Nature and Nature's laws lay hid in night",
-    "God said, Let Newton be! and all was light."
-   ],
-   "moodTags": [],
-   "prior": 0.386
-  },
-  {
-   "id": "pd-walt-whitman-locations-and-times",
-   "title": "Locations and Times",
-   "author": "Walt Whitman",
-   "lines": [
-    "LOCATIONS and times--what is it in me that meets them all, whenever and wherever, and",
-    "    makes",
-    "  me at home?",
-    "Forms, colors, densities, odors--what is it in me that corresponds with them?"
-   ],
-   "moodTags": [],
-   "prior": 0.385
-  },
-  {
-   "id": "pd-robert-burns-epitaph-on-my-ever-honoured-father",
-   "title": "Epitaph on my Ever Honoured Father",
+   "id": "pd-robert-burns-on-a-country-laird",
+   "title": "On A Country Laird.",
    "author": "Robert Burns",
    "lines": [
-    "O YE whose cheek the tear of pity stains,",
-    "  Draw near with pious rev'rence, and attend!",
-    "Here lie the loving husband's dear remains,",
-    "  The tender father, and the gen'rous friend;",
-    "The pitying heart that felt for human woe,",
-    "  The dauntless heart that fear'd no human pride;",
-    "The friend of man-to vice alone a foe;",
-    "  For \"ev'n his failings lean'd to virtue's side.\""
+    "Bless Jesus Christ, O Cardoness,",
+    "With grateful lifted eyes,",
+    "Who said that not the soul alone",
+    "But body too, must rise:",
+    "For had he said, \"the soul alone",
+    "From death I will deliver;\"",
+    "Alas! alas! O Cardoness,",
+    "Then thou hadst slept for ever."
    ],
    "moodTags": [
     "thoughtful"
    ],
-   "prior": 0.384
-  },
-  {
-   "id": "pd-sidney-lanier-souls-and-rain-drops",
-   "title": "Souls and Rain-Drops",
-   "author": "Sidney Lanier",
-   "lines": [
-    "Light rain-drops fall and wrinkle the sea,",
-    "Then vanish, and die utterly.",
-    "One would not know that rain-drops fell",
-    "If the round sea-wrinkles did not tell.",
-    "",
-    "So souls come down and wrinkle life",
-    "And vanish in the flesh-sea strife.",
-    "One might not know that souls had place",
-    "Were't not for the wrinkles in life's face."
-   ],
-   "moodTags": [
-    "nature",
-    "thoughtful"
-   ],
-   "prior": 0.383
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-lines-written-in-letters-of-an-italian-nun-and-an-english-ge",
-   "title": "Lines Written in \"Letters of an Italian Nun and an English Gentleman, by J. J. Rousseau; Founded on Facts.\"",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "\"Away, away,--your flattering arts",
-    "May now betray some simpler hearts;",
-    "And you will smile at their believing,",
-    "And they shall weep at your deceiving.\""
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.38
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-my-epitaph",
-   "title": "My Epitaph",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "YOUTH, Nature, and relenting Jove,",
-    "To keep my lamp in strongly strove;",
-    "But Romanelli was so stout,",
-    "He beat all three--and blew it out."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.38
-  },
-  {
-   "id": "pd-edgar-allan-poe-to",
-   "title": "To----",
-   "author": "Edgar Allan Poe",
-   "lines": [
-    "I heed not that my earthly lot",
-    "  Hath--little of Earth in it--",
-    "That years of love have been forgot",
-    "  In the hatred of a minute:--",
-    "I mourn not that the desolate",
-    "  Are happier, sweet, than I,",
-    "But that you sorrow for my fate",
-    "  Who am a passer-by."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.379
-  },
-  {
-   "id": "pd-robert-herrick-upon-roses",
-   "title": "Upon Roses",
-   "author": "Robert Herrick",
-   "lines": [
-    "Under a lawn, than skies more clear,",
-    "Some ruffled Roses nestling were,",
-    "And snugging there, they seem'd to lie",
-    "As in a flowery nunnery;",
-    "They blush'd, and look'd more fresh than flowers",
-    "Quickened of late by pearly showers;",
-    "And all, because they were possest",
-    "But of the heat of Julia's breast,",
-    "Which, as a warm and moisten'd spring,",
-    "Gave them their ever-flourishing."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.377
-  },
-  {
-   "id": "pd-george-gordon-lord-byron-on-my-thirty-third-birthday",
-   "title": "On My Thirty-Third Birthday",
-   "author": "George Gordon, Lord Byron",
-   "lines": [
-    "THROUGH Life's dull road, so dim and dirty,",
-    "I have dragged to three-and-thirty.",
-    "What have these years left to me?",
-    "Nothing--except thirty-three."
-   ],
-   "moodTags": [],
-   "prior": 0.376
-  },
-  {
-   "id": "pd-joyce-kilmer-thanksgiving",
-   "title": "Thanksgiving",
-   "author": "Joyce Kilmer",
-   "lines": [
-    "(For John Bunker)",
-    "",
-    "The roar of the world is in my ears.",
-    "Thank God for the roar of the world!",
-    "Thank God for the mighty tide of fears",
-    "Against me always hurled!",
-    "Thank God for the bitter and ceaseless strife,",
-    "And the sting of His chastening rod!",
-    "Thank God for the stress and the pain of life,",
-    "And Oh, thank God for God!"
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.375
-  },
-  {
-   "id": "pd-robert-burns-epigram-on-francis-grose-the-antiquary",
-   "title": "Epigram on Francis Grose the Antiquary",
-   "author": "Robert Burns",
-   "lines": [
-    "THE DEVIL got notice that Grose was a-dying",
-    "So whip! at the summons, old Satan came flying;",
-    "But when he approached where poor Francis lay moaning,",
-    "And saw each bed-post with its burthen a-groaning,",
-    "Astonish'd, confounded, cries Satan--\"By G--,",
-    "I'll want him, ere I take such a damnable load!\""
-   ],
-   "moodTags": [],
-   "prior": 0.37
-  },
-  {
-   "id": "pd-walt-whitman-what-general-has-a-good-army",
-   "title": "What General has a Good Army",
-   "author": "Walt Whitman",
-   "lines": [
-    "WHAT General has a good army in himself, has a good army;",
-    "He happy in himself, or she happy in herself, is happy,",
-    "But I tell you you cannot be happy by others, any more than you can beget or conceive a",
-    "    child",
-    "  by others."
-   ],
-   "moodTags": [],
-   "prior": 0.369
-  },
-  {
-   "id": "pd-richard-crashaw-divine-epigrams-to-our-lord-upon-the-water-made-wine",
-   "title": "Divine Epigrams: To our Lord, upon the Water Made Wine",
-   "author": "Richard Crashaw",
-   "lines": [
-    "Thou water turn'st to wine, fair friend of life,",
-    "Thy foe, to cross the sweet arts of thy reign,",
-    "Distills from thence the tears of wrath and strife,",
-    "And so turns wine to water back again."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.368
-  },
-  {
-   "id": "pd-stephen-crane-i-was-in-the-darkness",
-   "title": "I was in the darkness",
-   "author": "Stephen Crane",
-   "lines": [
-    "I was in the darkness;",
-    "I could not see my words",
-    "Nor the wishes of my heart.",
-    "Then suddenly there was a great light --",
-    "",
-    "\"Let me into the darkness again.\""
-   ],
-   "moodTags": [],
-   "prior": 0.366
-  },
-  {
-   "id": "pd-stephen-crane-once-i-saw-mountains-angry",
-   "title": "Once I saw mountains angry",
-   "author": "Stephen Crane",
-   "lines": [
-    "Once I saw mountains angry,",
-    "And ranged in battle-front.",
-    "Against them stood a little man;",
-    "Aye, he was no bigger than my finger.",
-    "I laughed, and spoke to one near me,",
-    "\"Will he prevail?\"",
-    "\"Surely,\" replied this other;",
-    "\"His grandfathers beat them many times.\"",
-    "Then did I see much virtue in grandfathers --",
-    "At least, for the little man",
-    "Who stood against the mountains."
-   ],
-   "moodTags": [],
-   "prior": 0.362
-  },
-  {
-   "id": "pd-walter-savage-landor-mother-i-cannot-mind-my-wheel",
-   "title": "Mother, I cannot mind my Wheel",
-   "author": "Walter Savage Landor",
-   "lines": [
-    "MOTHER, I cannot mind my wheel;",
-    "   My fingers ache, my lips are dry:",
-    "O, if you felt the pain I feel!",
-    "   But O, who ever felt as I?",
-    "",
-    "No longer could I doubt him true--",
-    "   All other men may use deceit;",
-    "He always said my eyes were blue,",
-    "   And often swore my lips were sweet."
-   ],
-   "moodTags": [],
-   "prior": 0.358
-  },
-  {
-   "id": "pd-john-keats-give-me-women-wine-and-snuff",
-   "title": "Give Me Women, Wine, and Snuff",
-   "author": "John Keats",
-   "lines": [
-    "GIVE me women, wine, and snuff",
-    "Untill I cry out \"hold, enough!\"",
-    "You may do so sans objection",
-    "Till the day of resurrection:",
-    "For, bless my beard, they aye shall be",
-    "My beloved Trinity."
-   ],
-   "moodTags": [],
-   "prior": 0.35
-  },
-  {
-   "id": "pd-robert-herrick-upon-a-child",
-   "title": "Upon a Child",
-   "author": "Robert Herrick",
-   "lines": [
-    "Here a pretty baby lies",
-    "Sung asleep with lullabies;",
-    "Pray be silent, and not stir",
-    "Th' easy earth that covers her."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.345
-  },
-  {
-   "id": "pd-robert-burns-epitaph-for-william-nicol-high-school-edinburgh",
-   "title": "Epitaph for William Nicol, High School, Edinburgh",
-   "author": "Robert Burns",
-   "lines": [
-    "YE maggots, feed on Nicol's brain,",
-    "  For few sic feasts you've gotten;",
-    "And fix your claws in Nicol's heart,",
-    "  For deil a bit o't's rotten."
-   ],
-   "moodTags": [],
-   "prior": 0.341
-  },
-  {
-   "id": "pd-walter-savage-landor-on-his-seventy-fifth-birthday",
-   "title": "On His Seventy-fifth Birthday",
-   "author": "Walter Savage Landor",
-   "lines": [
-    "I strove with none, for none was worth my strife;",
-    "Nature I loved, and next to Nature, Art;",
-    "I warmed both hands before the fire of Life;",
-    "It sinks, and I am ready to depart."
-   ],
-   "moodTags": [],
-   "prior": 0.34
-  },
-  {
-   "id": "pd-william-blake-a-divine-image",
-   "title": "A Divine Image",
-   "author": "William Blake",
-   "lines": [
-    "Cruelty has a human heart,",
-    "  And Jealousy a human face;",
-    "Terror the human form divine,",
-    "  And Secresy the human dress.",
-    "",
-    "The human dress is forged iron,",
-    "  The human form a fiery forge,",
-    "The human face a furnace sealed,",
-    "  The human heart its hungry gorge."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.34
-  },
-  {
-   "id": "pd-mary-elizabeth-coleridge-we-never-said-farewell",
-   "title": "We Never Said Farewell",
-   "author": "Mary Elizabeth Coleridge",
-   "lines": [
-    "WE never said farewell, nor even looked",
-    "Our last upon each other, for no sign",
-    "Was made when we the linked chain unhooked",
-    "And broke the level line.",
-    "",
-    "And here we dwell together, side by side,",
-    "Our places fixed for life upon the chart.",
-    "Two islands that the roaring seas divide",
-    "Are not more far apart."
-   ],
-   "moodTags": [],
-   "prior": 0.336
-  },
-  {
-   "id": "pd-stephen-crane-in-a-lonely-place",
-   "title": "In a lonely place,",
-   "author": "Stephen Crane",
-   "lines": [
-    "In a lonely place,",
-    "I encountered a sage",
-    "Who sat, all still,",
-    "Regarding a newspaper.",
-    "He accosted me:",
-    "\"Sir, what is this?\"",
-    "Then I saw that I was greater,",
-    "Aye, greater than this sage.",
-    "I answered him at once,",
-    "\"Old, old man, it is the wisdom of the age.\"",
-    "The sage looked upon me with admiration."
-   ],
-   "moodTags": [],
-   "prior": 0.336
-  },
-  {
-   "id": "pd-robert-herrick-why-flowers-change-colour",
-   "title": "Why Flowers Change Colour",
-   "author": "Robert Herrick",
-   "lines": [
-    "These fresh beauties, we can prove,",
-    "Once were virgins, sick of love,",
-    "Turn'd to flowers: still in some,",
-    "Colours go and colours come."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.333
-  },
-  {
-   "id": "pd-robert-louis-stevenson-to-friends-at-home",
-   "title": "To Friends at Home",
-   "author": "Robert Louis Stevenson",
-   "lines": [
-    "TO friends at home, the lone, the admired, the lost",
-    "The gracious old, the lovely young, to May",
-    "The fair, December the beloved,",
-    "These from my blue horizon and green isles,",
-    "These from this pinnacle of distances I,",
-    "The unforgetful, dedicate."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.333
-  },
-  {
-   "id": "pd-stephen-crane-supposing-that-i-should-have-the-courage",
-   "title": "Supposing that I should have the courage",
-   "author": "Stephen Crane",
-   "lines": [
-    "Supposing that I should have the courage",
-    "To let a red sword of virtue",
-    "Plunge into my heart,",
-    "Letting to the weeds of the ground",
-    "My sinful blood,",
-    "What can you offer me?",
-    "A gardened castle?",
-    "A flowery kingdom?",
-    "",
-    "What? A hope?",
-    "Then hence with your red sword of virtue."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.33
-  },
-  {
-   "id": "pd-robert-louis-stevenson-to-my-mother",
-   "title": "To My Mother",
-   "author": "Robert Louis Stevenson",
-   "lines": [
-    "You too, my mother, read my rhymes",
-    "For love of unforgotten times,",
-    "And you may chance to hear once more",
-    "The little feet along the floor."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.329
-  },
-  {
-   "id": "pd-walt-whitman-beautiful-women",
-   "title": "Beautiful Women",
-   "author": "Walt Whitman",
-   "lines": [
-    "WOMEN sit, or move to and fro--some old, some young;",
-    "The young are beautiful--but the old are more beautiful than the young."
-   ],
-   "moodTags": [],
-   "prior": 0.325
-  },
-  {
-   "id": "pd-stephen-crane-and-the-sins-of-the-fathers-shall-be",
-   "title": "\"And the sins of the fathers shall be\"",
-   "author": "Stephen Crane",
-   "lines": [
-    "\"And the sins of the fathers shall be",
-    "visited upon the heads of the children,",
-    "even unto the third and fourth",
-    "generation of them that hate me.\"",
-    "",
-    "Well, then I hate thee, unrighteous picture;",
-    "Wicked image, I hate thee;",
-    "So, strike with thy vengeance",
-    "The heads of those little men",
-    "Who come blindly.",
-    "It will be a brave thing."
-   ],
-   "moodTags": [],
-   "prior": 0.322
-  },
-  {
-   "id": "pd-robert-louis-stevenson-light-as-the-linnet-on-my-way-i-start",
-   "title": "Light As the Linnet on My Way I Start",
-   "author": "Robert Louis Stevenson",
-   "lines": [
-    "LIGHT as the linnet on my way I start,",
-    "For all my pack I bear a chartered heart.",
-    "Forth on the world without a guide or chart,",
-    "Content to know, through all man's varying fates,",
-    "The eternal woman by the wayside waits."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.317
-  },
-  {
-   "id": "pd-robert-herrick-to-the-water-nymphs-drinking-at-the-fountain",
-   "title": "To the Water-Nymphs Drinking at the Fountain",
-   "author": "Robert Herrick",
-   "lines": [
-    "Reach with your whiter hands to me",
-    "Some crystal of the spring;",
-    "And I about the cup shall see",
-    "Fresh lilies flourishing.",
-    "",
-    "Or else, sweet nymphs, do you but this--",
-    "To th' glass your lips incline;",
-    "And I shall see by that one kiss",
-    "The water turn'd to wine."
-   ],
-   "moodTags": [],
-   "prior": 0.315
-  },
-  {
-   "id": "pd-robert-herrick-the-succession-of-the-four-sweet-months",
-   "title": "The Succession of the Four Sweet Months",
-   "author": "Robert Herrick",
-   "lines": [
-    "First, April, she with mellow showers",
-    "Opens the way for early flowers;",
-    "Then after her comes smiling May,",
-    "In a more rich and sweet array;",
-    "Next enters June, and brings us more",
-    "Gems than those two that went before;",
-    "Then, lastly, July comes, and she",
-    "More wealth brings in than all those three."
-   ],
-   "moodTags": [],
-   "prior": 0.311
-  },
-  {
-   "id": "pd-robert-herrick-grace-for-a-child",
-   "title": "Grace for a Child",
-   "author": "Robert Herrick",
-   "lines": [
-    "Here, a little child, I stand,",
-    "Heaving up my either hand:",
-    "Cold as paddocks though they be,",
-    "Here I lift them up to thee,",
-    "For a benison to fall",
-    "On our meat, and on us all.",
-    "Amen."
-   ],
-   "moodTags": [
-    "cozy"
-   ],
-   "prior": 0.309
-  },
-  {
-   "id": "pd-robert-louis-stevenson-farewell",
-   "title": "Farewell",
-   "author": "Robert Louis Stevenson",
-   "lines": [
-    "FAREWELL, and when forth",
-    "I through the Golden Gates to Golden Isles",
-    "Steer without smiling, through the sea of smiles,",
-    "Isle upon isle, in the seas of the south,",
-    "Isle upon island, sea upon sea,",
-    "Why should I sail, why should the breeze?",
-    "I have been young, and I have counted friends.",
-    "A hopeless sail I spread, too late, too late.",
-    "Why should I from isle to isle",
-    "Sail, a hopeless sailor?"
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.308
-  },
-  {
-   "id": "pd-robert-herrick-the-old-wives-prayer",
-   "title": "The Old Wives' Prayer",
-   "author": "Robert Herrick",
-   "lines": [
-    "Holy-Rood, come forth and shield",
-    "Us i' th' city and the field;",
-    "Safely guard us, now and aye,",
-    "From the blast that burns by day;",
-    "And those sounds that us affright",
-    "In the dead of dampish night;",
-    "Drive all hurtful fiends us fro,",
-    "By the time the cocks first crow."
-   ],
-   "moodTags": [],
-   "prior": 0.305
-  },
-  {
-   "id": "pd-robert-herrick-to-enjoy-the-time",
-   "title": "To Enjoy the Time",
-   "author": "Robert Herrick",
-   "lines": [
-    "While fates permit us, let's be merry;",
-    "Pass all we must the fatal ferry;",
-    "And this our life, too, whirls away,",
-    "With the rotation of the day."
-   ],
-   "moodTags": [],
-   "prior": 0.299
-  },
-  {
-   "id": "pd-ben-jonson-it-is-not-growing-like-a-tree",
-   "title": "It Is Not Growing Like a Tree",
-   "author": "Ben Jonson",
-   "lines": [
-    "It is not growing like a tree",
-    "In bulk doth make Man better be;",
-    "Or standing long an oak, three hundred year,",
-    "To fall a log at last, dry, bald, and sere:",
-    "A lily of a day",
-    "Is fairer far in May,",
-    "Although it fall and die that night--",
-    "It was the plant and flower of light.",
-    "In small proportions we just beauties see;",
-    "And in short measures life may perfect be."
-   ],
-   "moodTags": [
-    "nature"
-   ],
-   "prior": 0.289
-  },
-  {
-   "id": "pd-henry-david-thoreau-my-life-has-been-the-poem",
-   "title": "My life has been the poem",
-   "author": "Henry David Thoreau",
-   "lines": [
-    "My life has been the poem I would have writ,",
-    "But I could not both live and utter it."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.281
-  },
-  {
-   "id": "pd-walter-savage-landor-autumn",
-   "title": "Autumn",
-   "author": "Walter Savage Landor",
-   "lines": [
-    "MILD is the parting year, and sweet",
-    "   The odour of the falling spray;",
-    "Life passes on more rudely fleet,",
-    "   And balmless is its closing day.",
-    "",
-    "I wait its close, I court its gloom,",
-    "   But mourn that never must there fall",
-    "Or on my breast or on my tomb",
-    "   The tear that would have soothed it all."
-   ],
-   "moodTags": [],
-   "prior": 0.277
-  },
-  {
-   "id": "pd-robert-burns-epitaph-for-mr-william-michie-schoolmaster",
-   "title": "Epitaph for Mr. William Michie, Schoolmaster",
-   "author": "Robert Burns",
-   "lines": [
-    "HERE lie Willie Michie's banes;",
-    "  O Satan, when ye tak him,",
-    "Gie him the schulin o' your weans,",
-    "  For clever deils he'll mak them!"
-   ],
-   "moodTags": [],
-   "prior": 0.275
-  },
-  {
-   "id": "pd-robert-louis-stevenson-happy-thought",
-   "title": "Happy Thought",
-   "author": "Robert Louis Stevenson",
-   "lines": [
-    "The world is so full of a number of things,",
-    "I'm sure we should all be as happy as kings."
-   ],
-   "moodTags": [
-    "thoughtful"
-   ],
-   "prior": 0.275
-  },
-  {
-   "id": "pd-sir-walter-raleigh-life",
-   "title": "Life",
-   "author": "Sir Walter Raleigh",
-   "lines": [
-    "What is our life? A play of passion,",
-    "Our mirth the music of division,",
-    "Our mother's wombs the tiring-houses be,",
-    "Where we are dressed for this short comedy.",
-    "Heaven the judicious sharp spectator is,",
-    "That sits and marks still who doth act amiss.",
-    "Our graves that hide us from the setting sun",
-    "Are like drawn curtains when the play is done.",
-    "Thus march we, playing, to our latest rest,",
-    "Only we die in earnest, that's no jest."
-   ],
-   "moodTags": [],
-   "prior": 0.265
-  },
-  {
-   "id": "pd-richard-crashaw-on-the-miracle-of-the-multiplied-loaves",
-   "title": "On the Miracle of the Multiplied Loaves",
-   "author": "Richard Crashaw",
-   "lines": [
-    "See here an easy feast that knows no wound,",
-    "That under hunger's teeth will needs be sound;",
-    "A subtle harvest of unbounded bread,",
-    "What would ye more? Here food itself is fed."
-   ],
-   "moodTags": [],
-   "prior": 0.262
-  },
-  {
-   "id": "pd-paul-laurence-dunbar-encouraged",
-   "title": "Encouraged",
-   "author": "Paul Laurence Dunbar",
-   "lines": [
-    "Because you love me I have much achieved,",
-    "Had you despised me then I must have failed,",
-    "But since I knew you trusted and believed,",
-    "I could not disappoint you and so prevailed."
-   ],
-   "moodTags": [],
-   "prior": 0.26
-  },
-  {
-   "id": "pd-alexander-pope-epitaph-on-mrs-corbet-who-died-of-a-cancer-in-her-breast",
-   "title": "Epitaph. On Mrs Corbet, Who Died of a Cancer in Her Breast.",
-   "author": "Alexander Pope",
-   "lines": [
-    "Here rests a woman, good without pretence,",
-    "Blest with plain reason, and with sober sense:",
-    "No conquests she, but o'er herself, desired,",
-    "No arts essay'd, but not to be admired.",
-    "Passion and pride were to her soul unknown,",
-    "Convinced that virtue only is our own.",
-    "So unaffected, so composed a mind;",
-    "So firm, yet soft; so strong, yet so refined;",
-    "Heaven, as its purest gold, by tortures tried;",
-    "The saint sustain'd it, but the woman died."
-   ],
-   "moodTags": [],
-   "prior": 0.258
-  },
-  {
-   "id": "pd-william-blake-thel-s-motto",
-   "title": "Thel's Motto",
-   "author": "William Blake",
-   "lines": [
-    "Does the Eagle know what is in the pit?",
-    "Or wilt thou go ask the Mole:",
-    "Can Wisdom be put in a silver rod?",
-    "Or Love in a golden bowl?"
-   ],
-   "moodTags": [],
-   "prior": 0.256
-  },
-  {
-   "id": "pd-walter-savage-landor-on-his-eightieth-birthday",
-   "title": "On His Eightieth Birthday",
-   "author": "Walter Savage Landor",
-   "lines": [
-    "To my ninth decade I have tottered on,",
-    "And no soft arm bends now my steps to steady;",
-    "She, who once led me where she would, is gone,",
-    "So when he calls me, Death shall find me ready."
-   ],
-   "moodTags": [],
-   "prior": 0.25
-  },
-  {
-   "id": "pd-alexander-pope-epitaph-on-sir-godfrey-kneller-in-westminster-abbey-1723",
-   "title": "Epitaph. On Sir Godfrey Kneller, in Westminster Abbey, 1723.",
-   "author": "Alexander Pope",
-   "lines": [
-    "Kneller, by Heaven, and not a master, taught,",
-    "Whose art was Nature, and whose pictures Thought;",
-    "Now for two ages having snatch'd from Fate",
-    "Whate'er was beauteous, or whate'er was great,",
-    "Lies crown'd with princes' honours, poets' lays,",
-    "Due to his merit, and brave thirst of praise.",
-    "",
-    "Living, great Nature fear'd he might outvie",
-    "Her works; and, dying, fears herself may die."
-   ],
-   "moodTags": [],
-   "prior": 0.235
-  },
-  {
-   "id": "pd-walter-savage-landor-on-an-eclipse-of-the-moon",
-   "title": "On an Eclipse of the Moon",
-   "author": "Walter Savage Landor",
-   "lines": [
-    "Struggling, and faint, and fainter didst thou wane,",
-    "O Moon! and round thee all thy starry train",
-    "Came forth to help thee, with half-open eyes,",
-    "And trembled every one with still surprise,",
-    "That the black Spectre should have dared assail",
-    "Their beauteous queen and seize her sacred veil"
-   ],
-   "moodTags": [],
-   "prior": 0.226
-  },
-  {
-   "id": "pd-robert-louis-stevenson-away-with-funeral-music",
-   "title": "Away with Funeral Music",
-   "author": "Robert Louis Stevenson",
-   "lines": [
-    "AWAY with funeral music - set",
-    "The pipe to powerful lips -",
-    "The cup of life's for him that drinks",
-    "And not for him that sips."
-   ],
-   "moodTags": [],
-   "prior": 0.175
-  },
-  {
-   "id": "pd-oliver-goldsmith-when-lovely-woman-stoops-to-folly",
-   "title": "When Lovely Woman Stoops to Folly",
-   "author": "Oliver Goldsmith",
-   "lines": [
-    "When lovely woman stoops to folly,",
-    "And finds too late that men betray,",
-    "What charm can soothe her melancholy,",
-    "What art can wash her guilt away?",
-    "",
-    "The only art her guilt to cover,",
-    "To hide her shame from every eye,",
-    "To give repentance to her lover,",
-    "And wring his bosom, is--to die."
-   ],
-   "moodTags": [],
-   "prior": 0.165
+   "prior": 0.458
   }
  ]
 }
