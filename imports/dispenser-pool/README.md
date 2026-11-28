@@ -84,6 +84,11 @@ only if they wrote in English and died before 1931; everyone else is
 `not-cleared`. 135 poets and 19,547 poems are cleared. Dickinson, Clare and
 Owen are held back because some of their poems were first printed after 1930.
 
+About 700 short poems from this collection lost accented or curly characters
+in the site's own encoding (they show as `\ufffd`, for example Hopkins's stress
+marks). The pool build skips them (`skipped.garbled`), and it drops picture
+captions such as `[Illustration: ...]`. Pool after that clean-up: 8,141 poems.
+
 ## Not added
 
 - Mary Oliver, Sylvia Plath, Gwendolyn Brooks: still under copyright.

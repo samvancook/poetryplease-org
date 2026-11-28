@@ -82,11 +82,13 @@ function build(snapshot, gutenberg, pdp) {
 
   const seen = new Set();
   const poems = [];
-  const skipped = { fragment: 0, duplicate: 0, empty: 0 };
+  const skipped = { fragment: 0, duplicate: 0, empty: 0, garbled: 0 };
 
   for (const raw of records(snapshot, gutenberg, pdp)) {
-    const lines = lib.cleanLines(raw.lines);
+    const lines = lib.cleanLines(raw.lines, raw.title);
     if (!lines.length) { skipped.empty++; continue; }
+    // Characters lost in the source's encoding (U+FFFD), or a picture caption parsed as a poem.
+    if (lib.isGarbled(raw.title, lines)) { skipped.garbled++; continue; }
     if (lib.isFragment(raw.title, lines)) { skipped.fragment++; continue; }
     const key = firstLineKey(raw.author, lines);
     if (seen.has(key)) { skipped.duplicate++; continue; }

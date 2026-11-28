@@ -32,6 +32,7 @@ test("dispenser pool: every poem has text, a unique id and a rights record", () 
     assert.ok(p.title && p.author, `${p.id} missing title/author`);
     assert.ok(p.lines.some((l) => l.trim()), `${p.id} has no text`);
     assert.ok(!p.lines.some((l) => /\[back\]|^\s*Note \d+\./.test(l)), `${p.id} still has a footnote`);
+    assert.ok(!lib.isGarbled(p.title, p.lines), `${p.id} has lost characters or is a picture caption`);
     assert.ok(p.rights && p.rights.source && p.rights.basis, `${p.id} missing rights source/basis`);
     assert.match(p.rights.status, /^public-domain-us/, `${p.id} is ${p.rights.status}`);
     if (p.collection) {
