@@ -12,6 +12,7 @@ const lib = require("./pool-lib.js");
 const ROOT = path.join(__dirname, "..", "..");
 const SNAPSHOT = path.join(ROOT, "imports", "dispenser-pool", "poetrydb-short-2026-11-24.json");
 const GUTENBERG = path.join(ROOT, "imports", "dispenser-pool", "gutenberg-short.json");
+const PDP = path.join(ROOT, "imports", "dispenser-pool", "pdp-short.json");
 const OUT = path.join(ROOT, "imports", "dispenser-pool", "pool.json");
 
 function normTitle(t) {
@@ -20,7 +21,7 @@ function normTitle(t) {
 
 // One list of {title, author, lines, rights, extra} from both sources.
 // PoetryDB first, so on a duplicate its notable-poem data wins.
-function records(snapshot, gutenberg) {
+function records(snapshot, gutenberg, pdp) {
   const out = [];
   for (const raw of snapshot.poems) {
     out.push({
@@ -50,6 +51,20 @@ function records(snapshot, gutenberg) {
       extra: { collection: b.title, published: b.year, ...(raw.translator ? { translator: raw.translator } : {}) },
     });
   }
+  for (const raw of (pdp && pdp.poems) || []) {
+    out.push({
+      title: raw.title,
+      author: raw.author,
+      lines: raw.lines,
+      rights: {
+        status: "public-domain-us",
+        basis: raw.basis,
+        authorDied: raw.authorDied,
+        source: `${pdp.source}, file ${raw.file}`,
+      },
+      extra: {},
+    });
+  }
   return out;
 }
 
@@ -58,7 +73,7 @@ function firstLineKey(author, lines) {
   return `${author}|${first.toLowerCase().replace(/[^a-z]+/g, "")}`;
 }
 
-function build(snapshot, gutenberg) {
+function build(snapshot, gutenberg, pdp) {
   const notableByAuthor = new Map();
   for (const [author, info] of Object.entries(snapshot.authors || {})) {
     const set = new Set((info && info.notable_poems || []).map((n) => normTitle(n.title)));
@@ -69,7 +84,7 @@ function build(snapshot, gutenberg) {
   const poems = [];
   const skipped = { fragment: 0, duplicate: 0, empty: 0 };
 
-  for (const raw of records(snapshot, gutenberg)) {
+  for (const raw of records(snapshot, gutenberg, pdp)) {
     const lines = lib.cleanLines(raw.lines);
     if (!lines.length) { skipped.empty++; continue; }
     if (lib.isFragment(raw.title, lines)) { skipped.fragment++; continue; }
@@ -134,7 +149,7 @@ function build(snapshot, gutenberg) {
   }
 
   return {
-    builtFrom: [path.basename(SNAPSHOT), path.basename(GUTENBERG)],
+    builtFrom: [path.basename(SNAPSHOT), path.basename(GUTENBERG), path.basename(PDP)],
     fetchedAt: { poetrydb: snapshot.fetchedAt, gutenberg: gutenberg && gutenberg.fetchedAt },
     license: `${snapshot.license} Gutenberg poems: published before ${lib.PD_CUTOFF_YEAR}, see each poem's rights.basis.`,
     sizes: lib.SIZES,
@@ -151,9 +166,10 @@ function build(snapshot, gutenberg) {
 if (require.main === module) {
   const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT, "utf8"));
   const gutenberg = JSON.parse(fs.readFileSync(GUTENBERG, "utf8"));
-  const pool = build(snapshot, gutenberg);
+  const pdp = JSON.parse(fs.readFileSync(PDP, "utf8"));
+  const pool = build(snapshot, gutenberg, pdp);
   fs.writeFileSync(OUT, JSON.stringify(pool, null, 1) + "\n");
   console.log(JSON.stringify(pool.counts, null, 2));
 }
 
-module.exports = { build, SNAPSHOT, GUTENBERG, OUT };
+module.exports = { build, SNAPSHOT, GUTENBERG, PDP, OUT };

@@ -7,6 +7,7 @@ Nothing here is served to Poetry Please visitors.
 | --- | --- |
 | `poetrydb-short-2026-11-24.json` | Raw snapshot: every PoetryDB poem of 1 to 16 lines, plus author pages (death year, notable poems). |
 | `gutenberg-short.json` | Short poems pulled from 26 Project Gutenberg books (list and reasons in `scripts/dispenser-pool/fetch-gutenberg.js`). Refetch with `node scripts/dispenser-pool/fetch-gutenberg.js`. |
+| `pdp-short.json` | Short poems by cleared poets from the public-domain-poetry.com collection (33,700 poems; GitHub copy `facjure/public-domain-poetry`, same site the Hugging Face "public-domain-poetry" set came from). Rebuild with `scripts/dispenser-pool/import-pdp.js`; who is cleared is in `scripts/dispenser-pool/pdp-authors.js`. |
 | `pool.json` | Built pool: cleaned text, size and mood tags, rights record, starting score. Best first. |
 
 Rebuild with `node scripts/dispenser-pool/build-pool.js`, then
@@ -66,6 +67,22 @@ machine's own reactions take over:
   Milton, Burns, Coleridge, Herbert) are mostly already in from PoetryDB;
   *Lyrical Ballads* (1798) adds no short poems. Sara Teasdale and the
   Imagist anthologies (1915, 1916) fill out the short nature lyric.
+
+## The full public-domain-poetry.com collection (28 Nov 2026)
+
+The whole collection (33,743 poems, 557 poets) is kept outside the repo
+because of its size, in the project files folder:
+`poem-collections/public-domain-poetry-full-2026-11-28.jsonl.gz` (one poem
+per line, each with `rights.status`) and
+`poem-collections/public-domain-poetry-poets-2026-11-28.csv` (poet, poem
+count, status).
+
+It is not all public domain. It also holds living and recent poets (for
+example Yehuda Amichai, Nizar Qabbani, A. R. Ammons) and translations with
+no translator or date. The files have no dates, so a poet is `public-domain-us`
+only if they wrote in English and died before 1931; everyone else is
+`not-cleared`. 135 poets and 19,547 poems are cleared. Dickinson, Clare and
+Owen are held back because some of their poems were first printed after 1930.
 
 ## Not added
 

@@ -9,7 +9,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const lib = require("../scripts/dispenser-pool/pool-lib.js");
-const { build, SNAPSHOT, GUTENBERG, OUT } = require("../scripts/dispenser-pool/build-pool.js");
+const { build, SNAPSHOT, GUTENBERG, PDP, OUT } = require("../scripts/dispenser-pool/build-pool.js");
 const gutenbergBooks = require("../scripts/dispenser-pool/fetch-gutenberg.js").BOOKS;
 const playdate = require("../scripts/dispenser-pool/build-playdate.js");
 
@@ -18,7 +18,8 @@ const pool = JSON.parse(fs.readFileSync(OUT, "utf8"));
 test("dispenser pool: pool.json matches a fresh build of the snapshot", () => {
   const snapshot = JSON.parse(fs.readFileSync(SNAPSHOT, "utf8"));
   const gutenberg = JSON.parse(fs.readFileSync(GUTENBERG, "utf8"));
-  const fresh = JSON.parse(JSON.stringify(build(snapshot, gutenberg)));
+  const pdp = JSON.parse(fs.readFileSync(PDP, "utf8"));
+  const fresh = JSON.parse(JSON.stringify(build(snapshot, gutenberg, pdp)));
   assert.deepEqual(pool, fresh, "run: node scripts/dispenser-pool/build-pool.js");
 });
 
@@ -53,6 +54,19 @@ test("gutenberg sources: every book is pre-1931 and says why it is here", () => 
   for (const p of g.poems) {
     if (/Rumi|Hafez|Japanese|Tagore/.test(p.author)) assert.ok(p.translator, `${p.author}: ${p.title} has no translator`);
     assert.ok(!/gutenberg|produced by|https?:/i.test(p.lines.join(" ")), `${p.title} has front matter`);
+  }
+});
+
+test("public-domain-poetry.com set: only poets in the cleared table, all died before 1931", () => {
+  const { CLEARED } = require("../scripts/dispenser-pool/pdp-authors.js");
+  const cleared = new Set(Object.values(CLEARED).map((v) => v[0]));
+  const pdp = JSON.parse(fs.readFileSync(PDP, "utf8"));
+  for (const p of pdp.poems) {
+    assert.ok(cleared.has(p.author), `${p.author} not in cleared table`);
+    assert.ok(p.authorDied < lib.PD_CUTOFF_YEAR, `${p.author} died ${p.authorDied}`);
+  }
+  for (const name of ["Emily Dickinson", "Yehuda Amichai", "Nizar Qabbani", "Robert Lee Frost", "Basho"]) {
+    assert.ok(!pdp.poems.some((p) => p.author === name), `${name} should not be cleared`);
   }
 });
 
